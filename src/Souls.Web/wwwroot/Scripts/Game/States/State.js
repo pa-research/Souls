@@ -23,7 +23,7 @@
 
     State.prototype.SwapFromToGroup = function(obj, fromGroup, toGroup)
     {
-        this.getGroup(fromGroup).removeChild(obj);
+        // addChild takes the object out of whatever group holds it now (it may already have left fromGroup).
         this.getGroup(toGroup).addChild(obj);
     }
 

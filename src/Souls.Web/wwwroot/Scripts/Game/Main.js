@@ -219,8 +219,16 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
 
             if (isTextureLoaded && isSoundLoaded) {
                 console.log("Everything is loaded...")
-                Conf.currentState = Gamestate.MENU;
-                ShowGameSelect(); // Show the MENU
+                // After switching from the 3D client mid-game, go straight back into the running game.
+                var resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
+                if (resume) {
+                    gameEngine = new Game(resume.normal);
+                    Conf.currentState = Gamestate.GAME;
+                }
+                else {
+                    Conf.currentState = Gamestate.MENU;
+                    ShowGameSelect(); // Show the MENU
+                }
 
                 clearInterval(loadChecker);
             }

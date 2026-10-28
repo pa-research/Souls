@@ -190,6 +190,7 @@
         var type = json.Type;
 
         that.engine.OnEnd();
+        if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
         if (type == 230) {
 
             that.engine.queue.FadeInGameEnd("Victory!", json.Payload.statistics);
@@ -455,6 +456,9 @@
 
         // Fade out the Queue overlay
         that.engine.queue.FadeOut();
+
+        // Lets the page resume this game after switching to the 3D client.
+        if (window.SoulsGameMode) window.SoulsGameMode.markInGame(that.engine.normalGame);
 
     }
 

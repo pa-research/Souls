@@ -9,5 +9,7 @@
 <script type="application/json" id="souls-game-config">@Json.Serialize(Model)</script>
 
 @section scripts {
-    <script src="~/lib/requirejs/require.js" data-main="/Scripts/Game/Main"></script>
+    <link rel="stylesheet" href="~/css/game3d.css" asp-append-version="true" />
+    @* Loads the classic (PixiJS) or the modern 3D (three.js) client and renders the switch between them. *@
+    <script src="~/js/game-mode.js" asp-append-version="true"></script>
 }

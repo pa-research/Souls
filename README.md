@@ -1,7 +1,8 @@
 # Souls Online
 
 A multiplayer browser card game: build a deck, queue for a match against another player or the practice bot,
-and fight it out in a PixiJS arena with in-game chat. Originally written in 2014 on ASP.NET MVC 5,
+and fight it out in the arena with in-game chat, either in the original 2D client (PixiJS) or in the
+"Modern 3D" client (three.js). Originally written in 2014 on ASP.NET MVC 5,
 websocket-sharp, NHibernate and MySQL; this branch ports it to **.NET 10 (LTS)** with production-ready
 container, Docker Compose and Kubernetes (Kustomize) deployments.
 
@@ -30,6 +31,30 @@ by the web app authenticates the WebSockets on the game server (same origin, no 
 Database tables keep their original names; the seed data (cards, races, classes, abilities, bot names, log
 types) comes from the 2015 dump with its broken test rows fixed (negative card stats, too few starter cards,
 ability ids that did not match the engine).
+
+## Game clients: Classic and Modern 3D
+
+The game page has a **Classic | Modern 3D** switch (top right). The choice is remembered per browser, can be
+forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the browser supports WebGL 2.
+
+- **Classic** is the original 2014 PixiJS client.
+- **Modern 3D** (`wwwroot/Scripts/Game3D`, three.js r186, ES modules, no build step) keeps the classic card
+  artwork, hero frames, hand/slot layout and controls (hover a hand card to zoom it, drag it onto a slot to play
+  it, left-drag from your card or hero to attack, right-drag from a card to use its ability, click End Turn),
+  and adds camera views (buttons top left, or keys 1-4):
+  - **Classic**: the original top-down arena picture, 1:1 with the classic client.
+  - **Arena**, **Field**, **Cinematic**: a 3D stadium rises out of the ground around the sand, with terraces
+    full of spectators who jump and roar on hits and kills, the "Souls" tunnel towers, torch-lit gate towers,
+    floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes move onto
+    podiums. Right-drag on the arena orbits the camera and the mouse wheel zooms.
+
+  Hand cards and the End Turn sign are a HUD, so they stay where the classic client has them in every view.
+  Cards have thickness and cast shadows, lift, flip and strike; there are particles, beams, arcing target
+  arrows and a synthesized crowd ambience (Web Audio, follows the sound toggle).
+
+Both clients speak the same WebSocket protocol, so a classic player and a 3D player can play each other.
+Switching clients in the middle of a match reloads the page and resumes the running game (the server
+re-sends the game state when a player reconnects within the grace period).
 
 ## Security fixes
 
@@ -191,7 +216,7 @@ dotnet tool restore && dotnet ef migrations add <Name> --project src/Souls.Model
 | Project | |
 |---|---|
 | `src/Souls.Model` | EF Core model, migrations, seed data, password hashing, sessions, shared hosting setup |
-| `src/Souls.Web` | MVC site, Razor views, static assets and the PixiJS game client (`wwwroot/Scripts/Game`) |
+| `src/Souls.Web` | MVC site, Razor views, static assets, the classic PixiJS game client (`wwwroot/Scripts/Game`) and the three.js client (`wwwroot/Scripts/Game3D`) |
 | `src/Souls.Server` | Game engine, chat, admin service, practice bot, WebSocket endpoints |
 | `tests/Souls.Tests` | Unit tests and integration tests that host both apps against PostgreSQL |
 
@@ -224,7 +249,7 @@ with `SOULS_SECRETS_PATH`).
 - The game server keeps games in memory: one replica, and a restart ends running games.
 - The Data Protection key ring is stored unencrypted in the database. Anyone with read access to the database
   could forge login cookies; protect database access accordingly or add `ProtectKeysWith*`.
-- The in-browser game engine still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no
-  known vulnerabilities and run with a strict CSP, but upgrading them means rewriting the renderer.
+- The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known
+  vulnerabilities and run with a strict CSP; the Modern 3D client is the up-to-date alternative.
 - The legacy MySQL data is not imported automatically. Old accounts can be copied into the `player` table;
   their SHA-256 password hashes are accepted and upgraded on first login.

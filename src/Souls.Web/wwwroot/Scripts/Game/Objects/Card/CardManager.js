@@ -206,15 +206,9 @@
     }
 
     CardManager.prototype.RemoveCard = function (card) {
-        if (card.owner.isPlayer) {
-            //console.log(card);
-            //console.log(this.engine.getGroup("Card-Player"));
-            this.engine.getGroup("Card-Player").removeChild(card);
-        }
-        else {
-            //console.log(card);
-            //console.log(this.engine.getGroup("Card-Opponent"));
-            this.engine.getGroup("Card-Opponent").removeChild(card);
+        // The card may sit in another group (e.g. "Attacker") or be gone already (removed twice).
+        if (card.parent) {
+            card.parent.removeChild(card);
         }
         // console.log("Deleted card " + card);
         delete this.board[card.cid]; // Delete from hand
