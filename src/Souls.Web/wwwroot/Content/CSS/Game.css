@@ -1,4 +1,4 @@
-﻿@font-face {
+@font-face {
     font-family: ArchivoBlack-Regular;
     src: url("/Content/ArchivoBlack-Regular.otf") format("opentype");
 }
@@ -69,14 +69,23 @@ div.chat-content-wrapper
     margin-bottom: 25px;
 }
 
+/* "VS" between the two players (was a hotlinked third-party image). */
 .stats-versus {
-    text-align: center;
-    /*border: 1px solid black;*/
-    background-image: url('http://2.bp.blogspot.com/-dZ_GPQitfxY/UEqSQzxpsFI/AAAAAAAAAts/H-pwxeLr6A0/s320/VS.png');
-    background-size: 100% 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-height: 250px;
-    background-repeat: no-repeat;
     margin-top: 40px;
+}
+
+.stats-versus::before {
+    content: "VS";
+    font-family: ArchivoBlack-Regular, Impact, sans-serif;
+    font-size: 96px;
+    font-style: italic;
+    color: #c0392b;
+    -webkit-text-stroke: 3px #000;
+    text-shadow: 4px 4px 0 #f1c40f;
 }
 
 .stats-player-block {
