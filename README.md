@@ -44,8 +44,9 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   and adds camera views (buttons top left, or keys 1-4):
   - **Classic**: the original top-down arena picture, 1:1 with the classic client.
   - **Arena**, **Field**, **Cinematic**: a 3D stadium rises out of the ground around the sand, with terraces
-    full of spectators who jump and roar on hits and kills, the "Souls" tunnel towers, torch-lit gate towers,
-    floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes move onto
+    full of spectators who jump and roar on hits and kills, the two "Souls" pillars with stadium screens
+    (the SOULS logo, a live score ticker and flashes for hits, KOs and the result), tunnel gates, torch-lit
+    gate towers, floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes move onto
     podiums. Right-drag on the arena orbits the camera and the mouse wheel zooms.
 
   Hand cards and the End Turn sign are a HUD, so they stay where the classic client has them in every view.

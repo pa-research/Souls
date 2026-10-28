@@ -20,6 +20,10 @@ const TOP = WALL_H + TIERS * TIER_RISE;
 const GAP = deg(13); // the stands open at +x and -x for the tunnel towers
 const ARCS = [[GAP, Math.PI - GAP], [Math.PI + GAP, 2 * Math.PI - GAP]];
 const AISLES = 14; // radial stairways per side
+const PILLAR_H = 1250;
+const SCREEN_W = 600;
+const SCREEN_H = 338;
+const SCREEN_Y = 520; // above the tunnel mouth, so it is in view from the arena
 
 const STONE = new THREE.Color(0x4b4e57);
 const RISER = new THREE.Color(0x585b64);
@@ -196,25 +200,108 @@ function buildFlashes(places, count) {
     return points;
 }
 
-function bannerTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024; canvas.height = 256;
-    const g = canvas.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#0b1730'); grad.addColorStop(0.5, '#1d3557'); grad.addColorStop(1, '#0b1730');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 1024, 256);
-    g.font = 'italic bold 150px Georgia, serif';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = '#f4f4f4';
-    g.fillText('Souls', 256, 132);
-    g.fillText('Souls', 768, 132);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.anisotropy = 8;
-    return texture;
+/**
+ * The big stadium screen on the two pillars: the SOULS logo glowing on an LED wall, a ticker with both players'
+ * health during a match, and a flash for big moments ("KO!", "VICTORY!"). Redrawn about ten times a second.
+ */
+class StadiumScreen {
+    constructor() {
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = 1024;
+        this.canvas.height = 576;
+        this.texture = new THREE.CanvasTexture(this.canvas);
+        this.texture.colorSpace = THREE.SRGBColorSpace;
+        this.texture.anisotropy = 8;
+        this.scoreboard = null;
+        this.flashText = null;
+        this.flashUntil = 0;
+        this.lastDraw = -Infinity;
+        loadImage(Images.logo).then(img => { this.logo = img; });
+        // LED grid, drawn once and laid over every frame.
+        this.grid = document.createElement('canvas');
+        this.grid.width = 1024;
+        this.grid.height = 576;
+        const g = this.grid.getContext('2d');
+        g.fillStyle = 'rgba(0,0,0,0.35)';
+        for (let x = 0; x < 1024; x += 4) g.fillRect(x, 0, 1, 576);
+        for (let y = 0; y < 576; y += 4) g.fillRect(0, y, 1024, 1);
+    }
+
+    flash(text) {
+        this.flashText = text;
+        this.flashUntil = performance.now() + 1800;
+        this.lastDraw = -Infinity;
+    }
+
+    update(now) {
+        if (now - this.lastDraw < 100) return;
+        this.lastDraw = now;
+        const g = this.canvas.getContext('2d');
+        const W = 1024, H = 576;
+        const bg = g.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#050914');
+        bg.addColorStop(1, '#0d1f3c');
+        g.fillStyle = bg;
+        g.fillRect(0, 0, W, H);
+        // Sweeping light behind the logo.
+        const sweep = (now * 0.0004) % 1.6 - 0.3;
+        const glow = g.createLinearGradient(W * sweep - 200, 0, W * sweep + 200, H);
+        glow.addColorStop(0, 'rgba(120,255,60,0)');
+        glow.addColorStop(0.5, 'rgba(120,255,60,0.18)');
+        glow.addColorStop(1, 'rgba(120,255,60,0)');
+        g.fillStyle = glow;
+        g.fillRect(0, 0, W, H);
+
+        const flashing = this.flashText && now < this.flashUntil;
+        if (flashing) {
+            const t = 1 - (this.flashUntil - now) / 1800;
+            g.save();
+            g.translate(W / 2, H / 2);
+            g.scale(1 + 0.15 * Math.sin(t * Math.PI * 6), 1 + 0.15 * Math.sin(t * Math.PI * 6));
+            g.font = 'italic bold 190px Arial Black, Arial, sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            g.shadowColor = '#ff3b30';
+            g.shadowBlur = 40;
+            g.fillStyle = Math.floor(t * 12) % 2 ? '#ffd400' : '#ffffff';
+            g.fillText(this.flashText, 0, 0, W - 80);
+            g.restore();
+        } else {
+            const pulse = 0.75 + 0.25 * Math.sin(now * 0.003);
+            g.save();
+            g.shadowColor = `rgba(150,255,80,${pulse})`;
+            g.shadowBlur = 50;
+            if (this.logo) {
+                const w = 760, h = w * this.logo.height / this.logo.width;
+                g.drawImage(this.logo, (W - w) / 2, this.scoreboard ? 40 : (H - h) / 2, w, h);
+            } else {
+                g.font = 'italic bold 200px Georgia, serif';
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                g.fillStyle = '#f4f4f4';
+                g.fillText('SOULS', W / 2, H / 2);
+            }
+            g.restore();
+            if (this.scoreboard) {
+                const { player, opponent } = this.scoreboard;
+                g.fillStyle = 'rgba(0,0,0,0.55)';
+                g.fillRect(0, H - 150, W, 150);
+                g.font = 'bold 50px Arial, sans-serif';
+                g.textBaseline = 'middle';
+                g.fillStyle = '#5dade2';
+                g.textAlign = 'left';
+                g.fillText(`${player.name}  \u2665${player.health}`, 30, H - 75, W / 2 - 90);
+                g.fillStyle = '#ec7063';
+                g.textAlign = 'right';
+                g.fillText(`\u2665${opponent.health}  ${opponent.name}`, W - 30, H - 75, W / 2 - 90);
+                g.fillStyle = '#f1c40f';
+                g.textAlign = 'center';
+                g.fillText('VS', W / 2, H - 75);
+            }
+        }
+        g.drawImage(this.grid, 0, 0);
+        this.texture.needsUpdate = true;
+    }
 }
 
 /** Soft additive glow sprite (torch fire, lamps). */
@@ -233,8 +320,11 @@ function glowTexture(inner, outer) {
     return texture;
 }
 
-/** One "Souls" tunnel tower: gatehouse in the gap of the stands, banner drum on top, glowing tunnel mouth. */
-function tunnelTower(side, banner) {
+/**
+ * One "Souls" tower: a gatehouse filling the gap in the stands with a glowing tunnel mouth, and a tall pillar
+ * with a green ring that carries the stadium screen, facing the sand.
+ */
+function tunnelTower(side, screen) {
     const group = new THREE.Group();
     const stone = new THREE.MeshStandardMaterial({ color: 0x6b6f78, roughness: 0.85 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x0c0f14, roughness: 1 });
@@ -274,18 +364,47 @@ function tunnelTower(side, banner) {
         group.add(post);
     }
 
-    // The banner drum lying on top of the gatehouse, pointing at the sand (as seen in the picture).
-    const drumMaterial = new THREE.MeshStandardMaterial({ map: banner, roughness: 0.55, metalness: 0.1 });
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(150, 150, 600, 48, 1, false), [drumMaterial, stone, stone]);
-    drum.rotation.z = Math.PI / 2;
-    drum.rotation.x = Math.PI / 2;
-    drum.position.set(side * (WALL_R + 330), TOP + 140, 0);
-    drum.castShadow = true;
-    group.add(drum);
-    const drumRing = new THREE.Mesh(new THREE.TorusGeometry(152, 14, 16, 64), green);
-    drumRing.rotation.y = Math.PI / 2;
-    drumRing.position.set(side * (WALL_R + 30), TOP + 140, 0);
-    group.add(drumRing);
+    // The pillar (where the picture shows the "Souls" banner) with green rings and the screen on top.
+    const pillarX = side * 880;
+    const navy = new THREE.MeshStandardMaterial({ color: 0x24426e, roughness: 0.45, metalness: 0.35 });
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(120, 150, PILLAR_H, 40), navy);
+    pillar.position.set(pillarX, PILLAR_H / 2, 0);
+    pillar.castShadow = true;
+    group.add(pillar);
+    for (const y of [TOP + 90, PILLAR_H - 30]) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(y > TOP + 100 ? 124 : 138, 13, 16, 64), green);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(pillarX, y, 0);
+        group.add(ring);
+    }
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(150, 120, 40, 40), stone);
+    cap.position.set(pillarX, PILLAR_H + 20, 0);
+    group.add(cap);
+
+    // The stadium screen, cantilevered from the wall in front of the pillar, facing the sand and turned a little
+    // towards the player's end so it reads well from the low views.
+    const facing = -side * (Math.PI / 2 - 0.25);
+    const normal = new THREE.Vector3(Math.sin(facing), 0, Math.cos(facing));
+    const screenX = side * (front - 85);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(SCREEN_W + 40, SCREEN_H + 40, 26),
+        new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.5, metalness: 0.6 }));
+    frame.rotation.y = facing;
+    frame.position.set(screenX, SCREEN_Y, 0);
+    frame.castShadow = true;
+    group.add(frame);
+    const display = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false }));
+    display.rotation.y = facing;
+    display.position.copy(frame.position).addScaledVector(normal, 14);
+    group.add(display);
+    for (const y of [SCREEN_Y + SCREEN_H / 2 - 40, SCREEN_Y - SCREEN_H / 2 + 40]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(110, 26, 26), stone);
+        arm.position.set(side * (front - 40), y, 0);
+        group.add(arm);
+    }
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(SCREEN_W + 40, 10, 14), green);
+    lip.rotation.y = facing;
+    lip.position.copy(frame.position).addScaledVector(normal, 10).setY(SCREEN_Y - SCREEN_H / 2 - 26);
+    group.add(lip);
 
     // Round platform in front of the tunnel.
     const platform = new THREE.Mesh(new THREE.CylinderGeometry(150, 156, 16, 48), new THREE.MeshStandardMaterial({ color: 0x3d4148, roughness: 0.6, metalness: 0.3 }));
@@ -490,9 +609,9 @@ export class Arena {
         stands.add(this.flashes);
         part(stands, 0);
 
-        const banner = bannerTexture();
-        part(tunnelTower(-1, banner), 0.15);
-        part(tunnelTower(1, banner), 0.15);
+        this.screen = new StadiumScreen();
+        part(tunnelTower(-1, this.screen), 0.15);
+        part(tunnelTower(1, this.screen), 0.15);
 
         const fire = glowTexture('rgba(255,250,220,1)', 'rgba(255,140,30,0.8)');
         this.towers = [];
@@ -535,6 +654,16 @@ export class Arena {
         this.target = on ? 1 : 0;
     }
 
+    /** What the stadium screens show: null, or { player: {name, health}, opponent: {name, health} }. */
+    set scoreboard(value) {
+        if (this.screen) this.screen.scoreboard = value;
+    }
+
+    /** Big text on the stadium screens for a moment. */
+    screenFlash(text) {
+        if (this.screen) this.screen.flash(text);
+    }
+
     /** The crowd gets louder and jumps (0..1). */
     cheer(amount) {
         this.excite = Math.min(1, this.excite + amount);
@@ -568,6 +697,7 @@ export class Arena {
         this.uniforms.uTime.value = now / 1000;
         this.uniforms.uExcite.value = this.excite;
         if (!this.stadium.visible) return;
+        this.screen.update(now);
         for (const tower of this.towers) {
             const f = tower.userData.fire;
             const k = 0.85 + 0.15 * Math.sin(now * 0.02 + f.userData.flicker) * Math.sin(now * 0.013 + f.userData.flicker * 2);

@@ -570,6 +570,7 @@ export class Game {
         sound.play('DEFEND', 0.5);
         this.effects.shake(defender instanceof Hero3D ? 22 : 14);
         this.cheer(defender instanceof Hero3D ? 0.55 : 0.35);
+        if (defender instanceof Hero3D && defenderInfo.dmgTaken > 0) this.arena.screenFlash(`-${defenderInfo.dmgTaken}`);
         this.effects.burst(point, { color: 0xffa040, count: 36, speed: 320, size: 42, life: 650 });
         for (const [obj, info] of [[defender, defenderInfo], [attacker, attackerInfo]]) {
             if (info.dmgTaken > 0) this.effects.floatText(`-${info.dmgTaken}`, this.targetPoint(obj).setY(this.targetPoint(obj).y + 40));
@@ -595,6 +596,7 @@ export class Game {
         card.dying = true;
         card.setGlow(0xff2020, 1);
         this.cheer(0.6);
+        this.arena.screenFlash('KO!');
         this.effects.burst(card.center(), { color: 0x9b59b6, count: 60, speed: 220, size: 46, life: 1100, gravity: 120 });
         const start = card.position.clone();
         tweens.run(900, t => {
@@ -670,6 +672,7 @@ export class Game {
             tweens.run(800, t => card.setOpacity(1 - t), Ease.quadIn);
         }
         this.cheer(1);
+        this.arena.screenFlash(text.replace('!', '').toUpperCase());
         if (text === 'Victory!') {
             this.effects.burst(this.opponent.hero.position.clone(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
         }
@@ -744,6 +747,9 @@ export class Game {
     }
 
     update(now, dt) {
+        this.arena.scoreboard = this.active || this.ended
+            ? { player: this.player.hero.info, opponent: this.opponent.hero.info }
+            : null;
         // Heroes move between their classic spot and their podium as the stadium rises, always facing the camera.
         const rise = this.arena.rise;
         const blend = rise * rise * (3 - 2 * rise);
