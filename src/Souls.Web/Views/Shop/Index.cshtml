@@ -1,0 +1,43 @@
+@model ShopViewModel
+<div class="row align-items-center mb-3">
+    <div class="col-md-6 hansels-shop-title">
+        <h2>Hansel's Card Shop</h2>
+        <p>Hansel was once the champion of souls.<br />Now he sells cards to feed himself and his wife.</p>
+    </div>
+    <div class="col-md-6"><div class="hansel"></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-3">
+        <partial name="_PlayerInfo" model="Model.Player" />
+    </div>
+    <div class="col-lg-9">
+        <div class="row g-3">
+            @foreach (var card in Model.Cards)
+            {
+                <div class="col-6 col-md-4 col-xl-3 shop-card">
+                    <partial name="_CardTile" model="card" />
+                    @if (card.Owned)
+                    {
+                        <div class="text-muted small">Owned</div>
+                    }
+                    else
+                    {
+                        <form asp-controller="Shop" asp-action="Buy" method="post" class="buy-form" data-card-name="@card.Name" data-price="@card.VendorPrice">
+                            <input type="hidden" name="cardId" value="@card.Id" />
+                            <button type="submit" class="btn btn-sm btn-outline-dark">Buy for @card.VendorPrice soul coins</button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div id="buy-confirm" title="Purchase" class="d-none">
+    <p id="buy-confirm-message"></p>
+</div>
+
+@section scripts {
+    <script src="~/js/shop.js" asp-append-version="true"></script>
+}

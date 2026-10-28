@@ -1,0 +1,76 @@
+@model CardEditorViewModel
+@{
+    var card = Model.Card;
+    var raceTexture = Model.Races.FirstOrDefault(r => r.Id == card.RaceId)?.CardUrl;
+}
+<div class="row">
+    <div class="col-lg-3">
+        <h2>Card Editor</h2>
+        <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, Model.Abilities.FirstOrDefault(a => a.Id == card.AbilityId)?.Name, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false)" />
+    </div>
+
+    <div class="col-lg-9">
+        <h2>@(card.Id is null ? "Create" : "Update") card</h2>
+        <form asp-action="CardEditor" method="post" id="card-form">
+            <div asp-validation-summary="All" class="text-danger"></div>
+            <input type="hidden" asp-for="Card.Id" />
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="portrait-upload">Card Portrait</label>
+                    <input class="form-control" type="file" id="portrait-upload" accept="image/png,image/jpeg,image/gif" />
+                    <div class="form-text" id="upload-status"></div>
+                    <label asp-for="Card.Portrait" class="form-label mt-2">Portrait URL</label>
+                    <input asp-for="Card.Portrait" class="form-control" readonly />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Card.Name" class="form-label">Name</label>
+                    <input asp-for="Card.Name" class="form-control" data-preview=".card-name" />
+                    <label asp-for="Card.AbilityId" class="form-label mt-2">Ability</label>
+                    <select asp-for="Card.AbilityId" class="form-select" data-preview=".card-ability">
+                        <option value="">(none)</option>
+                        @foreach (var ability in Model.Abilities)
+                        {
+                            <option value="@ability.Id">@ability.Name</option>
+                        }
+                    </select>
+                    <label asp-for="Card.RaceId" class="form-label mt-2">Race</label>
+                    <select asp-for="Card.RaceId" class="form-select" id="race-select">
+                        @foreach (var race in Model.Races)
+                        {
+                            <option value="@race.Id" data-texture="@race.CardUrl">@race.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="row g-2">
+                        <div class="col-6"><label asp-for="Card.Cost" class="form-label">Cost</label><input asp-for="Card.Cost" class="form-control" data-preview=".card-cost" /></div>
+                        <div class="col-6"><label asp-for="Card.Level" class="form-label">Level</label><input asp-for="Card.Level" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.Attack" class="form-label">Attack</label><input asp-for="Card.Attack" class="form-control" data-preview=".card-attack" /></div>
+                        <div class="col-6"><label asp-for="Card.Health" class="form-label">Health</label><input asp-for="Card.Health" class="form-control" data-preview=".card-health" /></div>
+                        <div class="col-6"><label asp-for="Card.Armor" class="form-label">Armor</label><input asp-for="Card.Armor" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.VendorPrice" class="form-label">Price</label><input asp-for="Card.VendorPrice" class="form-control" /></div>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">@(card.Id is null ? "Create" : "Update")</button>
+        </form>
+    </div>
+</div>
+
+<table class="table table-sm mt-4">
+    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th></tr></thead>
+    <tbody>
+        @foreach (var c in Model.Cards)
+        {
+            <tr>
+                <td><a asp-action="CardEditor" asp-route-id="@c.Id">@c.Name</a></td>
+                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td>
+            </tr>
+        }
+        <tr><td colspan="8"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
+    </tbody>
+</table>
+
+@section scripts {
+    <script src="~/js/card-editor.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,46 @@
+@model AdminPlayersViewModel
+<h2>Players</h2>
+<p class="text-muted">Online status, kick, ban and reset are live actions on the game server.</p>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle" id="admin-players">
+        <thead>
+            <tr><th>Id</th><th>Name</th><th>Money</th><th>Rank</th><th>Created</th><th>Permission</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var player in Model.Players)
+            {
+                <tr data-player-id="@player.Id">
+                    <td>@player.Id</td>
+                    <td>@player.Name</td>
+                    <td>@player.Money</td>
+                    <td>@player.Rank</td>
+                    <td>@player.Created?.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>
+                        <form asp-action="ChangePermission" method="post" class="d-flex gap-1 permission-form">
+                            <input type="hidden" name="userId" value="@player.Id" />
+                            <select name="permission" class="form-select form-select-sm w-auto">
+                                @foreach (var permission in Model.Permissions)
+                                {
+                                    <option value="@permission.Id" selected="@(permission.Id == player.PlayerPermissionId)">@permission.Name</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
+                        </form>
+                    </td>
+                    <td class="player-status text-danger fw-bold">Offline</td>
+                    <td class="text-nowrap">
+                        <button type="button" class="btn btn-outline-secondary btn-sm kick">Kick</button>
+                        <input type="date" class="form-control form-control-sm d-inline-block w-auto ban-until" aria-label="Ban until" />
+                        <button type="button" class="btn btn-outline-danger btn-sm ban">Ban</button>
+                        <button type="button" class="btn btn-outline-warning btn-sm reset">Reset</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@section scripts {
+    <script src="~/js/admin-players.js" asp-append-version="true"></script>
+}

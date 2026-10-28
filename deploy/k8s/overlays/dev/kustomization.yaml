@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local/dev cluster (kind, k3d, minikube, Docker Desktop):
+#   ./init-secrets.sh && kubectl apply -k .
+# Includes an in-cluster PostgreSQL and a plain-HTTP Ingress on souls.localtest.me (resolves to 127.0.0.1).
+namespace: souls-dev
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/postgres
+  - ../../components/ingress
+
+secretGenerator:
+  - name: souls-secrets
+    envs:
+      - secrets.env
+
+configMapGenerator:
+  - name: souls-config
+    behavior: merge
+    literals:
+      # Plain HTTP locally; never do this in production.
+      - Souls__SecureCookies=false
+
+# Images built locally (docker build --target web -t souls-web:local .) and loaded into the cluster.
+images:
+  - name: ghcr.io/pa-research/souls-web
+    newName: souls-web
+    newTag: local
+  - name: ghcr.io/pa-research/souls-server
+    newName: souls-server
+    newTag: local
+
+patches:
+  - target: { kind: Deployment, name: souls-web }
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: PodDisruptionBudget, name: souls-web }
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: souls-web
+  - target: { kind: Ingress, name: souls }
+    patch: |-
+      - op: remove
+        path: /spec/tls
+      - op: replace
+        path: /metadata/annotations/nginx.ingress.kubernetes.io~1ssl-redirect
+        value: "false"
+      - op: replace
+        path: /spec/rules/0/host
+        value: souls.localtest.me

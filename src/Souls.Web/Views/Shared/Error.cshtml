@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Error";
+    var status = ViewData["StatusCode"] as int?;
+}
+<div class="text-center py-5">
+    @if (status == 404)
+    {
+        <h1>Not found</h1>
+        <p>The page you are looking for does not exist.</p>
+    }
+    else if (status == 429)
+    {
+        <h1>Slow down</h1>
+        <p>Too many requests. Please wait a minute and try again.</p>
+    }
+    else if (status is >= 400 and < 500)
+    {
+        <h1>Request failed (@status)</h1>
+    }
+    else
+    {
+        <h1>Error</h1>
+        <p>An error occurred while processing your request.</p>
+        @if (ViewData["RequestId"] is string requestId)
+        {
+            <p class="text-muted small">Request id: <code>@requestId</code></p>
+        }
+    }
+    <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Back to the home page</a>
+</div>

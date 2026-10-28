@@ -1,0 +1,111 @@
+/* Layout for the ASP.NET Core / Bootstrap 5 port. The original styles live in /Content/CSS. */
+body {
+    min-height: 100vh;
+    padding-bottom: 56px;
+    background-attachment: fixed;
+}
+
+.page-wrapper {
+    min-height: 100vh;
+    height: auto;
+    padding: 5px 2rem 2rem;
+}
+
+.page-top {
+    height: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.page-logo {
+    display: block;
+    width: 385px;
+    max-width: 100%;
+    height: 185px;
+    min-height: 0;
+    margin-bottom: 10px;
+    background-size: contain;
+    background-position: center;
+}
+
+body.full-screen {
+    background: #000 none;
+}
+
+body.full-screen .page-wrapper {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+}
+
+.card-container {
+    width: 150px;
+    height: 210px;
+    overflow: hidden;
+}
+
+.card-name, .card-ability {
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.image-slider-plugin img {
+    height: 150px;
+    object-fit: cover;
+}
+
+.play-now-button {
+    background-size: contain;
+}
+
+.game-stats-feed {
+    height: 150px;
+    overflow-y: auto;
+}
+
+.github-feed, .services-plugin {
+    height: auto;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.class-portrait {
+    display: none;
+    max-width: 100%;
+}
+
+.stats-player-portrait.winner {
+    border-color: green !important;
+}
+
+.stats-player-portrait.loser {
+    border-color: red !important;
+}
+
+.stats-log {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.navbar .btn-link.nav-link {
+    text-decoration: none;
+}
+
+/* In-game chat window: the Bootstrap 3 floats became a flex row. */
+.chat-content-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+}
+
+.chat-content-wrapper > .chat-messages {
+    width: 75%;
+}
+
+.chat-content-wrapper > .chat-clients {
+    width: 25%;
+}
+
+.chat-content-wrapper > .chat-input-div {
+    width: 100%;
+}

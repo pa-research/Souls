@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Souls.slnx
+
+      - name: Build
+        run: dotnet build Souls.slnx -c Release --no-restore
+
+      - name: Vulnerable packages
+        run: |
+          dotnet list Souls.slnx package --vulnerable --include-transitive | tee vulnerable.txt
+          ! grep -q "has the following vulnerable packages" vulnerable.txt
+
+      # Integration tests start PostgreSQL with Testcontainers (Docker is available on the runner).
+      - name: Test
+        run: dotnet test --project tests/Souls.Tests -c Release --no-build
+
+  manifests:
+    name: Validate deployment manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Kustomize overlays
+        run: |
+          cp deploy/k8s/overlays/dev/secrets.env.example deploy/k8s/overlays/dev/secrets.env
+          cp deploy/k8s/overlays/production/secrets.env.example deploy/k8s/overlays/production/secrets.env
+          for overlay in dev production; do
+            kubectl kustomize "deploy/k8s/overlays/$overlay" > "/tmp/$overlay.yaml"
+            echo "$overlay: $(grep -c '^kind:' /tmp/$overlay.yaml) objects"
+          done
+
+      - name: Compose file
+        run: |
+          touch deploy/compose/secrets/postgres-password deploy/compose/secrets/ConnectionStrings__Souls deploy/compose/secrets/Souls__Admin__Password
+          docker compose config --quiet
+
+  images:
+    name: Container images
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        target: [web, server]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/souls-${{ matrix.target }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: ${{ github.event_name != 'pull_request' }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}

@@ -1,0 +1,13 @@
+@model GameConfig
+@{
+    ViewData["Title"] = "Play";
+    ViewData["FullScreen"] = true;
+}
+<div id="game-window"></div>
+
+@* Settings for the game client. JSON is HTML-escaped by the serializer, so it is safe inside the script element. *@
+<script type="application/json" id="souls-game-config">@Json.Serialize(Model)</script>
+
+@section scripts {
+    <script src="~/lib/requirejs/require.js" data-main="/Scripts/Game/Main"></script>
+}

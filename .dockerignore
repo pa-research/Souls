@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/node_modules/
+**/*.user
+**/App_Data/
+.git/
+.github/
+deploy/
+tests/
+**/Dockerfile*
+**/compose*.yaml
+README.md

@@ -1,0 +1,152 @@
+# Souls Online with Docker Compose.
+#
+#   ./deploy/compose/init-secrets.sh        # once: generate passwords
+#   docker compose up -d --build
+#   open https://localhost                   # Caddy's local CA; set SOULS_DOMAIN for a real certificate
+#
+# Settings can be put in a .env file next to this file (see README).
+name: souls
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  pids_limit: 256
+
+x-app: &app
+  <<: *hardening
+  restart: unless-stopped
+  mem_limit: 512m
+  cpus: 1.0
+  environment: &app-env
+    ASPNETCORE_ENVIRONMENT: Production
+    # Only Caddy (on the frontend network) may set X-Forwarded-* headers.
+    Souls__TrustedProxyNetworks: 172.28.10.0/24
+    Logging__Console__FormatterName: json
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: souls
+      POSTGRES_USER: souls
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+    secrets: [postgres-password]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U souls -d souls"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    read_only: true
+    tmpfs: ["/tmp", "/var/run/postgresql"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    shm_size: 128m
+    mem_limit: 1g
+
+  # Applies database migrations and seed data, then exits. The apps start after it succeeded.
+  migrate:
+    <<: *hardening
+    image: ${SOULS_WEB_IMAGE:-souls-web:latest}
+    build: { context: ., target: web }
+    command: ["migrate"]
+    restart: "no"
+    environment:
+      <<: *app-env
+      Souls__Admin__Username: ${SOULS_ADMIN_USERNAME:-admin}
+    secrets:
+      - source: connection-string
+        target: /run/secrets/souls/ConnectionStrings__Souls
+      - source: admin-password
+        target: /run/secrets/souls/Souls__Admin__Password
+    networks: [backend]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    <<: *app
+    image: ${SOULS_WEB_IMAGE:-souls-web:latest}
+    build: { context: ., target: web }
+    environment:
+      <<: *app-env
+      Souls__GameServerUrl: /ws
+      Souls__GameServerHealthUrl: http://server:8080/healthz/live
+      Souls__GitHubRepository: ${SOULS_GITHUB_REPOSITORY:-}
+    secrets:
+      - source: connection-string
+        target: /run/secrets/souls/ConnectionStrings__Souls
+    networks: [frontend, backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  server:
+    <<: *app
+    image: ${SOULS_SERVER_IMAGE:-souls-server:latest}
+    build: { context: ., target: server }
+    environment:
+      <<: *app-env
+      # Empty = WebSockets are only accepted from the site's own origin (recommended).
+      Souls__AllowedOrigins: ${SOULS_ALLOWED_ORIGINS:-}
+    secrets:
+      - source: connection-string
+        target: /run/secrets/souls/ConnectionStrings__Souls
+    networks: [frontend, backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    environment:
+      SOULS_DOMAIN: ${SOULS_DOMAIN:-localhost}
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+    ports:
+      - "${SOULS_HTTP_PORT:-80}:80"
+      - "${SOULS_HTTPS_PORT:-443}:443"
+      - "${SOULS_HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./deploy/compose/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge, frontend]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    mem_limit: 256m
+    depends_on:
+      web: { condition: service_healthy }
+      server: { condition: service_healthy }
+
+secrets:
+  postgres-password:
+    file: ./deploy/compose/secrets/postgres-password
+  connection-string:
+    file: ./deploy/compose/secrets/ConnectionStrings__Souls
+  admin-password:
+    file: ./deploy/compose/secrets/Souls__Admin__Password
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  # Published ports; only Caddy is attached.
+  edge: {}
+  # Caddy -> web/server. Internal: the apps have no internet access.
+  frontend:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
+  # Apps -> PostgreSQL.
+  backend:
+    internal: true

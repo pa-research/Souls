@@ -1,0 +1,70 @@
+@model RegisterPageModel
+<h2>Welcome to Souls!</h2>
+<p>You are only <b>a few steps</b> away from being a challenger in the Souls Arena!</p>
+
+<div asp-validation-summary="All" class="alert alert-danger error-messages empty-hidden"></div>
+
+<form asp-controller="Player" asp-action="Register" method="post" id="register-form">
+    <div class="row">
+        <div class="col-lg-9">
+            <h3>1. Credentials</h3>
+            <div class="row g-2 mb-3">
+                <div class="col-md-4">
+                    <label asp-for="Form.Username" class="form-label">Username</label>
+                    <input asp-for="Form.Username" class="form-control" placeholder="Username" autocomplete="username" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Form.Password" class="form-label">Password</label>
+                    <input asp-for="Form.Password" class="form-control" placeholder="Password" autocomplete="new-password" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Form.ConfirmPassword" class="form-label">Confirm Password</label>
+                    <input asp-for="Form.ConfirmPassword" class="form-control" placeholder="Confirm Password" autocomplete="new-password" />
+                </div>
+            </div>
+
+            <h3>2. Select Class and Race</h3>
+            <div class="row class-race">
+                @foreach (var group in Model.Classes)
+                {
+                    <div class="race-wrapper col-sm-6 col-md-3">
+                        <div class="race-name"><b>@group.Race.Name</b></div>
+                        @foreach (var type in group.Types)
+                        {
+                            <div class="race-type form-check" data-type-id="@type.Id">
+                                <input class="form-check-input" type="radio" name="Form.PlayerType" id="type-@type.Id" value="@type.Id" checked="@(Model.Form.PlayerType == type.Id)" />
+                                <label class="form-check-label" for="type-@type.Id">@type.Name</label>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="class-portrait"></div>
+        </div>
+    </div>
+
+    <h3>3. Select Starter Deck (<b class="num-cards-selected">0</b>/5)</h3>
+    <div class="row g-3">
+        @foreach (var card in Model.StarterCards)
+        {
+            <div class="col-6 col-md-4 col-lg-2">
+                <partial name="_CardTile" model="card" />
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input cards" name="Form.Cards" id="card-@card.Id" value="@card.Id" checked="@Model.Form.Cards.Contains(card.Id)" />
+                    <label class="form-check-label" for="card-@card.Id">Select <b>@card.Name</b></label>
+                </div>
+            </div>
+        }
+    </div>
+
+    <hr />
+    <h3>4. You're Done!</h3>
+    <p>Looks like you are all done with your account!<br />If you feel ready to begin on your legendary journey, press the <b>register</b> button below!</p>
+    <button type="submit" class="btn btn-lg btn-primary mb-4">Register</button>
+</form>
+
+@section scripts {
+    <script src="~/js/register.js" asp-append-version="true"></script>
+}

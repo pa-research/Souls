@@ -1,0 +1,30 @@
+using Souls.Model;
+using Souls.Model.Entities;
+
+namespace Souls.Server.Game;
+
+/// <summary>Collects the events of a game and stores them when the game ends.</summary>
+public sealed class GameLogger
+{
+    private readonly List<GameLog> _records = [];
+
+    public IReadOnlyList<GameLog> Records => _records;
+
+    public void Add(GameLogKind kind, int obj1Id, int obj2Id, string obj1Type, string obj2Type) => _records.Add(new GameLog
+    {
+        GameLogTypeId = (int)kind,
+        Obj1Id = obj1Id,
+        Obj2Id = obj2Id,
+        Obj1Type = obj1Type,
+        Obj2Type = obj2Type,
+    });
+
+    public void AddTo(SoulsDbContext db, Model.Entities.Game game)
+    {
+        foreach (var record in _records)
+        {
+            record.Game = game;
+            db.GameLogs.Add(record);
+        }
+    }
+}

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production example: managed PostgreSQL, Gateway API, autoscaled web tier, pinned image versions.
+# Copy this overlay, adjust the hostname/gateway/tags and create secrets.env (see secrets.env.example).
+namespace: souls
+
+resources:
+  - ../../base
+  - hpa.yaml
+
+components:
+  - ../../components/gateway-api
+
+secretGenerator:
+  - name: souls-secrets
+    envs:
+      - secrets.env
+
+configMapGenerator:
+  - name: souls-config
+    behavior: merge
+    literals:
+      - Souls__GitHubRepository=pa-research/Souls
+
+images:
+  - name: ghcr.io/pa-research/souls-web
+    newTag: "2.0.0"
+  - name: ghcr.io/pa-research/souls-server
+    newTag: "2.0.0"
+
+patches:
+  - target: { kind: HTTPRoute, name: souls }
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value: [souls.example.com]
+      - op: replace
+        path: /spec/parentRefs
+        value:
+          - name: public-gateway
+            namespace: envoy-gateway-system
+            sectionName: https
+  # Traffic arrives from the gateway's data plane namespace.
+  - target: { kind: NetworkPolicy, name: allow-http-from-ingress }
+    patch: |-
+      - op: replace
+        path: /spec/ingress/0/from/0/namespaceSelector/matchLabels
+        value:
+          kubernetes.io/metadata.name: envoy-gateway-system

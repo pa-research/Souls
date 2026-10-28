@@ -1,0 +1,58 @@
+@{
+    var repository = ViewData["GitHubRepository"] as string;
+}
+<div class="row g-3">
+    <div class="col-lg-9">
+        <div class="row g-3">
+            <div class="col-md-5">
+                <div id="news-carousel" class="carousel slide image-slider-plugin" data-bs-ride="carousel">
+                    <div class="carousel-inner">
+                        <div class="carousel-item active"><img src="~/Content/Images/NewsPosts/post1.png" class="d-block w-100" alt="" /></div>
+                        <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post2.png" class="d-block w-100" alt="" /></div>
+                        <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post3.png" class="d-block w-100" alt="" /></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <a class="d-block play-now-button" asp-controller="Game" asp-action="Index" aria-label="Play now"></a>
+            </div>
+
+            <div class="col-md-3">
+                <div class="game-stats-feed">
+                    <p class="game-stats-feed-title">Recent Games</p>
+                    <table id="game-stats-feed" class="table table-sm mb-0"><tbody></tbody></table>
+                </div>
+            </div>
+
+            <div class="col-12 news-plugin">
+                <div class="news-wrapper"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        @if (!string.IsNullOrEmpty(repository))
+        {
+            <div class="github-feed mb-3" data-repository="@repository">
+                <p class="github-feed-title">Souls Updates</p>
+                <table id="github-feed" class="table table-sm">
+                    <thead><tr><th>Message</th><th>Committer</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        }
+
+        <div class="services-plugin">
+            <p class="services-plugin-title">Server Status</p>
+            <table id="services-plugin" class="table table-sm">
+                <thead><tr><th>Service</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="~/js/home.js" asp-append-version="true"></script>
+}

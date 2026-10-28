@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Exposes Souls with the Gateway API (Envoy Gateway, Istio, Cilium, NGINX Gateway Fabric, Traefik, ...).
+# Attaches to an existing Gateway with an HTTPS listener; patch parentRefs/hostnames in your overlay.
+resources:
+  - httproute.yaml

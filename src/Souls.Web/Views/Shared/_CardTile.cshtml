@@ -1,0 +1,10 @@
+@model CardTile
+<div class="card-container @(Model.Owned ? "card-deactivated" : "card-active")" id="card_@Model.Id"
+     style="background-image: url('@(Model.RaceTexture ?? "/Content/Images/Card/Texture/card_error.png")');">
+    <div class="card-portrait card-noselect" style="background-image: url('@Model.Portrait');"></div>
+    <div class="card-cost card-noselect">@Model.Cost</div>
+    <div class="card-name card-noselect">@Model.Name</div>
+    <div class="card-ability card-noselect">@Model.Ability</div>
+    <div class="card-health card-noselect">@Model.Health</div>
+    <div class="card-attack card-noselect">@Model.Attack</div>
+</div>

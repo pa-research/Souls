@@ -1,7 +1,0 @@
-﻿https://github.com/schambers/fluentmigrator/wiki
-
-
-// EAGER LOADING OSV TUT
-http://www.philliphaydon.com/2011/01/not-lazyload-eager-loading-with-nhibernate-3-0/
-
-http://www.philliphaydon.com/2011/01/not-lazyload-eager-loading-with-nhibernate-3-0/
