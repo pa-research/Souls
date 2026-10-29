@@ -1,0 +1,53 @@
+@model DeckViewModel
+<div class="s-page-head">
+    <div>
+        <div class="s-eyebrow">Deck builder</div>
+        <h1 class="s-h1 s-gold-text">Your Deck</h1>
+        <p>Pick exactly @Model.DeckSize cards, at most @Model.MaxCopies copies of each. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.</p>
+    </div>
+    <a class="s-btn s-btn-ghost" asp-controller="Shop" asp-action="Index"><s-icon name="shop" />Get more cards</a>
+</div>
+
+<form asp-controller="Deck" asp-action="Save" method="post" id="deck-form" data-deck-size="@Model.DeckSize" data-max-copies="@Model.MaxCopies">
+    <div class="s-grid s-deck-layout">
+        <div class="s-grid s-deck-grid">
+            @foreach (var entry in Model.Entries)
+            {
+                <article class="s-card-wrap deck-card" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost">
+                    <partial name="_CardTile" model="entry.Card" />
+                    <h2 class="s-card-name h6 mb-0">@entry.Card.Name</h2>
+                    @if (!string.IsNullOrEmpty(entry.Card.Description))
+                    {
+                        <p class="s-card-desc">@entry.Card.Description</p>
+                    }
+                    <div class="s-stepper">
+                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-minus" aria-label="One copy less of @entry.Card.Name"><s-icon name="minus" /></button>
+                        <label class="s-sr-only" for="count_@entry.Card.Id">Copies of @entry.Card.Name</label>
+                        <input class="s-input deck-count" type="number" min="0" max="@Model.MaxCopies" step="1" inputmode="numeric"
+                               id="count_@entry.Card.Id" name="count[@entry.Card.Id]" value="@entry.Count" />
+                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-plus" aria-label="One copy more of @entry.Card.Name"><s-icon name="plus" /></button>
+                    </div>
+                </article>
+            }
+        </div>
+
+        <aside class="s-panel s-deck-side" aria-label="Deck summary">
+            <div class="s-panel-head"><s-icon name="deck" /><h2>Deck</h2></div>
+            <div class="s-deck-count" id="deck-count"><b><span id="deck-total">@Model.Entries.Sum(e => e.Count)</span></b><span class="s-muted">/ @Model.DeckSize cards</span></div>
+            <p class="s-small s-muted mb-0">@(Model.Custom ? "You play with your own deck." : "You play with the automatic deck (your cards spread evenly) until you save one.")</p>
+            <div class="s-curve" id="deck-curve" aria-label="Mana curve"></div>
+            <div class="s-curve-labels" aria-hidden="true"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7+</span></div>
+            <ul class="s-decklist s-scroll" id="deck-list" aria-label="Cards in the deck"></ul>
+            <div class="d-grid gap-2">
+                <button type="submit" class="s-btn s-btn-primary s-btn-lg" id="deck-save"><s-icon name="save" />Save deck</button>
+                <button type="submit" form="deck-reset" class="s-btn s-btn-ghost s-btn-sm">Use the automatic deck</button>
+            </div>
+        </aside>
+    </div>
+</form>
+
+<form asp-controller="Deck" asp-action="Reset" method="post" id="deck-reset"></form>
+
+@section scripts {
+    <script src="~/js/deck.js" asp-append-version="true"></script>
+}

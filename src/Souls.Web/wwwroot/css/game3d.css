@@ -1,0 +1,271 @@
+/*
+ * The game page: the Classic / Modern 3D switch (both clients) and the placement of the 3D client's interface.
+ * The look of the interface comes from theme.css and game-hud.css.
+ */
+
+/* ---- Client switch and home button (shown by /js/game-mode.js in both clients) ------------------------------- */
+
+.game-mode-switch {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.game-mode-switch .s-seg { box-shadow: var(--s-shadow-sm); backdrop-filter: blur(6px); }
+.game-mode-switch .sg-icon-btn { width: 38px; height: 38px; }
+
+/* ---- 3D client ---------------------------------------------------------------------------------------------- */
+
+#souls3d {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #120d08;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+#souls3d .souls3d-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.souls3d-ui .sg-layer { z-index: 30; }
+.souls3d-end { z-index: 35; }
+
+.souls3d-unsupported {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    color: var(--s-text);
+    font: 18px/1.5 var(--s-font-body);
+    text-align: center;
+}
+
+/* Camera views and settings: top left. */
+.souls3d-views {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 20;
+}
+
+.souls3d-views-hint {
+    animation: souls3d-hint 10s ease-in forwards;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(8, 6, 12, 0.6);
+    color: var(--s-muted);
+    font-size: 0.74rem;
+    pointer-events: none;
+}
+
+.souls3d-settings {
+    top: 66px;
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 25;
+    animation: s-rise-in 0.25s var(--s-ease) both;
+}
+
+/* Battle log: on the left between the two hands. */
+.souls3d-log {
+    left: max(12px, env(safe-area-inset-left));
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 15;
+}
+
+/* Elements that follow the 3D scene: positioned every frame with transforms. */
+.souls3d-status,
+#souls3d .sg-power,
+#souls3d .sg-fuse {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 12;
+}
+
+.souls3d-status { white-space: nowrap; }
+
+/* Spectator bar and replay transport. */
+.souls3d-banner {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    max-width: calc(100vw - 440px);
+}
+
+.souls3d-replay {
+    position: absolute;
+    left: 50%;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 8px 12px;
+}
+
+.souls3d-live { animation: s-rise-in 0.4s var(--s-ease) both; }
+
+/* Chat: bottom right, collapsed to its header. */
+.souls3d-chat {
+    position: absolute;
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 15;
+    width: min(340px, calc(100vw - 28px));
+    border: 1px solid var(--s-line);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(26, 21, 32, 0.92), rgba(10, 8, 14, 0.92));
+    box-shadow: var(--s-shadow);
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+    color: var(--s-text);
+}
+
+.souls3d-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    background: linear-gradient(180deg, rgba(60, 46, 30, 0.6), rgba(30, 24, 36, 0.4));
+    color: var(--s-gold-1);
+    font: 700 0.78rem/1 var(--s-font-display);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.souls3d-chat-header .s-icon { color: var(--s-gold-2); }
+.souls3d-chat-badge:empty { display: none; }
+.souls3d-chat-badge { margin-left: auto; padding: 1px 7px; border-radius: 999px; background: var(--s-ember); color: #fff; font-size: 0.68rem; letter-spacing: 0; }
+
+.souls3d-chat-body { display: grid; grid-template-columns: 1fr 96px; height: 150px; }
+.souls3d-chat-log { padding: 8px 10px; overflow-y: auto; font-size: 0.82rem; line-height: 1.4; overflow-wrap: anywhere; }
+.souls3d-chat-members { padding: 8px; border-left: 1px solid var(--s-line-soft); overflow-y: auto; font-size: 0.75rem; color: var(--s-muted); }
+
+.souls3d-chat textarea.souls3d-chat-input {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    padding: 8px 10px;
+    border: 0;
+    border-top: 1px solid var(--s-line-soft);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.45);
+    color: var(--s-text);
+    font: 0.85rem var(--s-font-body);
+    resize: none;
+    outline: none;
+}
+
+.souls3d-chat.collapsed .souls3d-chat-body,
+.souls3d-chat.collapsed .souls3d-chat-input { display: none; }
+
+/* ---- Pre-fight "VS" splash ---------------------------------------------------------------------------------- */
+
+.souls3d-versus {
+    position: absolute;
+    inset: 0;
+    z-index: 32;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 4vw, 60px);
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.8));
+    animation: s-fade-in 0.3s ease-out;
+    pointer-events: none;
+}
+
+.souls3d-versus.leaving { animation: souls3d-fade-out 0.7s ease-in forwards; }
+.souls3d-versus-side { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.souls3d-versus-side img {
+    width: clamp(110px, 22vw, 300px);
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 6px solid var(--s-gold-2);
+    box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+.souls3d-versus-side.left { animation: souls3d-slide-left 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.souls3d-versus-side.right { animation: souls3d-slide-right 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.souls3d-versus-side.left img { border-color: #4a9be0; box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 0 50px rgba(74, 155, 224, 0.75); }
+.souls3d-versus-side.right img { border-color: #e0314b; box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 0 50px rgba(224, 49, 75, 0.75); }
+
+.souls3d-versus-name {
+    max-width: 26vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 800 clamp(18px, 2.6vw, 34px) var(--s-font-display);
+    letter-spacing: 0.06em;
+    color: var(--s-gold-1);
+    text-shadow: 0 0 8px #000, 2px 2px 0 #000;
+}
+
+.souls3d-versus-mark {
+    font: 900 clamp(64px, 12vw, 180px) var(--s-font-title);
+    color: #ffd400;
+    -webkit-text-stroke: 4px #4a0d00;
+    text-shadow: 0 0 30px #ff6a00, 0 0 60px #ff2a00, 6px 6px 0 #000;
+    animation: souls3d-vs 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.35s both, souls3d-flicker 0.18s linear 1.2s 8 alternate;
+}
+
+@keyframes souls3d-fade-out { to { opacity: 0; transform: scale(1.08); } }
+@keyframes souls3d-hint { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes souls3d-slide-left { from { transform: translateX(-60vw) rotate(-20deg); } to { transform: none; } }
+@keyframes souls3d-slide-right { from { transform: translateX(60vw) rotate(20deg); } to { transform: none; } }
+@keyframes souls3d-vs { from { opacity: 0; transform: scale(4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes souls3d-flicker { to { text-shadow: 0 0 45px #ffb300, 0 0 90px #ff4000, 6px 6px 0 #000; } }
+
+/* ---- Small and touch screens -------------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+    .souls3d-views-hint { display: none; }
+}
+
+@media (pointer: coarse) {
+    .souls3d-views .s-seg > button { padding: 9px 12px; }
+}
+
+@media (max-width: 700px), (max-height: 500px) {
+    .souls3d-views .s-seg kbd { display: none; }
+    .souls3d-log { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(260px, calc(100vw - 20px)); }
+    .souls3d-chat { width: min(260px, calc(100vw - 20px)); }
+    .souls3d-chat-body { height: 110px; grid-template-columns: 1fr; }
+    .souls3d-chat-members { display: none; }
+    .souls3d-banner { max-width: calc(100vw - 24px); top: auto; bottom: 70px; }
+    #souls3d .sg-power-orb { width: 54px; height: 54px; }
+    #souls3d .sg-power-name { display: none; }
+    .souls3d-status { font-size: 0.72rem; padding: 4px 8px; }
+}
+
+@media (max-height: 560px), (max-width: 760px) {
+    /* Full-screen layers start below the client switch in the top right corner. */
+    .souls3d-ui .sg-layer { padding-top: max(60px, env(safe-area-inset-top)); }
+}
+
+@media (max-height: 500px) {
+    /* Short landscape screens: the camera buttons go to the middle of the left edge, clear of both hands. */
+    .souls3d-views {
+        top: 50%;
+        transform: translateY(-50%);
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .souls3d-views .s-seg { flex-direction: column; border-radius: 14px; }
+    .souls3d-settings { top: 12px; left: 64px; }
+}

@@ -1,0 +1,35 @@
+# Reverse proxy and TLS termination for Souls.
+# SOULS_DOMAIN=localhost (default) uses Caddy's internal CA; a public domain gets a Let's Encrypt certificate.
+# Caddy is the edge: X-Forwarded-* headers sent by clients are replaced with the real values.
+# Global options, e.g. CADDY_GLOBAL_OPTIONS="email you@example.com" for Let's Encrypt.
+{
+	{$CADDY_GLOBAL_OPTIONS}
+}
+
+{$SOULS_DOMAIN:localhost} {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Game server WebSockets
+	handle /ws/* {
+		reverse_proxy server:8080
+	}
+
+	# Health endpoints are for the orchestrator only
+	handle /healthz/* {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy web:8080
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

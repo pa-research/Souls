@@ -1,0 +1,245 @@
+﻿// Matchmaking and the end of the game, as DOM layers over the canvas (shared components from css/game-hud.css).
+// While queueing, the classic backdrop stays on the canvas under a panel with spinning rings, the status, the time
+// waited, the mode (and rank) and a Cancel button. The end screen shows the result, the coins and rating earned,
+// the daily quests, links to the statistics and the replay, and moves on to the statistics after 25 seconds.
+// Server strings are always set as text.
+define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Conf) {
+
+    var DIFFICULTY_NAMES = ["Easy", "Normal", "Hard"];
+    var REDIRECT_SECONDS = 25;
+
+    Queue = function (engine, resuming) {
+        Pixi.Sprite.call(this, Asset.GetTexture(Asset.Textures.GAME_QUEUE));
+        this.engine = engine;
+        this.resuming = !!resuming;
+
+        // The canvas backdrop (the same as the menu's) covers the empty arena until the game starts.
+        this.width = this.engine.conf.width;
+        this.height = this.engine.conf.height;
+        this.engine.addChild("Queue", this);
+        var backdrop = new Pixi.Sprite(Pixi.Texture.fromImage("/Content/Images/bg_faded.png"));
+        backdrop.width = this.engine.conf.width;
+        backdrop.height = this.engine.conf.height;
+        this.addChild(backdrop);
+
+        // The matchmaking panel
+        var layer = this.layer = Hud.Layer('souls-classic-queue');
+        var box = this.box = Hud.El('section', 's-panel sg-queue', layer);
+        box.setAttribute('aria-label', 'Matchmaking');
+        this.rings = Hud.El('div', 'sg-rings', box);
+        this.title = Hud.El('h2', '', box);
+        this.title.setAttribute('aria-live', 'polite');
+        this.text = Hud.El('p', '', box, 'Connecting to the game server…');
+        this.text.setAttribute('aria-live', 'polite');
+        this.time = Hud.El('div', 'sg-time', box, '0:00');
+        this.time.setAttribute('role', 'timer');
+        this.time.setAttribute('aria-label', 'Time waited');
+        this.chip = Hud.El('span', 's-chip', box);
+        this.cancel = Hud.Button('s-btn s-btn-ghost', box, 'Cancel', 'close');
+        this.cancel.addEventListener('click', function () { window.location.href = '/Game'; });
+
+        var that = this;
+        this.started = Date.now();
+        this.clock = setInterval(function () { that.Tick(); }, 500);
+        this.SetMode(engine.normalGame, engine.difficulty);
+    }
+    // Constructor
+    Queue.prototype = Object.create(Pixi.Sprite.prototype);
+    Queue.prototype.constructor = Queue;
+    Queue.DIFFICULTY_NAMES = DIFFICULTY_NAMES;
+
+    Queue.prototype.Tick = function () {
+        this.time.textContent = Hud.Clock(Date.now() - this.started - 999);
+    }
+
+    Queue.prototype.SetMode = function (normalGame, difficulty) {
+        var profile = Conf.profile;
+        var name = DIFFICULTY_NAMES[difficulty] || DIFFICULTY_NAMES[1];
+        Hud.Clear(this.rings);
+        this.rings.appendChild(Hud.Icon(normalGame ? 'swords' : 'bot'));
+
+        if (this.resuming) this.title.textContent = 'Rejoining your game';
+        else this.title.textContent = normalGame ? 'Finding an opponent' : 'Preparing the arena';
+
+        Hud.Clear(this.chip);
+        if (normalGame) {
+            this.chip.appendChild(Hud.Icon('crown'));
+            var text = 'Ranked';
+            if (profile && typeof profile.rating === 'number') {
+                text += ' · ' + (profile.tier || Hud.TierOf(profile.rating).name) + ' · ' + profile.rating;
+            }
+            Hud.Text(this.chip, text);
+        }
+        else {
+            this.chip.appendChild(Hud.Icon('bot'));
+            Hud.Text(this.chip, 'Practice · ' + name);
+        }
+    }
+
+    /// The status line under the title.
+    Queue.prototype.SetText = function (text) {
+        this.text.textContent = String(text === undefined || text === null ? '' : text);
+    }
+
+    /// Logged in to the game server (10).
+    Queue.prototype.Connected = function () {
+        if (this.resuming) this.SetText('Connected. Waiting for the game…');
+        else this.SetText(this.engine.normalGame ? 'Connected. Joining the queue…' : 'Connected. The bot takes its seat…');
+    }
+
+    /// In the queue (100).
+    Queue.prototype.Queued = function () {
+        if (this.resuming) return;
+        this.SetText(this.engine.normalGame ? 'Waiting for a player of your rank…' : 'The bot is shuffling its deck…');
+    }
+
+    /// Something went wrong (not logged in, banned): the title says what, the clock stops.
+    Queue.prototype.SetError = function (text) {
+        clearInterval(this.clock);
+        this.title.textContent = String(text);
+        this.SetText('Go back to the menu and try again.');
+        this.cancel.lastChild.textContent = 'Back to the menu';
+    }
+
+    /// The game starts: "Prepare!", then the panel and the canvas backdrop fade out.
+    Queue.prototype.FadeOut = function () {
+        var that = this;
+        clearInterval(this.clock);
+        this.title.textContent = 'Prepare!';
+        this.SetText(this.resuming ? 'Back in the game.' : 'Your opponent is here.');
+
+        var layer = this.layer;
+        setTimeout(function () {
+            Hud.CloseLayer(layer, true);
+            that.engine.CreateJS.Tween.get(that)
+                .to({ alpha: 0 }, 900, that.engine.CreateJS.Linear)
+                .call(onComplete);
+        }, 700);
+
+        function onComplete() {
+            // Remove from stage as we wont be needing this anymore.
+            var group = that.engine.getGroup("Queue");
+            if (group.parent) group.parent.removeChild(group);
+        }
+    }
+
+    /// <summary>
+    /// The end of the game: the result over the board, a summary (coins, rating, daily quests) and the page then
+    /// moves on to the statistics of the game.
+    /// </summary>
+    /// <param name="text">Victory! / Defeat! / Draw!</param>
+    /// <param name="statisticsId">The game id (statistics page)</param>
+    /// <param name="payload">{statistics, text, coins, rating, ratingChange, quests}</param>
+    Queue.prototype.FadeInGameEnd = function (text, statisticsId, payload) {
+        clearInterval(this.clock);
+        Hud.Remove(this.layer);
+
+        var gameId = parseInt(statisticsId, 10);
+        var statsUrl = gameId > 0 ? "/Game/Stats/" + gameId : null;
+        var moved = false;
+        function moveOn() {
+            if (moved) return;
+            moved = true;
+            window.location.replace(statsUrl || "/Game");
+        }
+
+        this.ShowSummary(String(text), payload || {}, gameId > 0 ? gameId : null, moveOn);
+    }
+
+    /// The end screen; every server string is set as text.
+    Queue.prototype.ShowSummary = function (title, payload, gameId, moveOn) {
+        var old = this.endLayer;
+        if (old) Hud.Remove(old);
+
+        var kind = /^victory/i.test(title) ? 'victory' : /^defeat/i.test(title) ? 'defeat' : 'draw';
+        var layer = this.endLayer = Hud.Layer('souls-classic-end');
+        if (!Hud.ReducedMotion()) layer.style.animation = 's-fade-in 1.2s ease-out both';
+        var end = Hud.El('div', 'sg-end ' + kind, layer);
+        end.setAttribute('role', 'dialog');
+        end.setAttribute('aria-modal', 'true');
+        end.setAttribute('aria-labelledby', 'souls-classic-end-title');
+
+        var heading = Hud.El('h1', 'sg-end-title', end, title.replace(/!+$/, ''));
+        heading.id = 'souls-classic-end-title';
+        if (payload.text) Hud.El('div', 'sg-end-sub', end, payload.text);
+
+        // Rewards: coins and rating (or "unrated" in practice), counting up.
+        var rewards = Hud.El('div', 'sg-rewards', end);
+        if (typeof payload.coins === 'number') {
+            var coins = Hud.El('div', 's-panel sg-reward', rewards);
+            coins.appendChild(Hud.Icon('coin'));
+            var coinValue = Hud.El('b', '', coins, '+0');
+            Hud.El('span', '', coins, 'Soul coins');
+            Hud.CountUp(coinValue, payload.coins, payload.coins < 0 ? '-' : '+', 900);
+        }
+        if (typeof payload.ratingChange === 'number') {
+            var change = payload.ratingChange;
+            var up = change >= 0;
+            var rating = Hud.El('div', 's-panel sg-reward ' + (up ? 'up' : 'down'), rewards);
+            rating.appendChild(Hud.Icon('crown'));
+            var ratingValue = Hud.El('b', '', rating, up ? '+0' : '-0');
+            var now = typeof payload.rating === 'number' ? payload.rating : null;
+            Hud.El('span', '', rating, now !== null ? 'Rating ' + now : 'Rating');
+            if (now !== null) {
+                var bar = Hud.Progress(rating, 0, '', 'Progress to the next rank');
+                Hud.Later(bar, Hud.RankProgress(now), 1100);
+            }
+            Hud.CountUp(ratingValue, Math.abs(change), up ? '+' : '-', 1000);
+        }
+        else if (!this.engine.normalGame) {
+            var practice = Hud.El('div', 's-panel sg-reward', rewards);
+            practice.appendChild(Hud.Icon('bot'));
+            Hud.El('b', '', practice, '–');
+            Hud.El('span', '', practice, 'Practice · unrated');
+        }
+        if (!rewards.firstChild) Hud.Remove(rewards);
+
+        if (payload.quests && payload.quests.length) {
+            var quests = Hud.El('section', 's-panel sg-end-quests', end);
+            quests.setAttribute('aria-label', 'Daily quests');
+            var head = Hud.El('div', 's-panel-head', quests);
+            head.appendChild(Hud.Icon('quest'));
+            Hud.El('h3', '', head, 'Daily quests');
+            Hud.QuestList(quests, payload.quests, true);
+        }
+
+        var actions = Hud.El('div', 'sg-end-actions', end);
+        var first = null;
+        if (gameId) {
+            var stats = Hud.El('a', 's-btn s-btn-gold', actions);
+            stats.href = '/Game/Stats/' + gameId;
+            stats.appendChild(Hud.Icon('list'));
+            Hud.Text(stats, 'Statistics');
+            var replay = Hud.El('a', 's-btn s-btn-ghost', actions);
+            replay.href = '/Game/Replay/' + gameId;
+            replay.appendChild(Hud.Icon('play'));
+            Hud.Text(replay, 'Watch replay');
+            first = stats;
+        }
+        var again = Hud.El('a', 's-btn s-btn-primary', actions);
+        again.href = '/Game';
+        again.appendChild(Hud.Icon('swords'));
+        Hud.Text(again, 'Play again');
+        first = first || again;
+
+        // Moves on by itself after a while (the buttons go now).
+        var note = Hud.El('div', 'sg-end-redirect', end);
+        var left = REDIRECT_SECONDS;
+        var what = gameId ? 'Statistics' : 'Back to the menu';
+        note.textContent = what + ' in ' + left + ' s';
+        var countdown = setInterval(function () {
+            left--;
+            note.textContent = what + ' in ' + Math.max(0, left) + ' s';
+            if (left <= 0) {
+                clearInterval(countdown);
+                moveOn();
+            }
+        }, 1000);
+
+        try { first.focus({ preventScroll: true }); } catch (e) { /* focus is optional */ }
+        return layer;
+    }
+
+    return Queue;
+
+});

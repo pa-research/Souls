@@ -1,0 +1,25 @@
+@model LoginViewModel
+<div class="s-auth">
+    <div class="s-panel s-rise">
+        <img class="s-auth-logo" src="~/Content/Images/logo.png" alt="" />
+        <h1 class="s-h2 s-gold-text">Enter the Arena</h1>
+        <div class="s-divider"><i></i></div>
+        <form asp-controller="Player" asp-action="Login" method="post">
+            <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
+            <input type="hidden" asp-for="ReturnUrl" />
+
+            <div class="s-field">
+                <label asp-for="Name" class="s-label">Username</label>
+                <input asp-for="Name" class="s-input" placeholder="Your champion's name" autocomplete="username" autofocus />
+            </div>
+
+            <div class="s-field">
+                <label asp-for="Password" class="s-label">Password</label>
+                <input asp-for="Password" class="s-input" placeholder="Password" autocomplete="current-password" />
+            </div>
+
+            <button type="submit" class="s-btn s-btn-primary s-btn-lg s-btn-block mt-2"><s-icon name="login" />Sign in</button>
+        </form>
+        <p class="s-auth-foot">No account yet? <a asp-controller="Player" asp-action="Register">Register a champion</a></p>
+    </div>
+</div>

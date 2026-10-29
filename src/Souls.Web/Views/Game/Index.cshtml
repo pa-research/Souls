@@ -1,0 +1,23 @@
+@model GameConfig
+@{
+    ViewData["Title"] = "Play";
+    ViewData["FullScreen"] = true;
+}
+<div id="game-window"></div>
+
+@* Shown until a client draws its own interface (see /js/game-mode.js). *@
+<div id="sg-boot" class="sg-boot" role="status">
+    <img class="sg-logo" src="~/Content/Images/logo.png" alt="Souls" />
+    <div class="sg-rings" aria-hidden="true"></div>
+    <div class="sg-loading-text">Entering the arena</div>
+</div>
+
+@* Settings for the game client. JSON is HTML-escaped by the serializer, so it is safe inside the script element. *@
+<script type="application/json" id="souls-game-config">@Json.Serialize(Model)</script>
+
+@section scripts {
+    <link rel="stylesheet" href="~/css/game-hud.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/game3d.css" asp-append-version="true" />
+    @* Loads the classic (PixiJS) or the modern 3D (three.js) client and renders the switch between them. *@
+    <script src="~/js/game-mode.js" asp-append-version="true"></script>
+}

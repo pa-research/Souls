@@ -1,0 +1,19 @@
+@model CardTile
+@* A card laid out like the in-game card face (330x450 race texture), scaled to any width with container units. *@
+<div class="s-card card-container @(Model.Owned ? "owned" : null)" id="card_@Model.Id" title="@Model.Description"
+     style="background-image: url('@(Model.RaceTexture ?? "/Content/Images/Card/Texture/card_error.png")');">
+    <div class="s-card-portrait card-portrait" style="background-image: url('@Model.Portrait');"></div>
+    <div class="s-card-cost" aria-label="Cost @Model.Cost">@Model.Cost</div>
+    <div class="s-card-title">@Model.Name</div>
+    @if (Model.Level > 1)
+    {
+        <div class="s-card-stars" aria-label="Level @Model.Level">@(new string('★', Model.Level - 1))</div>
+    }
+    <div class="s-card-ability">@Model.Ability</div>
+    <div class="s-card-attack" aria-label="Attack @Model.Attack">@Model.Attack</div>
+    <div class="s-card-health" aria-label="Health @Model.Health">@Model.Health</div>
+    @if (Model.Armor > 0)
+    {
+        <div class="s-card-armor" aria-label="Armor @Model.Armor">@Model.Armor</div>
+    }
+</div>

@@ -1,0 +1,47 @@
+@model NewsEditorViewModel
+<div class="s-admin">
+<section class="s-panel">
+<div class="s-panel-head"><s-icon name="news" /><h2>News Editor</h2></div>
+
+<form asp-action="NewsEditor" method="post" class="mb-4">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <input type="hidden" asp-for="Post.Id" />
+    <div class="mb-3">
+        <label asp-for="Post.Title" class="form-label">Title</label>
+        <input asp-for="Post.Title" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Post.Text" class="form-label">Text</label>
+        <textarea asp-for="Post.Text" class="form-control" rows="10"></textarea>
+        <div class="form-text">Basic HTML is allowed: p, br, b, strong, i, em, u, ul, ol, li, a, h3, h4, blockquote, img. Everything else is removed.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">@(Model.Post.Id is null ? "Create" : "Update")</button>
+</form>
+
+<table class="table table-sm">
+    <thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Enabled</th><th>Delete</th></tr></thead>
+    <tbody>
+        @foreach (var post in Model.News)
+        {
+            <tr>
+                <td><a asp-action="NewsEditor" asp-route-id="@post.Id">@post.Title</a></td>
+                <td>@post.Author</td>
+                <td>@post.Date.ToString("yyyy-MM-dd HH:mm")</td>
+                <td>
+                    <form asp-action="NewsToggle" asp-route-id="@post.Id" method="post">
+                        <button type="submit" class="btn btn-link btn-sm p-0">@(post.Enabled ? "Enabled" : "Disabled")</button>
+                    </form>
+                </td>
+                <td>
+                    <form asp-action="NewsDelete" asp-route-id="@post.Id" method="post" data-confirm="Delete this post?">
+                        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        <tr><td colspan="5"><b><a asp-action="NewsEditor" asp-route-id="">[NEW]</a></b></td></tr>
+    </tbody>
+</table>
+</section>
+</div>
+

@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Souls Online: web site + game server. The database and the way traffic reaches the cluster are added by
+# components (see ../components) and overlays (see ../overlays).
+namespace: souls
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: souls
+    includeTemplates: true
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - web.yaml
+  - server.yaml
+  - networkpolicy.yaml
+
+configMapGenerator:
+  - name: souls-config
+    literals:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Logging__Console__FormatterName=json
+      # Pods only accept traffic from the ingress controller (see networkpolicy.yaml), which sets X-Forwarded-*.
+      - Souls__TrustedProxyNetworks=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
+      - Souls__GameServerUrl=/ws
+      - Souls__GameServerHealthUrl=http://souls-server:8080/healthz/live
+      - Souls__GitHubRepository=
+      - Souls__AllowedOrigins=
+      - Souls__Admin__Username=admin
+
+# Overlays pin the version (and may point to another registry) by matching these names.
+images:
+  - name: ghcr.io/pa-research/souls-web
+    newTag: latest
+  - name: ghcr.io/pa-research/souls-server
+    newTag: latest

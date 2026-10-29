@@ -1,0 +1,284 @@
+@font-face {
+    font-family: ArchivoBlack-Regular;
+    src: url("/Content/ArchivoBlack-Regular.otf") format("opentype");
+}
+
+ArchivoBlack-Regular.otf div#game-window {
+    min-width: 100%;
+    min-height: 100%;
+}
+
+.fullContainer {
+    min-width: 100% !important;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+}
+
+/*CHAT STUFF*/
+
+div.chat-messages {
+    height: 70%;
+    border: 1px solid red;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    margin-bottom: 15px;
+    padding-left: 2px;
+}
+
+div.chat-clients {
+    height: 70%;
+    border: 1px solid red;
+    border-left: none;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-overflow:ellipsis;
+    margin-bottom: 15px;
+}
+
+div.chat-input-div {
+    width: 100%;
+    height: 25%;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+}
+
+div.chat-content-wrapper
+{
+    height: 100%;
+}
+
+.chat-input {
+    min-height: 100%;
+    max-height: 100%;
+    max-width: 100% !important;
+}
+
+
+
+
+/* STATS */
+.stats-player-name {
+    text-align: center;
+    font: 30px Arial;
+}
+
+.stats-title {
+    text-align: center;
+    font: 40px Arial;
+    font-weight: bold;
+    margin-bottom: 25px;
+}
+
+/* "VS" between the two players (was a hotlinked third-party image). */
+.stats-versus {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 250px;
+    margin-top: 40px;
+}
+
+.stats-versus::before {
+    content: "VS";
+    font-family: ArchivoBlack-Regular, Impact, sans-serif;
+    font-size: 96px;
+    font-style: italic;
+    color: #c0392b;
+    -webkit-text-stroke: 3px #000;
+    text-shadow: 4px 4px 0 #f1c40f;
+}
+
+.stats-player-block {
+    /* border: 1px solid black;*/
+    padding: 25px;
+    
+}
+
+.stats-player-portrait {
+    background-image: url('/Content/Images/Player/Portraits/0.png');
+    background-size: 100% 100%;
+    min-height: 250px;
+    border: 3px solid gray;
+    border-radius: 20px 20px 20px 20px;
+}
+
+.stats-log-title {
+    font: 20px Arial;
+    font-weight: bold;
+}
+
+.stats-log {
+    border: 1px solid gray;
+    margin-bottom: 25px;
+    max-height: 200px;
+    overflow-y: hidden;
+    padding: 10px;
+
+}
+
+.stats-battlewindow {
+    border: 1px solid gray;
+    
+}
+
+
+/* ---- Classic game client (Scripts/Game) -------------------------------------------------------------------- */
+/* The interface is built from the shared components in css/game-hud.css (on css/theme.css), laid over the canvas
+   in div.sg-root.souls-classic-hud; Objects/Environment/Hud.js sets its box to the canvas and places the parts that
+   follow the board. Only what the shared files leave to each client is here. */
+
+#game-window canvas {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* The overlay covers the canvas exactly (the script sets left, top, width and height). */
+.sg-root.souls-classic-hud {
+    position: fixed;
+    inset: auto;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+}
+
+/* Placed by transform from the top left corner of the overlay. */
+.souls-classic-hud .sg-status {
+    position: absolute;
+    left: 0;
+    top: 0;
+    white-space: nowrap;
+}
+
+/* Hero power: kept focusable and hoverable when it cannot be used (aria-disabled), so its tooltip and the reason
+   still show; it looks like the shared :disabled state. */
+.souls-classic-hud .sg-power[aria-disabled="true"] {
+    cursor: default;
+}
+
+.souls-classic-hud .sg-power[aria-disabled="true"] .sg-power-orb {
+    filter: grayscale(0.85) brightness(0.6);
+}
+
+/* The own power is dragged to its target: no panning or zooming may take the gesture. */
+.souls-classic-hud .souls-classic-power-own {
+    touch-action: none;
+}
+
+.souls-classic-hud .souls-classic-power-foe {
+    cursor: help;
+}
+
+/* Battle log: top right, under the Classic / Modern 3D switch (top 10px, about 40px high). */
+.souls-classic-hud .souls-classic-log {
+    top: max(56px, calc(env(safe-area-inset-top) + 46px));
+    right: max(10px, env(safe-area-inset-right));
+}
+
+.souls-classic-hud .sg-log-head:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--s-gold-2);
+}
+
+/* Settings: top left corner of the board (the minimized chat sits bottom right). */
+.souls-classic-hud .souls-classic-settings-btn {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+}
+
+.souls-classic-hud .souls-classic-settings {
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    left: max(10px, env(safe-area-inset-left));
+}
+
+.souls-classic-hud .souls-classic-settings-close {
+    width: 32px;
+    height: 32px;
+    box-shadow: none;
+}
+
+.souls-classic-hud .souls-classic-settings .s-btn-danger {
+    justify-self: start;
+}
+
+.souls-classic-hud .sg-setting .s-seg > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Messages above everything placed on the board; the tooltip (z-index 40) above them. */
+.souls-classic-hud .sg-banner {
+    z-index: 25;
+}
+
+.souls-classic-hud .sg-toasts {
+    z-index: 30;
+}
+
+/* Small screens: the full-screen layers keep clear of the Classic / Modern 3D switch, and the fuse text stays on
+   one line. */
+@media (max-width: 900px), (max-height: 560px) {
+    .souls-classic-hud .souls-classic-menu,
+    .souls-classic-hud .souls-classic-end {
+        padding-top: max(56px, calc(env(safe-area-inset-top) + 50px));
+    }
+
+    .souls-classic-hud .sg-fuse-text {
+        white-space: nowrap;
+        letter-spacing: 0.06em;
+    }
+}
+
+/* Short screens (phones held sideways): a compact matchmaking panel that fits without scrolling. */
+@media (max-height: 560px) {
+    .souls-classic-hud .souls-classic-queue .sg-queue {
+        gap: 8px;
+        padding: 14px 18px;
+    }
+
+    .souls-classic-hud .souls-classic-queue .sg-rings {
+        width: 84px;
+        height: 84px;
+    }
+
+    .souls-classic-hud .souls-classic-queue .sg-rings .s-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .souls-classic-hud .souls-classic-queue .sg-time {
+        font-size: 1.3rem;
+    }
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+    .souls-classic-hud .souls-classic-log {
+        top: max(50px, calc(env(safe-area-inset-top) + 40px));
+        width: min(260px, calc(100vw - 28px));
+    }
+
+    .souls-classic-hud .souls-classic-log .sg-log-list {
+        max-height: 34vh;
+    }
+}
+
+/* The classic menu and loading screen sit on the stadium key art (the 3D client shows the live stadium). */
+.souls-classic-hud .sg-layer.souls-classic-menu,
+.souls-classic-hud .sg-layer.souls-classic-loading,
+.souls-classic-hud .sg-layer.souls-classic-queue {
+    background:
+        radial-gradient(ellipse at 30% 50%, rgba(6, 5, 9, 0.35), rgba(6, 5, 9, 0.88) 70%),
+        linear-gradient(90deg, rgba(6, 5, 9, 0.92) 0%, rgba(6, 5, 9, 0.35) 55%, rgba(6, 5, 9, 0.65) 100%),
+        url("/img/backdrop.jpg") 60% 50% / cover no-repeat,
+        #060509;
+}
+
+/* Short and narrow screens: full-screen layers start below the client switch in the top right corner. */
+@media (max-height: 560px), (max-width: 760px) {
+    .souls-classic-hud .sg-layer { padding-top: max(60px, env(safe-area-inset-top)); }
+}

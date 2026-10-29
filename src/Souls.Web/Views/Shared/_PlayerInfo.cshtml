@@ -1,0 +1,14 @@
+@using Souls.Model
+@model PlayerSummary
+<section class="s-panel" aria-label="Your champion">
+    <div class="s-panel-head"><s-icon name="user" /><h2>@Model.Name</h2></div>
+    <s-rank rank="@Model.Rank" rating="@Model.Rating" />
+    <div class="s-progress my-3" style="--p: @((int)(Ratings.RankProgress(Model.Rating) * 100))%" aria-hidden="true"><span></span></div>
+    <dl class="row g-0 mb-0 s-small">
+        <dt class="col-6 s-muted fw-normal">Soul Coins</dt><dd class="col-6 text-end mb-1"><span class="s-chip s-chip-coin"><s-icon name="coin" /><span class="s-num">@Model.Money</span></span></dd>
+        <dt class="col-6 s-muted fw-normal">Class</dt><dd class="col-6 text-end mb-1">@Model.Type</dd>
+        <dt class="col-6 s-muted fw-normal">Race</dt><dd class="col-6 text-end mb-1">@Model.Race</dd>
+        <dt class="col-6 s-muted fw-normal">Health</dt><dd class="col-6 text-end mb-1">@Model.Health</dd>
+        <dt class="col-6 s-muted fw-normal">Bonus Mana</dt><dd class="col-6 text-end mb-0">+@Model.BonusMana</dd>
+    </dl>
+</section>
