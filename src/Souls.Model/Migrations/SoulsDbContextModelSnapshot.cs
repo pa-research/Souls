@@ -244,7 +244,7 @@ namespace Souls.Model.Migrations
                             Cost = 5,
                             Health = 6,
                             Level = 1,
-                            Name = "Anette",
+                            Name = "Huy",
                             Portrait = "/Content/Images/Card/Portraits/5.png",
                             RaceId = 4,
                             VendorPrice = 1

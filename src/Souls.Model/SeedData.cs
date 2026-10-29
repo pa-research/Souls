@@ -28,7 +28,8 @@ public static class SeedData
         Card(2, "Zebra", attack: 1, health: 1, armor: 1, cost: 2, Ability.Sacrifice, race: 3, level: 1, price: 1),
         Card(3, "Per", attack: 6, health: 4, armor: 1, cost: 4, Ability.Sacrifice, race: 4, level: 1, price: 1),
         Card(4, "Christine", attack: 5, health: 5, armor: 2, cost: 4, Ability.Heal, race: 1, level: 2, price: 3),
-        Card(5, "Anette", attack: 3, health: 6, armor: 2, cost: 5, Ability.Heal, race: 4, level: 1, price: 1),
+        // "Huy" in the 2014 game data; the 2015 dump renamed it "Anette" (with test stats), restored here.
+        Card(5, "Huy", attack: 3, health: 6, armor: 2, cost: 5, Ability.Heal, race: 4, level: 1, price: 1),
         Card(6, "Bobby", attack: 2, health: 3, armor: 1, cost: 1, Ability.Sacrifice, race: 2, level: 1, price: 1),
     ];
 
