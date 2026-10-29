@@ -44,14 +44,31 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   and adds camera views (buttons top left, or keys 1-4):
   - **Classic**: the original top-down arena picture, 1:1 with the classic client.
   - **Arena**, **Field**, **Cinematic**: a 3D stadium rises out of the ground around the sand, with terraces
-    full of spectators who jump and roar on hits and kills, the two "Souls" pillars with stadium screens
+    full of spectators who jump, roar and do the Mexican wave, the two "Souls" pillars with stadium screens
     (the SOULS logo, a live score ticker and flashes for hits, KOs and the result), tunnel gates, torch-lit
-    gate towers, floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes move onto
-    podiums. Right-drag on the arena orbits the camera and the mouse wheel zooms.
+    gate towers, floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes
+    move onto podiums.
 
   Hand cards and the End Turn sign are a HUD, so they stay where the classic client has them in every view.
-  Cards have thickness and cast shadows, lift, flip and strike; there are particles, beams, arcing target
-  arrows and a synthesized crowd ambience (Web Audio, follows the sound toggle).
+  Matches open with a VS splash, heroes entering in columns of light, flame jets and fireworks; big hits punch
+  the camera and send shockwaves across the sand; a victory ends in a fireworks finale. Bloom makes fire,
+  rings, screens and effects glow, and the crowd ambience and fireworks are synthesized with Web Audio (they
+  follow the sound toggle).
+
+  Controls:
+
+  | | Mouse | Touch |
+  |---|---|---|
+  | Look at a hand card | hover it | tap it (tap again or tap the arena to close), or hold it |
+  | Play a card | drag it onto a free slot | drag it onto a free slot |
+  | Attack | drag from your card or hero to an enemy | the same |
+  | Use a card's ability | right-drag from the card to a friendly card or hero | hold the card until it glows green, then drag |
+  | Rotate the camera | right- or middle-drag on the arena | drag the arena with one finger, or two fingers |
+  | Zoom | mouse wheel | pinch |
+  | Camera views | buttons top left, or keys 1-4 | buttons |
+
+  Graphics quality adapts to the device (software rendering: no bloom and a thinner crowd; phones and tablets:
+  a lighter stadium). `?fx=low|medium|high` overrides it.
 
 Both clients speak the same WebSocket protocol, so a classic player and a 3D player can play each other.
 Switching clients in the middle of a match reloads the page and resumes the running game (the server

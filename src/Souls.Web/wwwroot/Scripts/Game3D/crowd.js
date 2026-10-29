@@ -28,6 +28,10 @@ export class CrowdAudio {
         const ctx = new Context();
         this.ctx = ctx;
         const buffer = noiseBuffer(ctx, 4);
+        this.buffer = buffer;
+        this.sfx = ctx.createGain();
+        this.sfx.gain.value = 0;
+        this.sfx.connect(ctx.destination);
 
         this.master = ctx.createGain();
         this.master.gain.value = 0;
@@ -70,8 +74,26 @@ export class CrowdAudio {
         g.exponentialRampToValueAtTime(0.001, t + 1.2 + strength * 2.5);
     }
 
+    /** A deep boom (fireworks, flame jets). */
+    boom(strength = 1) {
+        if (!this.ctx) return;
+        const ctx = this.ctx, t = ctx.currentTime;
+        const source = ctx.createBufferSource();
+        source.buffer = this.buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 160 + Math.random() * 80;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(3 * strength, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+        source.connect(filter).connect(gain).connect(this.sfx);
+        source.start(t, Math.random() * 2, 1.4);
+    }
+
     update() {
         if (!this.ctx) return;
+        this.sfx.gain.setTargetAtTime(sound.muted ? 0 : 0.5, this.ctx.currentTime, 0.05);
         if (this.ctx.state === 'suspended' && !sound.muted) this.ctx.resume().catch(() => { });
         const target = sound.muted ? 0 : 0.05 + 0.13 * this.presence;
         this.master.gain.setTargetAtTime(target, this.ctx.currentTime, 0.4);

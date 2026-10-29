@@ -72,7 +72,10 @@ export class UI {
             button.addEventListener('click', () => { if (this.onView) this.onView(name); });
             this.viewButtons[name] = button;
         }
-        el('span', 'souls3d-views-hint', bar, 'Wheel: zoom \u00b7 Right-drag: rotate');
+        const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        el('span', 'souls3d-views-hint', bar, touch
+            ? 'Pinch: zoom \u00b7 Drag the arena: rotate \u00b7 Hold a card: ability'
+            : 'Wheel: zoom \u00b7 Right-drag: rotate');
         this.views = bar;
     }
 
@@ -161,6 +164,25 @@ export class UI {
         void this.flash.offsetWidth; // restart the CSS animation
         this.flash.classList.add('show');
         setTimeout(() => { this.messages.shift(); this.flash.classList.remove('show'); this.nextMessage(); }, 2000);
+    }
+
+    /** The pre-fight splash: both heroes slide in, a flaming VS between them. */
+    showVersus(player, opponent) {
+        const splash = el('div', 'souls3d-versus', this.root);
+        const side = (info, cls) => {
+            const box = el('div', `souls3d-versus-side ${cls}`, splash);
+            const img = el('img', '', box);
+            img.src = Images.heroPortrait(Number(info.type) || 0);
+            img.alt = '';
+            img.onerror = () => { img.onerror = null; img.src = Images.heroPortrait(0); };
+            el('div', 'souls3d-versus-name', box, String(info.name ?? ''));
+            return box;
+        };
+        side(player, 'left');
+        el('div', 'souls3d-versus-mark', splash, 'VS');
+        side(opponent, 'right');
+        setTimeout(() => splash.classList.add('leaving'), 3400);
+        setTimeout(() => splash.remove(), 4100);
     }
 
     showEnd(text, statisticsId) {

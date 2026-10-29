@@ -396,3 +396,85 @@
 @media (max-width: 700px) {
     .souls3d-views-hint { display: none; }
 }
+
+/* Pre-fight "VS" splash */
+.souls3d-versus {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 4vw, 60px);
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.75));
+    animation: souls3d-fade-in 0.3s ease-out;
+    pointer-events: none;
+}
+
+.souls3d-versus.leaving {
+    animation: souls3d-fade-out 0.7s ease-in forwards;
+}
+
+.souls3d-versus-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.souls3d-versus-side img {
+    width: clamp(110px, 22vw, 300px);
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 6px solid #c98a3d;
+    box-shadow: 0 0 40px rgba(255, 140, 40, 0.65), 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+.souls3d-versus-side.left { animation: souls3d-slide-left 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.souls3d-versus-side.right { animation: souls3d-slide-right 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.souls3d-versus-side.left img { border-color: #3498db; box-shadow: 0 0 40px rgba(52, 152, 219, 0.8), 0 10px 30px rgba(0, 0, 0, 0.8); }
+.souls3d-versus-side.right img { border-color: #e74c3c; box-shadow: 0 0 40px rgba(231, 76, 60, 0.8), 0 10px 30px rgba(0, 0, 0, 0.8); }
+
+.souls3d-versus-name {
+    max-width: 26vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: bold clamp(18px, 2.6vw, 34px) Arial, Helvetica, sans-serif;
+    text-shadow: 0 0 6px #000, 2px 2px 0 #000;
+}
+
+.souls3d-versus-mark {
+    font: italic 900 clamp(64px, 12vw, 180px) "Arial Black", Impact, sans-serif;
+    color: #ffd400;
+    -webkit-text-stroke: 4px #4a0d00;
+    text-shadow: 0 0 30px #ff6a00, 0 0 60px #ff2a00, 6px 6px 0 #000;
+    animation: souls3d-vs 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.35s both, souls3d-flicker 0.18s linear 1.2s 8 alternate;
+}
+
+@keyframes souls3d-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes souls3d-fade-out { to { opacity: 0; transform: scale(1.08); } }
+@keyframes souls3d-slide-left { from { transform: translateX(-60vw) rotate(-20deg); } to { transform: none; } }
+@keyframes souls3d-slide-right { from { transform: translateX(60vw) rotate(20deg); } to { transform: none; } }
+@keyframes souls3d-vs { from { opacity: 0; transform: scale(4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes souls3d-flicker { to { text-shadow: 0 0 45px #ffb300, 0 0 90px #ff4000, 6px 6px 0 #000; } }
+
+/* Touch screens: bigger targets, more room for the arena. */
+@media (pointer: coarse) {
+    .souls3d-views button { padding: 9px 12px; }
+    .souls3d-chat { width: min(300px, calc(100vw - 28px)); }
+    .souls3d-chat-body { height: 130px; }
+}
+
+@media (max-height: 500px) {
+    .souls3d-chat { bottom: 52px; }
+    .souls3d-turn { top: 50px; }
+    .souls3d-views-hint { display: none; }
+    /* Short landscape screens: the camera buttons go to the middle of the left edge, clear of both hands. */
+    .souls3d-views {
+        top: 50%;
+        transform: translateY(-50%);
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

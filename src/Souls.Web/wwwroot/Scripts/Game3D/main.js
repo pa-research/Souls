@@ -48,9 +48,10 @@ async function main() {
     const stage = new Stage(host);
     const ui = new UI(host);
     const effects = new Effects(stage);
-    const arena = new Arena(stage.scene, stage.lowPower);
+    const arena = new Arena(stage.scene, stage.quality);
     const crowd = new CrowdAudio();
     let game = null;
+    let torches = null;
 
     // The stadium is up for the menu's cinematic orbit and in every view except the classic top-down one.
     arena.setStadium(true);
@@ -73,6 +74,7 @@ async function main() {
         effects.applyShake(stage.camera);
         effects.update(dt);
         arena.update(now, dt);
+        if (arena.stadium && arena.stadium.visible) effects.embers(torches || (torches = arena.torches), dt);
         crowd.presence = stage.viewInfo.stadium ? (stage.view === 'field' ? 1 : 0.7) : 0.25;
         crowd.update();
         if (game) game.update(now, dt);
@@ -145,6 +147,9 @@ function exposeTestHooks(stage, game) {
         opponentHero: () => screen(game.opponent.hero),
         endTurn: () => stage.classicToScreen(1610, 550),
         view: name => (name ? stage.setView(name) : stage.view),
+        hovered: () => (game.hovered ? game.hovered.cid : null),
+        camera: () => stage.camera.position.toArray().map(v => Math.round(v)),
+        quality: () => stage.quality,
     };
 }
 

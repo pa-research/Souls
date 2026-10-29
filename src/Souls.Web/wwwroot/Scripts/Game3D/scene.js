@@ -5,6 +5,10 @@
 // Hand cards and the End Turn sign live in a HUD scene that is drawn on top with its own camera, so they
 // stay where the classic client has them whatever the world camera does.
 import * as THREE from '/lib/three/three.module.js';
+import { EffectComposer } from '/lib/three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from '/lib/three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '/lib/three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '/lib/three/addons/postprocessing/OutputPass.js';
 
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
@@ -33,15 +37,22 @@ const BOARD_FIT = [
     new THREE.Vector3(0, 300, -585),
 ];
 
-function detectLowPower(renderer) {
+/**
+ * Graphics quality: "low" for software rendering (no bloom, thinner crowd), "medium" for phones and tablets,
+ * "high" otherwise. `?fx=low|medium|high` overrides it.
+ */
+function detectQuality(renderer) {
+    const forced = new URLSearchParams(window.location.search).get('fx');
+    if (forced === 'low' || forced === 'medium' || forced === 'high') return forced;
     try {
         const gl = renderer.getContext();
         const info = gl.getExtension('WEBGL_debug_renderer_info');
         const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
-        return /swiftshader|llvmpipe|software/i.test(name);
+        if (/swiftshader|llvmpipe|software/i.test(name)) return 'low';
     } catch (e) {
-        return false;
+        return 'medium';
     }
+    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'medium' : 'high';
 }
 
 export class Stage {
@@ -49,8 +60,9 @@ export class Stage {
         this.container = container;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-        this.lowPower = detectLowPower(renderer);
-        renderer.setPixelRatio(this.lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+        this.quality = detectQuality(renderer);
+        this.lowPower = this.quality !== 'high';
+        renderer.setPixelRatio(this.quality === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, this.quality === 'medium' ? 1.5 : 2));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.toneMapping = THREE.NoToneMapping;
@@ -80,6 +92,17 @@ export class Stage {
         this.transition = { from: null, start: 0, duration: 1 };
         this.menu = true; // cinematic orbit behind the menu
 
+        // Bloom makes torches, rings, screens and effects glow. Subtle in the classic view to keep it 1:1.
+        if (this.quality !== 'low') {
+            const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+            this.composer = new EffectComposer(renderer, target);
+            this.composer.addPass(new RenderPass(this.scene, this.camera));
+            this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.35, 0.88);
+            this.composer.addPass(this.bloom);
+            this.composer.addPass(new OutputPass());
+        }
+        this.kick = 0; // field-of-view punch on big hits
+
         this.raycaster = new THREE.Raycaster();
         this.listeners = new Set();
         this.viewListeners = new Set();
@@ -100,6 +123,7 @@ export class Stage {
         const width = Math.max(1, this.container.clientWidth);
         const height = Math.max(1, this.container.clientHeight);
         this.renderer.setSize(width, height, false);
+        if (this.composer) this.composer.setSize(width, height);
         for (const cam of [this.camera, this.classicCamera, this.hudCamera]) {
             cam.aspect = width / height;
             cam.updateProjectionMatrix();
@@ -315,7 +339,15 @@ export class Stage {
         return cam;
     }
 
+    /** A quick zoom-in punch of the camera (degrees of field of view), for big hits. */
+    punch(amount = 4) {
+        this.kick = Math.max(this.kick, amount);
+    }
+
     updateCamera(now) {
+        const elapsed = Math.min(100, now - (this.lastCameraUpdate ?? now));
+        this.lastCameraUpdate = now;
+        this.kick *= Math.exp(-elapsed / 220);
         const want = this.viewPose(now);
         const t = this.transition;
         const cam = this.camera;
@@ -333,6 +365,11 @@ export class Stage {
             cam.position.copy(want.position);
             cam.quaternion.copy(want.quaternion);
         }
+        fov -= this.kick;
+        if (this.bloom) {
+            const strength = this.viewInfo.stadium ? 0.45 : 0.1;
+            this.bloom.strength += (strength - this.bloom.strength) * Math.min(1, elapsed / 400);
+        }
         if (cam.fov !== fov) {
             cam.fov = fov;
             cam.updateProjectionMatrix();
@@ -343,7 +380,8 @@ export class Stage {
     render() {
         const r = this.renderer;
         r.clear();
-        r.render(this.scene, this.camera);
+        if (this.composer) this.composer.render();
+        else r.render(this.scene, this.camera);
         r.clearDepth();
         r.render(this.hudScene, this.hudCamera);
     }

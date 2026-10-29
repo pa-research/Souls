@@ -431,6 +431,7 @@ export class Game {
 
         // The first player creates the game's chat room.
         if (p.ident === 1 && p.create) this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
+        if (p.create) this.kickOff();
 
         this.setTurn(p.yourTurn);
         this.sign.setActive(p.yourTurn);
@@ -479,6 +480,7 @@ export class Game {
         card.moveTo(this.boardPose(side, card), side.isPlayer ? 380 : 750, Ease.cubicOut, { arc: side.isPlayer ? 40 : 220 }).then(() => {
             sound.play('CARD_MOUNT', 0.5);
             this.effects.burst(card.position.clone().setY(8), { color: 0xd9b26f, count: 26, speed: 160, size: 34, life: 600, gravity: -300, up: 0.3 });
+            this.effects.shockwave(card.position, side.isPlayer ? 0x8fd3ff : 0xff9a8f, 220);
             this.effects.shake(5);
             this.cheer(0.2);
         });
@@ -528,6 +530,34 @@ export class Game {
         return obj instanceof Hero3D ? obj.position.clone() : obj.center();
     }
 
+    /** Start of a new match: VS splash, heroes enter in columns of light, fireworks and a wave. */
+    kickOff() {
+        this.ui.showVersus(this.player.hero.info, this.opponent.hero.info);
+        this.cheer(1);
+        this.arena.wave();
+        tweens.wait(700).then(() => {
+            for (const side of [this.player, this.opponent]) {
+                this.effects.lightPillar(side.hero.podium.position, side.isPlayer ? 0x8fd3ff : 0xff9a8f);
+            }
+            this.flameJets(1);
+            this.celebrate(6);
+        });
+    }
+
+    /** Fire from the torches on the gate towers (all of them, or `count` at random). */
+    flameJets(strength = 1, count = 4) {
+        const all = this.arena.torches;
+        const first = Math.floor(Math.random() * all.length);
+        const torches = [...all.slice(first), ...all.slice(0, first)].slice(0, count);
+        torches.forEach((t, i) => tweens.wait(i * 90).then(() => this.effects.flameJet(t, strength)));
+        this.crowd.boom(0.5 * strength);
+    }
+
+    /** Fireworks over the stadium with a boom for each. */
+    celebrate(count, colors) {
+        this.effects.fireworks(count, colors, () => this.crowd.boom(0.6));
+    }
+
     /** The crowd reacts (0..1): jumping spectators and a roar. */
     cheer(strength) {
         this.arena.cheer(strength);
@@ -570,7 +600,14 @@ export class Game {
         sound.play('DEFEND', 0.5);
         this.effects.shake(defender instanceof Hero3D ? 22 : 14);
         this.cheer(defender instanceof Hero3D ? 0.55 : 0.35);
-        if (defender instanceof Hero3D && defenderInfo.dmgTaken > 0) this.arena.screenFlash(`-${defenderInfo.dmgTaken}`);
+        if (defender instanceof Hero3D && defenderInfo.dmgTaken > 0) {
+            this.arena.screenFlash(`-${defenderInfo.dmgTaken}`);
+            this.stage.punch(4 + Math.min(6, defenderInfo.dmgTaken));
+            this.effects.shockwave(defender.podium.position, 0xff6a3a, 380);
+            if (defenderInfo.dmgTaken >= 5) this.flameJets(0.8, 2);
+        } else {
+            this.effects.shockwave(point.clone(), 0xffd27a, 200);
+        }
         this.effects.burst(point, { color: 0xffa040, count: 36, speed: 320, size: 42, life: 650 });
         for (const [obj, info] of [[defender, defenderInfo], [attacker, attackerInfo]]) {
             if (info.dmgTaken > 0) this.effects.floatText(`-${info.dmgTaken}`, this.targetPoint(obj).setY(this.targetPoint(obj).y + 40));
@@ -597,6 +634,7 @@ export class Game {
         card.setGlow(0xff2020, 1);
         this.cheer(0.6);
         this.arena.screenFlash('KO!');
+        this.flameJets(0.7, 2);
         this.effects.burst(card.center(), { color: 0x9b59b6, count: 60, speed: 220, size: 46, life: 1100, gravity: 120 });
         const start = card.position.clone();
         tweens.run(900, t => {
@@ -673,8 +711,13 @@ export class Game {
         }
         this.cheer(1);
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
+        this.arena.wave();
         if (text === 'Victory!') {
+            this.flameJets(1.4);
+            this.celebrate(14);
             this.effects.burst(this.opponent.hero.position.clone(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
+        } else {
+            this.celebrate(text === 'Draw!' ? 6 : 3, text === 'Draw!' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
         this.ui.showEnd(text, p && p.statistics);
     }

@@ -21,9 +21,9 @@ const GAP = deg(13); // the stands open at +x and -x for the tunnel towers
 const ARCS = [[GAP, Math.PI - GAP], [Math.PI + GAP, 2 * Math.PI - GAP]];
 const AISLES = 14; // radial stairways per side
 const PILLAR_H = 1250;
-const SCREEN_W = 600;
-const SCREEN_H = 338;
-const SCREEN_Y = 520; // above the tunnel mouth, so it is in view from the arena
+const SCREEN_W = 300;
+const SCREEN_H = 169;
+const SCREEN_Y = 380; // just above the tunnel mouth, so it is in view from the arena
 
 const STONE = new THREE.Color(0x4b4e57);
 const RISER = new THREE.Color(0x585b64);
@@ -115,8 +115,8 @@ function terraceGeometry(segments) {
 }
 
 /** Spectators: two instanced meshes (bodies and heads) that bounce with the crowd's excitement. */
-function buildCrowd(uniforms, lowPower) {
-    const spacing = lowPower ? 30 : 17;
+function buildCrowd(uniforms, quality) {
+    const spacing = { low: 30, medium: 22, high: 17 }[quality] ?? 17;
     const places = [];
     let seed = 11;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -142,13 +142,20 @@ function buildCrowd(uniforms, lowPower) {
         m.onBeforeCompile = shader => {
             shader.uniforms.uTime = uniforms.uTime;
             shader.uniforms.uExcite = uniforms.uExcite;
-            shader.vertexShader = 'attribute float aPhase;\nuniform float uTime;\nuniform float uExcite;\n' +
+            shader.uniforms.uWave = uniforms.uWave;
+            shader.uniforms.uWaveAmp = uniforms.uWaveAmp;
+            shader.vertexShader = 'attribute float aPhase;\nuniform float uTime;\nuniform float uExcite;\nuniform float uWave;\nuniform float uWaveAmp;\n' +
                 shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
                     float speed = 3.0 + fract(aPhase * 13.7) * 3.0;
                     float hop = max(0.0, sin(uTime * speed + aPhase * 6.2831));
                     float eager = step(0.3, fract(aPhase * 3.1));
                     transformed.y += hop * hop * (1.5 + 16.0 * uExcite * eager);
-                    transformed.x += sin(uTime * 1.3 + aPhase * 20.0) * 1.5;`);
+                    transformed.x += sin(uTime * 1.3 + aPhase * 20.0) * 1.5;
+                    // Mexican wave: spectators near the wave front jump up and stretch.
+                    vec2 seat = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
+                    float d = mod(atan(seat.y, seat.x) - uWave + 3.14159265, 6.2831853) - 3.14159265;
+                    float wave = exp(-d * d * 30.0) * uWaveAmp;
+                    transformed.y += wave * (22.0 + position.y * 0.6);`);
         };
         return m;
     };
@@ -328,7 +335,7 @@ function tunnelTower(side, screen) {
     const group = new THREE.Group();
     const stone = new THREE.MeshStandardMaterial({ color: 0x6b6f78, roughness: 0.85 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x0c0f14, roughness: 1 });
-    const green = new THREE.MeshStandardMaterial({ color: 0x9ae62b, emissive: 0x6fcf0f, emissiveIntensity: 1.6, roughness: 0.4 });
+    const green = new THREE.MeshStandardMaterial({ color: 0x9ae62b, emissive: 0x6fcf0f, emissiveIntensity: 0.9, roughness: 0.4 });
 
     // Gatehouse: a wedge that exactly fills the gap in the stands.
     const g = GAP + deg(1), out = STANDS_OUT + 40;
@@ -557,13 +564,16 @@ function skyDome(lowPower) {
 // ---- The arena ----------------------------------------------------------------------------------------------------
 
 export class Arena {
-    constructor(scene, lowPower) {
+    constructor(scene, quality) {
         this.scene = scene;
-        this.lowPower = lowPower;
+        this.quality = quality;
+        this.lowPower = quality !== 'high';
         this.rise = 0; // 0 = classic picture, 1 = stadium
         this.target = 0;
         this.excite = 0.1;
-        this.uniforms = { uTime: { value: 0 }, uExcite: { value: 0.1 } };
+        this.uniforms = { uTime: { value: 0 }, uExcite: { value: 0.1 }, uWave: { value: 0 }, uWaveAmp: { value: 0 } };
+        this.waveUntil = 0;
+        this.nextWave = 20000;
     }
 
     async build() {
@@ -603,9 +613,9 @@ export class Arena {
         const terraces = new THREE.Mesh(terraceGeometry(this.lowPower ? 60 : 120), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }));
         terraces.receiveShadow = true;
         stands.add(terraces);
-        const crowd = buildCrowd(this.uniforms, this.lowPower);
+        const crowd = buildCrowd(this.uniforms, this.quality);
         stands.add(crowd);
-        this.flashes = buildFlashes(crowd.userData.places, this.lowPower ? 60 : 220);
+        this.flashes = buildFlashes(crowd.userData.places, this.quality === 'high' ? 220 : 80);
         stands.add(this.flashes);
         part(stands, 0);
 
@@ -617,7 +627,7 @@ export class Arena {
         this.towers = [];
         for (const sx of [-1, 1]) {
             for (const sz of [-1, 1]) {
-                const tower = gateTower(sx * 348, sz * 612, fire, !this.lowPower);
+                const tower = gateTower(sx * 348, sz * 612, fire, this.quality === 'high');
                 this.towers.push(tower);
                 part(tower, 0.25);
             }
@@ -664,6 +674,19 @@ export class Arena {
         if (this.screen) this.screen.flash(text);
     }
 
+    /** A Mexican wave around the stands. */
+    wave() {
+        if (performance.now() < this.waveUntil) return;
+        this.waveStart = performance.now();
+        this.waveUntil = this.waveStart + 5200;
+        this.waveFrom = Math.random() * Math.PI * 2;
+    }
+
+    /** World positions of the torch fires on the gate towers (for embers and flame jets). */
+    get torches() {
+        return (this.towers || []).map(t => t.userData.fire.position.clone().setY(200));
+    }
+
     /** The crowd gets louder and jumps (0..1). */
     cheer(amount) {
         this.excite = Math.min(1, this.excite + amount);
@@ -696,6 +719,14 @@ export class Arena {
         this.excite = 0.1 + (this.excite - 0.1) * Math.exp(-dt / 1800);
         this.uniforms.uTime.value = now / 1000;
         this.uniforms.uExcite.value = this.excite;
+        // The wave goes once around the stadium; one starts by itself every now and then.
+        if (this.stadium.visible && now > this.nextWave) {
+            this.nextWave = now + 25000 + Math.random() * 20000;
+            this.wave();
+        }
+        const waveT = (now - (this.waveStart ?? -1e9)) / 5200;
+        this.uniforms.uWaveAmp.value = waveT >= 0 && waveT <= 1 ? Math.min(1, Math.sin(Math.PI * waveT) * 2.2) : 0;
+        if (waveT >= 0 && waveT <= 1) this.uniforms.uWave.value = this.waveFrom + waveT * Math.PI * 2;
         if (!this.stadium.visible) return;
         this.screen.update(now);
         for (const tower of this.towers) {

@@ -3,7 +3,7 @@ import * as THREE from '/lib/three/three.module.js';
 import { Images, loadImage, textureFrom } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
-const MAX_PARTICLES = 3000;
+const MAX_PARTICLES = 6000;
 
 export class Effects {
     constructor(stage) {
@@ -24,12 +24,13 @@ export class Effects {
         geometry.setAttribute('pcolor', new THREE.BufferAttribute(this.pColors, 4).setUsage(THREE.DynamicDrawUsage));
         geometry.setAttribute('size', new THREE.BufferAttribute(this.pSizes, 1).setUsage(THREE.DynamicDrawUsage));
         this.pMaterial = new THREE.ShaderMaterial({
-            uniforms: { map: { value: null }, scale: { value: 800 } },
-            vertexShader: `attribute float size; attribute vec4 pcolor; varying vec4 vColor; uniform float scale;
+            uniforms: { map: { value: null }, scale: { value: 800 }, maxSize: { value: 64 } },
+            vertexShader: `attribute float size; attribute vec4 pcolor; varying vec4 vColor; uniform float scale; uniform float maxSize;
                 void main() {
                     vColor = pcolor;
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * scale / -mv.z;
+                    // Capped so particles right in front of the camera do not turn into huge blobs.
+                    gl_PointSize = min(size * scale / -mv.z, maxSize);
                     gl_Position = projectionMatrix * mv;
                 }`,
             fragmentShader: `uniform sampler2D map; varying vec4 vColor;
@@ -51,8 +52,8 @@ export class Effects {
     }
 
     /** Emits a burst of particles. */
-    burst(position, { color = 0xffffff, count = 40, speed = 260, size = 40, life = 900, gravity = -200, spread = 1, up = 0.6 } = {}) {
-        const c = new THREE.Color(color);
+    burst(position, { color = 0xffffff, count = 40, speed = 260, size = 40, life = 900, gravity = -200, spread = 1, up = 0.6, intensity = 1 } = {}) {
+        const c = new THREE.Color(color).multiplyScalar(intensity);
         for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
             const dir = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * up + (1 - up) * (Math.random() * 2 - 1), Math.random() * 2 - 1)
                 .normalize().multiplyScalar(speed * (0.3 + Math.random() * 0.7) * spread);
@@ -61,6 +62,105 @@ export class Effects {
                 v: dir, age: 0, life: life * (0.6 + Math.random() * 0.6), size: size * (0.6 + Math.random() * 0.8), color: c, gravity,
             });
         }
+    }
+
+    /** One particle with an explicit velocity. */
+    emit(position, velocity, { color = 0xffffff, size = 30, life = 800, gravity = 0, intensity = 1 } = {}) {
+        if (this.particles.length >= MAX_PARTICLES) return;
+        this.particles.push({
+            p: position.clone(), v: velocity.clone(), age: 0, life, size, gravity,
+            color: color.isColor ? color : new THREE.Color(color).multiplyScalar(intensity),
+        });
+    }
+
+    /** A rocket with a sparkling trail that bursts high above the stadium. */
+    firework(from, top, color = 0xffd34d, onBurst = null) {
+        const pos = from.clone();
+        const trail = new THREE.Color(0xffe0a0).multiplyScalar(1.1);
+        return tweens.run(900 + Math.random() * 300, t => {
+            pos.lerpVectors(from, top, t);
+            for (let i = 0; i < 2; i++) {
+                this.emit(pos, new THREE.Vector3((Math.random() - 0.5) * 40, -30 - Math.random() * 40, (Math.random() - 0.5) * 40), { color: trail, size: 12, life: 500, gravity: -80 });
+            }
+        }, Ease.quadOut).then(() => {
+            if (onBurst) onBurst();
+            this.burst(top, { color, count: 120, speed: 520, size: 22, life: 1700, gravity: -240, up: 0, intensity: 1.5 });
+            this.burst(top, { color: 0xffffff, count: 30, speed: 280, size: 14, life: 1100, gravity: -150, up: 0, intensity: 1.3 });
+        });
+    }
+
+    /** A volley of fireworks, bursting where the camera is looking (above the far side of the arena). */
+    fireworks(count = 6, colors = [0xffd34d, 0xff4d6d, 0x4dc3ff, 0x7dff7a, 0xc77dff], onBurst = null) {
+        const cam = this.stage.camera;
+        const forward = cam.getWorldDirection(new THREE.Vector3()).setY(0);
+        if (forward.lengthSq() < 0.01) forward.set(0, 0, -1); // looking straight down
+        forward.normalize();
+        const side = new THREE.Vector3(-forward.z, 0, forward.x);
+        for (let i = 0; i < count; i++) {
+            const top = new THREE.Vector3()
+                .addScaledVector(forward, 700 + Math.random() * 900)
+                .addScaledVector(side, (Math.random() - 0.5) * 2000)
+                .setY(600 + Math.random() * 450);
+            const from = top.clone().add(new THREE.Vector3((Math.random() - 0.5) * 300, 0, (Math.random() - 0.5) * 300)).setY(150);
+            tweens.wait(i * 280 + Math.random() * 200).then(() => this.firework(from, top, colors[i % colors.length], onBurst));
+        }
+    }
+
+    /** A jet of fire shooting up (from the torches on big moments). */
+    flameJet(position, strength = 1) {
+        const hot = new THREE.Color(0xffd27a).multiplyScalar(0.9);
+        const fire = new THREE.Color(0xff6a1a).multiplyScalar(0.8);
+        const n = Math.round(45 * strength);
+        for (let i = 0; i < n; i++) {
+            const v = new THREE.Vector3((Math.random() - 0.5) * 120, 650 + Math.random() * 500 * strength, (Math.random() - 0.5) * 120);
+            this.emit(position, v, { color: i % 3 ? fire : hot, size: 36 + Math.random() * 30, life: 700 + Math.random() * 500, gravity: -700 });
+        }
+    }
+
+    /** Embers drifting up from the torches. */
+    embers(points, dt) {
+        const color = new THREE.Color(0xff8a3a).multiplyScalar(1.1);
+        for (const p of points) {
+            if (Math.random() > dt * 0.012) continue;
+            const at = p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 50, 0, (Math.random() - 0.5) * 50));
+            this.emit(at, new THREE.Vector3((Math.random() - 0.5) * 50, 60 + Math.random() * 80, (Math.random() - 0.5) * 50),
+                { color, size: 10 + Math.random() * 10, life: 2200 + Math.random() * 1600, gravity: 25 });
+        }
+    }
+
+    /** An expanding ring on the sand (a card lands, a hero is hit). */
+    shockwave(position, color = 0xffd27a, size = 280) {
+        const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        material.color.multiplyScalar(1.1);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 64), material);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.copy(position).setY(4);
+        ring.renderOrder = 12;
+        this.scene.add(ring);
+        tweens.run(650, t => {
+            ring.scale.setScalar(10 + t * size);
+            material.opacity = 0.9 * (1 - t);
+        }, Ease.cubicOut).then(() => { ring.removeFromParent(); ring.geometry.dispose(); material.dispose(); });
+    }
+
+    /** A column of light rising from a point (heroes entering the arena). */
+    lightPillar(position, color = 0xfff1c0, duration = 2200) {
+        const material = new THREE.ShaderMaterial({
+            uniforms: { color: { value: new THREE.Color(color) }, fade: { value: 0 } },
+            vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+            fragmentShader: `uniform vec3 color; uniform float fade; varying vec2 vUv;
+                void main() { gl_FragColor = vec4(color, fade * pow(1.0 - vUv.y, 2.0) * 0.45); }`,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        });
+        const beam = new THREE.Mesh(new THREE.CylinderGeometry(110, 140, 1600, 32, 1, true), material);
+        beam.position.copy(position).setY(800);
+        beam.renderOrder = 11;
+        this.scene.add(beam);
+        tweens.run(duration, t => {
+            material.uniforms.fade.value = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8;
+            beam.scale.set(1 + t * 0.3, 1, 1 + t * 0.3);
+        }, Ease.linear).then(() => { beam.removeFromParent(); beam.geometry.dispose(); material.dispose(); });
+        this.burst(position.clone().setY(30), { color, count: 60, speed: 320, size: 34, life: 1200, gravity: 120, up: 0.9, intensity: 1.1 });
     }
 
     /** Particles rising around a point (heal / buff). */
@@ -88,6 +188,7 @@ export class Effects {
         geometry.attributes.pcolor.needsUpdate = true;
         geometry.attributes.size.needsUpdate = true;
         this.pMaterial.uniforms.scale.value = this.stage.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.stage.camera.fov / 2)));
+        this.pMaterial.uniforms.maxSize.value = 72 * this.stage.renderer.getPixelRatio();
     }
 
     /** A number that floats up and fades out ("-3", "+2"). */
