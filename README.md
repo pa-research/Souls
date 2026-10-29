@@ -31,7 +31,9 @@ by the web app authenticates the WebSockets on the game server (same origin, no 
 Database tables keep their original names; the seed data (cards, races, classes, abilities, bot names, log
 types) comes from the 2015 dump with its broken test rows fixed (negative card stats, too few starter cards,
 ability ids that did not match the engine). Card 5 has its original name, Huy, back: it is Huy in the 2014
-game data and was renamed "Anette" with test stats in the 2015 dump.
+game data and was renamed "Anette" with test stats in the 2015 dump. The card portraits are the original
+April 2014 art: the "New Card Portraits" commit of May 2014 had replaced cards 1, 2 and 4 (wolf, Dr. Robotnik,
+Pedobear) with a rhino, a zebra and a reaper; those three are back to the originals.
 
 ## Game clients: Classic and Modern 3D
 
