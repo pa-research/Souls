@@ -4,30 +4,59 @@ using Souls.Server.Game;
 
 namespace Souls.Server.Objects;
 
-/// <summary>The in-game state of a player (hero stats, hand and board).</summary>
+/// <summary>The in-game state of a player (hero stats, deck, hand and board).</summary>
 public sealed class GamePlayer
 {
     public const int MaxHandCards = 10;
     public const int BoardSlots = 7;
 
-    /// <summary>Hand cards keyed by <see cref="Card.Cid"/>.</summary>
-    public Dictionary<int, Card> HandCards { get; } = new(MaxHandCards);
+    /// <summary>Hand cards keyed by <see cref="Card.Cid"/>, in the order they were drawn.</summary>
+    public OrderedDictionary<int, Card> HandCards { get; } = new(MaxHandCards);
 
     /// <summary>Board cards keyed by slot id.</summary>
     public Dictionary<int, Card> BoardCards { get; } = new(BoardSlots);
 
+    /// <summary>The shuffled deck; the next card is drawn from the end.</summary>
+    public List<Card> Deck { get; } = [];
+
     public bool IsPlayerOne { get; init; }
+
+    /// <summary>1 for player one, 2 for player two: how events and the state refer to the heroes.</summary>
+    public int Ident => IsPlayerOne ? 1 : 2;
     public bool IsDead { get; set; }
     public int Attack { get; set; }
     public int Health { get; set; }
+    public int MaxHealth { get; set; }
+    public int Armor { get; set; }
     public int Mana { get; set; }
+
+    /// <summary>Mana at the start of this turn.</summary>
+    public int MaxMana { get; set; }
+
+    /// <summary>Extra mana each turn from the hero class.</summary>
+    public int BonusMana { get; init; }
     public required string Name { get; init; }
     public int Rank { get; init; }
+    public int Rating { get; init; }
     public int Type { get; init; }
+    public int? RaceId { get; init; }
     public bool HasAttacked { get; set; }
+    public bool HeroPowerUsed { get; set; }
+
+    /// <summary>Damage of the next draw from an empty deck.</summary>
+    public int Fatigue { get; set; }
     public GameRoom? GameRoom { get; set; }
 
-    /// <summary>Hero stats as strings, like the original server sent them.</summary>
+    // What the player did, for daily quests.
+    public int CardsPlayed { get; set; }
+    public int CardsDestroyed { get; set; }
+    public int AbilitiesUsed { get; set; }
+    public int HeroDamage { get; set; }
+
+    /// <summary>Turns in a row that ended because the turn timer ran out.</summary>
+    public int TimeoutsInARow { get; set; }
+
+    /// <summary>Hero stats as strings, like the original server sent them, plus the new stats.</summary>
     public JsonObject GetPlayerData() => new()
     {
         ["health"] = Health.ToString(CultureInfo.InvariantCulture),
@@ -35,64 +64,43 @@ public sealed class GamePlayer
         ["mana"] = Mana.ToString(CultureInfo.InvariantCulture),
         ["name"] = Name,
         ["type"] = Type.ToString(CultureInfo.InvariantCulture),
+        ["armor"] = Armor,
+        ["maxHealth"] = MaxHealth,
+        ["maxMana"] = MaxMana,
+        ["rating"] = Rating,
+        ["ident"] = Ident,
     };
-
-    public void ResetAttacked()
-    {
-        HasAttacked = false;
-        foreach (var c in BoardCards.Values)
-        {
-            c.HasAttacked = false;
-        }
-    }
 
     public bool HasEnoughMana(Card c) => Mana >= c.Cost;
 
-    public void AttackCard(Card defender)
-    {
-        defender.Health -= Attack;
-        Health -= defender.Attack;
-        if (Health < 1)
-        {
-            IsDead = true;
-        }
-
-        if (defender.Health < 1)
-        {
-            defender.IsDead = true;
-        }
-
-        HasAttacked = true;
-    }
-
-    public void AttackHero(GamePlayer opponent)
-    {
-        opponent.Health -= Attack;
-        Health -= opponent.Attack;
-        if (Health < 1)
-        {
-            IsDead = true;
-        }
-
-        if (opponent.Health < 1)
-        {
-            opponent.IsDead = true;
-        }
-
-        HasAttacked = true;
-    }
-
     public bool IsPlayerTurn() => GameRoom?.CurrentPlaying?.GPlayer == this;
 
-    public void AddCardsToHand(IEnumerable<Card> cards)
-    {
-        foreach (var c in cards)
-        {
-            HandCards[c.Cid] = c;
-        }
-    }
+    public bool HasTaunt => BoardCards.Values.Any(c => c.HasTaunt && !c.IsDead);
 
     public Card? FindBoardCard(int cid) => BoardCards.Values.FirstOrDefault(c => c.Cid == cid);
 
-    public void RemoveBoardCard(Card c) => BoardCards.Remove(c.SlotId);
+    public void RemoveBoardCard(Card c)
+    {
+        if (BoardCards.TryGetValue(c.SlotId, out var there) && there == c)
+        {
+            BoardCards.Remove(c.SlotId);
+        }
+    }
+
+    /// <summary>A free slot as close to <paramref name="near"/> as possible, or <c>null</c> if the board is full.</summary>
+    public int? FreeSlotNear(int near)
+    {
+        for (var distance = 1; distance < BoardSlots; distance++)
+        {
+            foreach (var slot in new[] { near + distance, near - distance })
+            {
+                if (slot is >= 0 and < BoardSlots && !BoardCards.ContainsKey(slot))
+                {
+                    return slot;
+                }
+            }
+        }
+
+        return null;
+    }
 }

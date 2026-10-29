@@ -10,7 +10,8 @@
         }
 
         e.preventDefault();
-        $("#buy-confirm-message").text("Are you sure you want to purchase " + form.dataset.cardName + " for " + form.dataset.price + " soul coins?");
+        var verb = form.dataset.upgrade === "true" ? "upgrade " : "purchase ";
+        $("#buy-confirm-message").text("Are you sure you want to " + verb + form.dataset.cardName + " for " + form.dataset.price + " soul coins?");
         dialog.removeClass("d-none").dialog({
             title: "Purchase " + form.dataset.cardName,
             modal: true,

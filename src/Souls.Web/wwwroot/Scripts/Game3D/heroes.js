@@ -22,7 +22,7 @@ export class Hero3D extends THREE.Group {
     constructor(isPlayer) {
         super();
         this.isPlayer = isPlayer;
-        this.info = { name: 'NA', attack: 'NA', health: 'NA', mana: 0, type: 0 };
+        this.info = { name: 'NA', attack: 'NA', health: 'NA', mana: 0, type: 0, armor: 0 };
         this.name = isPlayer ? 'hero-player' : 'hero-opponent';
 
         this.body = new THREE.Group();
@@ -88,10 +88,10 @@ export class Hero3D extends THREE.Group {
 
     get pickables() { return [this.face, this.plate]; }
 
-    /** Applies the server's hero info (strings: health, attack, mana, name, type). Missing keys are kept. */
+    /** Applies the server's hero info (strings: health, attack, mana, name, type; numbers: armor, maxHealth, maxMana). */
     setInfo(info) {
         if (!info) return;
-        for (const key of ['name', 'attack', 'health', 'type']) {
+        for (const key of ['name', 'attack', 'health', 'type', 'armor', 'maxHealth', 'maxMana', 'ident', 'rating']) {
             if (info[key] !== undefined && info[key] !== null && info[key] !== '') this.info[key] = info[key];
         }
         if (info.mana !== undefined && info.mana !== null) this.info.mana = Number(info.mana) || 0;
@@ -104,7 +104,19 @@ export class Hero3D extends THREE.Group {
         this.repaint();
     }
 
+    /** A pulsing glow on the plate: the hero can attack now. */
+    setReady(on) {
+        this.ready = on;
+        if (!on) {
+            this.plate.material.emissive.set(0x000000);
+            this.plate.material.emissiveIntensity = 1;
+        }
+    }
+
     repaint() {
+        const key = JSON.stringify(['name', 'attack', 'health', 'type', 'armor', 'maxHealth'].map(k => this.info[k]));
+        if (key === this._painted) return;
+        this._painted = key;
         const token = (this._paintToken = (this._paintToken || 0) + 1);
         Promise.all([
             loadImage(Images.heroPortrait(this.info.type)).then(img => img || loadImage(Images.heroPortrait(0))),
@@ -139,6 +151,28 @@ export class Hero3D extends THREE.Group {
             const statY = this.isPlayer ? 182 : 69;
             text(this.info.attack, 40, statY, 35);
             text(this.info.health, 261, statY - 4, 35);
+            if (Number(this.info.armor) > 0) {
+                // A steel shield over the health orb's inner edge.
+                const x = 214, y = statY + (this.isPlayer ? -6 : 0);
+                g.save();
+                g.beginPath();
+                g.moveTo(x, y - 22);
+                g.quadraticCurveTo(x + 19, y - 19, x + 20, y - 14);
+                g.quadraticCurveTo(x + 20, y + 9, x, y + 22);
+                g.quadraticCurveTo(x - 20, y + 9, x - 20, y - 14);
+                g.quadraticCurveTo(x - 19, y - 19, x, y - 22);
+                g.closePath();
+                const metal = g.createLinearGradient(x, y - 22, x, y + 22);
+                metal.addColorStop(0, '#d9e2ec');
+                metal.addColorStop(1, '#3e4c59');
+                g.fillStyle = metal;
+                g.fill();
+                g.lineWidth = 3;
+                g.strokeStyle = '#111';
+                g.stroke();
+                g.restore();
+                text(this.info.armor, x, y + 1, 24);
+            }
             text(this.info.name, HERO_W / 2, this.isPlayer ? 230 : 22, 26, { family: 'Helvetica, Arial, sans-serif', stroke: false, maxWidth: 220 });
             this.texture.needsUpdate = true;
         });
@@ -176,8 +210,12 @@ export class Hero3D extends THREE.Group {
         step();
     }
 
-    /** Idle animation: gems bob and spin. */
+    /** Idle animation: gems bob and spin; a ready hero glows. */
     update(now) {
+        if (this.ready) {
+            this.plate.material.emissive.set(0x2ecc71);
+            this.plate.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(now * 0.005);
+        }
         for (const gem of this.gems) {
             gem.rotation.y = now * 0.0015 + gem.userData.phase;
             gem.position.z = 18 + Math.sin(now * 0.003 + gem.userData.phase) * 3;

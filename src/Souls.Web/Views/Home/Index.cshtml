@@ -1,3 +1,4 @@
+@model HomeViewModel
 @{
     var repository = ViewData["GitHubRepository"] as string;
 }
@@ -32,6 +33,40 @@
     </div>
 
     <div class="col-lg-3">
+        @if (Model.Quests is { } quests)
+        {
+            <div class="quests-plugin mb-3">
+                <p class="services-plugin-title">Daily Quests</p>
+                <ul class="list-unstyled mb-0">
+                    @foreach (var quest in quests)
+                    {
+                        <li class="quest @(quest.Done ? "done" : "")">
+                            <div class="d-flex justify-content-between gap-2">
+                                <span>@(quest.Done ? "\u2714 " : "")@quest.Text</span>
+                                <span class="text-nowrap">@quest.Reward coins</span>
+                            </div>
+                            <div class="progress" role="progressbar" aria-label="@quest.Text" aria-valuenow="@quest.Progress" aria-valuemin="0" aria-valuemax="@quest.Target">
+                                <div class="progress-bar @(quest.Done ? "bg-success" : "bg-warning")" style="width: @(quest.Progress * 100 / Math.Max(1, quest.Target))%">@quest.Progress/@quest.Target</div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="leaderboard-plugin mb-3">
+            <p class="services-plugin-title">Top Players</p>
+            <table class="table table-sm mb-0">
+                <thead><tr><th>#</th><th>Name</th><th>Rating</th></tr></thead>
+                <tbody>
+                    @foreach (var p in Model.TopPlayers)
+                    {
+                        <tr><td>@p.Position</td><td>@p.Name <span class="text-muted small">@p.Type</span></td><td>@p.Rating</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
         @if (!string.IsNullOrEmpty(repository))
         {
             <div class="github-feed mb-3" data-repository="@repository">

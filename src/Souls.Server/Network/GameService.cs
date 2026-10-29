@@ -17,16 +17,16 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                     engine.RequestQueue(player, normal: true);
                     return;
                 case GameRequest.QueuePractice:
-                    engine.RequestQueue(player, normal: false);
+                    engine.RequestQueue(player, normal: false, difficulty: message.Payload["difficulty"] is null ? 1 : message.GetInt("difficulty"));
                     return;
                 case GameRequest.Attack:
                     await engine.RequestAttackAsync(player, message);
                     return;
                 case GameRequest.UseCard:
-                    engine.RequestUseCard(player, message);
+                    await engine.RequestUseCardAsync(player, message);
                     return;
                 case GameRequest.NextTurn:
-                    engine.RequestNextTurn(player);
+                    await engine.RequestNextTurnAsync(player);
                     return;
                 case GameRequest.MoveCard:
                     engine.RequestMoveCard(player, message);
@@ -35,7 +35,19 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                     engine.RequestReleaseCard(player, message);
                     return;
                 case GameRequest.UseAbility:
-                    engine.RequestUseAbility(player, message);
+                    await engine.RequestUseAbilityAsync(player, message);
+                    return;
+                case GameRequest.HeroPower:
+                    await engine.RequestHeroPowerAsync(player, message);
+                    return;
+                case GameRequest.ListLiveGames:
+                    engine.ListLiveGames(player);
+                    return;
+                case GameRequest.Spectate:
+                    engine.Spectate(player, message.GetInt("gameId"));
+                    return;
+                case GameRequest.StopSpectating:
+                    engine.StopSpectating(player);
                     return;
             }
         }
@@ -119,6 +131,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         }
 
         engine.RemoveFromQueues(player);
+        engine.StopSpectating(player);
         if (player.GPlayer?.GameRoom is { IsEnded: false })
         {
             if (player.IsBot || player.GetOpponent()?.IsBot == true)

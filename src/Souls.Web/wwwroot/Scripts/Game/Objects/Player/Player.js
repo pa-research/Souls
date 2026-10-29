@@ -1,5 +1,6 @@
-﻿define("player", ["jquery", "pixi", "asset", "playerbase", "arrow", "cardmanager"], function ($, pixi, asset, playerBase, Arrow, CardManager) {
+﻿define("player", ["jquery", "pixi", "asset", "playerbase", "arrow", "cardmanager", "rules", "card"], function ($, pixi, asset, playerBase, Arrow, CardManager, Rules, Card) {
 
+    var ATTACK_TARGETS = ['enemyCard', 'enemyHero'];
 
     Player = function (engine) {
         playerBase.call(this, engine, true);
@@ -7,32 +8,46 @@
         this.holdingCard; // Currently holding card (Object)
         this.lastHoldingCard; // The last card the player held
 
-        
+
         this.interactive = true;
         this.isClicked = false;
         var that = this;
-        this.mousedown = function (mouseData) {
-            var event = mouseData.originalEvent;
-            var leftClick = (event.which == 1) ? true : false;
-            var rightClick = (event.which == 3) ? true : false;
-            this.rightClick = rightClick;
 
-            if(!rightClick)
+        // Drag from the hero to a target to attack with it (mouse or touch).
+        this.mousedown = this.touchstart = function (mouseData) {
+            var pointer = Card.Pointer(mouseData);
+            that.rightClick = pointer.right;
+            that.engine.SetPointer(mouseData.global, pointer.touch);
+            that._downAt = Date.now();
+            that._downPos = { x: mouseData.global.x, y: mouseData.global.y };
+
+            if (!pointer.right && !that.isDead)
                 that.isClicked = true;
         }
 
-        this.mouseup = this.mouseupoutside = function (mouseData) {
-            var event = mouseData.originalEvent;
-            var leftClick = (event.which == 1) ? true : false;
-            var rightClick = (event.which == 3) ? true : false;
-            this.rightClick = rightClick;
+        this.mouseup = this.mouseupoutside = this.touchend = this.touchendoutside = function (mouseData) {
+            if (!that.isClicked) return;
+            var pointer = Card.Pointer(mouseData);
+
+            if (pointer.touch) {
+                that.engine.SetPointer(mouseData.global, true);
+                that.UpdateAim();
+            }
+
+            var hadTarget = !!that.target;
+            var moved = that._downPos ? Math.abs(mouseData.global.x - that._downPos.x) + Math.abs(mouseData.global.y - that._downPos.y) : 0;
 
             that.isClicked = false;
 
             // Reset arrow.
-            this.arrow.Reset();
+            that.arrow.Reset();
 
-            this.CheckAttack();
+            that.CheckAttack();
+
+            if (pointer.touch) {
+                if (!hadTarget && moved < 20 && that.engine.tooltip) that.engine.tooltip.Pin(that, 3500);
+                that.engine.ClearPointer();
+            }
         }
 
         this.Init();
@@ -54,102 +69,98 @@
         // Process cardmanager
         this.cardManager.Process();
 
-        // Whenever the player is holding a card (Clicked a card)
-        if (!!this.holdingCard) {
-            var isArrowAction = this.arrow.ArrowShowCheck(this.holdingCard);
+        // Aiming with a card, the hero or the hero power
+        this.UpdateAim();
 
-            // if movement - check card attack
-            if (isArrowAction)
-                var isAttackingC = this.arrow.CardAttackCheck(this.holdingCard);
-
-            // if no card attack found - do opponent attack
-            if (isArrowAction && !isAttackingC)
-                var isAttackingOpp = this.arrow.PlayerAttackCheck(this.holdingCard, this.engine.opponent);
-
-            // Check if hovering Player WITH right CLICK
-            if (isArrowAction && !isAttackingC && !isAttackingOpp && !!this.holdingCard.rightClick)
-                var isAttackingP = this.arrow.PlayerAttackCheck(this.holdingCard, this.engine.player);
-           
-
-        }
-
-        // Player portrait is clicked
-        if(this.isClicked)
-        {
-            var isArrowAction = this.arrow.ArrowShowCheck(this);
-
-            if (isArrowAction)
-                var isAttackingC = this.arrow.CardAttackCheck(this);
-
-            // if no card attack found - do opponent attack
-            if (isArrowAction && !isAttackingC)
-                var isAttackingOpp = this.arrow.PlayerAttackCheck(this, this.engine.opponent);
-
-        }
-
+        this.PulseGlow();
+        if (this.heroPower) this.heroPower.Process();
     }
 
-    // Checks the players mana against the card cost
-    Player.prototype.CheckManaCost = function () {
+    /// <summary>
+    /// Draws the arrow and finds the target while the player aims: a board card (left button / drag = attack,
+    /// right button / long press = ability), the hero (attack) or the hero power.
+    /// </summary>
+    Player.prototype.UpdateAim = function () {
+        var found;
+        var card = this.holdingCard;
 
-        for (var i = 0; i < 10; i++) {
-
-            item = this.manaCrystals[i];
-            
-            // If hovercard is defined and hava a cost more than current manacrystal
-            if (!!this._chover && i < this._chover.cost) {
-
-                // If players mana is more than current crystal
-                if (i < this.mana) {
-
-                    // Checks if the player can afford this card in total. If yes, cost crystals are green, if no available are yellow.
-                    if (this.mana >= this._chover.cost)
-                        item.tint = 0x4cd328; // Green crystal
-                    else item.tint = 0xFFFE00; // Yellow crystal
+        if (card && card.inSlot && card.pickedUp && !card.isDead) {
+            if (card.rightClick) {
+                var kinds = [];
+                var hint;
+                var ability = Rules.Ability(card.abilityId);
+                if (!card.abilityId) {
+                    hint = card.name + " has no ability";
                 }
-                // If players mana is less than current crystal
+                else if (!Rules.IsActivated(card.abilityId)) {
+                    hint = (ability ? ability.name : card.abilityName || "This ability") + " works on its own";
+                }
                 else {
-                    item.visible = true;
-                    item.tint = 0xe52a2a; // Red crystal
-                    item.alpha = 0.5;
+                    kinds = Rules.AbilityTargets(card.abilityId);
+                    if (ability) hint = ability.name + ": pick " + Rules.DescribeTargets(kinds);
                 }
+                found = this.arrow.Aim(card, kinds, 'ability', hint);
             }
-            
-            // If hovercard is not defined or cost is less than current crystal
-            // Resets the crystal to original color and visibility
             else {
-                item.alpha = 1;
-                item.tint = 0x6e93b3;
-                // Checks if player have enough mana to show this crystal
-                if (i >= this.mana) {
-                    item.visible = false;
-                }
+                found = this.arrow.Aim(card, ATTACK_TARGETS, 'attack');
+            }
+            card.target = found ? found.obj : undefined;
+            card.targetKind = found ? found.kind : undefined;
+            return;
+        }
+
+        if (this.isClicked) {
+            found = this.arrow.Aim(this, ATTACK_TARGETS, 'attack');
+            this.target = found ? found.obj : undefined;
+            this.targetKind = found ? found.kind : undefined;
+            return;
+        }
+
+        if (this.heroPower && this.heroPower.aiming) {
+            var power = Rules.HeroPower(this.type);
+            var powerKinds = Rules.PowerTargets(this.type);
+            found = this.arrow.Aim(this.heroPower, powerKinds, 'power',
+                (power ? power.name + ": pick " : "Pick ") + Rules.DescribeTargets(powerKinds));
+            this.heroPower.target = found;
+            return;
+        }
+
+        this.arrow.Reset();
+    }
+
+    // Colours the mana crystals: the cost of the hovered card (or hero power) in green (affordable),
+    // yellow (not affordable) or red (missing); spent crystals are dark.
+    Player.prototype.CheckManaCost = function () {
+        var preview = null;
+        if (!!this._chover && typeof this._chover.cost === 'number') preview = this._chover.cost;
+        else if (this.heroPower && this.heroPower.hovered) preview = this.heroPower.cost;
+
+        this.UpdateManaCrystals();
+        if (preview === null) return;
+
+        for (var i = 0; i < 10 && i < preview; i++) {
+            var item = this.manaCrystals[i];
+            if (i < this.mana) {
+                item.tint = (this.mana >= preview) ? 0x4cd328 : 0xFFFE00; // Green / yellow crystal
+            }
+            else {
+                item.visible = true;
+                item.tint = 0xe52a2a; // Red crystal
+                item.alpha = 0.5;
             }
         }
     }
 
     /// <summary>
-    /// This function checks weither a "this" card has a value set in his target variable 
-    /// (This is called on mouseRelease). If its set trigger a rquest Attack to the server.
+    /// Called on release after dragging from the hero: attacks the target (2 = hero on card, 3 = hero on hero).
     /// </summary>
     Player.prototype.CheckAttack = function () {
-        // If a card attack is set (Should not be set unless a player releases the mouse over a enemy card)
-        if (!!this.target && !this.rightClick) {
-
-            if (this.target == this.engine.opponent) {
-                this.engine.gameService.Request_Attack(this, this.target, 3);
-            }
-
-            else // Must be a card
-            {
-                this.engine.gameService.Request_Attack(this, this.target, 2);
-
-            }
-
-            this.target.ScaleDown();
-            this.target = undefined;
-
+        if (!!this.target && !!this.targetKind && !this.rightClick) {
+            this.engine.gameService.Request_Attack(this, this.target, this.targetKind === 'enemyHero' ? 3 : 2);
         }
+        if (this.target && this.target.ScaleDown) this.target.ScaleDown();
+        this.target = undefined;
+        this.targetKind = undefined;
     }
 
 

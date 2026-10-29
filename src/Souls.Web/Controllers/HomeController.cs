@@ -4,17 +4,40 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
+using Souls.Model.Security;
+using Souls.Web.Models;
 
 namespace Souls.Web.Controllers;
 
 [AllowAnonymous]
-public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, ILogger<HomeController> logger) : Controller
+public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, TimeProvider time, ILogger<HomeController> logger) : Controller
 {
-    public IActionResult Index()
+    public async Task<IActionResult> Index(CancellationToken ct)
     {
         ViewData["Title"] = "Home";
         ViewData["GitHubRepository"] = configuration["Souls:GitHubRepository"];
-        return View();
+
+        IReadOnlyList<QuestView>? quests = null;
+        if (User.Identity?.IsAuthenticated == true && User.GetPlayerId() is { } playerId)
+        {
+            quests = [.. (await Quests.EnsureTodayAsync(db, playerId, time, ct)).Select(q =>
+            {
+                var definition = Quests.Get(q.Kind);
+                return new QuestView(definition.Text, q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
+            })];
+        }
+
+        var top = await db.Players.AsNoTracking()
+            .Where(p => !p.IsSystem)
+            .OrderByDescending(p => p.Rating).ThenBy(p => p.Id)
+            .Take(10)
+            .Select(p => new { p.Name, p.Rating, p.Rank, Type = p.PlayerType!.Name })
+            .ToListAsync(ct);
+        return View(new HomeViewModel
+        {
+            Quests = quests,
+            TopPlayers = [.. top.Select((p, i) => new LeaderboardEntry(i + 1, p.Name, p.Rating, p.Rank, p.Type))],
+        });
     }
 
     /// <summary>The 20 most recent games for the "Recent games" feed.</summary>
@@ -24,7 +47,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         var games = await db.Games.AsNoTracking()
             .OrderByDescending(g => g.Id)
             .Take(20)
-            .Select(g => new { gameId = g.Id, player1 = g.Player1!.Name, player2 = g.Player2!.Name })
+            .Select(g => new { gameId = g.Id, player1 = g.Player1!.Name, player2 = g.Player2!.Name, practice = g.IsPractice })
             .ToListAsync(ct);
         return Json(games);
     }

@@ -125,6 +125,11 @@
 
 .souls3d-views[hidden],
 .souls3d-chat[hidden],
+.souls3d-log[hidden],
+.souls3d-timer[hidden],
+.souls3d-power[hidden],
+.souls3d-tooltip[hidden],
+.souls3d-banner[hidden],
 .souls3d-menu[hidden],
 .souls3d-progress[hidden],
 .souls3d-overlay[hidden],
@@ -477,4 +482,270 @@
         flex-direction: column;
         align-items: stretch;
     }
+}
+
+/* Menu: practice difficulty and spectating */
+.souls3d-menu-extras {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.souls3d-difficulty {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 8px;
+}
+
+.souls3d-difficulty-label {
+    padding: 0 6px;
+    color: #ccc;
+    font: 14px Arial, Helvetica, sans-serif;
+}
+
+.souls3d-difficulty button,
+.souls3d-watch-button,
+.souls3d-live button,
+.souls3d-banner button,
+.souls3d-replay button,
+.souls3d-end-links a {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: rgba(20, 20, 20, 0.75);
+    color: #eee;
+    font: 14px Arial, Helvetica, sans-serif;
+    padding: 6px 12px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.souls3d-difficulty button.active,
+.souls3d-replay button.active { background: #c0392b; border-color: #e74c3c; color: #fff; }
+.souls3d-difficulty button:hover,
+.souls3d-watch-button:hover,
+.souls3d-live button:hover,
+.souls3d-banner button:hover,
+.souls3d-replay button:hover,
+.souls3d-end-links a:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* Live games */
+.souls3d-live {
+    width: min(560px, calc(100vw - 32px));
+    max-height: 70vh;
+    overflow: auto;
+    padding: 16px 20px;
+    background: rgba(10, 10, 10, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #eee;
+    pointer-events: auto;
+}
+
+.souls3d-live h2 { margin: 0 0 10px; font: bold 22px Arial, Helvetica, sans-serif; }
+.souls3d-live ul { list-style: none; margin: 0; padding: 0; }
+.souls3d-live li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.souls3d-live li button { grid-row: span 2; align-self: center; }
+.souls3d-live-names { font-weight: bold; overflow-wrap: anywhere; }
+.souls3d-live-meta { font-size: 13px; color: #aaa; }
+.souls3d-live-empty { color: #bbb; }
+.souls3d-live-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* Turn timer: a burning rope under the End Turn sign */
+.souls3d-timer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: clamp(110px, 12vw, 190px);
+    height: 18px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #5c3d1e;
+    border-radius: 9px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.souls3d-timer-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #8a5a2b, #d9a35b);
+    transition: width 0.25s linear;
+}
+
+.souls3d-timer:not(.mine) .souls3d-timer-bar { background: linear-gradient(90deg, #4b5563, #9ca3af); }
+.souls3d-timer.urgent .souls3d-timer-bar { background: linear-gradient(90deg, #7f1d1d, #ff6a00); animation: souls3d-burn 0.4s linear infinite alternate; }
+.souls3d-timer.urgent { border-color: #ff6a00; box-shadow: 0 0 14px rgba(255, 106, 0, 0.8); }
+
+.souls3d-timer-text {
+    position: absolute;
+    inset: 0;
+    text-align: center;
+    font: bold 13px/18px Arial, Helvetica, sans-serif;
+    color: #fff;
+    text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+}
+
+@keyframes souls3d-burn { to { filter: brightness(1.5); } }
+
+/* Hero power */
+.souls3d-power {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px 6px 6px;
+    border: 2px solid #7c5a2e;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 30%, #4a3520, #1d140b);
+    color: #f5e6c8;
+    font: bold 14px Arial, Helvetica, sans-serif;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    touch-action: manipulation;
+}
+
+.souls3d-power-cost {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #8fd3ff, #1d5f99);
+    color: #fff;
+    text-shadow: 0 0 2px #000;
+}
+
+.souls3d-power.ready { border-color: #2ecc71; box-shadow: 0 0 16px rgba(46, 204, 113, 0.75), 0 4px 12px rgba(0, 0, 0, 0.6); }
+.souls3d-power.armed { border-color: #ffd34d; box-shadow: 0 0 22px rgba(255, 211, 77, 0.95); }
+.souls3d-power:disabled { cursor: default; filter: grayscale(0.8) brightness(0.7); }
+.souls3d-power.used .souls3d-power-name { text-decoration: line-through; }
+
+/* Tooltips */
+.souls3d-tooltip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 5;
+    max-width: 280px;
+    padding: 8px 10px;
+    background: rgba(12, 10, 8, 0.94);
+    border: 1px solid #a07a45;
+    border-radius: 8px;
+    color: #eee;
+    font: 13px/1.35 Arial, Helvetica, sans-serif;
+    pointer-events: none;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.souls3d-tooltip-title { margin-bottom: 4px; font-weight: bold; font-size: 15px; color: #ffd98a; }
+.souls3d-tooltip-line + .souls3d-tooltip-line { margin-top: 3px; }
+
+/* Battle log: on the left between the two hands */
+.souls3d-log {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: min(320px, calc(100vw - 28px));
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #ddd;
+    font: 13px/1.35 Arial, Helvetica, sans-serif;
+    pointer-events: auto;
+}
+
+.souls3d-log-header {
+    width: 100%;
+    padding: 6px 10px;
+    border: 0;
+    background: transparent;
+    color: #ffd98a;
+    font: bold 13px Arial, Helvetica, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+
+.souls3d-log-list {
+    max-height: 22vh;
+    margin: 0;
+    padding: 0 10px 8px 26px;
+    overflow-y: auto;
+}
+
+.souls3d-log.collapsed .souls3d-log-list { display: none; }
+.souls3d-log li { padding: 1px 0; }
+
+/* Spectating and replays */
+.souls3d-banner {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100vw - 260px);
+    padding: 6px 8px 6px 14px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    color: #fff;
+    font: bold 14px Arial, Helvetica, sans-serif;
+    pointer-events: auto;
+}
+
+.souls3d-banner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.souls3d-replay {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 10px;
+    pointer-events: auto;
+}
+
+.souls3d-replay-progress { width: 140px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; overflow: hidden; }
+.souls3d-replay-progress div { height: 100%; width: 0; background: #e74c3c; }
+
+/* End screen rewards */
+.souls3d-end-hint { display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 1; }
+.souls3d-end-detail { font-size: 20px; }
+.souls3d-rewards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.souls3d-reward { padding: 6px 12px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font: bold 18px Arial, Helvetica, sans-serif; }
+.souls3d-reward.coins { color: #ffd34d; }
+.souls3d-reward.rating.up { color: #2ecc71; }
+.souls3d-reward.rating.down { color: #e74c3c; }
+.souls3d-quests { list-style: none; margin: 0; padding: 0; min-width: min(420px, 90vw); }
+.souls3d-quests li { display: flex; justify-content: space-between; gap: 16px; padding: 4px 10px; background: rgba(0, 0, 0, 0.45); border-radius: 4px; margin-top: 4px; font-size: 15px; }
+.souls3d-quests li.done { color: #2ecc71; }
+.souls3d-quest-progress { color: #bbb; white-space: nowrap; }
+.souls3d-end-links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+@media (max-height: 500px), (max-width: 700px) {
+    .souls3d-log { top: 10px; left: 50%; transform: translateX(-50%); width: min(240px, calc(100vw - 20px)); }
+    .souls3d-log-list { max-height: 30vh; }
+    .souls3d-banner { max-width: calc(100vw - 20px); top: auto; bottom: 64px; }
 }

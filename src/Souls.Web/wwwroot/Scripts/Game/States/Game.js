@@ -15,17 +15,25 @@ define("game",
     'easeljs',
     'tweenjs',
     'queue',
-    'audio'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Audio) {
+    'audio',
+    'turntimer',
+    'tooltip',
+    'battlelog'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Audio, TurnTimer, Tooltip, BattleLog) {
 
         var that;
-        Engine = function (normalGame) {
+        /// normalGame: ranked match (true) or practice against the bot (false); difficulty: 0 easy, 1 normal, 2 hard.
+        Engine = function (normalGame, difficulty) {
             this.normalGame = normalGame;
+            this.difficulty = (difficulty >= 0 && difficulty <= 2) ? difficulty : 1;
             that = this;
             State.call(this, "0xCAECAE");
-            console.log("> Game Class");
             // Variables
             this.gameId = undefined;
             this.conf = Conf;
+            this.myIdent = undefined; // our hero ident (1/2) from GameCreate
+            this.myTurn = false;
+            this.ended = false;
+            this.lastCardPos = {};
             // Create Groups
             this.addGroup("Background");
             this.addGroup("EndTurn");
@@ -39,6 +47,7 @@ define("game",
             this.addGroup("Card-Focus");
             this.addGroup("Attacker");
             this.addGroup("Player-Particles")
+            this.addGroup("Effects"); // floating numbers, projectiles
             this.addGroup("Queue");
             this.addGroup("Text");
             this.addGroup("Audio");
@@ -70,6 +79,9 @@ define("game",
             this.background = new Background(this);
             this.audio = new Audio(this);
             this.queue = new Queue(this);
+            this.turnTimer = new TurnTimer(this);
+            this.tooltip = new Tooltip(this);
+            this.battleLog = new BattleLog();
 
             // Connect to the chat service
             this.chatService = new ChatService(this);
@@ -89,6 +101,7 @@ define("game",
 
         Engine.prototype.OnStart = function () {
             this.background.Init();
+            this.addChild("EndTurn", this.turnTimer);
 
             this.gameService.Connect();
             this.gameService.Login();
@@ -96,13 +109,66 @@ define("game",
         }
 
         Engine.prototype.OnEnd = function () {
+            this.ended = true;
             this.getGroup("EndTurn").visible = false;
             this.getGroup("Card-Opponent").visible = false;
             this.getGroup("Card-Player").visible = false;
             this.getGroup("Arrow").visible = false;
             this.getGroup("Card-Focus").visible = false;
-            //this.getGroup("Queue");
-            //this.getGroup("Text");
+            this.turnTimer.Stop();
+            this.tooltip.Hide();
+            if (this.player) {
+                this.player.holdingCard = undefined;
+                this.player.isClicked = false;
+                if (this.player.heroPower) this.player.heroPower.interactive = false;
+            }
+        }
+
+        /// The pointer position in stage coordinates. Touch has no hover, so touch handlers set it themselves.
+        Engine.prototype.SetPointer = function (global, touch) {
+            if (!global) return;
+            this.conf.mouse.x = global.x;
+            this.conf.mouse.y = global.y;
+            this.touchActive = !!touch;
+        }
+
+        /// Forgets the pointer (after a touch ends, so nothing stays highlighted).
+        Engine.prototype.ClearPointer = function () {
+            this.conf.mouse.x = -10000;
+            this.conf.mouse.y = -10000;
+        }
+
+        /// Redraws the state badges of all cards and heroes (turn changes, sync).
+        Engine.prototype.RefreshAll = function () {
+            var sides = [this.player, this.opponent];
+            for (var i = 0; i < sides.length; i++) {
+                var side = sides[i];
+                if (!side) continue;
+                side.RefreshHud();
+                for (var key in side.cardManager.board) side.cardManager.board[key].RefreshVisuals();
+            }
+        }
+
+        /// Removes the heroes and cards (the game state is sent again after a reconnect).
+        Engine.prototype.ClearBoard = function () {
+            var sides = [this.player, this.opponent];
+            for (var i = 0; i < sides.length; i++) {
+                var side = sides[i];
+                if (!side) continue;
+                side.cardManager.Clear();
+                if (side.heroPower && side.heroPower.parent) side.heroPower.parent.removeChild(side.heroPower);
+                if (side.arrow) {
+                    side.arrow.Reset();
+                    if (side.arrow.parent) side.arrow.parent.removeChild(side.arrow);
+                    if (side.arrow.arrowHead.parent) side.arrow.arrowHead.parent.removeChild(side.arrow.arrowHead);
+                    if (side.arrow.hint.parent) side.arrow.hint.parent.removeChild(side.arrow.hint);
+                }
+                if (side.parent) side.parent.removeChild(side);
+            }
+            this.ProcessList = [];
+            this.player = null;
+            this.opponent = null;
+            this.lastCardPos = {};
         }
 
         Engine.prototype.OnPause = function () {
@@ -124,6 +190,10 @@ define("game",
                 object.Process();
             });
 
+            if (this.opponent && this.opponent.heroPower) this.opponent.heroPower.Process();
+            this.turnTimer.Process();
+            this.tooltip.Update();
+
             return this.stage;
         };
 
@@ -144,7 +214,7 @@ define("game",
             var msg = messageArray.shift();
             if (forever) messageArray.push(msg);
 
-            var flashText = new Pixi.Text(msg,
+            var flashText = new Pixi.Text(String(msg === undefined || msg === null || msg === '' ? ' ' : msg),
             {
                 font: "70px Arial",
                 fill: "white",

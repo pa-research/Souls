@@ -5,7 +5,9 @@ namespace Souls.Server.Network;
 /// <summary>In-memory connection used by the practice bot. Messages sent to it are delivered to the AI.</summary>
 public sealed class BotConnection : Connection
 {
-    private readonly Channel<string> _inbox = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    // Not SingleReader: that channel type cannot count its items, and the bot uses the count to know when it has
+    // read everything the server sent.
+    private readonly Channel<string> _inbox = Channel.CreateUnbounded<string>();
 
     public override bool IsOpen => !_inbox.Reader.Completion.IsCompleted;
 

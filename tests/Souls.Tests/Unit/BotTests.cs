@@ -1,0 +1,67 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Souls.Model;
+using Souls.Server.Ai;
+using Souls.Server.Chat;
+using Souls.Server.Game;
+using Souls.Server.Network;
+using Souls.Server.Objects;
+
+namespace Souls.Tests.Unit;
+
+/// <summary>Runs the real bot in-process against a player who only ends their turn.</summary>
+public class BotTests
+{
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task BotPlaysCardsAttacksAndEndsItsTurns(int difficulty)
+    {
+        var state = new ServerState();
+        var services = new ServiceCollection().BuildServiceProvider();
+        var scopes = services.GetRequiredService<IServiceScopeFactory>();
+        var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System, Options.Create(new GameOptions()), NullLogger<GameEngine>.Instance);
+        var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
+
+        Card Definition(int id, int attack, int health, int cost, int? ability = null) =>
+            new() { Id = id, Name = "c" + id, BaseAttack = attack, BaseHealth = health, Cost = cost, AbilityId = ability };
+        IReadOnlyList<Card> deck = [.. Enumerable.Range(0, GameRules.DeckSize).Select(i => Definition(i % 3 + 1, 2 + i % 3, 3, 1 + i % 3, i % 5 == 0 ? Model.Entities.Ability.Heal : null))];
+
+        var human = new Player { Id = 1, Name = "human", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, GameContext = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true } };
+        var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
+        var bot = new Player { Id = 2, Name = "bot", PlayerType = new PlayerTypeInfo(1, 1, 30, 0), OwningCards = deck, Deck = deck, IsBot = true, Difficulty = difficulty, GameContext = connection };
+        state.GameClients[connection] = bot;
+        var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)),
+            new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero }, difficulty, NullLogger.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var running = Task.Run(() => ai.RunAsync(cts.Token));
+
+        GameRoom? room = null;
+        await state.RunExclusiveAsync(() => { room = engine.CreateGame(new Pair<Player>(human, bot), practice: true); return Task.CompletedTask; });
+        var botTurns = 0;
+        for (var turn = 0; turn < 12 && !room!.IsEnded; turn++)
+        {
+            await state.RunExclusiveAsync(() => engine.RequestNextTurnAsync(human));
+            // Wait for the bot to finish its turn.
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (!room.IsEnded && room.CurrentPlaying == bot && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20);
+            }
+
+            Assert.True(room.IsEnded || room.CurrentPlaying == human, $"The bot did not end turn {turn}");
+            botTurns++;
+        }
+
+        Assert.True(botTurns >= 3);
+        // The bot has been playing: cards played and damage dealt to the passive human.
+        var botGp = room!.Players.Second.GPlayer ?? bot.GPlayer;
+        Assert.True(room.IsEnded || (botGp?.CardsPlayed ?? 0) > 0);
+        Assert.True(room.IsEnded || human.GPlayer!.Health < 30);
+        await cts.CancelAsync();
+        connection.Close("done");
+        await running;
+    }
+}

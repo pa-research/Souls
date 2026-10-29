@@ -138,9 +138,10 @@ public class GameServerTests(SoulsAppFixture app)
                     }
                 }
 
+                // Hero attacks hero: answered with events and the new state (or a message, e.g. a Taunt in the way).
                 await game.SendAsync(200, new JsonObject { ["source"] = -1, ["target"] = -1, ["type"] = 3 });
-                var attack = await game.ReceiveTypeAsync(218, 230, 231, 233);
-                if (Type(attack) != 218)
+                var attack = await game.ReceiveTypeAsync(236, 232, 230, 231, 233);
+                if (Type(attack) is 230 or 231 or 233)
                 {
                     result = attack;
                     break;
@@ -162,14 +163,32 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.NotNull(result);
             var gameId = (int)result["Payload"]!["statistics"]!;
             Assert.True(gameId > 0);
+            Assert.Equal(3, result["Payload"]!["quests"]!.AsArray().Count);
+            Assert.True((int)result["Payload"]!["coins"]! >= 0);
+            Assert.Null(result["Payload"]!["ratingChange"]); // practice games are not rated
 
-            var (stored, log) = await app.WithDbAsync(async db => (
+            // Attacks are reported as events, followed by the full state.
+            Assert.Contains(game.Received, m => Type(m) == 235 && m["Payload"]!["events"]!.AsArray().Any(e => (string?)e!["t"] == "attack"));
+            Assert.Contains(game.Received, m => Type(m) == 236 && m["Payload"]!["heroes"]!["1"]!["name"] is not null);
+
+            var (stored, log, replay) = await app.WithDbAsync(async db => (
                 await db.Games.Include(g => g.Player1).Include(g => g.Player2).SingleAsync(g => g.Id == gameId),
-                await db.GameLogs.Where(l => l.GameId == gameId).Select(l => l.GameLogTypeId).ToListAsync()));
+                await db.GameLogs.Where(l => l.GameId == gameId).ToListAsync(),
+                await db.GameReplays.SingleOrDefaultAsync(r => r.GameId == gameId)));
             Assert.Equal(name, stored.Player1!.Name);
             Assert.True(stored.Player2!.IsSystem);
-            Assert.Contains((int)GameLogKind.GameCreated, log);
-            Assert.Contains(log, id => id is (int)GameLogKind.Won or (int)GameLogKind.Draw);
+            Assert.True(stored.IsPractice);
+            Assert.Contains(log, l => l.GameLogTypeId == (int)GameLogKind.GameCreated && l.Text!.Contains(name, StringComparison.Ordinal));
+            Assert.Contains(log, l => l.GameLogTypeId is (int)GameLogKind.Won or (int)GameLogKind.Draw);
+
+            // The replay holds the spectator view: it starts with the game, never reveals hands, and ends.
+            Assert.NotNull(replay);
+            var records = JsonNode.Parse(replay.Data)!.AsArray();
+            Assert.Equal(241, (int)records[0]!["m"]!["Type"]!);
+            Assert.Equal(242, (int)records[^1]!["m"]!["Type"]!);
+            Assert.DoesNotContain(records, r => (int)r!["m"]!["Type"]! == 222 && r["m"]!["Payload"]!["card"]!.AsArray().Any(c => c!["name"] is not null));
+            using var replayData = await browser.GetAsync($"/Game/ReplayData/{gameId}");
+            Assert.Equal(System.Net.HttpStatusCode.OK, replayData.StatusCode);
 
             using var stats = await browser.GetAsync($"/Game/Stats/{gameId}");
             Assert.Contains($"Game Summary for #{gameId}", await stats.Content.ReadAsStringAsync(), StringComparison.Ordinal);

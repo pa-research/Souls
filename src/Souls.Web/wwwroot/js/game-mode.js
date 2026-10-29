@@ -17,7 +17,18 @@
         try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
     }
 
+    /** Watching live games and replays are 3D only. */
+    function spectatorPage() {
+        try {
+            var config = JSON.parse(document.getElementById('souls-game-config').textContent);
+            return !!(config.watch || config.replayUrl);
+        } catch (e) {
+            return false;
+        }
+    }
+
     function currentMode() {
+        if (spectatorPage()) return '3d';
         var query = new URLSearchParams(window.location.search).get('mode');
         if (query === 'classic' || query === '3d') {
             setMode(query);
@@ -105,6 +116,6 @@
         document.body.appendChild(script);
     }
 
-    renderSwitch();
+    if (!spectatorPage()) renderSwitch();
     loadClient();
 })();

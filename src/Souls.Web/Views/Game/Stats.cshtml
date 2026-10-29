@@ -1,5 +1,12 @@
 @model GameStatsViewModel
 <div class="stats-title">Game Summary for #@Model.GameId</div>
+<div class="stats-meta text-center mb-2">
+    @(Model.IsPractice ? "Practice game" : "Ranked game")@(Model.Turns > 0 ? $" \u00b7 {Model.Turns} turns" : "")
+    @if (Model.HasReplay)
+    {
+        <a class="btn btn-sm btn-dark ms-2" asp-controller="Game" asp-action="Replay" asp-route-id="@Model.GameId">Watch the replay in 3D</a>
+    }
+</div>
 
 <div class="container-fluid stats-battlewindow">
     <div class="row align-items-center">
@@ -15,6 +22,10 @@
                 <div class="stats-player-name">@player.Name the @(Model.IsDraw ? "Undefeated" : won ? "Victorious" : "Defeated")</div>
                 <div class="stats-player-portrait @(won ? "winner" : "loser")" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).png');"></div>
                 <div class="stats-player-stats">
+                    @if (!Model.IsPractice && Model.RatingChanges[i] != 0)
+                    {
+                        <p>Rating: @player.Rating (@(Model.RatingChanges[i] > 0 ? "+" : "")@Model.RatingChanges[i])</p>
+                    }
                     <p>Type: @player.PlayerType?.Name</p>
                     <p>Attack: @player.PlayerType?.Attack</p>
                     <p>Health: @player.PlayerType?.Health</p>

@@ -85,22 +85,26 @@ async function main() {
 
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
 
-    // After switching clients mid-game, go straight back into the running game.
+    // Replays and watch links start right away; after switching clients mid-game, go straight back into the game.
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
-    let normalGame;
-    if (resume) {
-        normalGame = resume.normal;
+    let choice;
+    if (config.replayUrl) {
+        choice = { mode: 'replay' };
+    } else if (config.watch) {
+        choice = { mode: 'watch' };
+    } else if (resume) {
+        choice = { mode: resume.normal ? 'normal' : 'practice', difficulty: ui.difficulty };
     } else {
         sound.playMusic('MENU', 0.1);
-        normalGame = await ui.showMenu();
+        choice = await ui.showMenu();
     }
     sound.stopMusic();
 
-    game = new Game({ stage, ui, effects, arena, crowd, config, normalGame });
+    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1 });
     new Interaction(stage, game, effects);
     ui.setView(stage.view);
-    ui.showViews(true);
-    exposeTestHooks(stage, game);
+    ui.showViews(true, { chat: !game.spectator });
+    exposeTestHooks(stage, game, ui);
     game.start();
 }
 
@@ -118,7 +122,7 @@ function storeView(name) {
 }
 
 /** Read-only helpers for the end-to-end tests: where things are on screen and what state the game is in. */
-function exposeTestHooks(stage, game) {
+function exposeTestHooks(stage, game, ui) {
     // Cards and heroes are children of the game root, which sits at the origin.
     const screen = obj => (obj ? stage.toScreen(obj.center ? obj.center() : obj.position) : null);
     window.__souls3d = {
@@ -133,8 +137,22 @@ function exposeTestHooks(stage, game) {
             hand: [...game.player.hand.values()].map(c => ({ cid: c.cid, cost: Number(c.data.cost), pending: !!c.pending })),
             board: [...game.player.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, ability: c.abilityId ?? null })),
             opponentHand: game.opponent.hand.size,
-            opponentBoard: [...game.opponent.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId })),
+            opponentBoard: [...game.opponent.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, taunt: !!c.data.taunt })),
+            armor: Number(game.player.hero.info.armor) || 0,
+            mode: game.mode,
+            spectator: game.spectator,
+            current: game.current,
+            ident: game.ident,
         }),
+        sync: () => game.lastSync,
+        log: () => ui.logLines(),
+        power: () => {
+            const r = ui.power.getBoundingClientRect();
+            const host = stage.renderer.domElement.getBoundingClientRect();
+            return ui.power.hidden ? null : { x: r.left + r.width / 2 - host.left, y: r.top + r.height / 2 - host.top, disabled: ui.power.disabled };
+        },
+        tooltip: () => (ui.tooltip.hidden ? null : ui.tooltip.textContent),
+        timer: () => (ui.timer.hidden ? null : ui.timerText.textContent),
         // The visible strip of a hand card (the next card covers the rest of it, as in the classic client).
         handCard: index => {
             const last = index === game.player.hand.size - 1;

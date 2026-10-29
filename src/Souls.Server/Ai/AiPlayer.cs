@@ -1,37 +1,75 @@
-using System.Globalization;
 using System.Text.Json.Nodes;
+using Souls.Model;
 using Souls.Server.Network;
 using Souls.Server.Objects;
+using AbilityIds = Souls.Model.Entities.Ability;
+using Races = Souls.Model.GameRules.Races;
 
 namespace Souls.Server.Ai;
 
 public sealed class AiOptions
 {
-    /// <summary>Pause after playing cards, before attacking.</summary>
-    public TimeSpan ThinkDelay { get; set; } = TimeSpan.FromSeconds(2);
+    /// <summary>Pause at the start of the bot's turn.</summary>
+    public TimeSpan ThinkDelay { get; set; } = TimeSpan.FromSeconds(1.5);
 
-    /// <summary>Pause between attacks.</summary>
-    public TimeSpan AttackDelay { get; set; } = TimeSpan.FromMilliseconds(200);
+    /// <summary>Pause between the bot's actions.</summary>
+    public TimeSpan AttackDelay { get; set; } = TimeSpan.FromMilliseconds(700);
 }
 
 /// <summary>
 /// The practice bot. It plays through an in-memory <see cref="BotConnection"/> using the same messages as a
-/// browser: on its turn it plays every card it can afford, attacks with all board cards and ends the turn.
+/// browser. After every action the server sends the full state (<see cref="GameResponse.GameSync"/>); on its turn the
+/// bot then picks one action at a time: lethal if it can, cards to play, abilities, trades, the hero power, and
+/// finally ends the turn. Difficulty: 0 easy (random), 1 normal (greedy), 2 hard (careful trades, plays to its outs).
 /// </summary>
-public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send, AiOptions options, ILogger logger)
+public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send, AiOptions options, int difficulty, ILogger logger)
 {
-    private sealed class Side
+    private sealed class Unit
     {
-        public Dictionary<int, Card?> Hand { get; } = [];
-        public Dictionary<int, Card> Board { get; } = [];
-        public int Attack { get; set; }
-        public int Health { get; set; }
-        public int Mana { get; set; }
+        public int Cid { get; init; }
+        public int Attack { get; init; }
+        public int Health { get; init; }
+        public int MaxHealth { get; init; }
+        public int Armor { get; init; }
+        public bool Taunt { get; init; }
+        public bool CanAct { get; init; }
+        public int? Ability { get; init; }
+        public int? Race { get; init; }
+        public int SlotId { get; init; }
+
+        /// <summary>Damage this unit deals when it attacks.</summary>
+        public int Hit => Attack + (Race == Races.Ferocious ? 1 : 0);
+        public int Toughness => Health + Armor;
+        public int Value => Attack * 2 + Health + Armor + (Taunt ? 2 : 0) + (Ability is not null ? 2 : 0);
     }
 
-    private Side _me = new();
-    private Side _opponent = new();
-    private bool _yourTurn;
+    private sealed class Hero
+    {
+        public int Health { get; init; }
+        public int MaxHealth { get; init; }
+        public int Armor { get; init; }
+        public int Attack { get; init; }
+        public int Mana { get; init; }
+        public int Type { get; init; }
+        public bool CanAttack { get; init; }
+        public bool CanUsePower { get; init; }
+        public int Toughness => Health + Armor;
+    }
+
+    private readonly Dictionary<int, Card> _hand = [];
+    private readonly HashSet<string> _failed = [];
+    private readonly Random _random = new();
+    private int _ident;
+    private int _turn = -1;
+    private bool _myTurn;
+    private bool _ended;
+    private bool _turnStarted;
+    private string? _lastAction;
+    private Hero _me = new();
+    private Hero _enemy = new();
+    private List<Unit> _myBoard = [];
+    private List<Unit> _enemyBoard = [];
+    private bool _synced;
 
     public async Task RunAsync(CancellationToken ct)
     {
@@ -46,7 +84,14 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         break;
                     }
 
-                    await ProcessGameAsync(ct);
+                    // Act once everything the server sent has been read.
+                    while (connection.Inbox.Count == 0 && _myTurn && _synced && !_ended)
+                    {
+                        if (!await StepAsync(ct))
+                        {
+                            break;
+                        }
+                    }
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
@@ -67,195 +112,374 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// <returns><c>false</c> when the bot should disconnect.</returns>
     private bool Handle(JsonNode message)
     {
-        var type = (int?)message["Type"];
         var payload = message["Payload"];
-        switch ((GameResponse?)type)
+        switch ((GameResponse?)(int?)message["Type"])
         {
             case GameResponse.GameCreate:
-                CreateGame(payload!);
-                break;
-            case GameResponse.GameNextTurn:
-                _yourTurn = (bool?)payload!["yourTurn"] ?? false;
-                ReadInfo(_me, payload["playerInfo"]);
-                ReadInfo(_opponent, payload["opponentInfo"]);
+                _ident = (int?)payload!["ident"] ?? 2;
+                _hand.Clear();
+                foreach (var (_, node) in payload["player"]!["hand"]!.AsObject())
+                {
+                    var card = Card.FromJson(node!);
+                    _hand[card.Cid] = card;
+                }
+
                 break;
             case GameResponse.GameNewCard:
                 foreach (var node in payload!["card"]!.AsArray())
                 {
                     var card = Card.FromJson(node!);
-                    _me.Hand[card.Cid] = card;
+                    _hand[card.Cid] = card;
                 }
 
                 break;
-            case GameResponse.GameOpponentNewCard:
-                foreach (var node in payload!["card"]!.AsArray())
+            case GameResponse.GameUseCardOk:
+                _hand.Remove((int?)payload!["card"]?["cid"] ?? 0);
+                break;
+            case GameResponse.GameSync:
+                ReadSync(payload!);
+                break;
+            case GameResponse.GameGeneralMessage:
+            case GameResponse.GameUseCardOom:
+            case GameResponse.GameUseCardOccupied:
+            case GameResponse.GameNotYourTurn:
+                if (_lastAction is not null)
                 {
-                    _opponent.Hand[(int)node!["cid"]!] = null;
+                    _failed.Add(_lastAction);
                 }
 
-                break;
-            case GameResponse.GameOpponentUseCardOk:
-                var used = Card.FromJson(payload!["card"]!);
-                _opponent.Hand.Remove(used.Cid);
-                _opponent.Board[used.Cid] = used;
-                break;
-            case GameResponse.GameAttack:
-                ApplyAttackResult(_me, payload!["player"]!);
-                ApplyAttackResult(_opponent, payload["opponent"]!);
-                break;
-            case GameResponse.GameUseAbility:
-                ApplyAbility(payload!);
                 break;
             case GameResponse.GameBotDisconnect:
             case GameResponse.GameVictory:
             case GameResponse.GameDefeat:
             case GameResponse.GameDraw:
+                _ended = true;
                 return false;
         }
 
         return true;
     }
 
-    private void CreateGame(JsonNode payload)
+    private void ReadSync(JsonNode sync)
     {
-        _me = new Side();
-        _opponent = new Side();
-        ReadInfo(_me, payload["player"]!["info"]);
-        ReadInfo(_opponent, payload["opponent"]!["info"]);
-        _yourTurn = (bool?)payload["yourTurn"] ?? false;
-
-        foreach (var (_, node) in payload["player"]!["hand"]!.AsObject())
+        _synced = true;
+        var turn = (int?)sync["turn"] ?? 0;
+        _myTurn = (int?)sync["current"] == _ident;
+        if (turn != _turn)
         {
-            var card = Card.FromJson(node!);
-            _me.Hand[card.Cid] = card;
+            _turn = turn;
+            _failed.Clear();
+            _turnStarted = false;
         }
 
-        foreach (var node in payload["opponent"]!["hand"]!.AsArray())
-        {
-            _opponent.Hand[(int)node!["cid"]!] = null;
-        }
+        var enemyIdent = _ident == 1 ? 2 : 1;
+        _me = ReadHero(sync["heroes"]?[_ident.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+        _enemy = ReadHero(sync["heroes"]?[enemyIdent.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+        _myBoard = ReadBoard(sync["board"]?[_ident.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+        _enemyBoard = ReadBoard(sync["board"]?[enemyIdent.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
     }
 
-    private async Task ProcessGameAsync(CancellationToken ct)
+    private static int Int(JsonNode? node) => node is JsonValue v && v.TryGetValue<int>(out var i) ? i
+        : int.TryParse(node?.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out i) ? i : 0;
+
+    private static Hero ReadHero(JsonNode? node) => new()
     {
-        if (!_yourTurn)
+        Health = Int(node?["health"]),
+        MaxHealth = Int(node?["maxHealth"]),
+        Armor = Int(node?["armor"]),
+        Attack = Int(node?["attack"]),
+        Mana = Int(node?["mana"]),
+        Type = Int(node?["type"]),
+        CanAttack = (bool?)node?["canAttack"] ?? false,
+        CanUsePower = (bool?)node?["canUsePower"] ?? false,
+    };
+
+    private static List<Unit> ReadBoard(JsonNode? node) => node is JsonArray cards
+        ? [.. cards.Select(c => new Unit
         {
-            return;
+            Cid = Int(c!["cid"]),
+            Attack = Int(c["attack"]),
+            Health = Int(c["health"]),
+            MaxHealth = Int(c["maxHealth"]),
+            Armor = Int(c["armor"]),
+            Taunt = (bool?)c["taunt"] ?? false,
+            CanAct = (bool?)c["canAct"] ?? false,
+            Ability = (int?)c["ability"]?["id"],
+            Race = (int?)c["race"]?["id"],
+            SlotId = Int(c["slotId"]),
+        })]
+        : [];
+
+    /// <summary>Takes one action (or ends the turn). Returns <c>false</c> when it should wait for the server.</summary>
+    private async Task<bool> StepAsync(CancellationToken ct)
+    {
+        await Task.Delay(_turnStarted ? options.AttackDelay : options.ThinkDelay, ct);
+        _turnStarted = true;
+
+        var action = Decide();
+        if (action is null)
+        {
+            _myTurn = false;
+            _lastAction = null;
+            await send(Message.Create(GameRequest.NextTurn));
+            return false;
         }
 
-        // Play every affordable card into a free slot, in random order.
-        foreach (var card in _me.Hand.Values.OfType<Card>().OrderBy(_ => Random.Shared.Next()).ToList())
+        _lastAction = Key(action);
+        await send(action);
+
+        // The server answers synchronously; no answer means the action was refused without a message.
+        if (connection.Inbox.Count == 0)
         {
-            if (_me.Mana < card.Cost)
-            {
-                continue;
-            }
-
-            var slot = Enumerable.Range(0, GamePlayer.BoardSlots).Cast<int?>().FirstOrDefault(s => _me.Board.Values.All(c => c.SlotId != s));
-            if (slot is null)
-            {
-                break;
-            }
-
-            _me.Mana -= card.Cost;
-            card.SlotId = slot.Value;
-            _me.Hand.Remove(card.Cid);
-            _me.Board[card.Cid] = card;
-            await send(Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = slot.Value }));
+            _failed.Add(_lastAction);
+            return true;
         }
 
-        await Task.Delay(options.ThinkDelay, ct);
-
-        foreach (var card in _me.Board.Values.ToList())
-        {
-            var attackHero = Random.Shared.Next(0, 200) > 175 || _opponent.Board.Count == 0;
-            if (!attackHero)
-            {
-                var target = _opponent.Board.Values.ElementAt(Random.Shared.Next(_opponent.Board.Count));
-                await send(Message.Create(GameRequest.Attack, new JsonObject { ["source"] = card.Cid, ["target"] = target.Cid, ["type"] = 0 }));
-            }
-            else if (_opponent.Health - card.Attack >= 1)
-            {
-                // The bot never lands the killing blow on the hero (original behaviour).
-                await send(Message.Create(GameRequest.Attack, new JsonObject { ["source"] = card.Cid, ["target"] = -1, ["type"] = 1 }));
-            }
-
-            await Task.Delay(options.AttackDelay, ct);
-        }
-
-        _yourTurn = false;
-        await send(Message.Create(GameRequest.NextTurn));
+        return false;
     }
 
-    private static void ReadInfo(Side side, JsonNode? info)
+    private static string Key(Message m) => $"{m.Type}:{m.Payload.ToJsonString()}";
+
+    private Message? Try(Message m) => _failed.Contains(Key(m)) ? null : m;
+
+    private Message? Decide()
     {
-        if (info is null)
+        if (difficulty == 0 && _random.Next(10) == 0)
         {
-            return;
+            return null; // easy bots sometimes just pass
         }
 
-        side.Attack = ParseStat(info["attack"]);
-        side.Health = ParseStat(info["health"]);
-        side.Mana = ParseStat(info["mana"]);
+        return Lethal() ?? PlayCard() ?? UseAbility() ?? Attack() ?? HeroAttack() ?? HeroPower();
     }
 
-    private static int ParseStat(JsonNode? node) =>
-        int.TryParse(node?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    // ---- Lethal ---------------------------------------------------------------------------------------------------
 
-    /// <summary>Applies one side of an attack result. Results without a card id describe the hero.</summary>
-    private static void ApplyAttackResult(Side side, JsonNode result)
+    private Message? Lethal()
     {
-        var health = (int?)result["health"] ?? 0;
-        var isDead = (bool?)result["isDead"] ?? false;
-        if (result["cid"] is { } cidNode)
+        if (difficulty == 0 || _enemyBoard.Any(u => u.Taunt))
         {
-            var cid = (int)cidNode;
-            if (isDead)
+            return null;
+        }
+
+        var ready = _myBoard.Where(u => u.CanAct).ToList();
+        var damage = ready.Where(u => u.Ability != AbilityIds.Burn).Sum(u => u.Hit)
+            + ready.Count(u => u.Ability == AbilityIds.Burn) * GameRules.BurnDamage
+            + (_me.CanAttack ? _me.Attack : 0)
+            + (_me.CanUsePower && _me.Type is 1 or 2 ? 1 : 0);
+        if (damage < _enemy.Toughness)
+        {
+            return null;
+        }
+
+        foreach (var unit in ready.OrderByDescending(u => u.Hit))
+        {
+            var m = unit.Ability == AbilityIds.Burn
+                ? Ability(unit.Cid, TargetType.EnemyHero, -1)
+                : AttackMessage(unit.Cid, -1, 1);
+            if (Try(m) is { } ok)
             {
-                side.Board.Remove(cid);
-            }
-            else if (side.Board.TryGetValue(cid, out var card))
-            {
-                card.Health = health;
+                return ok;
             }
         }
-        else
+
+        if (_me.CanAttack && Try(AttackMessage(-1, -1, 3)) is { } heroHit)
         {
-            side.Health = health;
+            return heroHit;
         }
+
+        return _me.CanUsePower && _me.Type is 1 or 2 ? Try(Power(TargetType.EnemyHero, -1)) : null;
     }
 
-    /// <summary>Applies an ability result; the server sends the resulting stats as the parameter.</summary>
-    private void ApplyAbility(JsonNode payload)
+    // ---- Cards ----------------------------------------------------------------------------------------------------
+
+    private Message? PlayCard()
     {
-        var side = (bool?)payload["wasOpponent"] == true ? _opponent : _me;
-        var abilityId = (int?)payload["abilityId"];
-        var type = (int?)payload["type"];
-        var source = (int?)payload["source"] ?? 0;
-        var target = (int?)payload["target"] ?? 0;
-        var stats = payload["parameter"]?.ToString().Split(':').Select(s => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0).ToArray() ?? [];
-
-        if (abilityId == Model.Entities.Ability.Sacrifice)
+        var free = Enumerable.Range(0, GamePlayer.BoardSlots).Where(s => _myBoard.All(u => u.SlotId != s)).ToList();
+        if (free.Count == 0)
         {
-            side.Board.Remove(source);
+            return null;
         }
 
-        var targetsCard = (abilityId == Model.Entities.Ability.Heal && type == 0) || (abilityId == Model.Entities.Ability.Sacrifice && type == 1);
-        if (targetsCard && side.Board.TryGetValue(target, out var card))
+        var affordable = _hand.Values.Where(c => c.Cost <= _me.Mana).ToList();
+        if (affordable.Count == 0)
         {
-            card.Health = stats.ElementAtOrDefault(0);
-            if (stats.Length > 1)
-            {
-                card.Attack = stats[1];
-            }
+            return null;
         }
-        else if (!targetsCard && stats.Length > 0)
-        {
-            side.Health = stats[0];
-            if (stats.Length > 1)
-            {
-                side.Attack = stats[1];
-            }
-        }
+
+        var card = difficulty == 0
+            ? affordable[_random.Next(affordable.Count)]
+            : affordable
+                .OrderByDescending(c => c.Cost)
+                .ThenByDescending(c => c.AbilityId == AbilityIds.Taunt && _enemyBoard.Sum(u => u.Attack) >= _me.Toughness / 2 ? 1 : 0)
+                .ThenByDescending(c => c.Attack + c.Health + c.Armor)
+                .First();
+
+        // Taunts go in the middle, the rest fill from the left.
+        var slot = card.AbilityId == AbilityIds.Taunt ? free.OrderBy(s => Math.Abs(s - 3)).First() : free[0];
+        return Try(Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = slot }));
     }
+
+    // ---- Abilities ------------------------------------------------------------------------------------------------
+
+    private Message? UseAbility()
+    {
+        foreach (var unit in _myBoard.Where(u => u.CanAct && GameRules.IsActivated(u.Ability)))
+        {
+            var m = unit.Ability switch
+            {
+                AbilityIds.Heal => HealTarget(unit),
+                AbilityIds.Sacrifice => SacrificeTarget(unit),
+                AbilityIds.Paralyze => _enemyBoard.Where(u => u.Attack >= 3).OrderByDescending(u => u.Attack).Select(u => Ability(unit.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault(),
+                AbilityIds.Harden => _me.Health <= _me.MaxHealth / 2 ? Ability(unit.Cid, TargetType.OwnHero, -1)
+                    : _myBoard.Where(u => u.Taunt).Select(u => Ability(unit.Cid, TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),
+                AbilityIds.Burn => _enemyBoard.Where(u => u.Toughness <= GameRules.BurnDamage).OrderByDescending(u => u.Value)
+                    .Select(u => Ability(unit.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault() ?? Ability(unit.Cid, TargetType.EnemyHero, -1),
+                _ => null,
+            };
+            if (m is not null && Try(m) is { } ok)
+            {
+                return ok;
+            }
+        }
+
+        return null;
+    }
+
+    private Message? HealTarget(Unit healer)
+    {
+        if (_me.MaxHealth - _me.Health >= 3 && (difficulty == 0 || _me.Health < _me.MaxHealth * 2 / 3))
+        {
+            return Ability(healer.Cid, TargetType.OwnHero, -1);
+        }
+
+        var hurt = _myBoard.Where(u => u.MaxHealth - u.Health >= 2).OrderByDescending(u => u.Value).FirstOrDefault();
+        return hurt is null ? null : Ability(healer.Cid, TargetType.FriendlyCard, hurt.Cid);
+    }
+
+    private Message? SacrificeTarget(Unit source)
+    {
+        if (difficulty > 0 && source.Value >= 8)
+        {
+            return null; // too good to throw away
+        }
+
+        var best = _myBoard.Where(u => u.Cid != source.Cid).OrderByDescending(u => u.CanAct).ThenByDescending(u => u.Attack).FirstOrDefault();
+        return best is null ? null : Ability(source.Cid, TargetType.FriendlyCard, best.Cid);
+    }
+
+    // ---- Attacks --------------------------------------------------------------------------------------------------
+
+    private Message? Attack()
+    {
+        var taunts = _enemyBoard.Where(u => u.Taunt).ToList();
+        // Cards with an ability to use already used it (UseAbility runs first); the rest attack.
+        foreach (var unit in _myBoard.Where(u => u.CanAct && u.Attack > 0).OrderByDescending(u => u.Hit))
+        {
+            var target = PickTarget(unit, taunts);
+            var m = target is null ? AttackMessage(unit.Cid, -1, 1) : AttackMessage(unit.Cid, target.Cid, 0);
+            if (Try(m) is { } ok)
+            {
+                return ok;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The enemy card to attack, or <c>null</c> to go for the hero.</summary>
+    private Unit? PickTarget(Unit attacker, List<Unit> taunts)
+    {
+        if (taunts.Count > 0)
+        {
+            return taunts.OrderByDescending(t => attacker.Hit >= t.Toughness).ThenBy(t => t.Toughness).First();
+        }
+
+        if (_enemyBoard.Count == 0)
+        {
+            return null;
+        }
+
+        if (difficulty == 0)
+        {
+            return _random.Next(10) < 6 ? null : _enemyBoard[_random.Next(_enemyBoard.Count)];
+        }
+
+        // Kill something without dying.
+        var clean = _enemyBoard.Where(e => attacker.Hit >= e.Toughness && e.Attack < attacker.Toughness).OrderByDescending(e => e.Value).FirstOrDefault();
+        if (clean is not null)
+        {
+            return clean;
+        }
+
+        // Hard: trade into anything worth more, and defend when the enemy board threatens us.
+        if (difficulty >= 2)
+        {
+            var trade = _enemyBoard.Where(e => attacker.Hit >= e.Toughness && e.Value > attacker.Value).OrderByDescending(e => e.Value).FirstOrDefault();
+            if (trade is not null)
+            {
+                return trade;
+            }
+
+            if (_enemyBoard.Sum(e => e.Hit) >= _me.Toughness - 3)
+            {
+                return _enemyBoard.OrderByDescending(e => e.Attack).First();
+            }
+        }
+
+        return null;
+    }
+
+    private Message? HeroAttack()
+    {
+        if (!_me.CanAttack || _me.Attack <= 0 || difficulty == 0 && _random.Next(2) == 0)
+        {
+            return null;
+        }
+
+        var taunts = _enemyBoard.Where(u => u.Taunt).ToList();
+        var targets = taunts.Count > 0 ? taunts : _enemyBoard;
+        var kill = targets.Where(u => _me.Attack >= u.Toughness && u.Attack < _me.Toughness - 5).OrderByDescending(u => u.Value).FirstOrDefault();
+        if (kill is not null)
+        {
+            return Try(AttackMessage(-1, kill.Cid, 2));
+        }
+
+        // Hitting the hero costs the enemy hero's attack in return.
+        if (taunts.Count == 0 && _enemy.Attack < _me.Toughness / 3)
+        {
+            return Try(AttackMessage(-1, -1, 3));
+        }
+
+        return null;
+    }
+
+    private Message? HeroPower()
+    {
+        if (!_me.CanUsePower)
+        {
+            return null;
+        }
+
+        var m = _me.Type switch
+        {
+            1 or 2 => _enemyBoard.Where(u => u.Toughness <= 1).OrderByDescending(u => u.Value).Select(u => Power(TargetType.EnemyCard, u.Cid)).FirstOrDefault()
+                ?? Power(TargetType.EnemyHero, -1),
+            3 => _me.Health < _me.MaxHealth ? Power(TargetType.OwnHero, -1)
+                : _myBoard.Where(u => u.Health < u.MaxHealth).Select(u => Power(TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),
+            4 => Power(TargetType.OwnHero, -1),
+            _ => null,
+        };
+        return m is null ? null : Try(m);
+    }
+
+    // ---- Messages -------------------------------------------------------------------------------------------------
+
+    private static Message AttackMessage(int source, int target, int type) =>
+        Message.Create(GameRequest.Attack, new JsonObject { ["source"] = source, ["target"] = target, ["type"] = type });
+
+    private static Message Ability(int source, TargetType type, int target) =>
+        Message.Create(GameRequest.UseAbility, new JsonObject { ["source"] = source, ["target"] = target, ["type"] = (int)type });
+
+    private static Message Power(TargetType type, int target) =>
+        Message.Create(GameRequest.HeroPower, new JsonObject { ["target"] = target, ["type"] = (int)type });
 }

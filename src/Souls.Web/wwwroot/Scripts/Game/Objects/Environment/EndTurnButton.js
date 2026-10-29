@@ -3,7 +3,6 @@
     EndTurnButton = function (engine)
     {
         this.engine = engine;
-        console.log("> EndTurnButton Loaded")
 
         // Cache images for undelayed swap
         this.disabledTexture = Asset.GetTexture(Asset.Textures.END_TURN_DISABLED);
@@ -27,77 +26,72 @@
         this.height = 75;
         this.x = Conf.width - 310;
         this.y = (Conf.height / 2) + 10;
-        this.swapTexture = undefined;
-        this.active = undefined;
+        this.active = false;
+        this.spinning = false;
+        this.pendingTurn = undefined;
         this.interactive = false;
+        this.baseScaleY = this.scale.y;
     }
 
-    EndTurnButton.prototype.SwapTurn = function ()
-    {
-        // Swap the texture
-        var tmpTexture = this.swapTexture;
-        this.swapTexture = this.texture;
-        this.setTexture(tmpTexture);
-
-        // Set interactivity
-        this.active = (this.active) ? false : true;
-        this.interactive = this.active;
-    }
-
+    /// Shows whose turn it is (true = the player's: the button is enabled).
     EndTurnButton.prototype.SetPlayerTurn = function (active)
     {
-        if (active)
-        {
-            this.setTexture(this.enabledTexture);
-            this.swapTexture = this.disabledTexture;
-            this.active = true;
+        active = !!active;
+        if (this.spinning) {
+            // Applied when the spin ends.
+            this.pendingTurn = active;
+            return;
         }
-        else
-        {
-            this.setTexture(this.disabledTexture);
-            this.swapTexture = this.enabledTexture;
-            this.active = false;
-        }
-        this.interactive = this.active;
 
+        this.setTexture(active ? this.enabledTexture : this.disabledTexture);
+        this.active = active;
+        this.interactive = active;
     }
 
-    // Spins the button and activates\deactivated it depending on input
-    EndTurnButton.prototype.Spin = function ()
+    /// Spins the button, then shows the given turn state.
+    EndTurnButton.prototype.Spin = function (activeAfter)
     {
-        var originalHeight = this.height;
-
-        Asset.GetSound(Asset.Sound.END_TURN).play();
-
         var that = this;
-        var positive = this.scale.y;
-        var position = { scaleY: this.scale.y }
-        that.interactive = false;
-        
+        this.pendingTurn = !!activeAfter;
+        if (this.spinning) return;
+
+        try { Asset.GetSound(Asset.Sound.END_TURN).play(); } catch (e) { }
+
+        var positive = this.baseScaleY || this.scale.y;
+        var position = { scaleY: positive };
+        this.spinning = true;
+        this.interactive = false;
+
         this.engine.CreateJS.Tween.get(position, { onChange: onChange })
-            .to({ scaleY: this.scale.y * (-1) }, 100)
+            .to({ scaleY: -positive }, 100)
             .to({ scaleY: positive }, 100)
-            .to({ scaleY: this.scale.y * (-1) }, 100)
+            .to({ scaleY: -positive }, 100)
             .to({ scaleY: positive }, 100)
-            .to({ scaleY: this.scale.y * (-1) }, 100)
-            .to({ scaleY: positive }, 100)
-            .to({ scaleY: this.scale.y * (-1) }, 100)
-            .to({ scaleY: positive }, 100)
-            .call(function ()
-            {
-                that.SwapTurn();
-            });
-        
+            .call(done);
+
+        // Guard: the state is applied even if the tween is removed.
+        setTimeout(done, 700);
+
         function onChange(e)
         {
             that.scale.y = position.scaleY;
         }
+
+        function done()
+        {
+            if (!that.spinning) return;
+            that.spinning = false;
+            that.scale.y = positive;
+            that.SetPlayerTurn(that.pendingTurn);
+        }
     }
 
-    // When endturn sign is pushed and interactive
+    // When the End Turn button is pressed (mouse or touch) while it is the player's turn
     EndTurnButton.prototype.mousedown = EndTurnButton.prototype.touchstart = function ()
     {
-        this.Spin();
+        if (!this.active || this.spinning) return;
+        this.active = false;
+        this.Spin(false);
         this.RequestNextTurn();
     }
 

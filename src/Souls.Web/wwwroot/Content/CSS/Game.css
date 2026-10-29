@@ -120,3 +120,336 @@ div.chat-content-wrapper
     border: 1px solid gray;
     
 }
+
+
+/* ---- Classic game client (Scripts/Game): touch, tooltips, battle log, end screen ---------------------------- */
+
+#game-window canvas {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.souls-classic-tooltip[hidden],
+.souls-classic-log[hidden],
+.souls-classic-log-list[hidden],
+.souls-classic-log-badge[hidden] {
+    display: none !important;
+}
+
+.souls-classic-tooltip {
+    position: fixed;
+    z-index: 1900;
+    max-width: 330px;
+    padding: 10px 12px;
+    border: 1px solid #8a6d3b;
+    border-radius: 8px;
+    background: rgba(20, 14, 9, 0.95);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+    color: #f3e9d2;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    pointer-events: none;
+}
+
+.souls-classic-tooltip-title {
+    margin-bottom: 3px;
+    color: #ffd54a;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.souls-classic-tooltip-stats {
+    margin-bottom: 4px;
+    color: #e6dcc6;
+    font-size: 13px;
+}
+
+.souls-classic-tooltip-section {
+    margin-top: 5px;
+}
+
+.souls-classic-tooltip-section strong {
+    color: #ffe9a8;
+}
+
+.souls-classic-tooltip-ability strong {
+    color: #8fc8ff;
+}
+
+.souls-classic-tooltip-race strong {
+    color: #c9a8ff;
+}
+
+.souls-classic-tooltip-status {
+    margin-top: 5px;
+    color: #e8e8e8;
+}
+
+.souls-classic-tooltip-bad,
+.souls-classic-tooltip-bad strong {
+    color: #ff8a80;
+}
+
+.souls-classic-tooltip-good {
+    margin-top: 5px;
+    color: #8dff9c;
+}
+
+.souls-classic-tooltip-note,
+.souls-classic-tooltip-text {
+    margin-top: 4px;
+    color: #c9bfae;
+    font-size: 12.5px;
+}
+
+.souls-classic-tooltip-text {
+    color: #f3e9d2;
+    font-size: 14px;
+}
+
+/* Battle log */
+/* Top right, below the Classic / Modern 3D switch: the column right of the board is free there. */
+.souls-classic-log {
+    position: fixed;
+    top: 56px;
+    right: 10px;
+    z-index: 1500;
+    width: 290px;
+    border: 1px solid rgba(214, 180, 110, 0.45);
+    border-radius: 8px;
+    background: rgba(12, 9, 6, 0.8);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    color: #f3e9d2;
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.souls-classic-log-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    color: #ffd54a;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.souls-classic-log-toggle::after {
+    content: "\25BE";
+    margin-left: 8px;
+}
+
+.souls-classic-log.collapsed .souls-classic-log-toggle::after {
+    content: "\25B8";
+}
+
+.souls-classic-log-toggle:focus-visible {
+    outline: 2px solid #f1c40f;
+    outline-offset: -2px;
+}
+
+.souls-classic-log-badge {
+    margin-left: auto;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 12px;
+}
+
+.souls-classic-log-list {
+    max-height: 30vh;
+    margin: 0;
+    padding: 0 10px 8px;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.souls-classic-log-list li {
+    padding: 3px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    overflow-wrap: anywhere;
+}
+
+.souls-classic-log-list li.souls-classic-log-system {
+    color: #ffd54a;
+    font-weight: 700;
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+    .souls-classic-log {
+        top: 48px;
+        width: 210px;
+        font-size: 12px;
+    }
+
+    .souls-classic-log-list {
+        max-height: 22vh;
+    }
+}
+
+/* End of game: rewards and daily quests */
+.souls-classic-end {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 2100;
+    width: min(540px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 22px 26px;
+    border: 2px solid #8a6d3b;
+    border-radius: 12px;
+    background: rgba(20, 14, 9, 0.95);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    color: #f3e9d2;
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    text-align: center;
+    opacity: 0;
+    transform: translate(-50%, -42%);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.souls-classic-end.shown {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+}
+
+.souls-classic-end-title {
+    margin: 0 0 6px;
+    font-family: ArchivoBlack-Regular, Impact, sans-serif;
+    font-size: 40px;
+    letter-spacing: 1px;
+}
+
+.souls-classic-end-victory .souls-classic-end-title {
+    color: #ffd54a;
+}
+
+.souls-classic-end-defeat .souls-classic-end-title {
+    color: #ff6b5e;
+}
+
+.souls-classic-end-draw .souls-classic-end-title {
+    color: #d5d5d5;
+}
+
+.souls-classic-end-text {
+    margin: 0 0 12px;
+    color: #e6dcc6;
+}
+
+.souls-classic-end-rewards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 22px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.souls-classic-end-coins {
+    color: #ffd54a;
+}
+
+.souls-classic-end-rating.up {
+    color: #8dff9c;
+}
+
+.souls-classic-end-rating.down {
+    color: #ff8a80;
+}
+
+.souls-classic-end-subtitle {
+    margin: 10px 0 6px;
+    color: #ffe9a8;
+    font-size: 17px;
+}
+
+.souls-classic-end-quests {
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.souls-classic-end-quests li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 3px 10px;
+    padding: 7px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.souls-classic-quest-text {
+    grid-column: 1 / -1;
+}
+
+.souls-classic-quest-bar {
+    position: relative;
+    align-self: center;
+    height: 8px;
+    border-radius: 4px;
+    background: #3a2f22;
+    overflow: hidden;
+}
+
+.souls-classic-quest-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    background: #d4ac0d;
+}
+
+.souls-classic-quest-progress {
+    color: #c9bfae;
+    font-size: 13px;
+}
+
+.souls-classic-quest-reward {
+    grid-column: 1 / -1;
+    color: #c9bfae;
+    font-size: 13px;
+}
+
+.souls-classic-end-quests li.done .souls-classic-quest-fill {
+    background: #4cd328;
+}
+
+.souls-classic-end-quests li.done .souls-classic-quest-reward {
+    color: #8dff9c;
+    font-weight: 700;
+}
+
+.souls-classic-end-continue {
+    padding: 9px 22px;
+    border: 1px solid #d4ac0d;
+    border-radius: 999px;
+    background: #c0392b;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.souls-classic-end-continue:hover {
+    background: #a93226;
+}
+
+.souls-classic-end-continue:focus-visible {
+    outline: 2px solid #f1c40f;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .souls-classic-end {
+        transition: none;
+    }
+}

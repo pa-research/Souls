@@ -1,13 +1,19 @@
 // Mouse / touch / keyboard input for the 3D client, following the classic controls:
 //  - hover a hand card to zoom it (touch: tap or hold it), drag it onto a free slot to play it;
 //  - drag from your card or hero to an enemy to attack;
-//  - right-drag from your card (touch: hold it, then drag) to use its ability on a friendly card or hero;
-//  - click / tap the End Turn sign.
+//  - right-drag from your card (touch: hold it, then drag) to use its ability on a valid target;
+//  - click / tap the hero power button, then click / tap a target;
+//  - click / tap the End Turn sign;
+//  - hover (touch: tap) a card or hero for its rules text.
 // Camera: 1-4 pick a view; mouse wheel or pinch zooms; dragging the empty arena (right or middle mouse
 // button, one finger) or two fingers orbit.
 import { Card3D } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { toClassic, VIEWS } from './scene.js';
+import { ABILITY_COLORS } from './game.js';
+
+const ATTACK_COLOR = 0xff3b30;
+const POWER_COLOR = 0xffd34d;
 
 const HAND_X = 165, HAND_SPACING = 60, HAND_TOP = 880;
 const HOLD_MS = 320; // touch: hold a hand card to look at it
@@ -19,7 +25,8 @@ export class Interaction {
         this.stage = stage;
         this.game = game;
         this.effects = effects;
-        this.mode = null; // null | 'card' | 'handPress' | 'arrow' | 'orbit' | 'gesture'
+        this.mode = null; // null | 'card' | 'handPress' | 'arrow' | 'power' | 'orbit' | 'gesture'
+        game.interaction = this;
         this.ndc = null;
         this.pointers = new Map(); // active pointers (several for multi-touch)
         const canvas = stage.renderer.domElement;
@@ -36,7 +43,7 @@ export class Interaction {
         }, { passive: false });
         window.addEventListener('keydown', e => {
             if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
-            if (e.key === 'Escape') { this.cancel(); return; }
+            if (e.key === 'Escape') { this.cancel(); game.ui.hideTooltip(); return; }
             const view = Object.keys(VIEWS).find(k => VIEWS[k].key === e.key);
             if (view && game.active) stage.setView(view);
         });
@@ -85,6 +92,15 @@ export class Interaction {
     // ---- Pointer events -------------------------------------------------------------------------------------------
 
     onDown(e) {
+        if (this.mode === 'power') {
+            // Hero power armed: this press picks the target (anything else cancels).
+            this.ndc = this.stage.ndc(e);
+            const target = e.button === 0 ? this.pick(this.ndc, this.powerTargets) : null;
+            this.endPower();
+            if (target) this.game.usePower(target);
+            e.preventDefault();
+            return;
+        }
         this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (this.pointers.size === 2) {
             // A second finger: whatever the first one was doing becomes a pinch / two-finger orbit.
@@ -111,13 +127,13 @@ export class Interaction {
             return;
         }
 
-        if (game.active && left && this.overSign(ndc)) {
+        if (game.canAct && left && this.overSign(ndc)) {
             game.endTurn();
             return;
         }
 
         // Hand card: drag it (touch: a tap or a hold shows it bigger first).
-        const handCard = game.active && left ? this.handCardAt(ndc) : null;
+        const handCard = game.canAct && left ? this.handCardAt(ndc) : null;
         if (handCard) {
             this.card = handCard;
             e.preventDefault();
@@ -134,19 +150,23 @@ export class Interaction {
         }
 
         // Own board card or hero: attack (left) or ability (right, or hold a card) arrow.
-        const own = game.active ? this.pick(ndc, [...game.player.board.values(), game.player.hero]) : null;
-        if (own && (left || (right && own instanceof Card3D))) {
+        const own = game.canAct ? this.pick(ndc, [...game.player.board.values(), game.player.hero]) : null;
+        const ability = own instanceof Card3D ? game.abilityOf(own) : null;
+        if (own && (left || (right && ability))) {
             this.mode = 'arrow';
             this.source = own;
             this.ability = right;
             this.target = null;
             this.arrowShown = false;
-            if (!right && own instanceof Card3D && own.abilityId) {
+            this.tapTarget = own;
+            if (!right && ability) {
                 this.timer = setTimeout(() => this.switchToAbility(), ABILITY_HOLD_MS);
             }
             e.preventDefault();
             return;
         }
+        // A tap on anything else may be a tap to read a card or hero.
+        this.tapTarget = this.inspectable(ndc);
 
         // Anything else: drag the arena to orbit the camera (and a tap closes a card preview).
         if (this.touch) game.setHovered(null);
@@ -182,17 +202,23 @@ export class Interaction {
             if (this.moved(e) > DRAG_START) this.startCardDrag();
             return;
         }
+        if (this.mode === 'power') {
+            this.updatePowerArrow();
+            return;
+        }
         if (!game.active) return;
         if (this.mode === 'card') {
             this.dragCard(performance.now());
         } else if (this.mode === 'arrow') {
             this.updateArrow(e);
-        } else if (e.pointerType === 'mouse') {
-            // Idle mouse: zoom the hovered hand card, lift a hovered board card.
-            game.setHovered(this.handCardAt(ndc));
-            const own = game.hovered ? null : this.pick(ndc, [...game.player.board.values(), game.player.hero]);
+        } else if (e.pointerType === 'mouse' && !this.mode) {
+            // Idle mouse: zoom the hovered hand card, lift a hovered board card, explain what is under the pointer.
+            game.setHovered(game.canAct ? this.handCardAt(ndc) : null);
+            const own = game.hovered || !game.canAct ? null : this.pick(ndc, [...game.player.board.values(), game.player.hero]);
             this.setBoardHover(own instanceof Card3D ? own : null);
-            this.stage.renderer.domElement.style.cursor = (game.hovered || own || this.overSign(ndc)) ? 'pointer' : 'default';
+            this.stage.renderer.domElement.style.cursor = (game.hovered || own || (game.canAct && this.overSign(ndc))) ? 'pointer' : 'default';
+            const rect = this.stage.renderer.domElement.getBoundingClientRect();
+            game.inspect(game.hovered || this.inspectable(ndc), { x: e.clientX - rect.left, y: e.clientY - rect.top });
         }
     }
 
@@ -205,16 +231,21 @@ export class Interaction {
         if (e.pointerId !== this.primary) return;
         const game = this.game;
         this.clearTimer();
+        const rect = this.stage.renderer.domElement.getBoundingClientRect();
+        const at = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        const tap = this.downAt && this.moved(e) < 8 && e.timeStamp - this.downAt.stamp < 600;
         if (this.mode === 'orbit') {
             this.mode = null;
+            if (tap && this.touch) game.inspect(this.tapTarget, at);
         } else if (this.mode === 'handPress') {
             // A tap toggles the big preview; releasing a hold closes it.
             const card = this.card;
-            const tap = e.timeStamp - this.downAt.stamp < HOLD_MS;
             this.mode = null;
             this.card = null;
             this.held = false;
-            game.setHovered(tap && !this.wasPreviewed ? card : null);
+            const show = tap && !this.wasPreviewed;
+            game.setHovered(show ? card : null);
+            game.inspect(show ? card : null, at);
         } else if (this.mode === 'card') {
             const card = this.card;
             this.mode = null;
@@ -227,12 +258,55 @@ export class Interaction {
             const target = this.target;
             this.setTarget(null);
             if (this.source instanceof Card3D && !this.source.dying) this.source.setGlow(null, 0);
-            if (target && game.active) {
+            if (target && game.canAct) {
                 if (this.ability) game.useAbility(this.source, target);
                 else game.attack(this.source, target);
+            } else if (tap && !this.arrowShown && this.touch) {
+                game.inspect(this.tapTarget, at);
             }
             this.source = null;
         }
+    }
+
+    /** A card (revealed) or hero under the pointer, for the rules tooltip. */
+    inspectable(ndc) {
+        const game = this.game;
+        if (!game.active && !game.ended) return null;
+        const hand = this.handCardAt(ndc);
+        if (hand) return hand;
+        return this.pick(ndc, [...game.player.board.values(), ...game.opponent.board.values(), game.player.hero, game.opponent.hero]);
+    }
+
+    // ---- Hero power -----------------------------------------------------------------------------------------------
+
+    /** The hero power button was pressed: the next click / tap on a valid target uses it. */
+    beginPower(power) {
+        this.abort();
+        this.mode = 'power';
+        this.powerTargets = this.game.candidates(power.targets);
+        this.game.ui.setPowerArmed(true);
+        this.game.ui.screenMessage(`${power.name}: pick a target`);
+        this.target = null;
+        if (this.ndc) this.updatePowerArrow();
+    }
+
+    updatePowerArrow() {
+        const game = this.game;
+        if (!this.ndc) return;
+        const target = this.pick(this.ndc, this.powerTargets);
+        this.ability = true;
+        this.setTarget(target, POWER_COLOR);
+        const from = game.targetPoint(game.player.hero);
+        const to = target ? game.targetPoint(target) : this.stage.pointerOnPlane(this.ndc, 0);
+        if (to) this.effects.showArrow(from, to.clampLength(0, 1400), POWER_COLOR, !!target);
+    }
+
+    endPower() {
+        this.effects.hideArrow();
+        this.setTarget(null, POWER_COLOR);
+        this.game.ui.setPowerArmed(false);
+        this.mode = null;
+        this.powerTargets = [];
     }
 
     /** Center and spread of the first two pointers (pinch / two-finger orbit). */
@@ -257,8 +331,9 @@ export class Interaction {
         if (this.mode !== 'arrow' || this.arrowShown || !(this.source instanceof Card3D)) return;
         this.ability = true;
         this.arrowShown = true;
-        this.source.setGlow(0x3ddc84, 1);
-        this.effects.sparkle(this.source.center(), 0x3ddc84, 20);
+        const color = this.arrowColor();
+        this.source.setGlow(color, 1);
+        this.effects.sparkle(this.source.center(), color, 20);
         if (navigator.vibrate) navigator.vibrate(25);
     }
 
@@ -296,19 +371,26 @@ export class Interaction {
         if (!this.arrowShown && this.moved(e) < 8) return;
         this.arrowShown = true;
         this.clearTimer();
+        game.ui.hideTooltip();
+        const ability = this.ability && this.source instanceof Card3D ? game.abilityOf(this.source) : null;
         const candidates = this.ability
-            ? [...game.player.board.values(), game.player.hero, game.opponent.hero]
-            : [...game.opponent.board.values(), game.opponent.hero];
-        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source));
-        this.setTarget(target);
+            ? game.candidates(ability ? ability.targets : [], ability && ability.name === 'Sacrifice' ? this.source : null)
+            : game.attackCandidates();
+        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source || (ability && ability.name === 'Heal')));
+        const color = this.arrowColor();
+        this.setTarget(target, color);
         const from = game.targetPoint(this.source);
         const to = target ? game.targetPoint(target) : this.stage.pointerOnPlane(this.ndc, 0);
-        if (to) this.effects.showArrow(from, to.clampLength(0, 1400), this.ability ? 0x3ddc84 : 0xff3b30, !!target);
+        if (to) this.effects.showArrow(from, to.clampLength(0, 1400), color, !!target);
     }
 
-    setTarget(target) {
+    arrowColor() {
+        if (!this.ability || !(this.source instanceof Card3D)) return ATTACK_COLOR;
+        return ABILITY_COLORS[this.source.abilityId] ?? 0x3ddc84;
+    }
+
+    setTarget(target, color = ATTACK_COLOR) {
         if (this.target === target) return;
-        const color = this.ability ? 0x3ddc84 : 0xff3b30;
         if (this.target) this.highlight(this.target, false, color);
         this.target = target;
         if (target) this.highlight(target, true, color);
@@ -333,6 +415,8 @@ export class Interaction {
             this.effects.hideArrow();
             this.setTarget(null);
             if (this.source instanceof Card3D && !this.source.dying) this.source.setGlow(null, 0);
+        } else if (this.mode === 'power') {
+            this.endPower();
         } else if (this.mode === 'handPress' && this.held) {
             this.game.setHovered(null);
         }

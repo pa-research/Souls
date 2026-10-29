@@ -1,4 +1,14 @@
-﻿define("arrow", ["jquery", "pixi", "asset"], function ($, pixi, Asset) {
+﻿define("arrow", ["jquery", "pixi", "asset", "rules"], function ($, pixi, Asset, Rules) {
+
+    // Arrow colour per kind of action.
+    var MODE_COLOR = {
+        attack: 0xFF2A2A,
+        ability: 0x3399FF,
+        power: 0xFFC107
+    };
+
+    var CARD_HALF_WIDTH = 75;
+    var CARD_HALF_HEIGHT = 105;
 
     Arrow = function (engine) {
         this.engine = engine;
@@ -11,6 +21,9 @@
         this.mousePos = {};
         this.active = false;
         this.visible = false;
+        this.mode = 'attack';
+        this.highlighted = null;
+        this.marked = [];
 
         var texture = Asset.GetTexture(Asset.Textures.ARROW_CORSHAIR);
         this.arrowHead = new pixi.Sprite(texture)
@@ -18,6 +31,16 @@
         this.arrowHead.width = 100;
         this.arrowHead.height = 100;
         this.arrowHead.visible = false;
+
+        // What can be targeted ("Pick an enemy card"), shown next to the arrow head.
+        this.hint = new pixi.Text(" ", {
+            font: "bold 26px Arial",
+            fill: "#ffffff",
+            stroke: "#000000",
+            strokeThickness: 6
+        });
+        this.hint.anchor = { x: 0.5, y: 1 };
+        this.hint.visible = false;
 
         var that = this;
         var orginalScale = this.arrowHead.scale;
@@ -50,141 +73,127 @@
 
         this.engine.addChild("Arrow", this);
         this.engine.getGroup("Arrow").addChild(this.arrowHead);
+        this.engine.getGroup("Arrow").addChild(this.hint);
     }
     // Constructor
     Arrow.prototype = Object.create(pixi.Graphics.prototype);
     Arrow.prototype.constructor = Arrow;
 
+    function Inside(obj, mouse) {
+        if (!obj || obj.isDead) return false;
+        if (obj.isPlayer !== undefined) {
+            // A hero
+            var home = obj.GetHome ? obj.GetHome() : { x: obj.x, y: obj.y };
+            return Math.abs(mouse.x - home.x) <= obj.width / 2 && Math.abs(mouse.y - home.y) <= obj.height / 2;
+        }
+        // A card (its face is 150 x 210)
+        var sx = Math.abs(obj.scale.x || 1), sy = Math.abs(obj.scale.y || 1);
+        return Math.abs(mouse.x - obj.x) <= CARD_HALF_WIDTH * sx && Math.abs(mouse.y - obj.y) <= CARD_HALF_HEIGHT * sy;
+    }
+
+    /// Everything that matches the target kinds: [{obj, kind}].
+    Arrow.prototype.Candidates = function (kinds, source) {
+        var list = [];
+        var engine = this.engine;
+        var key;
+        for (var i = 0; i < kinds.length; i++) {
+            var kind = kinds[i];
+            if (kind === 'enemyCard' && engine.opponent) {
+                for (key in engine.opponent.cardManager.board) {
+                    var enemy = engine.opponent.cardManager.board[key];
+                    if (!enemy.isDead) list.push({ obj: enemy, kind: kind });
+                }
+            }
+            else if (kind === 'friendlyCard' && engine.player) {
+                for (key in engine.player.cardManager.board) {
+                    var friend = engine.player.cardManager.board[key];
+                    // Sacrifice cannot target the card itself.
+                    if (friend.isDead || (friend === source && source.abilityId == 2 && this.mode === 'ability')) continue;
+                    list.push({ obj: friend, kind: kind });
+                }
+            }
+            else if (kind === 'enemyHero' && engine.opponent) {
+                list.push({ obj: engine.opponent, kind: kind });
+            }
+            else if (kind === 'ownHero' && engine.player) {
+                list.push({ obj: engine.player, kind: kind });
+            }
+        }
+        return list;
+    }
 
     /// <summary>
-    /// This function checks if a card is In a slot and then if its picked up. If so it means the player are doing a attack
+    /// Draws the arrow from source to the pointer and finds the target under the pointer.
+    /// kinds: what may be targeted ("friendlyCard", "ownHero", "enemyHero", "enemyCard");
+    /// mode: "attack", "ability" or "power" (colour); hint: text shown when nothing valid is under the pointer.
+    /// Returns {obj, kind} or null.
     /// </summary>
-    /// <param name="card">The card</param>
-    /// <returns type="">Weither a attack is beeing done.</returns>
-    Arrow.prototype.ArrowShowCheck = function (card) {
+    Arrow.prototype.Aim = function (source, kinds, mode, hint) {
+        var mouse = this.engine.conf.mouse;
+        var origin = source.GetHome ? source.GetHome() : { x: source.x, y: source.y };
+        if (source.inSlot) origin = { x: source.x, y: source.y };
+        this.mode = mode;
 
-        // If the card is picked up, but is in a slot (Arrow dragging)
-        if ((!!card.inSlot && !!card.pickedUp) || this.engine.player.isClicked) {
+        var color = MODE_COLOR[mode] || MODE_COLOR.attack;
+        this.arrowHead.tint = color;
+        this.color = color;
+        this.Show();
+        this.Draw(mouse, origin);
 
-            // Determine which color the arrow should be. (Depending on Rightclick)
-            if (!!card.rightClick) {
-                this.arrowHead.tint = 0x0000FF;
+        var candidates = this.Candidates(kinds, source);
+
+        // Mark the valid targets (abilities and hero powers; attacks show the Taunt shields instead).
+        var marks = mode === 'attack' ? [] : candidates;
+        this.MarkTargets(marks, color);
+
+        var found = null;
+        for (var i = 0; i < candidates.length; i++) {
+            if (Inside(candidates[i].obj, mouse)) {
+                found = candidates[i];
+                if (candidates[i].kind !== 'enemyHero' && candidates[i].kind !== 'ownHero') break; // cards win over heroes
             }
-            else {
-                this.arrowHead.tint = 0xFF0000;
-            }
+        }
 
-            this.Show();
-            this.Draw(
-                this.engine.conf.mouse, //TO
-                card.position //ORIGIN
-                );
+        this.Highlight(found ? found.obj : null);
 
-            return true;
+        // Hint text
+        var text = null;
+        if (!found && mode !== 'attack') {
+            text = hint || ("Pick " + Rules.DescribeTargets(kinds));
+        }
+        if (text) {
+            if (this.hint.text !== text) this.hint.setText(text);
+            this.hint.x = mouse.x;
+            this.hint.y = mouse.y - 50;
+            this.hint.visible = true;
         }
         else {
-            this.Reset();
-            // Deactivate
-            return false;
+            this.hint.visible = false;
         }
+
+        return found;
     }
 
-
-    Arrow.prototype.PlayerAttackCheck = function (card, player) {
-
-        // Determine if the Mouse is inside the card bounds
-        var isInside = this.engine.toolbox.Rectangle.containsRaw(
-        player.x - (player.width / 2), // Top
-        player.y - (player.height / 2), // Left
-        player.width,
-        player.height,
-        this.engine.conf.mouse.x,
-        this.engine.conf.mouse.y);
-
-        if (isInside) {
-            card.target = player;
-            player.ScaleUp();
-            return true;
-        }
-        else {
-            card.target = undefined;
-            player.ScaleDown();
-            return false;
-        }
+    Arrow.prototype.Highlight = function (obj) {
+        if (this.highlighted === obj) return;
+        if (this.highlighted && this.highlighted.ScaleDown && !this.highlighted.isDead) this.highlighted.ScaleDown();
+        this.highlighted = obj;
+        if (obj && obj.ScaleUp) obj.ScaleUp();
     }
 
-
-    Arrow.prototype.CardAttackCheck = function (card) {
-
-        // Iterate over opponents cards
-        var opponentBoard = this.engine.opponent.cardManager.board;
-        var playerBoard = this.engine.player.cardManager.board;
-        var foundCard = false;
-
-        for (var index in opponentBoard) {
-            var ocard = opponentBoard[index];
-
-            // Determine if the Mouse is inside the card bounds
-            var isInside = this.engine.toolbox.Rectangle.containsRaw(
-            ocard.x - (ocard.width / 2), // Top
-            ocard.y - (ocard.height / 2), // Left
-            ocard.width,
-            ocard.height,
-            this.engine.conf.mouse.x,
-            this.engine.conf.mouse.y);
-
-            if (isInside) {
-                // Assign target on source card to the found opponent card
-
-                card.target = ocard;
-                ocard.ScaleUp();
-                foundCard = true;
-                break;
-            }
-            else {
-                // Nothing was found
-                ocard.ScaleDown();
-                card.target = undefined;
-            }
+    Arrow.prototype.MarkTargets = function (candidates, color) {
+        var keep = [];
+        var i;
+        for (i = 0; i < candidates.length; i++) {
+            var obj = candidates[i].obj;
+            if (obj.SetTargetMark) obj.SetTargetMark(color);
+            keep.push(obj);
         }
-
-        // If ability usage
-        if (!!card.rightClick) {
-            for (var index in playerBoard) {
-                var ocard = playerBoard[index];
-                // Determine if the Mouse is inside the card bounds
-                var isInside = this.engine.toolbox.Rectangle.containsRaw(
-                ocard.x - (ocard.width / 2), // Top
-                ocard.y - (ocard.height / 2), // Left
-                ocard.width,
-                ocard.height,
-                this.engine.conf.mouse.x,
-                this.engine.conf.mouse.y);
-
-                if (isInside) {
-                    // Assign target on source card to the found opponent card
-
-                    card.target = ocard;
-                    ocard.ScaleUp();
-                    foundCard = true;
-                    break;
-                }
-                else {
-                    // Nothing was found
-                    ocard.ScaleDown();
-                    card.target = undefined;
-                }
-            }
-
+        for (i = 0; i < this.marked.length; i++) {
+            if (keep.indexOf(this.marked[i]) === -1 && this.marked[i].SetTargetMark) this.marked[i].SetTargetMark(null);
         }
-
-
-
-
-
-        return foundCard;
+        this.marked = keep;
     }
-
 
     Arrow.prototype.Draw = function (mouse, origin) {
         if (mouse.x <= 0 && mouse.y <= 0)
@@ -198,14 +207,13 @@
         // Rotate the ArrowHead accordingly to current mouse position.
         var deltaY = mouse.y - origin.y;
         var deltaX = mouse.x - origin.x;
-        var angleInDegrees = Math.atan2(deltaY, deltaX) * 180 / Math.PI
         this.arrowHead.rotation = Math.atan2(deltaY, deltaX);
         this.arrowHead.x = mouse.x;
         this.arrowHead.y = mouse.y;
 
         // Draw the arrow shaft
         this.clear();
-        this.lineStyle(5, 0xff0000, 1);
+        this.lineStyle(5, this.color || 0xff0000, 1);
         this.beginFill(0xffFF00, 0.5);
         this.moveTo(origin.x, origin.y);
         this.lineTo(mouse.x, mouse.y);
@@ -219,6 +227,7 @@
             this.arrowHeadTween.setPaused(false);
             $("#game-window").css("cursor", "none");
         }
+        this.active = true;
     }
 
     Arrow.prototype.Hide = function () {
@@ -227,20 +236,21 @@
             this.arrowHead.visible = false;
             this.arrowHeadTween.setPaused(true);
         }
+        this.hint.visible = false;
     }
 
     Arrow.prototype.Reset = function () {
         if (this.active) {
-            this.engine.opponent.ScaleDown();
-            $("#game-window").css("cursor", "arrow");
+            $("#game-window").css("cursor", "");
 
             this.arrowHead.visible = false;
             this.active = false;
 
             this.Hide();
-
-
         }
+        this.Highlight(null);
+        if (this.marked.length) this.MarkTargets([], null);
+        if (this.engine.opponent) this.engine.opponent.ScaleDown();
     }
 
     Arrow.prototype.Process = function () {

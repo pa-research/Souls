@@ -13,7 +13,12 @@ public class Player
     /// <summary>PBKDF2 password hash (ASP.NET Core Identity v3 format).</summary>
     public required string Password { get; set; }
     public int Money { get; set; }
+
+    /// <summary>Derived from <see cref="Rating"/> (see <see cref="Ratings.RankOf"/>).</summary>
     public int Rank { get; set; }
+
+    /// <summary>Elo rating, changed by normal (not practice) games.</summary>
+    public int Rating { get; set; } = Ratings.Initial;
     public DateTimeOffset? Created { get; set; }
     public int PlayerPermissionId { get; set; } = Entities.PlayerPermission.Player;
     public PlayerPermission? PlayerPermission { get; set; }

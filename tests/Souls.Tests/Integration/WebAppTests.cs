@@ -90,6 +90,67 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Equal(1, owns);
     }
 
+    [Fact]
+    public async Task DeckBuilderUpgradesAndQuests()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+
+        // The automatic deck: the five starter cards, four copies each.
+        using var deck = await browser.GetAsync("/Deck");
+        var deckHtml = await deck.Content.ReadAsStringAsync();
+        Assert.Contains("<span id=\"deck-total\">20</span>", deckHtml, StringComparison.Ordinal);
+        Assert.Contains("automatic deck", deckHtml, StringComparison.Ordinal);
+
+        // Invalid decks are refused: too many copies, cards not owned, wrong size.
+        foreach (var counts in new[] { "1:5,2:4,3:4,5:4,6:3", "1:4,2:4,3:4,5:4,4:4", "1:4,2:4" })
+        {
+            using var bad = await browser.PostFormAsync("/Deck", "/Deck/Save", Counts(counts));
+            Assert.Equal(HttpStatusCode.Redirect, bad.StatusCode);
+            Assert.Equal(0, await app.WithDbAsync(db => db.DeckCards.CountAsync(d => d.PlayerId == playerId)));
+        }
+
+        using var good = await browser.PostFormAsync("/Deck", "/Deck/Save", Counts("1:4,2:4,3:4,5:4,6:4"));
+        Assert.Equal(20, await app.WithDbAsync(db => db.DeckCards.Where(d => d.PlayerId == playerId).SumAsync(d => d.Count)));
+        using var saved = await browser.GetAsync("/Deck");
+        Assert.Contains("You play with your own deck.", await saved.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // Upgrading an owned card costs coins and adds a level (+1/+1), at most to level 3.
+        using var poor = await browser.PostFormAsync("/Shop", "/Shop/Upgrade", [new("cardId", "6")]);
+        Assert.Equal(1, await app.WithDbAsync(db => db.PlayerCards.Where(pc => pc.PlayerId == playerId && pc.CardId == 6).Select(pc => pc.Level).SingleAsync()));
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 100)));
+        for (var i = 0; i < 3; i++)
+        {
+            using var upgrade = await browser.PostFormAsync("/Shop", "/Shop/Upgrade", [new("cardId", "6")]);
+            Assert.Equal(HttpStatusCode.Redirect, upgrade.StatusCode);
+        }
+
+        var (level, money) = await app.WithDbAsync(async db => (
+            await db.PlayerCards.Where(pc => pc.PlayerId == playerId && pc.CardId == 6).Select(pc => pc.Level).SingleAsync(),
+            await db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync()));
+        Assert.Equal(3, level);
+        Assert.Equal(100 - (1 + 2) - (1 + 4), money); // Bobby costs 1: level 1->2 for 3, 2->3 for 5
+        using var shop = await browser.GetAsync("/Shop");
+        Assert.Contains("Owned &middot; level 3", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // Three daily quests on the home page; the leaderboard lists players by rating.
+        using var home = await browser.GetAsync("/");
+        var homeHtml = await home.Content.ReadAsStringAsync();
+        Assert.Contains("Daily Quests", homeHtml, StringComparison.Ordinal);
+        Assert.Equal(3, await app.WithDbAsync(db => db.PlayerQuests.CountAsync(q => q.PlayerId == playerId)));
+        Assert.Contains("Top Players", homeHtml, StringComparison.Ordinal);
+
+        static IEnumerable<KeyValuePair<string, string>> Counts(string spec) => spec.Split(',')
+            .Select(pair => pair.Split(':'))
+            .Select(p => new KeyValuePair<string, string>($"count[{p[0]}]", p[1]));
+    }
+
     [Theory]
     [InlineData("bot", Password, "That username is reserved")]
     [InlineData("<script>", Password, "Usernames are 3-20 letters")]

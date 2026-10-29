@@ -161,6 +161,17 @@ public enum GameResponse
     GameDraw = 233,
     GameUseAbility = 234,
 
+    /// <summary>What happened, in order: <c>{"events": [{"t": "attack" | "damage" | "heal" | ...}]}</c>. Same for both players.</summary>
+    GameEvents = 235,
+
+    /// <summary>The full public state after an action (heroes and boards by ident, hand and deck sizes, turn timer).</summary>
+    GameSync = 236,
+
+    LiveGames = 240,
+    SpectateStart = 241,
+    SpectateEnd = 242,
+    SpectateError = 243,
+
     GameBotDisconnect = 500,
 }
 
@@ -168,6 +179,8 @@ public enum GameResponse
 public enum GameRequest
 {
     QueueNormal = 100,
+
+    /// <summary><c>{"difficulty": 0 easy, 1 normal, 2 hard}</c>.</summary>
     QueuePractice = 101,
 
     /// <summary>Subtypes: 0 = card on card, 1 = card on opponent, 2 = player on card, 3 = player on opponent.</summary>
@@ -177,7 +190,23 @@ public enum GameRequest
     MoveCard = 203,
     ReleaseCard = 204,
     UseAbility = 205,
+
+    /// <summary><c>{"target": cid or -1, "type": 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}</c>.</summary>
+    HeroPower = 206,
     NextTurn = 226,
+
+    ListLiveGames = 240,
+    Spectate = 241,
+    StopSpectating = 242,
+}
+
+/// <summary>Targets of abilities and hero powers.</summary>
+public enum TargetType
+{
+    FriendlyCard = 0,
+    OwnHero = 1,
+    EnemyHero = 2,
+    EnemyCard = 3,
 }
 
 public enum ChatResponse

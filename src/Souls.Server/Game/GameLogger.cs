@@ -10,13 +10,14 @@ public sealed class GameLogger
 
     public IReadOnlyList<GameLog> Records => _records;
 
-    public void Add(GameLogKind kind, int obj1Id, int obj2Id, string obj1Type, string obj2Type) => _records.Add(new GameLog
+    public void Add(GameLogKind kind, int obj1Id, int obj2Id, string obj1Type, string obj2Type, string? text = null) => _records.Add(new GameLog
     {
         GameLogTypeId = (int)kind,
         Obj1Id = obj1Id,
         Obj2Id = obj2Id,
         Obj1Type = obj1Type,
         Obj2Type = obj2Type,
+        Text = text is { Length: > 500 } ? text[..500] : text,
     });
 
     public void AddTo(SoulsDbContext db, Model.Entities.Game game)

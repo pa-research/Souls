@@ -25,38 +25,46 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             return null;
         }
 
-        var cards = await db.Cards.AsNoTracking()
-            .Where(c => db.PlayerCards.Any(pc => pc.PlayerId == playerId && pc.CardId == c.Id))
-            .Include(c => c.Ability)
-            .Include(c => c.Race)
+        var owned = await db.PlayerCards.AsNoTracking()
+            .Where(pc => pc.PlayerId == playerId)
+            .Include(pc => pc.Card).ThenInclude(c => c!.Ability)
+            .Include(pc => pc.Card).ThenInclude(c => c!.Race)
             .ToListAsync(ct);
+        var cards = owned.Where(pc => pc.Card is not null).Select(pc => Objects.Card.FromEntity(pc.Card!, pc.Level)).OrderBy(c => c.Id).ToList();
+        var deck = await db.DeckCards.AsNoTracking().Where(d => d.PlayerId == playerId).ToListAsync(ct);
 
         return new Objects.Player
         {
             Id = player.Id,
             Name = player.Name,
             Rank = player.Rank,
+            Rating = player.Rating,
             PlayerType = ToInfo(player.PlayerType),
-            OwningCards = [.. cards.Select(Objects.Card.FromEntity)],
+            OwningCards = cards,
+            Deck = Decks.Build(cards, c => c.Id, deck.Select(d => (d.CardId, d.Count))),
         };
     }
 
-    /// <summary>Creates the practice bot. It plays with every card in the game.</summary>
-    public async Task<Objects.Player> CreateBotAsync(string displayName, CancellationToken ct = default)
+    /// <summary>Creates the practice bot. It plays with every card in the game; on Hard its cards are upgraded.</summary>
+    public async Task<Objects.Player> CreateBotAsync(string displayName, int difficulty = 1, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
 
         var (id, type) = await GetBotAccountAsync(db, ct);
-        var cards = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).ToListAsync(ct);
+        var level = difficulty >= 2 ? 2 : 1;
+        var cards = (await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).OrderBy(c => c.Id).ToListAsync(ct))
+            .Select(c => Objects.Card.FromEntity(c, level)).ToList();
         return new Objects.Player
         {
             Id = id,
             Name = displayName,
-            Rank = 5,
+            Rank = 1,
             PlayerType = type,
-            OwningCards = [.. cards.Select(Objects.Card.FromEntity)],
+            OwningCards = cards,
+            Deck = Decks.Build(cards, c => c.Id, []),
             IsBot = true,
+            Difficulty = difficulty,
         };
     }
 
@@ -88,5 +96,5 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
         }
     }
 
-    private static PlayerTypeInfo ToInfo(PlayerType t) => new(t.Id, t.Attack, t.Health, t.Mana);
+    private static PlayerTypeInfo ToInfo(PlayerType t) => new(t.Id, t.Attack, t.Health, t.Mana, t.Armor, t.RaceId);
 }

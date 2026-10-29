@@ -24,16 +24,60 @@ by the web app authenticates the WebSockets on the game server (same origin, no 
 | Web | ASP.NET MVC 5 + Web API 2 | ASP.NET Core MVC (Razor), Bootstrap 5.3, jQuery 4, jQuery UI 1.14 |
 | Game server | console app, websocket-sharp (vendored DLL) | ASP.NET Core WebSockets, same JSON protocol |
 | Data | NHibernate 3.3, MySQL, schema auto-update | EF Core 10, PostgreSQL 18, EF migrations |
-| Practice bot | separate WebSocket client logging in with the shared hash `BOT` | in-process client, cannot be impersonated |
-| Tests | 1 empty test project | 62 unit + integration tests (xUnit v3, Testcontainers PostgreSQL) |
+| Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |
+| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 9 abilities, hero powers, Taunt, turn timer (see below) |
+| Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
+| Watching | none | live spectating and 3D replays of every game |
+| Tests | 1 empty test project | 89 unit + integration tests (xUnit v3, Testcontainers PostgreSQL), including the rules engine and the bot |
 | Deploy | `start.bat` | Dockerfile, `compose.yaml` + Caddy (automatic TLS), Kustomize base/components/overlays, GitHub Actions |
 
-Database tables keep their original names; the seed data (cards, races, classes, abilities, bot names, log
-types) comes from the 2015 dump with its broken test rows fixed (negative card stats, too few starter cards,
-ability ids that did not match the engine). Card 5 has its original name, Huy, back: it is Huy in the 2014
-game data and was renamed "Anette" with test stats in the 2015 dump. The card portraits are the original
-April 2014 art: the "New Card Portraits" commit of May 2014 had replaced cards 1, 2 and 4 (wolf, Dr. Robotnik,
-Pedobear) with a rhino, a zebra and a reaper; those three are back to the originals.
+Database tables keep their original names. The seed data (cards, races, classes, abilities, bot names, log
+types) comes from the original game: the 2014 game data and the 2015 database dump, with its broken test rows
+fixed (negative card stats, too few starter cards). The card portraits are the original April 2014 art (the
+"New Card Portraits" commit of May 2014 had replaced cards 1, 2 and 4 with a rhino, a zebra and a reaper), and
+the cards carry the names that go with that art and with the people they were named after:
+
+| # | Card | Ability | Origin |
+|---|---|---|---|
+| 1 | Snokulv (the wolf) | Heal | named after the 2014 test card with the same wolf; "Rhino" came with the replacement art |
+| 2 | Dr. Robotnik | Sacrifice | the card in the 2014 prototype; "Zebra" came with the replacement art |
+| 3 | Per | Summon | ability from the 2015 database |
+| 4 | Christine | Paralyze | ability from the 2015 database |
+| 5 | Huy | Heal | "Huy" in the 2014 game data (the 2015 dump had renamed it "Anette") |
+| 6 | Bobby | Taunt | Taunt in the 2014 game data and the 2015 database |
+| 7 | Anette | Haunt | the 2015 card 5, back as a card of her own (a wall of armor that comes back once) |
+| 18 | Spirit Wolf | Charge | "Spirit wolf coming to Souls" (news banner, May 2014): card 18 of the live database; portrait from that banner |
+
+Cards that were only ever created in the live database's card editor (Paul and others) are not in the git
+history; they can be re-created with the admin card editor, which now offers all nine abilities.
+
+## Rules and progression
+
+The full rules and the protocol are in [docs/game-protocol.md](docs/game-protocol.md). In short:
+
+- **Decks**: 20 cards, at most 4 copies of a card, built on the **Deck** page from the cards you own (or an
+  automatic deck). Start with 3 cards, draw one each turn; an empty deck deals growing **fatigue** damage and a
+  draw with 10 cards in hand **burns** the card.
+- **Mana**: the round number plus the class bonus (every turn, at most 10); going second gives 1 extra mana on
+  the first turn.
+- **Armor** absorbs damage before health, on cards and heroes. Healing stops at maximum health.
+- Cards arrive **exhausted** (they act from the next turn) unless they have **Charge**; a card attacks or uses its
+  ability once per turn. **Taunt** cards must be attacked first.
+- **Races**: Darkness cards curse a random enemy for 2 when they die, Vampiric cards heal their hero by the damage
+  they deal, Lightbringer cards heal their hero for 2 when played (and heal more), Ferocious cards hit 1 harder
+  when attacking.
+- **Abilities**: Heal (also heals the neighbours), Sacrifice, Taunt, Summon (a 1/1 Lost Soul), Paralyze, Haunt
+  (returns to the hand once), Harden (+3 armor), Burn (2 damage), Charge.
+- **Hero powers** (2 mana, once per turn): Rabid Bite (1 damage), Drain (1 damage, heal 1), Holy Light (heal 2),
+  Fade (+2 armor).
+- **Turn timer**: 75 seconds, then the turn ends; three timeouts in a row forfeit.
+- **Rating**: normal games change an Elo rating (rank = one step per 50 points above 1000); matchmaking pairs
+  players of similar rating, widening the window while they wait. The home page shows the top players.
+- **Coins**: 3 per normal win (+1 against a higher rated opponent), 1 per loss or draw, 1-3 per practice win
+  (by bot difficulty), plus **daily quests** (three a day, shown on the home page and after each game).
+- **Card upgrades**: buying a card you own levels it up (to level 3), +1 attack and +1 health per level.
+- **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard also trades into
+  valuable cards, defends when threatened and plays upgraded cards.
 
 ## Game clients: Classic and Modern 3D
 
@@ -53,6 +97,10 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
     move onto podiums.
 
   Hand cards and the End Turn sign are a HUD, so they stay where the classic client has them in every view.
+  The new rules have their own UI: a burning rope under End Turn (the turn timer), a hero power button next to
+  your hero, armor shields, level stars, steel Taunt plates, icy Paralyzed cards and a pulsing green outline on
+  everything that can still act, damage / heal / armor numbers, fireballs, curses, summons, haunts and burned
+  cards, a **battle log** (left) and **tooltips** with the rules text of any card or hero.
   Matches open with a VS splash, heroes entering in columns of light, flame jets and fireworks; big hits punch
   the camera and send shockwaves across the sand; a victory ends in a fireworks finale. Bloom makes fire,
   rings, screens and effects glow, and the crowd ambience and fireworks are synthesized with Web Audio (they
@@ -65,13 +113,23 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   | Look at a hand card | hover it | tap it (tap again or tap the arena to close), or hold it |
   | Play a card | drag it onto a free slot | drag it onto a free slot |
   | Attack | drag from your card or hero to an enemy | the same |
-  | Use a card's ability | right-drag from the card to a friendly card or hero | hold the card until it glows green, then drag |
+  | Use a card's ability | right-drag from the card to a target | hold the card until it glows, then drag |
+  | Hero power | click the button next to your hero, then click a target | tap the button, then tap a target |
+  | Read a card or hero | hover it | tap it |
   | Rotate the camera | right- or middle-drag on the arena | drag the arena with one finger, or two fingers |
   | Zoom | mouse wheel | pinch |
   | Camera views | buttons top left, or keys 1-4 | buttons |
 
   Graphics quality adapts to the device (software rendering: no bloom and a thinner crowd; phones and tablets:
   a lighter stadium). `?fx=low|medium|high` overrides it.
+
+**Watch live games** (menu, 3D) lists the running games and lets anyone watch one from the stands; every
+finished game has a **3D replay** (play/pause, 1x/2x/4x) linked from its statistics page and the end screen.
+The menu also picks the practice bot's difficulty.
+
+The Classic client supports all the new rules too (hero power button, turn rope, armor, Taunt and Paralyze
+marks, damage numbers and death animations, battle log, tooltips, difficulty picker) and now works with touch:
+drag cards and attacks with a finger, hold a card about half a second to use its ability, tap for tooltips.
 
 Both clients speak the same WebSocket protocol, so a classic player and a 3D player can play each other.
 Switching clients in the middle of a match reloads the page and resumes the running game (the server
@@ -263,11 +321,14 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__RateLimits__AuthPerMinute` / `UploadsPerMinute` | web | Per-IP limits (defaults 10 / 20). |
 | `Souls__AllowedOrigins` | server | Extra allowed WebSocket origins. Empty = same origin only. |
 | `Souls__Matchmaker__ReconnectGracePeriod` | server | How long a disconnected player may reconnect before forfeiting (default 1 min). |
-| `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot. |
+| `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
+| `Souls__Game__TurnTime` | server | Length of a turn (default 75 s). |
+| `Souls__Game__MaxTimeoutsInARow` | server | Timed-out turns in a row that forfeit the game (default 3). |
 
 ## Known limitations
 
-- The game server keeps games in memory: one replica, and a restart ends running games.
+- The game server keeps games in memory: one replica, and a restart ends running games (finished games and
+  their replays are stored).
 - The Data Protection key ring is stored unencrypted in the database. Anyone with read access to the database
   could forge login cookies; protect database access accordingly or add `ProtectKeysWith*`.
 - The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known

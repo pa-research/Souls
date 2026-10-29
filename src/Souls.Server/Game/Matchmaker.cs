@@ -55,15 +55,15 @@ public sealed class Matchmaker(
     internal async Task TickAsync(CancellationToken ct)
     {
         // Database work happens outside the state lock.
-        var practiceWaiting = await state.RunExclusiveAsync(() => state.PracticeQueue.Count(p => p.GameContext?.IsOpen == true));
-        var bots = new List<Player>(practiceWaiting);
-        if (practiceWaiting > 0)
+        var practiceWaiting = await state.RunExclusiveAsync(() => state.PracticeQueue.Where(p => p.GameContext?.IsOpen == true).Select(p => p.PracticeDifficulty).ToList());
+        var bots = new List<Player>(practiceWaiting.Count);
+        if (practiceWaiting.Count > 0)
         {
             var names = await players.GetBotNamesAsync(ct);
-            for (var i = 0; i < practiceWaiting; i++)
+            foreach (var difficulty in practiceWaiting)
             {
                 var name = names.Count > 0 ? names[Random.Shared.Next(names.Count)] : "Bot";
-                bots.Add(await players.CreateBotAsync($"[BOT] {name}", ct));
+                bots.Add(await players.CreateBotAsync($"[BOT] {name} ({DifficultyNames[difficulty]})", difficulty, ct));
             }
         }
 
@@ -74,6 +74,7 @@ public sealed class Matchmaker(
             MatchNormal();
             MatchPractice(bots, ct);
             await ForfeitAbandonedAsync();
+            await engine.CheckTurnTimersAsync();
         });
 
         _bots.RemoveAll(t => t.IsCompleted);
@@ -93,15 +94,34 @@ public sealed class Matchmaker(
         }
     }
 
+    private static readonly string[] DifficultyNames = ["Easy", "Normal", "Hard"];
+
+    /// <summary>
+    /// Pairs players by rating: the longest waiting player gets the closest rated opponent within a window that
+    /// widens while they wait.
+    /// </summary>
     private void MatchNormal()
     {
-        while (state.NormalQueue.Count > 1)
+        var now = time.GetUtcNow();
+        var waiting = state.NormalQueue.OrderBy(p => p.QueuedAt).ToList();
+        while (waiting.Count > 1)
         {
-            var p1 = state.NormalQueue.First!.Value;
-            var p2 = state.NormalQueue.First.Next!.Value;
-            engine.RemoveFromQueues(p1);
-            engine.RemoveFromQueues(p2);
-            engine.CreateGame(new Pair<Player>(p1, p2));
+            var first = waiting[0];
+            var window = Model.Ratings.MatchWindow(now - first.QueuedAt);
+            var partner = waiting.Skip(1)
+                .Where(p => Math.Abs(p.Rating - first.Rating) <= Math.Max(window, Model.Ratings.MatchWindow(now - p.QueuedAt)))
+                .OrderBy(p => Math.Abs(p.Rating - first.Rating))
+                .FirstOrDefault();
+            waiting.Remove(first);
+            if (partner is null)
+            {
+                continue;
+            }
+
+            waiting.Remove(partner);
+            engine.RemoveFromQueues(first);
+            engine.RemoveFromQueues(partner);
+            engine.CreateGame(new Pair<Player>(first, partner));
         }
     }
 
@@ -109,7 +129,8 @@ public sealed class Matchmaker(
     {
         foreach (var bot in bots)
         {
-            var human = state.PracticeQueue.FirstOrDefault(p => p.GameContext?.IsOpen == true);
+            var human = state.PracticeQueue.FirstOrDefault(p => p.GameContext?.IsOpen == true && p.PracticeDifficulty == bot.Difficulty)
+                ?? state.PracticeQueue.FirstOrDefault(p => p.GameContext?.IsOpen == true);
             if (human is null)
             {
                 return;
@@ -128,10 +149,11 @@ public sealed class Matchmaker(
                 connection,
                 message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger)),
                 aiOptions.Value,
+                bot.Difficulty,
                 logger);
             _bots.Add(Task.Run(() => ai.RunAsync(ct), ct));
 
-            engine.CreateGame(new Pair<Player>(human, bot));
+            engine.CreateGame(new Pair<Player>(human, bot), practice: true);
         }
     }
 

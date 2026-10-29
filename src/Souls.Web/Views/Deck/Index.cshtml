@@ -1,0 +1,39 @@
+@model DeckViewModel
+<div class="row align-items-center mb-3">
+    <div class="col">
+        <h2>Your deck</h2>
+        <p class="mb-0">Pick exactly @Model.DeckSize cards, at most @Model.MaxCopies copies of each. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.
+            @(Model.Custom ? "You play with your own deck." : "You play with the automatic deck (your cards spread evenly) until you save one.")</p>
+    </div>
+</div>
+
+<form asp-controller="Deck" asp-action="Save" method="post" id="deck-form" data-deck-size="@Model.DeckSize">
+    <div class="deck-toolbar d-flex align-items-center gap-3 mb-3">
+        <strong><span id="deck-total">@Model.Entries.Sum(e => e.Count)</span> / @Model.DeckSize cards</strong>
+        <button type="submit" class="btn btn-dark btn-sm" id="deck-save">Save deck</button>
+        <a class="btn btn-outline-dark btn-sm" asp-controller="Shop" asp-action="Index">Get more cards</a>
+    </div>
+    <div class="row g-3">
+        @foreach (var entry in Model.Entries)
+        {
+            <div class="col-6 col-md-4 col-xl-2 deck-card">
+                <partial name="_CardTile" model="entry.Card" />
+                <label class="form-label small mt-2 d-block" for="count_@entry.Card.Id">Copies of @entry.Card.Name</label>
+                <input class="form-control form-control-sm deck-count" type="number" min="0" max="@Model.MaxCopies" step="1"
+                       id="count_@entry.Card.Id" name="count[@entry.Card.Id]" value="@entry.Count" />
+                @if (!string.IsNullOrEmpty(entry.Card.Description))
+                {
+                    <p class="small text-muted mt-1 mb-0">@entry.Card.Description</p>
+                }
+            </div>
+        }
+    </div>
+</form>
+
+<form asp-controller="Deck" asp-action="Reset" method="post" class="mt-3">
+    <button type="submit" class="btn btn-link btn-sm p-0">Use the automatic deck</button>
+</form>
+
+@section scripts {
+    <script src="~/js/deck.js" asp-append-version="true"></script>
+}

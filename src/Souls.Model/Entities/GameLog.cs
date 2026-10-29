@@ -14,4 +14,7 @@ public class GameLog
     public int Obj2Id { get; set; }
     public required string Obj1Type { get; set; }
     public required string Obj2Type { get; set; }
+
+    /// <summary>The line as the players saw it in the battle log (older games have none).</summary>
+    public string? Text { get; set; }
 }

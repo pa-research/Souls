@@ -24,6 +24,7 @@ require.config({
         "asset": "Toolbox/AssetLoader",
         "socket": "Client/Socket",
         "messages": "Client/Messages",
+        "rules": "Client/Rules",
 
 
         // States
@@ -35,6 +36,7 @@ require.config({
         "gameService": "Networking/GameService",
         "chatService": "Networking/ChatService",
         "networkBase": "Networking/NetworkBase",
+        "eventPlayer": "Networking/EventPlayer",
 
 
         // Objects
@@ -51,11 +53,15 @@ require.config({
         "endturnbutton": "Objects/Environment/EndTurnButton",
         "queue": "Objects/Environment/Queue",
         "audio": "Objects/Environment/AudioButton",
+        "turntimer": "Objects/Environment/TurnTimer",
+        "tooltip": "Objects/Environment/Tooltip",
+        "battlelog": "Objects/Environment/BattleLog",
         //// Player
         "player": "Objects/Player/Player",
         "playerbase": "Objects/Player/PlayerBase",
         "arrow": "Objects/Player/Arrow",
         "opponent": "Objects/Player/Opponent",
+        "heropower": "Objects/Player/HeroPower",
         // Other
         "chat": "Objects/Chat"
 
@@ -108,6 +114,10 @@ define('conf', ['cardtype', 'asset'], function (CardType, Asset) {
         this.wsBase = settings.wsBase.charAt(0) === '/'
             ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + settings.wsBase
             : settings.wsBase;
+
+        // Rules text and target kinds for tooltips and targeting (abilities, races, heroPowers, heroTypes,
+        // keywords, deckSize, maxHandCards); see Client/Rules.js.
+        this.rules = settings.rules || {};
 
         settings.cards.forEach(function (value) {
             CardType.Portrait[value.id] = value.portrait;
@@ -222,7 +232,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
                 // After switching from the 3D client mid-game, go straight back into the running game.
                 var resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
                 if (resume) {
-                    gameEngine = new Game(resume.normal);
+                    gameEngine = new Game(resume.normal, ReadDifficulty());
                     Conf.currentState = Gamestate.GAME;
                 }
                 else {
@@ -258,6 +268,19 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         // Running keepalive each minute
         setInterval(function () { KeepAlive() }, 60000);
 
+    }
+
+    // Practice difficulty (0 easy, 1 normal, 2 hard), remembered in this browser.
+    var DIFFICULTY_KEY = 'souls.practiceDifficulty';
+    function ReadDifficulty() {
+        try {
+            var value = parseInt(window.localStorage.getItem(DIFFICULTY_KEY), 10);
+            if (value >= 0 && value <= 2) return value;
+        } catch (e) { }
+        return 1;
+    }
+    function WriteDifficulty(value) {
+        try { window.localStorage.setItem(DIFFICULTY_KEY, String(value)); } catch (e) { }
     }
 
     function ShowGameSelect() {
@@ -307,9 +330,57 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         normalGame.y = (Conf.height / 2);
         this.stage.addChild(normalGame);
 
+        // Practice difficulty: Easy / Normal / Hard under the practice button
+        var difficulty = ReadDifficulty();
+        var difficultyLabel = new Pixi.Text("Practice difficulty", {
+            font: "bold 30px Arial",
+            fill: "#f3e9d2",
+            stroke: "#000000",
+            strokeThickness: 6
+        });
+        difficultyLabel.anchor = { x: 0.5, y: 0.5 };
+        difficultyLabel.x = practiceGame.x;
+        difficultyLabel.y = practiceGame.y + 120;
+        this.stage.addChild(difficultyLabel);
+
+        var difficultyButtons = [];
+        ["Easy", "Normal", "Hard"].forEach(function (name, index) {
+            var button = new Pixi.Text(name, { font: "bold 34px Arial", fill: "#ffffff", stroke: "#000000", strokeThickness: 6 });
+            button.anchor = { x: 0.5, y: 0.5 };
+            button.x = practiceGame.x + (index - 1) * 140;
+            button.y = practiceGame.y + 175;
+            button.interactive = true;
+            button.buttonMode = true;
+            button.difficulty = index;
+            button.click = button.tap = function () {
+                difficulty = index;
+                WriteDifficulty(index);
+                paintDifficulty();
+            };
+            difficultyButtons.push(button);
+            this.stage.addChild(button);
+        }, this);
+
+        function paintDifficulty() {
+            difficultyButtons.forEach(function (button) {
+                var selected = button.difficulty === difficulty;
+                button.setStyle({
+                    font: "bold " + (selected ? 40 : 32) + "px Arial",
+                    fill: selected ? "#ffd54a" : "#bdb6a8",
+                    stroke: "#000000",
+                    strokeThickness: 6
+                });
+            });
+        }
+        paintDifficulty();
+
         // Workaround since interactive = false dont work properly?
         function clearInteractive() {
             menuSound.stop();
+            difficultyButtons.forEach(function (button) {
+                button.interactive = false;
+                button.click = button.tap = undefined;
+            });
             practiceGame.interactive = false; // Should work (Doesnt)
             that.stage.removeChild(practiceGame); // Should ALSO work (Doesnt)
             practiceGame.click = practiceGame.tap = undefined; // Holy Fuck, i give up
@@ -325,7 +396,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         practiceGame.click = practiceGame.tap = function (mouseData) {
             clearInteractive();
 
-            gameEngine = new Game(false);
+            gameEngine = new Game(false, difficulty);
             Conf.currentState = Gamestate.GAME;
 
         }

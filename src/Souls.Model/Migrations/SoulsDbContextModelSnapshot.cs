@@ -76,6 +76,41 @@ namespace Souls.Model.Migrations
                         {
                             Id = 2,
                             Name = "Sacrifice"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Taunt"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Summon"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "Paralyze"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Name = "Haunt"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Name = "Harden"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Name = "Burn"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Name = "Charge"
                         });
                 });
 
@@ -188,7 +223,7 @@ namespace Souls.Model.Migrations
                             Cost = 6,
                             Health = 7,
                             Level = 1,
-                            Name = "Rhino",
+                            Name = "Snokulv",
                             Portrait = "/Content/Images/Card/Portraits/1.png",
                             RaceId = 4,
                             VendorPrice = 1
@@ -202,7 +237,7 @@ namespace Souls.Model.Migrations
                             Cost = 2,
                             Health = 1,
                             Level = 1,
-                            Name = "Zebra",
+                            Name = "Dr. Robotnik",
                             Portrait = "/Content/Images/Card/Portraits/2.png",
                             RaceId = 3,
                             VendorPrice = 1
@@ -210,7 +245,7 @@ namespace Souls.Model.Migrations
                         new
                         {
                             Id = 3,
-                            AbilityId = 2,
+                            AbilityId = 4,
                             Armor = 1,
                             Attack = 6,
                             Cost = 4,
@@ -224,7 +259,7 @@ namespace Souls.Model.Migrations
                         new
                         {
                             Id = 4,
-                            AbilityId = 1,
+                            AbilityId = 5,
                             Armor = 2,
                             Attack = 5,
                             Cost = 4,
@@ -252,7 +287,7 @@ namespace Souls.Model.Migrations
                         new
                         {
                             Id = 6,
-                            AbilityId = 2,
+                            AbilityId = 3,
                             Armor = 1,
                             Attack = 2,
                             Cost = 1,
@@ -262,7 +297,56 @@ namespace Souls.Model.Migrations
                             Portrait = "/Content/Images/Card/Portraits/6.png",
                             RaceId = 2,
                             VendorPrice = 1
+                        },
+                        new
+                        {
+                            Id = 7,
+                            AbilityId = 6,
+                            Armor = 12,
+                            Attack = 1,
+                            Cost = 5,
+                            Health = 1,
+                            Level = 2,
+                            Name = "Anette",
+                            Portrait = "/Content/Images/Card/Portraits/16.jpg",
+                            RaceId = 4,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 18,
+                            AbilityId = 9,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 4,
+                            Health = 3,
+                            Level = 2,
+                            Name = "Spirit Wolf",
+                            Portrait = "/Content/Images/Card/Portraits/18.png",
+                            RaceId = 3,
+                            VendorPrice = 3
                         });
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.DeckCard", b =>
+                {
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<int>("CardId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_card");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer")
+                        .HasColumnName("count");
+
+                    b.HasKey("PlayerId", "CardId");
+
+                    b.HasIndex("CardId");
+
+                    b.ToTable("deck_card", (string)null);
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.Game", b =>
@@ -279,19 +363,43 @@ namespace Souls.Model.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created");
 
+                    b.Property<bool>("IsPractice")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_practice");
+
                     b.Property<int>("Player1Id")
                         .HasColumnType("integer")
                         .HasColumnName("fk_player1");
+
+                    b.Property<int>("Player1RatingChange")
+                        .HasColumnType("integer")
+                        .HasColumnName("player1_rating_change");
 
                     b.Property<int>("Player2Id")
                         .HasColumnType("integer")
                         .HasColumnName("fk_player2");
 
+                    b.Property<int>("Player2RatingChange")
+                        .HasColumnType("integer")
+                        .HasColumnName("player2_rating_change");
+
+                    b.Property<int>("Turns")
+                        .HasColumnType("integer")
+                        .HasColumnName("turns");
+
+                    b.Property<int?>("WinnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_winner");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Created");
 
                     b.HasIndex("Player1Id");
 
                     b.HasIndex("Player2Id");
+
+                    b.HasIndex("WinnerId");
 
                     b.ToTable("game", (string)null);
                 });
@@ -333,6 +441,11 @@ namespace Souls.Model.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("obj2_type");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
 
                     b.HasKey("Id");
 
@@ -472,7 +585,93 @@ namespace Souls.Model.Migrations
                             Description = "A card sacrifices itself to X",
                             Text = "{0} sacrifices itself, strengthening {1} for {2}.",
                             Title = "ABILITY_SACRIFICE"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Description = "A card paralyzes X",
+                            Text = "{0} paralyzes {1}",
+                            Title = "ABILITY_PARALYZE"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Description = "A card gives X armor",
+                            Text = "{0} hardens {1}",
+                            Title = "ABILITY_HARDEN"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Description = "A card burns X",
+                            Text = "{0} burns {1}",
+                            Title = "ABILITY_BURN"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Description = "A player uses the hero power",
+                            Text = "{0} uses the hero power",
+                            Title = "HERO_POWER"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Description = "A player takes fatigue damage",
+                            Text = "{0} takes fatigue damage",
+                            Title = "FATIGUE"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Description = "A player ran out of time",
+                            Text = "{0} ran out of time",
+                            Title = "TURN_TIMED_OUT"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Description = "A card summons a token",
+                            Text = "{0} summons a Lost Soul",
+                            Title = "SUMMON"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Description = "A card returns to the hand",
+                            Text = "{0} returns to the hand",
+                            Title = "HAUNT"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Description = "A drawn card burns (hand full)",
+                            Text = "{0} burns a card, the hand is full",
+                            Title = "CARD_BURNED"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Description = "A Darkness card curses X",
+                            Text = "{0} curses {1}",
+                            Title = "DEATH_CURSE"
                         });
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.GameReplay", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_game");
+
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("data");
+
+                    b.HasKey("GameId");
+
+                    b.ToTable("game_replay", (string)null);
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.News", b =>
@@ -567,6 +766,12 @@ namespace Souls.Model.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rank");
 
+                    b.Property<int>("Rating")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1000)
+                        .HasColumnName("rating");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
@@ -620,6 +825,12 @@ namespace Souls.Model.Migrations
                     b.Property<int>("CardId")
                         .HasColumnType("integer")
                         .HasColumnName("fk_card");
+
+                    b.Property<int>("Level")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("level");
 
                     b.Property<DateTimeOffset>("ObtainedAt")
                         .HasColumnType("timestamp with time zone")
@@ -710,6 +921,44 @@ namespace Souls.Model.Migrations
                             Id = 2,
                             Name = "Player"
                         });
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.PlayerQuest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.HasIdentityOptions(b.Property<int>("Id"), 1000L, null, null, null, null, null);
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<int>("Progress")
+                        .HasColumnType("integer")
+                        .HasColumnName("progress");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId", "Day", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("player_quest", (string)null);
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.PlayerType", b =>
@@ -908,6 +1157,25 @@ namespace Souls.Model.Migrations
                     b.Navigation("Race");
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.DeckCard", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Card", "Card")
+                        .WithMany()
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("Player");
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.Game", b =>
                 {
                     b.HasOne("Souls.Model.Entities.Player", "Player1")
@@ -921,6 +1189,11 @@ namespace Souls.Model.Migrations
                         .HasForeignKey("Player2Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Souls.Model.Entities.Player", null)
+                        .WithMany()
+                        .HasForeignKey("WinnerId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Player1");
 
@@ -944,6 +1217,17 @@ namespace Souls.Model.Migrations
                     b.Navigation("Game");
 
                     b.Navigation("GameLogType");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.GameReplay", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Game", "Game")
+                        .WithOne()
+                        .HasForeignKey("Souls.Model.Entities.GameReplay", "GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.Player", b =>
@@ -996,6 +1280,17 @@ namespace Souls.Model.Migrations
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.PlayerLogin", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.PlayerQuest", b =>
                 {
                     b.HasOne("Souls.Model.Entities.Player", "Player")
                         .WithMany()

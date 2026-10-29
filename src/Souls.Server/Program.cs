@@ -29,6 +29,7 @@ builder.Services.AddSoulsForwardedHeaders(builder.Configuration);
 builder.Services.Configure<WebSocketOptionsConfig>(builder.Configuration.GetSection("Souls:WebSockets"));
 builder.Services.Configure<MatchmakerOptions>(builder.Configuration.GetSection("Souls:Matchmaker"));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Souls:Bot"));
+builder.Services.Configure<GameOptions>(builder.Configuration.GetSection("Souls:Game"));
 
 builder.Services.AddSingleton<ServerState>();
 builder.Services.AddSingleton<GameEngine>();

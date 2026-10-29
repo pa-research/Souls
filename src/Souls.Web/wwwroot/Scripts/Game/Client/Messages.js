@@ -17,14 +17,47 @@ define('messages', ['conf'], function (Conf) {
             },
             Game: {
                 NORMAL_QUEUE: 100,
-                PRACTICE_QUEUE: 101,
-                ATTACK: 200, // CARD CARD attack
+                PRACTICE_QUEUE: 101, // {difficulty: 0 easy, 1 normal, 2 hard}
+                ATTACK: 200, // {source, target, type: 0 card->card, 1 card->hero, 2 hero->card, 3 hero->hero}
                 USECARD: 201,
                 NEXT_TURN: 226,
                 NOT_YOUR_TURN: 202,
                 MOVE_CARD: 203,
                 RELEASE_CARD: 204,
-                USE_ABILITY: 205
+                USE_ABILITY: 205, // {source, target, type: 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}
+                HERO_POWER: 206, // {target, type} (same types as USE_ABILITY)
+                LIST_LIVE_GAMES: 240,
+                SPECTATE: 241,
+                STOP_SPECTATING: 242
+            },
+            // Server to client (see docs/game-protocol.md)
+            Response: {
+                LOGIN_OK: 10,
+                QUEUE_OK: 100,
+                QUEUE_ALREADY_IN: 101,
+                NOT_YOUR_TURN: 202,
+                GAME_CREATE: 206,
+                USECARD_OK: 207,
+                USECARD_OOM: 208,
+                OPPONENT_MOVE: 209,
+                OPPONENT_RELEASE: 210,
+                OPPONENT_USECARD_OK: 211,
+                RELEASE: 212,
+                SLOT_OCCUPIED: 213,
+                RECOVER: 220,
+                NEWCARD: 222,
+                OPPONENT_NEWCARD: 223,
+                NEXT_TURN: 226,
+                VICTORY: 230,
+                DEFEAT: 231,
+                GENERAL_MESSAGE: 232,
+                DRAW: 233,
+                GAME_EVENTS: 235,
+                GAME_SYNC: 236,
+                LIVE_GAMES: 240,
+                SPECTATE_START: 241,
+                SPECTATE_END: 242,
+                SPECTATE_ERROR: 243
             },
             Chat: {
                 ENABLE: 1000,
@@ -90,6 +123,7 @@ define('messages', ['conf'], function (Conf) {
             PRACTICE_QUEUE: {
                 "Type": Messages.prototype.Type.Game.PRACTICE_QUEUE,
                 "Payload": {
+                    "difficulty": 1
                 }
             },
             MOVE_CARD: {
@@ -108,16 +142,21 @@ define('messages', ['conf'], function (Conf) {
                     "cid": undefined
                 }
             },
-            // Card on Card = 0
-            // Card on Player = 1 (Friendly Player)
-            // Card on Opponent = 2 (Opponent)
+            // 0 = friendly card, 1 = own hero, 2 = enemy hero, 3 = enemy card
             USE_ABILITY: {
                 "Type": Messages.prototype.Type.Game.USE_ABILITY,
                 "Payload": {
                     "source": undefined,
                     "target": undefined,
-                    "type": -1,
-                    "abilityId" : undefined
+                    "type": -1
+                }
+            },
+            // Same target types as USE_ABILITY; a power without target is sent as {target: -1, type: 1}
+            HERO_POWER: {
+                "Type": Messages.prototype.Type.Game.HERO_POWER,
+                "Payload": {
+                    "target": -1,
+                    "type": 1
                 }
             }
         };

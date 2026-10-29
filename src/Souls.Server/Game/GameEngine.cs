@@ -1,48 +1,67 @@
 using System.Text.Json.Nodes;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Souls.Model;
-using Ability = Souls.Model.Entities.Ability;
 using GameLogKind = Souls.Model.Entities.GameLogKind;
 using Souls.Server.Chat;
 using Souls.Server.Network;
 using Souls.Server.Objects;
-using Souls.Server.Objects.Abilities;
 
 namespace Souls.Server.Game;
 
+public sealed class GameOptions
+{
+    /// <summary>How long a turn may take before it ends automatically.</summary>
+    public TimeSpan TurnTime { get; set; } = TimeSpan.FromSeconds(75);
+
+    /// <summary>A player whose turn runs out this many times in a row forfeits.</summary>
+    public int MaxTimeoutsInARow { get; set; } = 3;
+}
+
 /// <summary>
-/// The game rules. Ported from the original GameEngine; all methods must be called while holding the
-/// <see cref="ServerState"/> lock.
+/// The game rules. Ported from the original GameEngine and extended (armor, decks, races, abilities, hero powers,
+/// turn timer, spectators). All methods must be called while holding the <see cref="ServerState"/> lock.
 /// </summary>
-public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScopeFactory scopes, TimeProvider time, ILogger<GameEngine> logger)
+public sealed partial class GameEngine(
+    ServerState state,
+    ChatEngine chat,
+    IServiceScopeFactory scopes,
+    TimeProvider time,
+    IOptions<GameOptions> options,
+    ILogger<GameEngine> logger)
 {
     /// <summary>Starts a game between two players.</summary>
-    public void CreateGame(Pair<Player> players)
+    public GameRoom CreateGame(Pair<Player> players, bool practice = false)
     {
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
-        var room = new GameRoom(players, time);
+        var room = new GameRoom(players, time, options.Value.TurnTime, practice);
         state.Rooms[room.GameId] = room;
 
         var response = room.GenerateGameUpdate(create: true);
         players.First.Send(response.First);
         players.Second.Send(response.Second);
 
-        room.Logger.Add(GameLogKind.GameCreated, players.First.Id, players.Second.Id, "Player", "Player");
+        var text = $"The battle begins, {players.First.Name} starts against {players.Second.Name}.";
+        room.Logger.Add(GameLogKind.GameCreated, players.First.Id, players.Second.Id, "Player", "Player", text);
+        room.LogLine(text);
+        room.Sync();
         logger.LogInformation("Game {GameId} started: {Player1} vs {Player2}", room.GameId, players.First.Name, players.Second.Name);
+        return room;
     }
 
-    public void RequestQueue(Player player, bool normal)
+    public void RequestQueue(Player player, bool normal, int difficulty = 1)
     {
         if (player.GPlayer?.GameRoom is { } room)
         {
             // Reconnected while in a game: send the current state.
             var response = room.GenerateGameUpdate();
             player.Send(player.GPlayer.IsPlayerOne ? response.First : response.Second);
+            player.GameContext?.Send(new Response(GameResponse.GameSync, room.SyncPayload()));
             return;
         }
 
+        StopSpectating(player);
         if (player.InQueue)
         {
             player.Send(new Response(GameResponse.QueueAlreadyIn, "You are already in queue!"));
@@ -50,6 +69,8 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
         }
 
         player.InQueue = true;
+        player.QueuedAt = time.GetUtcNow();
+        player.PracticeDifficulty = Math.Clamp(difficulty, 0, 2);
         (normal ? state.NormalQueue : state.PracticeQueue).AddLast(player);
         player.Send(new Response(GameResponse.QueueOk, "You are now in queue!"));
         logger.LogDebug("{Player} queued ({Mode})", player.Name, normal ? "normal" : "practice");
@@ -97,7 +118,7 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
         opponent.Send(new Response(GameResponse.GameOpponentRelease, new JsonObject { ["cid"] = cid }));
     }
 
-    public void RequestUseCard(Player player, Message message)
+    public async Task RequestUseCardAsync(Player player, Message message)
     {
         if (!TryGetGame(player, out var gp, out var opponent))
         {
@@ -133,72 +154,70 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
             return;
         }
 
+        var room = gp.GameRoom!;
         gp.HandCards.Remove(cid);
         gp.BoardCards[slot] = card;
         gp.Mana -= card.Cost;
+        gp.CardsPlayed++;
         card.SlotId = slot;
+
+        // Cards arrive exhausted unless they have Charge.
+        card.HasAttacked = !card.HasCharge;
 
         JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData() };
         player.Send(new Response(GameResponse.GameUseCardOk, Payload()));
         opponent.Send(new Response(GameResponse.GameOpponentUseCardOk, Payload()));
 
-        gp.GameRoom!.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card");
+        var text = $"{gp.Name} plays {card.Name}.";
+        room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
+        room.LogLine(text);
+        OnPlay(room, gp, card);
+        await FinishActionAsync(room);
     }
 
-    public void RequestNextTurn(Player player)
+    public async Task RequestNextTurnAsync(Player player, bool timedOut = false)
     {
         if (!TryGetGame(player, out var gp, out var opponent) || !gp.IsPlayerTurn())
         {
             return;
         }
 
+        if (!timedOut)
+        {
+            gp.TimeoutsInARow = 0;
+        }
+
         var room = gp.GameRoom!;
-        room.Logger.Add(GameLogKind.NextTurn, player.Id, opponent.Id, "Player", "Player");
+        var text = $"{gp.Name} gives the turn to {opponent.Name}.";
+        room.Logger.Add(GameLogKind.NextTurn, player.Id, opponent.Id, "Player", "Player", text);
+        room.LogLine(text);
         room.NextTurn();
+        room.FlushEvents();
 
-        // The player whose turn starts draws a card.
-        RequestNewCard(opponent);
-
+        var turnEndsIn = (long)room.TurnTime.TotalMilliseconds;
         player.Send(new Response(GameResponse.GameNextTurn, new JsonObject
         {
             ["yourTurn"] = false,
             ["playerInfo"] = gp.GetPlayerData(),
             ["opponentInfo"] = opponent.GPlayer!.GetPlayerData(),
+            ["turnEndsIn"] = turnEndsIn,
         }));
         opponent.Send(new Response(GameResponse.GameNextTurn, new JsonObject
         {
             ["yourTurn"] = true,
             ["playerInfo"] = opponent.GPlayer.GetPlayerData(),
             ["opponentInfo"] = gp.GetPlayerData(),
+            ["turnEndsIn"] = turnEndsIn,
         }));
-    }
 
-    /// <summary>Deals a new card to the player (max 10 in hand). The opponent only learns its cid.</summary>
-    public void RequestNewCard(Player player, int amount = 1)
-    {
-        var gp = player.GPlayer;
-        if (gp?.GameRoom is null || gp.HandCards.Count >= GamePlayer.MaxHandCards)
+        if (room.Turn == 1)
         {
-            return;
+            room.LogLine($"{opponent.Name} goes second and gets 1 extra mana this turn.");
         }
 
-        var cards = GameRoom.GetRandomCards(player, amount);
-        if (cards.Count == 0)
-        {
-            return;
-        }
-
-        gp.GameRoom.Logger.Add(GameLogKind.NewCard, player.Id, cards[0].Id, "Player", "Card");
-        gp.AddCardsToHand(cards);
-
-        player.Send(new Response(GameResponse.GameNewCard, new JsonObject
-        {
-            ["card"] = new JsonArray([.. cards.Select(c => (JsonNode)c.ToJson())]),
-        }));
-        player.GetOpponent()?.Send(new Response(GameResponse.GameOpponentNewCard, new JsonObject
-        {
-            ["card"] = new JsonArray([.. cards.Select(c => (JsonNode)new JsonObject { ["cid"] = c.Cid })]),
-        }));
+        // The player whose turn starts draws a card.
+        Draw(room, opponent.GPlayer, 1);
+        await FinishActionAsync(room);
     }
 
     public async Task RequestAttackAsync(Player player, Message message)
@@ -220,135 +239,55 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
             return;
         }
 
-        JsonObject attackerJson;
-        JsonObject defenderJson;
-        switch (type)
+        if (type is < 0 or > 3)
         {
-            case 0: // Card on card
-            {
-                var sourceCard = gp.FindBoardCard(source);
-                var targetCard = opponent.FindBoardCard(target);
-                if (sourceCard is null || targetCard is null)
-                {
-                    return;
-                }
-
-                if (sourceCard.HasAttacked)
-                {
-                    CannotAttackTwice(player);
-                    return;
-                }
-
-                sourceCard.AttackCard(targetCard);
-                if (sourceCard.IsDead)
-                {
-                    gp.RemoveBoardCard(sourceCard);
-                }
-
-                if (targetCard.IsDead)
-                {
-                    opponent.RemoveBoardCard(targetCard);
-                }
-
-                attackerJson = CardResult(sourceCard, damageTaken: targetCard.Attack, damageDone: sourceCard.Attack, attacker: true);
-                defenderJson = CardResult(targetCard, damageTaken: sourceCard.Attack, damageDone: targetCard.Attack, attacker: false);
-                room.Logger.Add(GameLogKind.CardAttackCard, sourceCard.Id, targetCard.Id, "Card", "Card");
-                break;
-            }
-
-            case 1: // Card on opponent hero
-            {
-                var sourceCard = gp.FindBoardCard(source);
-                if (sourceCard is null)
-                {
-                    return;
-                }
-
-                if (sourceCard.HasAttacked)
-                {
-                    CannotAttackTwice(player);
-                    return;
-                }
-
-                sourceCard.AttackHero(opponent);
-                if (sourceCard.IsDead)
-                {
-                    gp.RemoveBoardCard(sourceCard);
-                }
-
-                attackerJson = CardResult(sourceCard, damageTaken: opponent.Attack, damageDone: sourceCard.Attack, attacker: true);
-                defenderJson = HeroResult(opponent, damageTaken: sourceCard.Attack, damageDone: opponent.Attack, attacker: false);
-                room.Logger.Add(GameLogKind.CardAttackPlayer, sourceCard.Id, opponentPlayer.Id, "Card", "Player");
-                break;
-            }
-
-            case 2: // Hero on card
-            {
-                var targetCard = opponent.FindBoardCard(target);
-                if (targetCard is null)
-                {
-                    return;
-                }
-
-                if (gp.HasAttacked)
-                {
-                    CannotAttackTwice(player);
-                    return;
-                }
-
-                gp.AttackCard(targetCard);
-                if (targetCard.IsDead)
-                {
-                    opponent.RemoveBoardCard(targetCard);
-                }
-
-                attackerJson = HeroResult(gp, damageTaken: targetCard.Attack, damageDone: gp.Attack, attacker: true);
-                defenderJson = CardResult(targetCard, damageTaken: gp.Attack, damageDone: targetCard.Attack, attacker: false);
-                room.Logger.Add(GameLogKind.PlayerAttackCard, player.Id, targetCard.Id, "Player", "Card");
-                break;
-            }
-
-            case 3: // Hero on hero
-            {
-                if (gp.HasAttacked)
-                {
-                    CannotAttackTwice(player);
-                    return;
-                }
-
-                gp.AttackHero(opponent);
-                attackerJson = HeroResult(gp, damageTaken: opponent.Attack, damageDone: gp.Attack, attacker: true);
-                defenderJson = HeroResult(opponent, damageTaken: gp.Attack, damageDone: opponent.Attack, attacker: false);
-                room.Logger.Add(GameLogKind.PlayerAttackPlayer, player.Id, opponentPlayer.Id, "Player", "Player");
-                break;
-            }
-
-            default:
-                throw new ProtocolException("Unknown attack type");
+            throw new ProtocolException("Unknown attack type");
         }
 
-        player.Send(new Response(GameResponse.GameAttack, new JsonObject
+        var sourceIsHero = type is 2 or 3;
+        var targetIsHero = type is 1 or 3;
+        var sourceCard = sourceIsHero ? null : gp.FindBoardCard(source);
+        var targetCard = targetIsHero ? null : opponent.FindBoardCard(target);
+        if ((!sourceIsHero && sourceCard is null) || (!targetIsHero && targetCard is null))
         {
-            ["player"] = attackerJson.DeepClone(),
-            ["opponent"] = defenderJson.DeepClone(),
-            ["type"] = type,
-        }));
-        opponentPlayer.Send(new Response(GameResponse.GameAttack, new JsonObject
-        {
-            ["player"] = defenderJson,
-            ["opponent"] = attackerJson,
-            ["type"] = type,
-        }));
-
-        if (gp.IsDead || opponent.IsDead)
-        {
-            var isDraw = gp.IsDead && opponent.IsDead;
-            room.Winner = gp.IsDead ? opponentPlayer : player;
-            await EndGameAsync(room, isDraw);
+            return;
         }
+
+        if (sourceCard is not null && !CanAct(player, sourceCard))
+        {
+            return;
+        }
+
+        if (sourceIsHero && (gp.HasAttacked || gp.Attack <= 0))
+        {
+            Tell(player, gp.Attack <= 0 ? "Your hero has no attack!" : "Your hero already attacked this turn!");
+            return;
+        }
+
+        if (opponent.HasTaunt && targetCard is not { HasTaunt: true })
+        {
+            Tell(player, "A card with Taunt is in the way!");
+            return;
+        }
+
+        object attacker = sourceIsHero ? gp : sourceCard!;
+        object defender = targetIsHero ? opponent : targetCard!;
+        var text = $"{NameOf(attacker)} attacks {NameOf(defender)}.";
+        var kind = (sourceIsHero, targetIsHero) switch
+        {
+            (false, false) => GameLogKind.CardAttackCard,
+            (false, true) => GameLogKind.CardAttackPlayer,
+            (true, false) => GameLogKind.PlayerAttackCard,
+            (true, true) => GameLogKind.PlayerAttackPlayer,
+        };
+        room.Logger.Add(kind, sourceIsHero ? player.Id : sourceCard!.Id, targetIsHero ? opponentPlayer.Id : targetCard!.Id,
+            sourceIsHero ? "Player" : "Card", targetIsHero ? "Player" : "Card", text);
+        room.LogLine(text);
+        Fight(room, gp, attacker, opponent, defender);
+        await FinishActionAsync(room);
     }
 
-    public void RequestUseAbility(Player player, Message message)
+    public async Task RequestUseAbilityAsync(Player player, Message message)
     {
         if (!TryGetGame(player, out var gp, out _))
         {
@@ -361,175 +300,117 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
             return;
         }
 
-        // Target type: 0 = friendly card, 1 = own hero, 2 = opponent.
-        var source = message.GetInt("source");
-        var target = message.GetInt("target");
-        var type = message.GetInt("type");
-
-        var card = gp.FindBoardCard(source);
-        if (card is null)
+        var card = gp.FindBoardCard(message.GetInt("source"));
+        if (card is null || !CanAct(player, card))
         {
             return;
+        }
+
+        var type = (TargetType)message.GetInt("type");
+        if (UseAbility(gp.GameRoom!, player, gp, card, type, message.GetInt("target")))
+        {
+            await FinishActionAsync(gp.GameRoom!);
+        }
+    }
+
+    public async Task RequestHeroPowerAsync(Player player, Message message)
+    {
+        if (!TryGetGame(player, out var gp, out _))
+        {
+            return;
+        }
+
+        if (!gp.IsPlayerTurn())
+        {
+            player.Send(new Response(GameResponse.GameNotYourTurn, new JsonObject { ["error"] = "Not your turn!" }));
+            return;
+        }
+
+        if (gp.HeroPowerUsed)
+        {
+            Tell(player, "Your hero power was already used this turn!");
+            return;
+        }
+
+        if (gp.Mana < GameRules.HeroPowerCost)
+        {
+            player.Send(new Response(GameResponse.GameUseCardOom, "Not enough mana!"));
+            return;
+        }
+
+        var type = (TargetType)(message.Payload["type"] is null ? (int)TargetType.OwnHero : message.GetInt("type"));
+        var target = message.Payload["target"] is null ? -1 : message.GetInt("target");
+        if (UseHeroPower(gp.GameRoom!, player, gp, type, target))
+        {
+            await FinishActionAsync(gp.GameRoom!);
+        }
+    }
+
+    /// <summary>Ends turns whose time ran out; repeat offenders forfeit.</summary>
+    public async Task CheckTurnTimersAsync()
+    {
+        var now = time.GetUtcNow();
+        foreach (var room in state.Rooms.Values.Where(r => !r.IsEnded && now >= r.TurnDeadline).ToList())
+        {
+            var player = room.CurrentPlaying;
+            var gp = player.GPlayer!;
+            gp.TimeoutsInARow++;
+            var text = $"{gp.Name} ran out of time.";
+            room.Logger.Add(GameLogKind.TurnTimedOut, player.Id, player.Id, "Player", "Player", text);
+            room.Event("timeout", new JsonObject { ["id"] = gp.Ident });
+            room.LogLine(text);
+            if (gp.TimeoutsInARow >= options.Value.MaxTimeoutsInARow)
+            {
+                room.LogLine($"{gp.Name} is idle and forfeits the game.");
+                room.FlushEvents();
+                room.Winner = player.GetOpponent();
+                await EndGameAsync(room, isDraw: false);
+                continue;
+            }
+
+            await RequestNextTurnAsync(player, timedOut: true);
+        }
+    }
+
+    /// <summary>Flushes events and state, and ends the game if a hero died.</summary>
+    private async Task FinishActionAsync(GameRoom room)
+    {
+        var p1 = room.Players.First.GPlayer!;
+        var p2 = room.Players.Second.GPlayer!;
+        foreach (var hero in new[] { p1, p2 }.Where(h => h.Health < 1))
+        {
+            hero.IsDead = true;
+            room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
+            room.LogLine($"{hero.Name} has fallen!");
+        }
+
+        room.Sync();
+        if (p1.IsDead || p2.IsDead)
+        {
+            var isDraw = p1.IsDead && p2.IsDead;
+            room.Winner = isDraw ? null : p1.IsDead ? room.Players.Second : room.Players.First;
+            await EndGameAsync(room, isDraw);
+        }
+    }
+
+    private static bool CanAct(Player player, Card card)
+    {
+        if (card.Paralyzed)
+        {
+            Tell(player, "This card is paralyzed!");
+            return false;
         }
 
         if (card.HasAttacked)
         {
-            CannotAttackTwice(player);
-            return;
+            Tell(player, "Cannot do that yet!");
+            return false;
         }
 
-        // The ability comes from the card definition, never from the client.
-        switch (card.AbilityId, type)
-        {
-            case (Ability.Heal, 0):
-                if (gp.FindBoardCard(target) is { } healTarget)
-                {
-                    AbilityEffects.Heal(player, card, healTarget);
-                }
-                else
-                {
-                    player.Send(new Response(GameResponse.GameGeneralMessage, "Cannot heal opponent!"));
-                }
-
-                break;
-            case (Ability.Heal, 1):
-                AbilityEffects.Heal(player, card, player);
-                break;
-            case (Ability.Heal, _):
-                player.Send(new Response(GameResponse.GameGeneralMessage, "Cannot heal opponent!"));
-                break;
-
-            case (Ability.Sacrifice, 0):
-                var sacrificeTarget = gp.FindBoardCard(target);
-                if (sacrificeTarget is null)
-                {
-                    player.Send(new Response(GameResponse.GameGeneralMessage, "Can only target friendly!"));
-                }
-                else if (sacrificeTarget == card)
-                {
-                    player.Send(new Response(GameResponse.GameGeneralMessage, "Cannot cast on itself!"));
-                }
-                else
-                {
-                    AbilityEffects.Sacrifice(player, card, sacrificeTarget);
-                }
-
-                break;
-            case (Ability.Sacrifice, 1):
-                AbilityEffects.Sacrifice(player, card, player);
-                break;
-            case (Ability.Sacrifice, _):
-                player.Send(new Response(GameResponse.GameGeneralMessage, "Can only target friendly!"));
-                break;
-
-            default:
-                player.Send(new Response(GameResponse.GameGeneralMessage, "This card has no ability!"));
-                break;
-        }
+        return true;
     }
 
-    /// <summary>
-    /// Ends a game: stores it with its log, awards the winner, notifies both players and removes them from the
-    /// server (clients navigate to the statistics page and reconnect for the next game).
-    /// </summary>
-    public async Task EndGameAsync(GameRoom room, bool isDraw)
-    {
-        if (room.IsEnded)
-        {
-            return;
-        }
-
-        room.IsEnded = true;
-        state.Rooms.Remove(room.GameId);
-
-        var player = room.Players.First;
-        var opponent = room.Players.Second;
-        var winner = room.Winner ?? opponent;
-        var loser = winner == player ? opponent : player;
-        room.Logger.Add(isDraw ? GameLogKind.Draw : GameLogKind.Won, winner.Id, loser.Id, "Player", "Player");
-
-        try
-        {
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
-            var game = new Model.Entities.Game { Player1Id = player.Id, Player2Id = opponent.Id, Created = room.StartedAt };
-            db.Games.Add(game);
-            room.Logger.AddTo(db, game);
-            await db.SaveChangesAsync();
-            room.GameId = game.Id;
-
-            if (!isDraw && !winner.IsBot)
-            {
-                await db.Players.Where(p => p.Id == winner.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, p => p.Money + 1));
-            }
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            logger.LogError(e, "Failed to store game {GameId}", room.GameId);
-            room.GameId = 0;
-        }
-
-        Response Result(Player p) => new(
-            isDraw ? GameResponse.GameDraw : winner == p ? GameResponse.GameVictory : GameResponse.GameDefeat,
-            new JsonObject { ["statistics"] = room.GameId });
-
-        player.Send(Result(player));
-        opponent.Send(Result(opponent));
-
-        foreach (var p in new[] { player, opponent })
-        {
-            if (p.IsBot)
-            {
-                p.Send(new Response(GameResponse.GameBotDisconnect, "Bot disconnect"));
-                p.GameContext?.Close("Game over");
-            }
-
-            if (p.ChPlayer is { } chPlayer)
-            {
-                foreach (var chatRoom in chPlayer.MemberRooms.Keys.ToList())
-                {
-                    chat.RemoveRoom(chatRoom);
-                }
-
-                chPlayer.MemberRooms.Clear();
-            }
-
-            if (p.ChatContext is not null)
-            {
-                state.ChatClients.Remove(p.ChatContext);
-            }
-
-            if (p.GameContext is not null)
-            {
-                state.GameClients.Remove(p.GameContext);
-            }
-
-            p.ChPlayer = null;
-            p.GPlayer = null;
-        }
-
-        logger.LogInformation("Game {GameId} ended: {Result}", room.GameId, isDraw ? "draw" : $"{winner.Name} won");
-    }
-
-    /// <summary>Ends the game of a player who left, the opponent wins.</summary>
-    public async Task ForfeitAsync(Player player, GameLogKind? reason = null)
-    {
-        if (player.GPlayer?.GameRoom is not { IsEnded: false } room)
-        {
-            return;
-        }
-
-        if (reason is { } kind)
-        {
-            room.Logger.Add(kind, player.Id, player.Id, "Player", "Player");
-        }
-
-        room.Winner = player.GetOpponent();
-        await EndGameAsync(room, isDraw: false);
-    }
-
-    private static void CannotAttackTwice(Player p) =>
-        p.Send(new Response(GameResponse.GameGeneralMessage, "Cannot do that yet!"));
+    private static void Tell(Player p, string text) => p.Send(new Response(GameResponse.GameGeneralMessage, text));
 
     private static bool TryGetGame(Player player, out GamePlayer gamePlayer, out Player opponent)
     {
@@ -537,23 +418,4 @@ public sealed class GameEngine(ServerState state, ChatEngine chat, IServiceScope
         opponent = player.GetOpponent()!;
         return player.GPlayer?.GameRoom is { IsEnded: false } && opponent?.GPlayer is not null;
     }
-
-    private static JsonObject CardResult(Card card, int damageTaken, int damageDone, bool attacker) => new()
-    {
-        ["cid"] = card.Cid,
-        ["dmgTaken"] = damageTaken,
-        ["dmgDone"] = damageDone,
-        ["health"] = card.Health,
-        ["attacker"] = attacker,
-        ["isDead"] = card.IsDead,
-    };
-
-    private static JsonObject HeroResult(GamePlayer hero, int damageTaken, int damageDone, bool attacker) => new()
-    {
-        ["dmgTaken"] = damageTaken,
-        ["dmgDone"] = damageDone,
-        ["health"] = hero.Health,
-        ["attacker"] = attacker,
-        ["isDead"] = hero.IsDead,
-    };
 }

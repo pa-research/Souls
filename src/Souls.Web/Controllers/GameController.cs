@@ -11,14 +11,40 @@ namespace Souls.Web.Controllers;
 public sealed class GameController(SoulsDbContext db, IConfiguration configuration) : Controller
 {
     /// <summary>The game client. It connects to the game server's WebSockets with the login cookie.</summary>
-    public async Task<IActionResult> Index(CancellationToken ct)
+    /// <param name="watch">A running game to spectate (3D client).</param>
+    public async Task<IActionResult> Index(int? watch, CancellationToken ct)
     {
-        ViewData["Title"] = "Play";
+        ViewData["Title"] = watch is null ? "Play" : "Watch";
+        return View(await ConfigAsync(ct) with { Watch = watch });
+    }
+
+    /// <summary>Plays back a finished game in the 3D client.</summary>
+    public async Task<IActionResult> Replay(int id, CancellationToken ct)
+    {
+        if (!await db.GameReplays.AnyAsync(r => r.GameId == id, ct))
+        {
+            return NotFound();
+        }
+
+        ViewData["Title"] = "Replay";
+        return View("Index", await ConfigAsync(ct) with { ReplayUrl = Url.Action(nameof(ReplayData), new { id }), ReplayGameId = id });
+    }
+
+    /// <summary>The recorded spectator messages of a finished game.</summary>
+    public async Task<IActionResult> ReplayData(int id, CancellationToken ct)
+    {
+        var data = await db.GameReplays.AsNoTracking().Where(r => r.GameId == id).Select(r => r.Data).SingleOrDefaultAsync(ct);
+        return data is null ? NotFound() : Content(data, "application/json");
+    }
+
+    private async Task<GameConfig> ConfigAsync(CancellationToken ct)
+    {
         var cards = await db.Cards.AsNoTracking()
             .OrderBy(c => c.Id)
             .Select(c => new CardPortrait(c.Id, c.Portrait ?? CardTile.DefaultPortrait))
             .ToListAsync(ct);
-        return View(new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards));
+        var heroTypes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
+        return new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards) { Rules = RulesConfig.Create(heroTypes) };
     }
 
     [AllowAnonymous]
@@ -49,12 +75,21 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
             Players = players,
             IsDraw = result?.GameLogTypeId == (int)GameLogKind.Draw,
             Winner = players.FirstOrDefault(p => p.Id == result?.Obj1Id),
-            Log = [.. log.Select(l => Describe(l, players, cards))],
+            Log = [.. log.Where(l => l.GameLogTypeId != (int)GameLogKind.NewCard).Select(l => Describe(l, players, cards))],
+            IsPractice = game.IsPractice,
+            Turns = game.Turns,
+            HasReplay = await db.GameReplays.AnyAsync(r => r.GameId == id, ct),
+            RatingChanges = [game.Player1RatingChange, game.Player2RatingChange],
         });
     }
 
     private static string Describe(GameLog entry, Player[] players, Dictionary<int, Card> cards)
     {
+        if (!string.IsNullOrEmpty(entry.Text))
+        {
+            return entry.Text;
+        }
+
         string PlayerName(int id) => players.FirstOrDefault(p => p.Id == id)?.Name ?? "?";
         string CardName(int id) => cards.TryGetValue(id, out var c) ? c.Name : "a card";
         int CardAttack(int id) => cards.TryGetValue(id, out var c) ? c.Attack : 0;

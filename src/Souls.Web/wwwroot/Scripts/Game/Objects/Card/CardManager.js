@@ -1,4 +1,4 @@
-﻿define("cardmanager", ["cardslot", "conf", "toolbox", "card"], function (CardSlot, Conf, Toolbox, Card) {
+﻿define("cardmanager", ["cardslot", "conf", "toolbox", "card", "animation"], function (CardSlot, Conf, Toolbox, Card, Animation) {
 
 
 
@@ -11,12 +11,13 @@
         this.isPlayer = isPlayer;
 
 
-        this.startCardX = undefined;
-        this.startCardY = undefined;
+        this.startCardX = 165;
+        this.startCardY = isPlayer ? 980 : 200;
 
         this.cardSpacing = 60;
 
         this.handCounter = 0;
+        this.placeholderCounter = 0;
     }
 
     CardManager.prototype.constructor = CardManager;
@@ -27,7 +28,7 @@
 
         var count = 0;
 
-        for (index in this.hand) {
+        for (var index in this.hand) {
 
             var c = this.hand[index];
             c.order = count;
@@ -36,7 +37,7 @@
             c.position.originX = +this.startCardX + (this.cardSpacing * (count++));
             c.y = c.position.originY = this.startCardY;
 
-            var posTween = this.engine.CreateJS.Tween.get(c)
+            this.engine.CreateJS.Tween.get(c)
                 .wait(50 * count)
                 .to({
                     x: c.position.originX
@@ -46,6 +47,10 @@
         }
         this.handCounter = count;
 
+    }
+
+    CardManager.prototype.HandCount = function () {
+        return Object.keys(this.hand).length;
     }
 
 
@@ -101,31 +106,62 @@
     /// This function parses JSON and creates a Card which is placed into the board
     /// </summary>
     /// <param name="jsonCards">JSON object retrieved from GameSerivce's reply from server</param>
-    /// <param name="conf">a Confiuration array with position</param>
-    CardManager.prototype.JSONToBoardCards = function (jsonCards, conf) {
-
+    CardManager.prototype.JSONToBoardCards = function (jsonCards) {
         for (var cJson in jsonCards) {
+            this.CreateBoardCard(jsonCards[cJson]);
+        }
+    }
 
-            var position =
-                {
-                    x: this.cardSlots[jsonCards[cJson].slotId].x,
-                    y: this.cardSlots[jsonCards[cJson].slotId].y,
-                    rotation: 0
-                };
+    /// <summary>
+    /// Creates a card directly in its slot (game start, summoned token, state sync). Returns the card.
+    /// </summary>
+    CardManager.prototype.CreateBoardCard = function (json) {
+        var slot = this.cardSlots[json.slotId];
+        if (!slot) return null;
 
+        var card = this.CreateCard(json, { x: slot.x, y: slot.y, rotation: 0 });
+        this.PlaceInSlot(card, slot);
+        this.AddCardBoard(card);
+        card.RefreshVisuals();
+        return card;
+    }
 
-            var card = this.CreateCard(jsonCards[cJson], position);
-            var cardSlot = this.cardSlots[jsonCards[cJson].slotId];
+    /// Puts a card in a slot without animation.
+    CardManager.prototype.PlaceInSlot = function (card, slot) {
+        if (card.inSlot && card.inSlot !== slot && card.inSlot.card === card) card.inSlot.Reset();
+        slot.card = card;
+        card.inSlot = slot;
+        card.x = card.position.originX = slot.x;
+        card.y = card.position.originY = slot.y;
+        if (this.isPlayer) slot.visible = false;
+    }
 
-            cardSlot.card = card;
+    /// <summary>
+    /// Removes a card from the board (it died): frees its slot at once and plays the death animation.
+    /// Returns the duration of the animation.
+    /// </summary>
+    CardManager.prototype.KillCard = function (card) {
+        if (!card) return 0;
+        card.isDead = true;
+        card.interactive = false;
+        delete this.board[card.cid];
 
-            card.inSlot = cardSlot;
-
-            // CARD
-            this.AddCardBoard(card);
+        if (card.inSlot && card.inSlot.card === card) {
+            card.inSlot.Reset();
         }
 
+        // Remember where it was (death curse and haunt start there).
+        this.engine.lastCardPos = this.engine.lastCardPos || {};
+        this.engine.lastCardPos[card.cid] = { x: card.x, y: card.y, isPlayer: this.isPlayer };
 
+        // Let go of it if the player was aiming with it.
+        var player = this.engine.player;
+        if (player && player.holdingCard === card) {
+            player.holdingCard = undefined;
+            player.arrow.Reset();
+        }
+
+        return Animation.Card.Death(card);
     }
 
     /// <summary>
@@ -133,27 +169,113 @@
     /// </summary>
     /// <param name="jsonCards">JSON object retrieved from GameSerivce's reply from server</param>
     /// <param name="conf">a Confiuration array with position</param>
-    CardManager.prototype.JSONToHandCards = function (jsonCards, conf) {
-        this.startCardX = conf.x;
-        this.startCardY = conf.y;
+    /// <param name="options">{draw: true} animates the card from the deck, {returned: true} marks a Haunt card</param>
+    CardManager.prototype.JSONToHandCards = function (jsonCards, conf, options) {
+        options = options || {};
+        if (conf) {
+            this.startCardX = conf.x;
+            this.startCardY = conf.y;
+        }
 
+        var created = [];
+        var delay = 0;
 
         // Iterate over cards
         for (var cJson in jsonCards) {
-
+            var json = jsonCards[cJson];
+            if (!json || this.hand[json.cid]) continue;
 
             var position = {
-                x: conf.x + (this.cardSpacing * (this.handCounter)),
-                y: conf.y,
+                x: this.startCardX + (this.cardSpacing * (this.handCounter)),
+                y: this.startCardY,
                 rotation: 0
             };
 
             // Create a card
-            var card = this.CreateCard(jsonCards[cJson], position, this.handCounter++);
+            var card = this.CreateCard(json, position, this.handCounter++);
 
             this.AddCardHand(card);
+            created.push(card);
+
+            if (options.draw || options.returned) {
+                this.AnimateIntoHand(card, delay, options.returned);
+                delay += 180;
+            }
         }
 
+        return created;
+    }
+
+    /// A new hand card flies in from the deck (or fades in as a ghost when Haunt returns it).
+    CardManager.prototype.AnimateIntoHand = function (card, delay, returned) {
+        var engine = this.engine;
+        var targetX = card.position.originX;
+        var targetY = card.position.originY;
+        card._reset = true; // keep the hover code from moving it until it arrived
+
+        if (returned) {
+            card.x = targetX;
+            card.y = targetY + (this.isPlayer ? -140 : 140);
+            card.alpha = 0;
+            if (card.SetFlash) card.SetFlash(0xb48cff, 1200 + delay);
+            engine.CreateJS.Tween.get(card, { override: true })
+                .wait(delay)
+                .to({ alpha: 1, y: targetY }, 650, engine.CreateJS.Ease.quadOut);
+            setTimeout(function () {
+                Animation.Fx.Float(engine, card, "Returned!", "#c9a8ff", 34, this.isPlayer ? -130 : 130);
+            }.bind(this), delay + 200);
+            return;
+        }
+
+        card.x = Conf.width + 120;
+        card.y = targetY + (this.isPlayer ? -60 : 60);
+        engine.CreateJS.Tween.get(card, { override: true })
+            .wait(delay)
+            .to({ x: targetX, y: targetY }, 650, engine.CreateJS.Ease.quadOut);
+    }
+
+    /// <summary>
+    /// Takes a card out of the hand by cid. For the opponent (whose hand is hidden) another card stands in
+    /// if the cid is unknown, so a missed message cannot break the game.
+    /// </summary>
+    CardManager.prototype.TakeHandCard = function (cid) {
+        var card = this.hand[cid];
+        if (!card && !this.isPlayer) {
+            for (var key in this.hand) {
+                if (String(key).indexOf('p') === 0) { card = this.hand[key]; delete this.hand[key]; break; }
+            }
+            if (!card) {
+                for (var other in this.hand) { card = this.hand[other]; delete this.hand[other]; break; }
+            }
+            if (card) card.cid = cid;
+        }
+        else if (card) {
+            delete this.hand[cid];
+        }
+        return card;
+    }
+
+    /// <summary>
+    /// Makes the number of (hidden) opponent hand cards match the server.
+    /// </summary>
+    CardManager.prototype.SyncHandCount = function (count) {
+        if (this.isPlayer || typeof count !== 'number' || count < 0) return;
+        var keys = Object.keys(this.hand);
+        if (keys.length === count) return;
+
+        while (keys.length > count) {
+            var key = keys.pop();
+            var card = this.hand[key];
+            delete this.hand[key];
+            if (card && card.parent) card.parent.removeChild(card);
+        }
+
+        var missing = [];
+        for (var i = keys.length; i < count; i++) {
+            missing.push({ cid: 'p' + (++this.placeholderCounter) });
+        }
+        if (missing.length) this.JSONToHandCards(missing);
+        this.SortHand();
     }
 
     /// <summary>
@@ -161,7 +283,6 @@
     /// </summary>
     /// <param name="jsonCard">Contains the JSON data retrieved from the server</param>
     /// <param name="position">Should contain: X position, Y position and ROTATION</param>
-    /// <param name="owner">either "Player" or "Opponent"</param>
     /// <returns type=""></returns>
     CardManager.prototype.CreateCard = function (jsonCard, position, order) {
 
@@ -175,15 +296,12 @@
             c.owner = this.engine.player;
             this.engine.addChild("Card-Player", c);
         }
-        else if (!this.isPlayer) {
+        else {
             c.interactive = false;
             c.owner = this.engine.opponent;
             this.engine.addChild("Card-Opponent", c);
         }
-        else {
-            console.log("Error, a non existing ''playoropp''");
-        }
-       
+
         return c;
     }
 
@@ -210,8 +328,20 @@
         if (card.parent) {
             card.parent.removeChild(card);
         }
-        // console.log("Deleted card " + card);
-        delete this.board[card.cid]; // Delete from hand
+        if (this.board[card.cid] === card) delete this.board[card.cid];
+    }
+
+    /// Removes every card and slot (used when the game state is sent again).
+    CardManager.prototype.Clear = function () {
+        var key;
+        for (key in this.hand) this.RemoveCard(this.hand[key]);
+        for (key in this.board) this.RemoveCard(this.board[key]);
+        for (key in this.cardSlots) {
+            if (this.cardSlots[key].parent) this.cardSlots[key].parent.removeChild(this.cardSlots[key]);
+        }
+        this.hand = {};
+        this.board = {};
+        this.handCounter = 0;
     }
 
     return CardManager;

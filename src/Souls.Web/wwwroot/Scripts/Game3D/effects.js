@@ -323,6 +323,21 @@ export class Effects {
         });
     }
 
+    /** A glowing bolt flying along an arc, trailing sparks; resolves when it hits (with a burst). */
+    projectile(from, to, color = 0xff7a1a, duration = 450, size = 46) {
+        const start = from.clone();
+        const end = to.clone();
+        const mid = start.clone().lerp(end, 0.5);
+        mid.y += Math.min(260, start.distanceTo(end) * 0.25) + 40;
+        const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+        const jitter = () => (Math.random() - 0.5) * 60;
+        return tweens.run(duration, t => {
+            const p = curve.getPoint(t);
+            this.emit(p, new THREE.Vector3(jitter(), jitter(), jitter()), { color, size, life: 380 });
+            this.emit(p, new THREE.Vector3(0, 0, 0), { color: 0xffffff, size: size * 0.55, life: 120 });
+        }, Ease.quadIn).then(() => this.burst(end, { color, count: 40, speed: 280, size: 44, life: 650 }));
+    }
+
     update(dt) {
         this.updateParticles(dt);
         if (this.arrow && this.arrow.visible) this.reticle.rotateZ(dt * 0.002);

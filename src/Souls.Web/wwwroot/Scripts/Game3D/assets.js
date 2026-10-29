@@ -11,6 +11,7 @@ export const Images = {
     cardBack: IMG + 'Card/cardback.png',
     cardSlot: IMG + 'Card/cardslot.png',
     cardError: IMG + 'Card/Texture/card_error.png',
+    cardUnknown: IMG + 'Card/Portraits/0.png',
     raceTextures: {
         1: IMG + 'Card/Texture/darkness.png',
         2: IMG + 'Card/Texture/vampiric.png',

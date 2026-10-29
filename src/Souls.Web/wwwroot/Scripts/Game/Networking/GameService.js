@@ -1,10 +1,11 @@
-﻿define("gameService", ["messages", "asset"], function (Message, Asset) {
+﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower"], function (Message, Asset, EventPlayer, Animation, HeroPower) {
+
+    var Fx = Animation.Fx;
 
     var that;
     GameService = function (engine, socket) {
 
         that = this;
-        console.log("> Network Manager")
 
         this.engine = engine;
         this.socket = this.engine.gameSocket;
@@ -14,23 +15,36 @@
         this.networkBuffer = GameService.prototype.networkBuffer = new Array();
         this.message = Message;
 
-        /// Game 
+        // Messages are handled in order; a handler (or an event step) returns how long its animation needs and
+        // the next one waits for it.
+        this.steps = [];
+        this.blockedUntil = 0;
+        this.events = new EventPlayer(engine);
+
+        /// Game
         this.RegisterResponseAction(["11", "12", "13", "14"], Response_NotLoggedIn);
         this.RegisterResponseAction(["10"], Response_LoggedIn);
         this.RegisterResponseAction(["100"], Response_QueueOK);
+        this.RegisterResponseAction(["101"], Response_QueueAlreadyIn);
         this.RegisterResponseAction(["206", "220"], Response_GameCreate);
         this.RegisterResponseAction(["209"], Response_GameOpponentMove);
         this.RegisterResponseAction(["210", "212"], Response_GameRelease);
         this.RegisterResponseAction(["207", "211"], Response_UseCard);
         this.RegisterResponseAction(["202"], Repsonse_NotYourTurn);
         this.RegisterResponseAction(["213"], Response_SlotOccupied);
-        this.RegisterResponseAction(["218"], Response_Attack);
         this.RegisterResponseAction(["226"], Response_NextTurn);
         this.RegisterResponseAction(["222", "223"], Response_NewCard);
         this.RegisterResponseAction(["208"], Response_UseCard_OOM);
         this.RegisterResponseAction(["230", "231", "233"], Response_VictoryDefeat);
         this.RegisterResponseAction(["232"], Response_GeneralMessage);
-        this.RegisterResponseAction(["234"], Response_UseAbility);
+        this.RegisterResponseAction(["235"], Response_GameEvents);
+        this.RegisterResponseAction(["236"], Response_GameSync);
+        this.RegisterResponseAction(["240", "241", "242"], Response_Spectate);
+        this.RegisterResponseAction(["243"], Response_SpectateError);
+
+        // Feedback on the player's own requests and the opponent's card dragging are shown at once instead of
+        // waiting behind the animations.
+        this.immediate = { 202: true, 208: true, 209: true, 213: true, 232: true, 243: true };
     }
     // Constructor
     GameService.prototype.constructor = GameService;
@@ -42,478 +56,383 @@
     //////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////
 
-    function Response_UseAbility(json) {
-        console.log(json);
-        var type = json.Type;
-        var abilityId = json.Payload.abilityId;
-        var abilityType = json.Payload.type  // 1 == Card on Card, 2 == Card on Player , 3 = Card on Opponent
-        var wasOpponent = json.Payload.wasOpponent; // Weither its a opponent move
-        var sourceId = json.Payload.source;
-        var targetId = json.Payload.target;
-        var parameter = json.Payload.parameter;
-
-        if (abilityId == 1) // Heal
-        {
-            Asset.GetSound(Asset.Sound.ABILITY_HEAL).play({ volume: 0.2 });
-            // Card on Card
-            if (abilityType == 0) {
-                var source;
-                var target;
-
-                // Opponent's Move
-                if (wasOpponent) {
-                    source = that.engine.opponent.cardManager.board[sourceId];
-                    target = that.engine.opponent.cardManager.board[targetId];
-                }
-                else {
-                    source = that.engine.player.cardManager.board[sourceId];
-                    target = that.engine.player.cardManager.board[targetId];
-                }
-
-                // Do healing
-                target.Heal(parameter, source);
-            }
-
-                // Card on Player (Friendly)
-            else if (abilityType == 1) {
-
-                // Opponent's Move
-                if (wasOpponent) {
-                    source = that.engine.opponent.cardManager.board[sourceId];
-                    target = that.engine.opponent;
-                }
-                else {
-                    source = that.engine.player.cardManager.board[sourceId];
-                    target = that.engine.player;
-                }
-
-                // Do healing
-                target.Heal(parameter, source);
-            }
-
-                // Card on Opponent (Friendly)
-            else if (abilityType == 2) {
-                that.engine.ScreenMessage(["You cannot heal enemy player!!"], false);
-            }
-
-
-
-        }
-
-
-        else if (abilityId == 2) // Sacrifice
-        {
-            Asset.GetSound(Asset.Sound.ABILITY_SACRIFICE).play({ volume: 0.2 });
-            if (abilityType == 1) // Card on Card
-            {
-                var source;
-                var target;
-
-                // Opponent's Move
-                if (wasOpponent) {
-                    source = that.engine.opponent.cardManager.board[sourceId];
-                    target = that.engine.opponent.cardManager.board[targetId];
-                }
-                else {
-                    source = that.engine.player.cardManager.board[sourceId];
-                    target = that.engine.player.cardManager.board[targetId];
-                }
-
-                // Sacrifice
-                source.Sacrifice(parameter, target);
-
-
-            }
-
-            else if (abilityType == 2) // Card on Player
-            {
-                // Opponent's Move
-                if (wasOpponent) {
-                    source = that.engine.opponent.cardManager.board[sourceId];
-                    target = that.engine.opponent;
-                }
-                else {
-                    source = that.engine.player.cardManager.board[sourceId];
-                    target = that.engine.player;
-                }
-
-                // Sacrifice
-                source.Sacrifice(parameter, target);
-            }
-
-            else if (abilityType == 3) { } // Card on Opponent (Not possible)
-
-
-        }
-
-
-
+    function Text(payload, fallback) {
+        if (typeof payload === 'string') return payload;
+        if (payload && typeof payload.error === 'string') return payload.error;
+        if (payload && typeof payload.message === 'string') return payload.message;
+        return fallback;
     }
 
+    /// How long a message waited in the queue (behind animations) since it arrived.
+    function Age(json) {
+        return json.receivedAt ? Math.max(0, Date.now() - json.receivedAt) : 0;
+    }
+
+    function ClearPendingPower() {
+        var player = that.engine.player;
+        if (player && player.heroPower && player.heroPower.pending) {
+            player.heroPower.pending = false;
+            player.heroPower.Redraw();
+        }
+    }
 
     function Response_UseCard_OOM(json) {
-        that.engine.ScreenMessage(["Not enough mana!"], false);
+        ClearPendingPower();
+        that.engine.ScreenMessage([Text(json.Payload, "Not enough mana!")], false);
+        return 0;
     }
 
     function Response_GeneralMessage(json) {
-        that.engine.ScreenMessage([json.Payload], false);
+        ClearPendingPower();
+        that.engine.ScreenMessage([Text(json.Payload, "")], false);
+        return 0;
     }
 
+    function Response_SpectateError(json) {
+        that.engine.ScreenMessage([Text(json.Payload, "Cannot watch that game.")], false);
+        return 0;
+    }
+
+    function Response_Spectate(json) {
+        // Spectating is offered by the 3D client; the classic client only plays.
+        return 0;
+    }
+
+    /// 222 NewCard (ours) / 223 OpponentNewCard: cards drawn, or a Haunt card returned (returned: true).
     function Response_NewCard(json) {
-        var type = json.Type;
-        var cards = json.Payload.card;
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var cards = payload.card || [];
+        var returned = !!payload.returned;
+        var hero = (json.Type == 222) ? engine.player : engine.opponent;
 
-        if (type == 222) {
-
-
-            that.engine.player.cardManager.JSONToHandCards(cards,
-                {
-                    x: 165,
-                    y: 980
-                });
-        }
-        else if (type == 223) {
-
-
-            that.engine.opponent.cardManager.JSONToHandCards(cards,
-             {
-                 x: 165,
-                 y: 200
-             });
-
-        }
-
+        var created = hero.cardManager.JSONToHandCards(cards, null, { draw: !returned, returned: returned });
+        hero.handCount = hero.cardManager.HandCount();
+        hero.RefreshHud();
+        if (created.length === 0) return 0;
+        return 420 + 160 * (created.length - 1);
     }
 
-    function Response_VictoryDefeat(json) // 230 = Victory , 231 = Defeat, 233 = Defeat
+    /// 230 Victory / 231 Defeat / 233 Draw: {statistics, text, coins, rating, ratingChange, quests}
+    function Response_VictoryDefeat(json)
     {
         var type = json.Type;
+        var payload = json.Payload || {};
+        var engine = that.engine;
 
-        that.engine.OnEnd();
+        engine.OnEnd();
         if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
-        if (type == 230) {
 
-            that.engine.queue.FadeInGameEnd("Victory!", json.Payload.statistics);
-        }
-        else if (type == 231) {
-            that.engine.queue.FadeInGameEnd("Defeat!", json.Payload.statistics);
-        }
-        else if (type == 233) {
-            that.engine.queue.FadeInGameEnd("Draw!", json.Payload.statistics);
-        }
-
-
-
+        var title = type == 230 ? "Victory!" : type == 231 ? "Defeat!" : "Draw!";
+        if (engine.battleLog) engine.battleLog.Add(title, "system");
+        engine.queue.FadeInGameEnd(title, payload.statistics, payload);
+        return 0;
     }
-
-
-    function Response_Attack(json) {
-
-        var attackType = json.Payload.type;
-
-        // Fetch CardInfo (dmgDOne etc)
-        var jsonPInfo = json.Payload.player;
-        var jsonOppInfo = json.Payload.opponent;
-
-        // Determine the attacker
-        var jsonAttacker = json.Payload.player.attacker;
-
-
-        if (attackType == 0) { // Card on Card
-            // Get cards
-            var playerCard = that.engine.player.cardManager.board[jsonPInfo.cid];
-            var opponentCard = that.engine.opponent.cardManager.board[jsonOppInfo.cid];
-
-
-            // The player is attacking
-            if (jsonAttacker) {
-                playerCard.Attack(jsonPInfo, jsonOppInfo, opponentCard);
-            }
-            else // The opponent is attacking
-            {
-                opponentCard.Attack(jsonOppInfo, jsonPInfo, playerCard);
-            }
-        }
-        else if (attackType == 1) { // Card on Opponent
-
-            // The player is attacking
-            if (jsonAttacker) {
-                var attacker = that.engine.player.cardManager.board[jsonPInfo.cid];
-                var defender = that.engine.opponent;
-
-                attacker.AttackOpponent(jsonPInfo, jsonOppInfo, defender);
-            }
-            else // The opponent is attacking
-            {
-                var attacker = that.engine.opponent.cardManager.board[jsonOppInfo.cid];
-                var defender = that.engine.player;
-
-                attacker.AttackOpponent(jsonOppInfo, jsonPInfo, defender);
-            }
-
-        }
-
-        else if (attackType == 2) { // Player on Card
-
-
-            // The Player is attacking
-            if (jsonAttacker) {
-                // Get cards
-                var attacker = that.engine.player;
-                var defender = that.engine.opponent.cardManager.board[jsonOppInfo.cid];
-
-                attacker.CardAttack(jsonPInfo, jsonOppInfo, attacker, defender);
-            }
-            else // The opponent card is attacking
-            {
-                // Get cards
-                var attacker = that.engine.opponent;
-                var defender = that.engine.player.cardManager.board[jsonPInfo.cid];
-
-                attacker.CardAttack(jsonOppInfo, jsonPInfo, attacker, defender);
-            }
-
-
-        }
-
-        else if (attackType == 3) { // Player on Opponent
-            // The player is attacking
-            if (jsonAttacker) {
-                var attacker = that.engine.player;
-                var defender = that.engine.opponent;
-
-                attacker.Attack(jsonPInfo, jsonOppInfo, defender);
-            }
-            else // The opponent is attacking
-            {
-                var attacker = that.engine.opponent;
-                var defender = that.engine.player;
-
-                attacker.Attack(jsonOppInfo, jsonPInfo, defender);
-
-            }
-
-        }
-
-    } // -- Function end
 
     function Response_NotLoggedIn(json) {
 
         var type = json.Type;
-        var payload = json.Payload;
 
         //"11", "12", "13", "14"
-        /*
-         *     LOGIN_NO_HASH = 11,
-       LOGIN_WRONG_HASH = 12,
-       LOGIN_NOT_LOGGED_IN = 13,
-       LOGIN_BANNED = 14,
-         */
         if (type == 11 || type == 13) {
             that.engine.queue.SetText("You are not logged in!");
         }
         else if (type == 12) {
             that.engine.queue.SetText("Authentication Failure!");
         }
-        else if (type == 14) // LOGIN_BANNED 
+        else if (type == 14) // LOGIN_BANNED
         {
             that.engine.queue.SetText("You are banned!");
         }
-
-
-
-
-
+        return 0;
     }
 
     function Response_LoggedIn() {
         that.engine.chatService.Login();
         that.engine.queue.SetText("Connection established!")
+        return 0;
     }
 
     function Response_QueueOK() // 100
     {
         that.engine.queue.SetText("Waiting for Match")
+        return 0;
+    }
+
+    function Response_QueueAlreadyIn(json) // 101
+    {
+        that.engine.queue.SetText(Text(json.Payload, "You are already in queue!"));
+        return 0;
     }
 
     function Response_SlotOccupied(json) // 213 GAME_SLOTOCCUPIED
     {
-
-        that.engine.ScreenMessage([json.Payload.message], false);
+        that.engine.ScreenMessage([Text(json.Payload, "Slot is already occupied!")], false);
+        return 0;
     }
 
-    function Response_UseCard(json) // "207" GAME_USECARD_PLAYER_OK // "211" GAME_USECARD_OPPONENT_OK // TOODO FAILED OSV
+    /// 207 UseCardOk (our card) / 211 OpponentUseCardOk: {card, pInfo}. The card moves from the hand to its slot.
+    function Response_UseCard(json)
     {
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var cardData = payload.card;
+        if (!cardData) return 0;
 
-        var cardData = json.Payload.card;
-        var pInfo = json.Payload.pInfo;
-        var cid = cardData.cid;
-        var slotId = cardData.slotId;
-        var card;
-        var cardSlot;
+        var hero = (json.Type == 211) ? engine.opponent : engine.player;
+        var manager = hero.cardManager;
+        hero.SetText(payload.pInfo);
 
-        if (json.Type == 211) // OPPONENT
-        {
+        var slot = manager.cardSlots[cardData.slotId];
+        if (!slot) return 0;
+        var card = manager.TakeHandCard(cardData.cid);
+        manager.SortHand();
+        hero.handCount = manager.HandCount();
+        hero.RefreshHud();
 
-            var opponent = that.engine.opponent
-
-            // Set updated opponent text
-            opponent.SetText(pInfo);
-
-            card = opponent.cardManager.hand[cid]; // Fetch from hand
-            delete opponent.cardManager.hand[cid]; // Delete from hand
-            opponent.cardManager.board[cid] = card; // Add to board
-            opponent.cardManager.SortHand();
-
-            // Update the card
-            card.SetText(
-             {
-                 health: cardData.health,
-                 attack: cardData.attack,
-                 name: cardData.name,
-                 cost: cardData.cost,
-                 ability: (!!cardData.ability) ? cardData.ability.name : undefined,
-                 race: cardData.race,
-                 id: cardData.id
-             });
-
-
-            // Set the Card Texture
-            var texture = card.CardType.GetCardTexture(cardData.race.id);
-            card.frontCard.texture = texture;
-
-            // Set the Card Portrait.
-            var portrait = card.CardType.GetPortraitTexture(cardData.id)
-            card.portrait.texture = portrait;
-            card.portrait.width = 236;
-            card.portrait.height = 167;
-
-            card.ScaleDown();
-
-
-            // card.SetupTextData(json.Payload.card, true);
-            cardSlot = opponent.cardManager.cardSlots[slotId];
-        }
-        else if (json.Type == 207) // PLAYER
-        {
-            var player = that.engine.player;
-
-            // Set updated opponent text
-            player.SetText(pInfo);
-
-            card = player.cardManager.hand[cid]; // Fetch from hand
-            delete player.cardManager.hand[cid]; // Delete from hand
-            player.cardManager.SortHand();
-            player.cardManager.board[cid] = card; // Add to board
-            cardSlot = player.cardManager.cardSlots[slotId];
+        if (!card) {
+            // Not in the hand (a missed message): it simply appears in its slot.
+            if (manager.board[cardData.cid]) return 0;
+            card = manager.CreateBoardCard(cardData);
+            if (card) Animation.Card.Appear(card);
+            return 500;
         }
 
-        card.PutInSlot(cardSlot);
+        card.canAct = false;
+        card.playedOnTurn = engine.turnNumber; // summoning sick (tooltip)
+        card.UpdateFromJson(cardData);
+        card.ScaleDown();
+        card.alpha = 1;
+        manager.AddCardBoard(card);
+        if (hero === engine.player && hero.holdingCard === card) hero.holdingCard = undefined;
+        card.PutInSlot(slot);
+        return 650;
     }
 
+    /// Clears the board when the game state is sent again (reconnect).
+    function ResetGame(engine) {
+        if (!engine.player) return;
+        engine.ClearBoard();
+    }
+
+    /// 206 GameCreate (also 220): the whole game from our side.
     function Response_GameCreate(data) // 206 CREATE // 220 RECOVER
     {
-        Asset.GetSound(Asset.Sound.GAME_MUSIC).play({ loop: 9999, volume: 0.1 });
+        var engine = that.engine;
+        var payload = data.Payload || {};
+        ResetGame(engine);
+
+        if (!engine.musicStarted) {
+            engine.musicStarted = true;
+            try { Asset.GetSound(Asset.Sound.GAME_MUSIC).play({ loop: 9999, volume: 0.1 }); } catch (e) { }
+        }
+
+        engine.myIdent = Number(payload.ident) || 1;
+        engine.myTurn = !!payload.yourTurn;
+        engine.ended = false;
 
         // Create the Player and Opponent
-        that.engine.player = new Player(that.engine);
-        that.engine.opponent = new Opponent(that.engine);
-        that.engine.ProcessList.push(that.engine.player);
-        //that.engine.ProcessList.push(that.engine.opponent);
+        engine.player = new Player(engine);
+        engine.opponent = new Opponent(engine);
+        engine.ProcessList.push(engine.player);
 
-        that.engine.gameId = data.Payload.gameId;
-        that.engine.player.playerNr = data.Payload.ident;
-        that.engine.player.SetText(data.Payload.player.info);
-        that.engine.opponent.SetText(data.Payload.opponent.info);
+        engine.gameId = payload.gameId;
+        engine.player.playerNr = payload.ident;
+        engine.player.SetText(payload.player && payload.player.info);
+        engine.opponent.SetText(payload.opponent && payload.opponent.info);
+
+        // Hero power buttons next to the heroes (ours can be used, the opponent's is shown)
+        engine.player.heroPower = new HeroPower(engine, engine.player, true);
+        engine.player.heroPower.x = engine.player.GetHome().x + 225;
+        engine.player.heroPower.y = engine.player.GetHome().y + 5;
+        engine.player.heroPower.SetType(engine.player.type);
+        engine.addChild("Player", engine.player.heroPower);
+
+        engine.opponent.heroPower = new HeroPower(engine, engine.opponent, false);
+        engine.opponent.heroPower.x = engine.opponent.GetHome().x + 225;
+        engine.opponent.heroPower.y = engine.opponent.GetHome().y - 5;
+        engine.opponent.heroPower.SetType(engine.opponent.type);
+        engine.opponent.heroPower.scale.x = engine.opponent.heroPower.scale.y = 0.85;
+        engine.addChild("Opponent", engine.opponent.heroPower);
 
         // Give cards to hand
-        that.engine.player.cardManager.JSONToHandCards(data.Payload.player.hand, {
-            x: 165,
-            y: 980
-        });
+        engine.player.cardManager.JSONToHandCards(payload.player && payload.player.hand, { x: 165, y: 980 });
+        engine.opponent.cardManager.JSONToHandCards(payload.opponent && payload.opponent.hand, { x: 165, y: 200 });
 
-        that.engine.opponent.cardManager.JSONToHandCards(data.Payload.opponent.hand, {
-            x: 165,
-            y: 200
-        });
-
-        that.engine.player.cardManager.JSONToBoardCards(data.Payload.player.board);
-        that.engine.opponent.cardManager.JSONToBoardCards(data.Payload.opponent.board);
+        engine.player.cardManager.JSONToBoardCards(payload.player && payload.player.board);
+        engine.opponent.cardManager.JSONToBoardCards(payload.opponent && payload.opponent.board);
 
 
         // Create Chat room (If you are player 1)
-        if (data.Payload.ident == 1 && data.Payload.create) {
-            that.engine.chatService.RequestNewGameRoom();
+        if (payload.ident == 1 && payload.create) {
+            engine.chatService.RequestNewGameRoom();
         }
 
 
-        that.engine.background.endTurnButton.SetPlayerTurn(data.Payload.yourTurn);
+        engine.background.endTurnButton.SetPlayerTurn(engine.myTurn);
 
         // Set Group Visibility to visible
-        that.engine.getGroup("Player").visible = true;
-        that.engine.getGroup("Opponent").visible = true;
-        that.engine.getGroup("EndTurn").visible = true;
+        engine.getGroup("Player").visible = true;
+        engine.getGroup("Opponent").visible = true;
+        engine.getGroup("EndTurn").visible = true;
+        engine.getGroup("Card-Opponent").visible = true;
+        engine.getGroup("Card-Player").visible = true;
+
+        if (engine.battleLog) engine.battleLog.Show();
+        engine.RefreshAll();
 
         // Fade out the Queue overlay
-        that.engine.queue.FadeOut();
+        engine.queue.FadeOut();
 
         // Lets the page resume this game after switching to the 3D client.
-        if (window.SoulsGameMode) window.SoulsGameMode.markInGame(that.engine.normalGame);
-
+        if (window.SoulsGameMode) window.SoulsGameMode.markInGame(engine.normalGame);
+        return 300;
     }
 
     function Response_GameOpponentMove(json) {
+        var engine = that.engine;
+        if (!engine.opponent || !json.Payload) return 0;
+        var card = engine.opponent.cardManager.hand[json.Payload.cid];
+        var x = Number(json.Payload.x), y = Number(json.Payload.y);
+        if (!card || !isFinite(x) || !isFinite(y)) return 0;
 
-        var card = that.engine.opponent.cardManager.hand[json.Payload.cid];
-
-        var target =
-          {
-              x: json.Payload.x,
-              y: json.Payload.y
-          }
-
-        //TODO bug which makes it so that its choppy. CHANGED callback!
-        that.engine.CreateJS.Tween.get(card, { override: true })
-            .to(target, 1000, that.engine.CreateJS.Ease.linear)
-            .call(onComplete);
-
-        function onComplete() {
-            // Set Mount variable to true
-        }
-
+        engine.CreateJS.Tween.get(card, { override: true })
+            .to({ x: x, y: y }, 1000, engine.CreateJS.Ease.linear);
+        return 0;
     }
 
     function Response_GameRelease(json) // 210 GAME_OPPONENT_RELEASE // 212 GAME_PLAYER_RELEASE
     {
-        var card;
-        if (json.Type == 210) {
-            card = that.engine.opponent.cardManager.hand[json.Payload.cid];
-        }
-        else if (json.Type == 212) {
-            card = that.engine.player.cardManager.hand[json.Payload.cid];
-        }
-
-        card.Animation.MoveBack(card);
+        var engine = that.engine;
+        if (!engine.player || !json.Payload) return 0;
+        var manager = json.Type == 210 ? engine.opponent.cardManager : engine.player.cardManager;
+        var card = manager.hand[json.Payload.cid];
+        if (card) card.Animation.MoveBack(card);
+        return 0;
     }
 
     function Repsonse_NotYourTurn(json) // 202 NOT YOUR TURN
     {
+        ClearPendingPower();
         that.engine.ScreenMessage(["Not your turn!"], false);
-
-
+        return 0;
     }
+
+    /// 226 NextTurn: {yourTurn, playerInfo, opponentInfo, turnEndsIn}
     function Response_NextTurn(json) // 226 NEXT TURN
     {
-        if (json.Payload.yourTurn) {
-            that.engine.background.endTurnButton.Spin();
-        }
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        engine.myTurn = !!payload.yourTurn;
+
+        var button = engine.background.endTurnButton;
+        if (button.spinning || button.active !== engine.myTurn) button.Spin(engine.myTurn);
+        else button.SetPlayerTurn(engine.myTurn);
 
         // Update player and opponent portrait
-        that.engine.opponent.SetText(json.Payload.opponentInfo);
-        that.engine.player.SetText(json.Payload.playerInfo);
+        engine.opponent.SetText(payload.opponentInfo);
+        engine.player.SetText(payload.playerInfo);
 
+        if (payload.turnEndsIn !== undefined && payload.turnEndsIn !== null) {
+            engine.turnTimer.Set(payload.turnEndsIn - Age(json), null, engine.myTurn);
+        }
+
+        engine.RefreshAll();
+        if (engine.myTurn) Fx.Banner(engine, "Your turn!", "#ffd54a", null, 84);
+        else Fx.Banner(engine, "Opponent's turn", "#f3e9d2", null, 56);
+        return 750;
     }
 
+    /// 235 GameEvents: {events: [...]} - played one after another.
+    function Response_GameEvents(json) {
+        var events = json.Payload && json.Payload.events;
+        var steps = that.events.Expand(events);
+        for (var i = 0; i < steps.length; i++) that.steps.push(steps[i]);
+        return 0;
+    }
+
+    /// 236 GameSync: the full public state, the truth for every number.
+    function Response_GameSync(json) {
+        var engine = that.engine;
+        var state = json.Payload;
+        if (!state || !engine.player) return 0;
+
+        engine.myTurn = Number(state.current) === Number(engine.myIdent);
+        if (typeof state.turn === 'number') engine.turnNumber = state.turn;
+
+        var heroes = state.heroes || {};
+        for (var ident in heroes) {
+            var hero = that.events.Hero(ident);
+            var info = heroes[ident];
+            if (!hero || !info) continue;
+            hero.SetText(info);
+            if (hero.heroPower) {
+                hero.heroPower.SetType(info.type);
+                hero.heroPower.SetState(info.canUsePower, info.heroPowerUsed);
+            }
+            if (hero === engine.opponent && typeof info.hand === 'number') {
+                hero.cardManager.SyncHandCount(info.hand);
+            }
+        }
+
+        var board = state.board || {};
+        for (var side in board) {
+            var owner = that.events.Hero(side);
+            if (owner) ApplyBoard(owner, board[side] || []);
+        }
+
+        if (state.turnEndsIn !== undefined && state.turnEndsIn !== null) {
+            engine.turnTimer.Set(state.turnEndsIn - Age(json), state.turnTime, engine.myTurn);
+        }
+
+        var button = engine.background.endTurnButton;
+        if (!button.spinning && button.active !== engine.myTurn) button.SetPlayerTurn(engine.myTurn);
+
+        engine.RefreshAll();
+        return 0;
+    }
+
+    /// Makes a board match the server: updates known cards, adds missing ones and removes the others.
+    function ApplyBoard(owner, cards) {
+        var manager = owner.cardManager;
+        var seen = {};
+
+        for (var i = 0; i < cards.length; i++) {
+            var json = cards[i];
+            if (!json || json.cid === undefined) continue;
+            seen[json.cid] = true;
+            var slot = manager.cardSlots[json.slotId];
+            var card = manager.board[json.cid];
+
+            if (!card) {
+                card = manager.hand[json.cid];
+                if (card && slot) {
+                    // Still in the hand (we missed UseCardOk)
+                    delete manager.hand[json.cid];
+                    manager.AddCardBoard(card);
+                    card.UpdateFromJson(json);
+                    card.PutInSlot(slot);
+                    manager.SortHand();
+                    continue;
+                }
+                card = manager.CreateBoardCard(json);
+                if (card) Animation.Card.Appear(card);
+                continue;
+            }
+
+            card.UpdateFromJson(json);
+            if (slot && card.inSlot !== slot && !card.pickedUp && !card._lunging) {
+                manager.PlaceInSlot(card, slot);
+            }
+        }
+
+        for (var cid in manager.board) {
+            if (!seen[cid]) manager.KillCard(manager.board[cid]);
+        }
+    }
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -527,131 +446,118 @@
     GameService.prototype.Login = function () {
         this.socket.send(this.message.GENERAL.LOGIN);
 
-        var queueType = null;
-        // Check if NormalGame or Practice game was selected
+        // Normal (ranked) game, or practice against the bot with the chosen difficulty
         if (this.engine.normalGame) {
-            queueType = this.message.GAME.NORMAL_QUEUE;
+            this.socket.send({ "Type": Message.Type.Game.NORMAL_QUEUE, "Payload": {} });
         }
         else {
-            queueType = this.message.GAME.PRACTICE_QUEUE;
+            var difficulty = Number(this.engine.difficulty);
+            if (!(difficulty >= 0 && difficulty <= 2)) difficulty = 1;
+            this.socket.send({ "Type": Message.Type.Game.PRACTICE_QUEUE, "Payload": { "difficulty": difficulty } });
         }
-
-        this.socket.send(queueType);
     }
 
+    /// <summary>
+    /// Uses the ability of a board card. type: 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card.
+    /// </summary>
     GameService.prototype.Request_Ability = function (source, target, type) {
-        // Card on Card = 0
-        // Card on Player = 1 (Friendly Player)
-        // Card on Opponent = 2 (Opponent)
-        console.log(source);
-        console.log(target);
-        console.log(type);
+        type = Number(type);
+        if (!source || !(type >= 0 && type <= 3)) return;
 
-        var sourceId = targetId = undefined
-        if (type == "0") {
-            sourceId = source.cid;
-            targetId = target.cid;
-        }
-        else if (type == "1") {
-            sourceId = source.cid;
-            targetId = -1;
-        }
-        else if (type == "2") {
-            sourceId = source.cid;
-            targetId = -1;
-        }
+        this.socket.send({
+            "Type": Message.Type.Game.USE_ABILITY,
+            "Payload": {
+                "source": source.cid,
+                "target": (type === 0 || type === 3) && target ? target.cid : -1,
+                "type": type
+            }
+        });
+    }
 
-        var message = this.message.GAME.USE_ABILITY;
-        message.Payload.source = sourceId;
-        message.Payload.target = targetId;
-        message.Payload.type = type;
-        message.Payload.abilityId = (!!source.abilityId) ? source.abilityId : -1337;
-
-        this.socket.send(message);
-
+    /// <summary>
+    /// Uses the hero power. type: as Request_Ability; a power without a target is sent as (-1, 1).
+    /// </summary>
+    GameService.prototype.Request_HeroPower = function (targetCid, type) {
+        type = Number(type);
+        if (!(type >= 0 && type <= 3)) type = 1;
+        this.socket.send({
+            "Type": Message.Type.Game.HERO_POWER,
+            "Payload": {
+                "target": (type === 0 || type === 3) ? targetCid : -1,
+                "type": type
+            }
+        });
     }
 
     GameService.prototype.Request_UseCard = function (card) {
         // If the card is hovering a slot AND that its NOT in a slot
         if (!!card.hoverSlot && !card.inSlot) {
-            var json = this.message.GAME.USECARD;
-            json.Payload.cid = card.cid;
-            json.Payload.slotId = card.hoverSlot.slotId;
-            this.socket.send(json);
+            // The card waits over the slot for the answer (UseCardOk, or Release when it was refused).
+            card._awaitRequest = true;
+            this.socket.send({
+                "Type": Message.Type.Game.USECARD,
+                "Payload": { "cid": card.cid, "slotId": card.hoverSlot.slotId }
+            });
+
+            // Guard: never leave the card stuck if no answer comes.
+            setTimeout(function () {
+                if (card._awaitRequest && !card.inSlot && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
+            }, 5000);
         }
     }
 
     /// <summary>
-    /// Sends a request to the server with CID of the sourceCard and the targetCard of an attack
+    /// Sends an attack. type: 0 card on card, 1 card on hero, 2 hero on card, 3 hero on hero.
     /// </summary>
-    /// <param name="sourceCid">The source card (defender) (cid)</param>
-    /// <param name="targetCid">The target card (attacker) (cid)</param>    
     GameService.prototype.Request_Attack = function (source, target, type) {
+        var payload = { "source": -1, "target": -1, "type": type };
 
-        var json = this.message.GAME.ATTACK;
-        json.Payload.type = type;
+        if (type == 0) { payload.source = source.cid; payload.target = target.cid; }
+        else if (type == 1) { payload.source = source.cid; }
+        else if (type == 2) { payload.target = target.cid; }
+        else if (type != 3) { return; }
 
-        if (type == 0) // Card on Card
-        {
-            json.Payload.source = source.cid
-            json.Payload.target = target.cid;
-
-        }
-        else if (type == 1) // Card on Hero
-        {
-            json.Payload.source = source.cid
-            json.Payload.target = -1; //TODO?
-        }
-        else if (type == 2) // Player on Card
-        {
-            json.Payload.source = -1;
-            json.Payload.target = target.cid;
-        }
-        else if (type == 3) // Player on Opponent
-        {
-            json.Payload.source = -1;
-            json.Payload.target = -1;
-        }
-
-        else {
-            console.log("wrong type!");
-            return; // ERROR!
-        }
-
-        this.socket.send(json);
+        this.socket.send({ "Type": Message.Type.Game.ATTACK, "Payload": payload });
     };
 
     /// <summary>
     /// Request a move action to the server.
     /// </summary>
     GameService.prototype.RequestMove = function (card) {
-        var json = Message.GAME.MOVE_CARD;
-        json.Payload.x = card.x;
-        json.Payload.y = this.engine.conf.height - card.y + (card.height / 4);
-        json.Payload.cid = card.cid;
-        json.Payload.gameId = this.engine.gameId;
-
-        this.engine.gameSocket.send(json);
+        this.engine.gameSocket.send({
+            "Type": Message.Type.Game.MOVE_CARD,
+            "Payload": {
+                "x": card.x,
+                "y": this.engine.conf.height - card.y + (card.height / 4),
+                "cid": card.cid,
+                "gameId": this.engine.gameId
+            }
+        });
     }
 
     /// <summary>
     /// Requests a card release.
     /// </summary>
     GameService.prototype.RequestRelease = function (card) {
-        card._awaitRequest = true; // Variables which indicates Waiting response from server
         // If the card is not in a slot AND it is not hovering a slot
         if (!card.inSlot && !card.hoverSlot) {
-            var json = Message.GAME.RELEASE_CARD;
-            json.Payload.cid = card.cid;
-            json.Payload.gameId = card.engine.gameId;
-            this.engine.gameSocket.send(json);
+            card._awaitRequest = true; // Waiting for the response from the server
+            this.engine.gameSocket.send({
+                "Type": Message.Type.Game.RELEASE_CARD,
+                "Payload": { "cid": card.cid, "gameId": this.engine.gameId }
+            });
+
+            // Guard: never leave the card stuck if no answer comes.
+            setTimeout(function () {
+                if (card._awaitRequest && !card.inSlot && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
+            }, 5000);
         }
     }
 
     ////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////
-    //NETWORKBASEHERPDERPFUCKINHERITANCE.
+    // Message queue
     ////////////////////////////////////////////////////////////////
     GameService.prototype.RegisterResponseAction = function (responseArray, func) {
         for (var response in responseArray) {
@@ -660,23 +566,68 @@
     }
 
     GameService.prototype.GetResponseAction = function (responseId) {
-        if (!this.responseAction[responseId]) {
-            console.log("Could not find RESPONSE!" + responseId)
-
-        }
         return this.responseAction[responseId];
     }
 
-
-    GameService.prototype.Process = function () {
-        if (GameService.prototype.networkBuffer.length > 0) {
-            // Get a packet
-            var packet = GameService.prototype.networkBuffer.shift();
-
-            if (!!this.GetResponseAction(packet.Type))
-                this.GetResponseAction(packet.Type)(packet);
+    /// Runs a message handler; returns the ms its animation needs.
+    GameService.prototype.Dispatch = function (packet) {
+        var action = this.GetResponseAction(packet.Type);
+        if (!action) return 0;
+        try {
+            var ms = action(packet);
+            return typeof ms === 'number' && ms > 0 ? ms : 0;
         }
+        catch (e) {
+            console.error("[GAME] Failed to handle message " + packet.Type, e);
+            return 0;
+        }
+    }
 
+    GameService.prototype.RunStep = function (step) {
+        try {
+            var ms = step();
+            return typeof ms === 'number' && ms > 0 ? ms : 0;
+        }
+        catch (e) {
+            console.error("[GAME] Failed to play an event", e);
+            return 0;
+        }
+    }
+
+    /// Shortens the waits when messages pile up (e.g. the tab was in the background), so the game catches up.
+    GameService.prototype.Pace = function (ms) {
+        if (!(ms > 0)) return 0;
+        if (document.hidden) return 0;
+        var backlog = GameService.prototype.networkBuffer.length + this.steps.length / 2;
+        if (backlog > 25) return 0;
+        if (backlog > 14) return ms * 0.35;
+        if (backlog > 8) return ms * 0.7;
+        return Math.min(ms, 4000);
+    }
+
+    /// Called every frame: handles messages and event steps in order, waiting for each animation.
+    GameService.prototype.Process = function () {
+        var buffer = GameService.prototype.networkBuffer;
+        for (var guard = 0; guard < 80; guard++) {
+            if (Date.now() < this.blockedUntil) return;
+
+            var ms;
+            if (this.steps.length > 0) {
+                ms = this.RunStep(this.steps.shift());
+            }
+            else if (buffer.length > 0) {
+                ms = this.Dispatch(buffer.shift());
+            }
+            else {
+                return;
+            }
+
+            ms = this.Pace(ms);
+            if (ms > 0) {
+                this.blockedUntil = Date.now() + ms;
+                return;
+            }
+        }
     }
 
     GameService.prototype.Send = function (json) {
@@ -684,22 +635,31 @@
     }
 
     GameService.prototype.Connect = function () {
+        var self = this;
         this.socket.connect();
 
         // Recieves all Data from server
-        this.socket.onMessage(GameService.prototype.TrafficHandler);
+        this.socket.onMessage(function (event) { self.TrafficHandler(event); });
     }
 
 
-    GameService.prototype.TrafficHandler = function (json) {
-        var prsJson = JSON.parse(json.data);
-        console.log("[GAME]Received: " + prsJson.Type);
-        GameService.prototype.networkBuffer.push(prsJson);
+    GameService.prototype.TrafficHandler = function (event) {
+        var json;
+        try {
+            json = JSON.parse(event.data);
+        }
+        catch (e) {
+            return;
+        }
+        if (!json || typeof json.Type !== 'number') return;
+        json.receivedAt = Date.now();
+
+        if (this.immediate && this.immediate[json.Type]) {
+            this.Dispatch(json);
+            return;
+        }
+        GameService.prototype.networkBuffer.push(json);
     }
 
     return GameService;
-
-
-
-
 });

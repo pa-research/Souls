@@ -17,6 +17,16 @@ public enum GameLogKind
     Kicked,
     AbilityHeal,
     AbilitySacrifice,
+    AbilityParalyze,
+    AbilityHarden,
+    AbilityBurn,
+    HeroPower,
+    Fatigue,
+    TurnTimedOut,
+    Summon,
+    Haunt,
+    CardBurned,
+    DeathCurse,
 }
 
 public static class GameLogKinds
@@ -38,6 +48,16 @@ public static class GameLogKinds
         GameLogKind.Kicked => "KICKED",
         GameLogKind.AbilityHeal => "ABILITY_HEAL",
         GameLogKind.AbilitySacrifice => "ABILITY_SACRIFICE",
+        GameLogKind.AbilityParalyze => "ABILITY_PARALYZE",
+        GameLogKind.AbilityHarden => "ABILITY_HARDEN",
+        GameLogKind.AbilityBurn => "ABILITY_BURN",
+        GameLogKind.HeroPower => "HERO_POWER",
+        GameLogKind.Fatigue => "FATIGUE",
+        GameLogKind.TurnTimedOut => "TURN_TIMED_OUT",
+        GameLogKind.Summon => "SUMMON",
+        GameLogKind.Haunt => "HAUNT",
+        GameLogKind.CardBurned => "CARD_BURNED",
+        GameLogKind.DeathCurse => "DEATH_CURSE",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 }
