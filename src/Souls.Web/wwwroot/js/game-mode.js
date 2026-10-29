@@ -21,7 +21,7 @@
     function spectatorPage() {
         try {
             var config = JSON.parse(document.getElementById('souls-game-config').textContent);
-            return !!(config.watch || config.replayUrl);
+            return !!(config.watch || config.replayUrl || new URLSearchParams(window.location.search).get('live'));
         } catch (e) {
             return false;
         }

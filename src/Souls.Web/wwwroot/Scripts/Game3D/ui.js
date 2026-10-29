@@ -149,7 +149,7 @@ export class UI {
         logo.alt = 'Souls';
         this.status = el('div', 'sg-loading-text', box, 'Loading');
         this.progress = progress(box, 0);
-        this.tip = el('div', 'sg-tip', box);
+        this.tip = el('div', 'sg-loading-tip', box);
         this.nextTip();
         this.tipTimer = setInterval(() => this.nextTip(), 4500);
         this.loadingBox = box;

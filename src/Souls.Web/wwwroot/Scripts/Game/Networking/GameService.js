@@ -1,7 +1,5 @@
 ﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower"], function (Message, Asset, EventPlayer, Animation, HeroPower) {
 
-    var Fx = Animation.Fx;
-
     var that;
     GameService = function (engine, socket) {
 
@@ -136,27 +134,27 @@
 
         //"11", "12", "13", "14"
         if (type == 11 || type == 13) {
-            that.engine.queue.SetText("You are not logged in!");
+            that.engine.queue.SetError("You are not logged in!");
         }
         else if (type == 12) {
-            that.engine.queue.SetText("Authentication Failure!");
+            that.engine.queue.SetError("Authentication Failure!");
         }
         else if (type == 14) // LOGIN_BANNED
         {
-            that.engine.queue.SetText("You are banned!");
+            that.engine.queue.SetError("You are banned!");
         }
         return 0;
     }
 
     function Response_LoggedIn() {
         that.engine.chatService.Login();
-        that.engine.queue.SetText("Connection established!")
+        that.engine.queue.Connected();
         return 0;
     }
 
     function Response_QueueOK() // 100
     {
-        that.engine.queue.SetText("Waiting for Match")
+        that.engine.queue.Queued();
         return 0;
     }
 
@@ -243,19 +241,14 @@
         engine.player.SetText(payload.player && payload.player.info);
         engine.opponent.SetText(payload.opponent && payload.opponent.info);
 
-        // Hero power buttons next to the heroes (ours can be used, the opponent's is shown)
+        // Hero power buttons next to the heroes (DOM, over the canvas): ours can be used, the opponent's is shown
         engine.player.heroPower = new HeroPower(engine, engine.player, true);
-        engine.player.heroPower.x = engine.player.GetHome().x + 225;
-        engine.player.heroPower.y = engine.player.GetHome().y + 5;
+        engine.player.heroPower.SetPosition(engine.player.GetHome().x + 225, engine.player.GetHome().y - 25);
         engine.player.heroPower.SetType(engine.player.type);
-        engine.addChild("Player", engine.player.heroPower);
 
         engine.opponent.heroPower = new HeroPower(engine, engine.opponent, false);
-        engine.opponent.heroPower.x = engine.opponent.GetHome().x + 225;
-        engine.opponent.heroPower.y = engine.opponent.GetHome().y - 5;
+        engine.opponent.heroPower.SetPosition(engine.opponent.GetHome().x + 225, engine.opponent.GetHome().y - 5);
         engine.opponent.heroPower.SetType(engine.opponent.type);
-        engine.opponent.heroPower.scale.x = engine.opponent.heroPower.scale.y = 0.85;
-        engine.addChild("Opponent", engine.opponent.heroPower);
 
         // Give cards to hand
         engine.player.cardManager.JSONToHandCards(payload.player && payload.player.hand, { x: 165, y: 980 });
@@ -280,7 +273,11 @@
         engine.getGroup("Card-Opponent").visible = true;
         engine.getGroup("Card-Player").visible = true;
 
-        if (engine.battleLog) engine.battleLog.Show();
+        if (engine.battleLog) {
+            engine.battleLog.SetNames(engine.player.name, engine.opponent.name);
+            engine.battleLog.Show();
+        }
+        if (engine.settings) engine.settings.Show();
         engine.RefreshAll();
 
         // Fade out the Queue overlay
@@ -340,9 +337,12 @@
             engine.turnTimer.Set(payload.turnEndsIn - Age(json), null, engine.myTurn);
         }
 
+        // The turn number: GameSync sends it (0 for the first turn); the next sync confirms it.
+        if (typeof engine.turnNumber === 'number') engine.turnNumber++;
         engine.RefreshAll();
-        if (engine.myTurn) Fx.Banner(engine, "Your turn!", "#ffd54a", null, 84);
-        else Fx.Banner(engine, "Opponent's turn", "#f3e9d2", null, 56);
+        var sub = typeof engine.turnNumber === 'number' ? "Turn " + (engine.turnNumber + 1) : null;
+        if (engine.myTurn) engine.hud.Banner("Your turn", sub, false);
+        else engine.hud.Banner("Enemy turn", sub, true);
         return 750;
     }
 

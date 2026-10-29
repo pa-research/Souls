@@ -76,16 +76,9 @@
             // Game apperance
             GAME_BG: (Asset.Path.Textures + "arena.jpg"),
             GAME_QUEUE: Asset.Path.Textures + "queue.jpg",
-            GAME_VOLUME_ON: (Asset.Path.Textures + "audio_on.png"),
-            GAME_VOLUME_OFF: Asset.Path.Textures + "audio_off.png",
 
-            // Game Loading
+            // Menu backdrop (the menu itself, the sound switch and the logo are DOM, see Objects/Environment)
             GAME_LOAD_BG: Asset.Path.Textures + "bg_faded.png",
-            GAME_LOAD_PRACTICE_OFF: Asset.Path.Textures + "practice_game.png",
-            GAME_LOAD_PRACTICE_ON: Asset.Path.Textures + "practice_game_focus.png",
-            GAME_LOAD_PVP_OFF: Asset.Path.Textures + "normal_game.png",
-            GAME_LOAD_PVP_ON: Asset.Path.Textures + "normal_game_focus.png",
-            GAME_LOAD_LOGO : Asset.Path.Textures + "logo.png",
 
             // End turn
             END_TURN: Asset.Path.Textures + "endturn.png",

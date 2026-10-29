@@ -1,70 +1,36 @@
-// The turn timer: a burning rope under the End Turn button that counts down the current turn (75 s on the
-// server). It turns red and pulses in the last 15 seconds.
-define("turntimer", ["pixi", "conf"], function (Pixi, Conf) {
+// The turn timer: a burning fuse (.sg-fuse) under the End Turn button that counts down the current turn (75 s on
+// the server), "Your turn · 0:42" / "Enemy turn · 0:42". It turns red and pulses in the last 15 seconds.
+define("turntimer", ["hud", "conf"], function (Hud, Conf) {
 
-    var WIDTH = 240;
-    var HEIGHT = 16;
     var URGENT_MS = 15000;
+    // Under the End Turn button (centre (width - 310, height / 2 + 10), 75 high).
+    var X = Conf.width - 310;
+    var Y = Conf.height / 2 + 10 + 37 + 14;
 
     TurnTimer = function (engine) {
-        Pixi.DisplayObjectContainer.call(this);
         this.engine = engine;
         this.endsAt = 0;
         this.total = 75000;
         this.mine = false;
         this.running = false;
         this.urgent = null;
+        this._shown = null;
+        this._width = null;
 
-        this.back = new Pixi.Graphics();
-        this.back.beginFill(0x000000, 0.6);
-        this.back.lineStyle(2, 0x6b5537, 1);
-        this.back.drawRect(-WIDTH / 2 - 3, -HEIGHT / 2 - 3, WIDTH + 6, HEIGHT + 6);
-        this.back.endFill();
+        var fuse = this.el = Hud.El('div', 'sg-fuse souls-classic-fuse', Hud.Root());
+        fuse.setAttribute('role', 'timer');
+        fuse.setAttribute('aria-label', 'Turn timer');
+        fuse.hidden = true;
+        var track = Hud.El('div', 'sg-fuse-track', fuse);
+        this.fill = Hud.El('div', 'sg-fuse-fill', track);
+        this.text = Hud.El('div', 'sg-fuse-text', fuse);
 
-        // The rope is drawn from its left end, so scale.x is the time left.
-        this.rope = new Pixi.Graphics();
-        this.rope.x = -WIDTH / 2;
-
-        this.spark = new Pixi.Graphics();
-        this.spark.beginFill(0xffe082, 0.45);
-        this.spark.drawCircle(0, 0, 14);
-        this.spark.endFill();
-        this.spark.beginFill(0xfff3c4, 1);
-        this.spark.drawCircle(0, 0, 6);
-        this.spark.endFill();
-
-        this.label = new Pixi.Text(" ", { font: "bold 22px Arial", fill: "#f3e9d2", stroke: "#000000", strokeThickness: 5 });
-        this.label.anchor = { x: 0.5, y: 0 };
-        this.label.y = HEIGHT / 2 + 6;
-
-        this.addChild(this.back);
-        this.addChild(this.rope);
-        this.addChild(this.spark);
-        this.addChild(this.label);
-
-        this.x = Conf.width - 310;
-        this.y = (Conf.height / 2) + 10 + 60;
-        this.visible = false;
-        this.DrawRope(false);
+        this.untrack = Hud.Track(function (hud) {
+            hud.Place(fuse, X, Y, { dx: '-50%', dy: '0px' });
+        });
     };
 
-    TurnTimer.prototype = Object.create(Pixi.DisplayObjectContainer.prototype);
     TurnTimer.prototype.constructor = TurnTimer;
-
-    TurnTimer.prototype.DrawRope = function (urgent) {
-        if (this.urgent === urgent) return;
-        this.urgent = urgent;
-        this.rope.clear();
-        this.rope.beginFill(urgent ? 0xe53935 : 0xc8a165, 1);
-        this.rope.drawRect(0, -HEIGHT / 2, WIDTH, HEIGHT);
-        this.rope.endFill();
-        // Twist marks
-        this.rope.lineStyle(2, urgent ? 0x7f1d1d : 0x7a5a30, 0.8);
-        for (var x = 8; x < WIDTH; x += 14) {
-            this.rope.moveTo(x, -HEIGHT / 2);
-            this.rope.lineTo(x + 7, HEIGHT / 2);
-        }
-    }
 
     /// Starts the countdown: turnEndsIn ms from now, out of turnTime; mine = it is the player's turn.
     TurnTimer.prototype.Set = function (turnEndsIn, turnTime, mine) {
@@ -76,43 +42,49 @@ define("turntimer", ["pixi", "conf"], function (Pixi, Conf) {
         this.mine = !!mine;
         this.running = true;
         this.visible = true;
+        this.el.hidden = false;
+        this.el.classList.toggle('enemy', !this.mine);
         this._shown = null;
+        this.Process();
     }
 
     TurnTimer.prototype.Stop = function () {
         this.running = false;
         this.visible = false;
+        this.el.hidden = true;
     }
 
     TurnTimer.prototype.Remaining = function () {
         return this.running ? Math.max(0, this.endsAt - Date.now()) : 0;
     }
 
+    /// Called every frame: the fuse burns down.
     TurnTimer.prototype.Process = function () {
         if (!this.running) return;
         var left = this.Remaining();
         var fraction = Math.max(0, Math.min(1, left / (this.total || 75000)));
+        var width = (Math.round(fraction * 1000) / 10) + '%';
+        if (width !== this._width) {
+            this._width = width;
+            this.fill.style.width = width;
+        }
+
         var urgent = left <= URGENT_MS;
+        if (urgent !== this.urgent) {
+            this.urgent = urgent;
+            this.el.classList.toggle('urgent', urgent);
+        }
 
-        this.DrawRope(urgent);
-        this.rope.scale.x = Math.max(0.001, fraction);
-        this.spark.x = -WIDTH / 2 + WIDTH * fraction;
-        this.spark.visible = left > 0;
-        this.spark.scale.x = this.spark.scale.y = 0.8 + 0.35 * Math.abs(Math.sin(Date.now() / 90));
-        this.rope.alpha = urgent ? 0.65 + 0.35 * Math.abs(Math.sin(Date.now() / 160)) : 1;
-
-        var seconds = Math.ceil(left / 1000);
-        var shown = (this.mine ? "Your turn " : "Opponent's turn ") + Math.floor(seconds / 60) + ":" + ("0" + (seconds % 60)).slice(-2);
+        var shown = (this.mine ? 'Your turn' : 'Enemy turn') + ' · ' + Hud.Clock(left);
         if (shown !== this._shown) {
             this._shown = shown;
-            this.label.setText(shown);
-            this.label.setStyle({
-                font: "bold 22px Arial",
-                fill: urgent ? "#ff6b5e" : "#f3e9d2",
-                stroke: "#000000",
-                strokeThickness: 5
-            });
+            this.text.textContent = shown;
         }
+    }
+
+    TurnTimer.prototype.Destroy = function () {
+        if (this.untrack) this.untrack();
+        Hud.Remove(this.el);
     }
 
     return TurnTimer;

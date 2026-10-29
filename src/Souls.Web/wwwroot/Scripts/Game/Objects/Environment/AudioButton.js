@@ -1,61 +1,41 @@
-﻿define("audio", ["jquery", "asset", "pixi"], function ($, Asset, Pixi) {
+﻿// Sound on / off for the classic client (switched in the settings panel, see Settings.js; this replaces the old
+// audio on/off image button). Muting sets the SoundJS master volume to 0, as the old button did. The choice is
+// remembered per browser under the key the 3D client uses too, so both clients share it.
+define("audio", ["asset"], function (Asset) {
 
-    Audio = function (engine) {
-        console.log("> Audio Button Loaded")
-        this.engine = engine;
-        this.Init();
-        this.audioIsOn = true;
+    var STORAGE_KEY = 'souls.muted';
 
-    }
-    // Constructor
-    Audio.prototype.constructor = Audio;
-
-    Audio.prototype.Init = function () {
-        var that = this;
-        var volume_on = Asset.GetTexture(Asset.Textures.GAME_VOLUME_ON);
-        var volume_off = Asset.GetTexture(Asset.Textures.GAME_VOLUME_OFF);
-
-
-        // Setup the Background image
-        var audio = new Pixi.Sprite(volume_on);
-        audio.anchor = { x: 0.5, y: 0.5 };
-        audio.width = 50
-        audio.height = 50
-        audio.x = this.engine.conf.width - 70;
-        audio.y = this.engine.conf.height - 70;
-        audio.interactive = true;
-        this.engine.addChild("Audio", audio);
-
-        audio.click = audio.tap = function (mouseData) {
-            that.audioIsOn = !that.audioIsOn;
- 
-
-            if (that.audioIsOn) // Audio turn on
-            {
-                audio.texture = volume_on;
-                Asset.SetVolume(1);
-            }
-            else // Off
-            {
-                audio.texture = volume_off;
-                Asset.SetVolume(0);
-            }
-
-
-        }
-
-        audio.mouseover = function (mouseData) {
-            audio.scale.x = 0.8;
-            audio.scale.y = 0.8;
-
-        }
-        audio.mouseout = function (mouseData) {
-            audio.scale.x = 0.5;
-            audio.scale.y = 0.5;
-        }
-
+    function Read() {
+        try { return window.localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { return false; }
     }
 
-    return Audio;
+    function Write(muted) {
+        try { window.localStorage.setItem(STORAGE_KEY, muted ? '1' : '0'); } catch (e) { /* storage is optional */ }
+    }
 
+    var muted = Read();
+
+    var Sound = {
+        IsMuted: function () {
+            return muted;
+        },
+
+        SetMuted: function (value) {
+            muted = !!value;
+            Write(muted);
+            this.Apply();
+            return muted;
+        },
+
+        Toggle: function () {
+            return this.SetMuted(!muted);
+        },
+
+        /// Applies the remembered choice (at start-up, before the first sound plays).
+        Apply: function () {
+            try { Asset.SetVolume(muted ? 0 : 1); } catch (e) { /* sound is optional */ }
+        }
+    };
+
+    return Sound;
 });

@@ -362,27 +362,6 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
         return duration;
     }
 
-    /// A short text banner in the middle of the screen (or at y), e.g. "Your turn!" or "Time's up!".
-    Animation.prototype.Fx.Banner = function (engine, text, color, y, size) {
-        var label = new Pixi.Text(String(text), {
-            font: "bold " + (size || 64) + "px Arial",
-            fill: color || "#ffffff",
-            stroke: "#000000",
-            strokeThickness: 8
-        });
-        label.anchor = { x: 0.5, y: 0.5 };
-        label.x = engine.conf.width / 2;
-        label.y = y || engine.conf.height / 2;
-        label.alpha = 0;
-        label.scale.x = label.scale.y = 0.6;
-        EffectsGroup(engine).addChild(label);
-        Animate(label, { alpha: 1, scaleX: 1, scaleY: 1 }, 220, CreateJS.Ease.backOut, function () {
-            CreateJS.Tween.get(label).wait(700).call(function () {
-                Animate(label, { alpha: 0, y: label.y - 30 }, 450, CreateJS.Ease.quadIn, function () { Remove(label); });
-            });
-        });
-    }
-
     /// A glowing ring around an object for a moment (blessing, hero power use, ...).
     Animation.prototype.Fx.Glow = function (engine, target, color) {
         if (!target) return;

@@ -15,14 +15,16 @@ define("game",
     'easeljs',
     'tweenjs',
     'queue',
-    'audio',
+    'settings',
     'turntimer',
     'tooltip',
-    'battlelog'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Audio, TurnTimer, Tooltip, BattleLog) {
+    'battlelog',
+    'hud'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud) {
 
         var that;
-        /// normalGame: ranked match (true) or practice against the bot (false); difficulty: 0 easy, 1 normal, 2 hard.
-        Engine = function (normalGame, difficulty) {
+        /// normalGame: ranked match (true) or practice against the bot (false); difficulty: 0 easy, 1 normal, 2 hard;
+        /// resuming: going back into a running game (after switching from the 3D client).
+        Engine = function (normalGame, difficulty, resuming) {
             this.normalGame = normalGame;
             this.difficulty = (difficulty >= 0 && difficulty <= 2) ? difficulty : 1;
             that = this;
@@ -50,7 +52,6 @@ define("game",
             this.addGroup("Effects"); // floating numbers, projectiles
             this.addGroup("Queue");
             this.addGroup("Text");
-            this.addGroup("Audio");
 
             // Set Default group Visibility to false (Is set to true on Response_GameCreate in GameService.js
             this.getGroup("Player").visible = false;
@@ -73,15 +74,16 @@ define("game",
             // Process array
             this.ProcessList = new Array();
 
-            // Objects
+            // Objects (the interface is a DOM overlay over the canvas, see Objects/Environment/Hud.js)
+            this.hud = Hud;
             this.player = null//new Player(this);
             this.opponent = null//new Opponent(this);
             this.background = new Background(this);
-            this.audio = new Audio(this);
-            this.queue = new Queue(this);
-            this.turnTimer = new TurnTimer(this);
-            this.tooltip = new Tooltip(this);
+            this.queue = new Queue(this, resuming);
             this.battleLog = new BattleLog();
+            this.turnTimer = new TurnTimer(this);
+            this.settings = new Settings(this);
+            this.tooltip = new Tooltip(this);
 
             // Connect to the chat service
             this.chatService = new ChatService(this);
@@ -101,7 +103,6 @@ define("game",
 
         Engine.prototype.OnStart = function () {
             this.background.Init();
-            this.addChild("EndTurn", this.turnTimer);
 
             this.gameService.Connect();
             this.gameService.Login();
@@ -117,10 +118,18 @@ define("game",
             this.getGroup("Card-Focus").visible = false;
             this.turnTimer.Stop();
             this.tooltip.Hide();
+            this.settings.Hide();
+            this.battleLog.Hide(); // the end screen is a full-screen layer
             if (this.player) {
                 this.player.holdingCard = undefined;
                 this.player.isClicked = false;
-                if (this.player.heroPower) this.player.heroPower.interactive = false;
+            }
+            // The end screen takes over: the hero powers and the status pills go.
+            var sides = [this.player, this.opponent];
+            for (var i = 0; i < sides.length; i++) {
+                if (!sides[i]) continue;
+                if (sides[i].heroPower) sides[i].heroPower.Hide();
+                if (sides[i].status) sides[i].status.Hide();
             }
         }
 
@@ -156,7 +165,8 @@ define("game",
                 var side = sides[i];
                 if (!side) continue;
                 side.cardManager.Clear();
-                if (side.heroPower && side.heroPower.parent) side.heroPower.parent.removeChild(side.heroPower);
+                if (side.heroPower) side.heroPower.Destroy();
+                if (side.Destroy) side.Destroy();
                 if (side.arrow) {
                     side.arrow.Reset();
                     if (side.arrow.parent) side.arrow.parent.removeChild(side.arrow);
@@ -176,11 +186,6 @@ define("game",
 
         }
 
-        Engine.prototype.AudioButton = function () {
-
-
-        }
-
 
         Engine.prototype.Process = function () {
             this.gameService.Process();
@@ -190,7 +195,6 @@ define("game",
                 object.Process();
             });
 
-            if (this.opponent && this.opponent.heroPower) this.opponent.heroPower.Process();
             this.turnTimer.Process();
             this.tooltip.Update();
 
@@ -199,76 +203,19 @@ define("game",
 
 
 
-        // Afunction which displays a fadeinout text on the screen
-        // https://api.jquery.com/animate/
-
         /// <signature>
-        /// <summary>Function summary 1.</summary>
+        /// <summary>Short messages ("Not enough mana!", "Not your turn!") as toasts above the player's hero.</summary>
         /// <param name="messageArray" type="array">A array of words/sentances</param>
-        /// <param name="forever" type="bool">Decides if the function should run permanently (until closed by callback)</param>
-        /// <param name="callback" type="array">callback returns intervalId and round count</param>
+        /// <param name="kind" type="string">"info" for a neutral message; anything else is a warning (errors)</param>
         /// <returns type="void" />
         /// </signature>
-        Engine.prototype.ScreenMessage = function (messageArray, forever, callback) {
-
-            var msg = messageArray.shift();
-            if (forever) messageArray.push(msg);
-
-            var flashText = new Pixi.Text(String(msg === undefined || msg === null || msg === '' ? ' ' : msg),
-            {
-                font: "70px Arial",
-                fill: "white",
-                stroke: '#000000',
-                strokeThickness: 4
-            });
-
-
-            flashText.anchor = { x: 0.5, y: 0.5 };
-            flashText.position.x = that.conf.width / 2;
-            flashText.position.y = that.conf.height / 2;
-            flashText.alpha = 0;
-            flashText.forever = forever;
-            flashText.message = messageArray;
-            flashText.countTo = messageArray.length;
-            var group = that.getGroup("Text")
-            group.addChild(flashText);
-
-            var loopFlag = true;
-            var roundCount = 0;
-            var round = 0;
-            var intervalId = setInterval(function () {
-                if (flashText.alpha < 1 && loopFlag) {
-                    flashText.alpha += 0.1;
-                    if (flashText.alpha > 1) {
-                        loopFlag = false;
-
-                    }
-                }
-
-                else if (flashText.alpha > 0 && !loopFlag) {
-                    flashText.alpha -= 0.1;
-                    if (flashText.alpha < 0) {
-                        loopFlag = true;
-
-                        if (messageArray.length != 0) {
-                            var msg = messageArray.shift();
-                            flashText.setText(msg);
-                            if (!!forever) {
-                                messageArray.push(flashText.text)
-                                if (roundCount++ % messageArray.length == 0) round++; // Increment round
-                                if (!!callback) callback(intervalId, round)
-                            }
-
-                        }
-
-                        if (messageArray.length == 0) {
-
-                            group.removeChild(flashText);
-                            clearInterval(intervalId);
-                        }
-                    }
-                }
-            }, 100);
+        Engine.prototype.ScreenMessage = function (messageArray, kind) {
+            var list = Object.prototype.toString.call(messageArray) === '[object Array]' ? messageArray : [messageArray];
+            for (var i = 0; i < list.length; i++) {
+                var msg = list[i];
+                if (msg === undefined || msg === null || String(msg) === '') continue;
+                this.hud.Toast(String(msg), kind !== 'info');
+            }
         }
 
         return Engine;

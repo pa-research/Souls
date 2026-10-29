@@ -146,7 +146,9 @@ export class Game {
         ui.onPower = () => this.onPowerButton();
         if (!this.spectator) {
             ui.onLeave = () => {
-                if (!this.active || window.confirm('Leave the game? You lose it if you do not come back within a minute.')) window.location.href = '/Game';
+                if (this.active && !window.confirm('Leave the game? You lose it if you do not come back within a minute.')) return;
+                this.clearInGame();
+                window.location.href = '/Game';
             };
         }
 

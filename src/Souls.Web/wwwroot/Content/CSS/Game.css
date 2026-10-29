@@ -122,7 +122,10 @@ div.chat-content-wrapper
 }
 
 
-/* ---- Classic game client (Scripts/Game): touch, tooltips, battle log, end screen ---------------------------- */
+/* ---- Classic game client (Scripts/Game) -------------------------------------------------------------------- */
+/* The interface is built from the shared components in css/game-hud.css (on css/theme.css), laid over the canvas
+   in div.sg-root.souls-classic-hud; Objects/Environment/Hud.js sets its box to the canvas and places the parts that
+   follow the board. Only what the shared files leave to each client is here. */
 
 #game-window canvas {
     touch-action: none;
@@ -131,325 +134,151 @@ div.chat-content-wrapper
     -webkit-touch-callout: none;
 }
 
-.souls-classic-tooltip[hidden],
-.souls-classic-log[hidden],
-.souls-classic-log-list[hidden],
-.souls-classic-log-badge[hidden] {
-    display: none !important;
-}
-
-.souls-classic-tooltip {
+/* The overlay covers the canvas exactly (the script sets left, top, width and height). */
+.sg-root.souls-classic-hud {
     position: fixed;
-    z-index: 1900;
-    max-width: 330px;
-    padding: 10px 12px;
-    border: 1px solid #8a6d3b;
-    border-radius: 8px;
-    background: rgba(20, 14, 9, 0.95);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
-    color: #f3e9d2;
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    pointer-events: none;
+    inset: auto;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
 }
 
-.souls-classic-tooltip-title {
-    margin-bottom: 3px;
-    color: #ffd54a;
-    font-size: 16px;
-    font-weight: 700;
+/* Placed by transform from the top left corner of the overlay. */
+.souls-classic-hud .sg-status {
+    position: absolute;
+    left: 0;
+    top: 0;
+    white-space: nowrap;
 }
 
-.souls-classic-tooltip-stats {
-    margin-bottom: 4px;
-    color: #e6dcc6;
-    font-size: 13px;
+/* Hero power: kept focusable and hoverable when it cannot be used (aria-disabled), so its tooltip and the reason
+   still show; it looks like the shared :disabled state. */
+.souls-classic-hud .sg-power[aria-disabled="true"] {
+    cursor: default;
 }
 
-.souls-classic-tooltip-section {
-    margin-top: 5px;
+.souls-classic-hud .sg-power[aria-disabled="true"] .sg-power-orb {
+    filter: grayscale(0.85) brightness(0.6);
 }
 
-.souls-classic-tooltip-section strong {
-    color: #ffe9a8;
+/* The own power is dragged to its target: no panning or zooming may take the gesture. */
+.souls-classic-hud .souls-classic-power-own {
+    touch-action: none;
 }
 
-.souls-classic-tooltip-ability strong {
-    color: #8fc8ff;
+.souls-classic-hud .souls-classic-power-foe {
+    cursor: help;
 }
 
-.souls-classic-tooltip-race strong {
-    color: #c9a8ff;
+/* Battle log: top right, under the Classic / Modern 3D switch (top 10px, about 40px high). */
+.souls-classic-hud .souls-classic-log {
+    top: max(56px, calc(env(safe-area-inset-top) + 46px));
+    right: max(10px, env(safe-area-inset-right));
 }
 
-.souls-classic-tooltip-status {
-    margin-top: 5px;
-    color: #e8e8e8;
+.souls-classic-hud .sg-log-head:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--s-gold-2);
 }
 
-.souls-classic-tooltip-bad,
-.souls-classic-tooltip-bad strong {
-    color: #ff8a80;
+/* Settings: top left corner of the board (the minimized chat sits bottom right). */
+.souls-classic-hud .souls-classic-settings-btn {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
 }
 
-.souls-classic-tooltip-good {
-    margin-top: 5px;
-    color: #8dff9c;
+.souls-classic-hud .souls-classic-settings {
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    left: max(10px, env(safe-area-inset-left));
 }
 
-.souls-classic-tooltip-note,
-.souls-classic-tooltip-text {
-    margin-top: 4px;
-    color: #c9bfae;
-    font-size: 12.5px;
+.souls-classic-hud .souls-classic-settings-close {
+    width: 32px;
+    height: 32px;
+    box-shadow: none;
 }
 
-.souls-classic-tooltip-text {
-    color: #f3e9d2;
-    font-size: 14px;
+.souls-classic-hud .souls-classic-settings .s-btn-danger {
+    justify-self: start;
 }
 
-/* Battle log */
-/* Top right, below the Classic / Modern 3D switch: the column right of the board is free there. */
-.souls-classic-log {
-    position: fixed;
-    top: 56px;
-    right: 10px;
-    z-index: 1500;
-    width: 290px;
-    border: 1px solid rgba(214, 180, 110, 0.45);
-    border-radius: 8px;
-    background: rgba(12, 9, 6, 0.8);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-    color: #f3e9d2;
-    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-.souls-classic-log-toggle {
-    display: flex;
+.souls-classic-hud .sg-setting .s-seg > button {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 8px 10px;
-    border: 0;
-    background: transparent;
-    color: #ffd54a;
-    font-weight: 700;
-    text-align: left;
-    cursor: pointer;
+    gap: 6px;
 }
 
-.souls-classic-log-toggle::after {
-    content: "\25BE";
-    margin-left: 8px;
+/* Messages above everything placed on the board; the tooltip (z-index 40) above them. */
+.souls-classic-hud .sg-banner {
+    z-index: 25;
 }
 
-.souls-classic-log.collapsed .souls-classic-log-toggle::after {
-    content: "\25B8";
+.souls-classic-hud .sg-toasts {
+    z-index: 30;
 }
 
-.souls-classic-log-toggle:focus-visible {
-    outline: 2px solid #f1c40f;
-    outline-offset: -2px;
+/* Small screens: the full-screen layers keep clear of the Classic / Modern 3D switch, and the fuse text stays on
+   one line. */
+@media (max-width: 900px), (max-height: 560px) {
+    .souls-classic-hud .souls-classic-menu,
+    .souls-classic-hud .souls-classic-end {
+        padding-top: max(56px, calc(env(safe-area-inset-top) + 50px));
+    }
+
+    .souls-classic-hud .sg-fuse-text {
+        white-space: nowrap;
+        letter-spacing: 0.06em;
+    }
 }
 
-.souls-classic-log-badge {
-    margin-left: auto;
-    padding: 0 7px;
-    border-radius: 999px;
-    background: #c0392b;
-    color: #fff;
-    font-size: 12px;
-}
+/* Short screens (phones held sideways): a compact matchmaking panel that fits without scrolling. */
+@media (max-height: 560px) {
+    .souls-classic-hud .souls-classic-queue .sg-queue {
+        gap: 8px;
+        padding: 14px 18px;
+    }
 
-.souls-classic-log-list {
-    max-height: 30vh;
-    margin: 0;
-    padding: 0 10px 8px;
-    overflow-y: auto;
-    list-style: none;
-}
+    .souls-classic-hud .souls-classic-queue .sg-rings {
+        width: 84px;
+        height: 84px;
+    }
 
-.souls-classic-log-list li {
-    padding: 3px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
-    overflow-wrap: anywhere;
-}
+    .souls-classic-hud .souls-classic-queue .sg-rings .s-icon {
+        width: 28px;
+        height: 28px;
+    }
 
-.souls-classic-log-list li.souls-classic-log-system {
-    color: #ffd54a;
-    font-weight: 700;
+    .souls-classic-hud .souls-classic-queue .sg-time {
+        font-size: 1.3rem;
+    }
 }
 
 @media (max-width: 900px), (max-height: 560px) {
-    .souls-classic-log {
-        top: 48px;
-        width: 210px;
-        font-size: 12px;
+    .souls-classic-hud .souls-classic-log {
+        top: max(50px, calc(env(safe-area-inset-top) + 40px));
+        width: min(260px, calc(100vw - 28px));
     }
 
-    .souls-classic-log-list {
-        max-height: 22vh;
+    .souls-classic-hud .souls-classic-log .sg-log-list {
+        max-height: 34vh;
     }
 }
 
-/* End of game: rewards and daily quests */
-.souls-classic-end {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    z-index: 2100;
-    width: min(540px, 92vw);
-    max-height: 88vh;
-    overflow-y: auto;
-    padding: 22px 26px;
-    border: 2px solid #8a6d3b;
-    border-radius: 12px;
-    background: rgba(20, 14, 9, 0.95);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-    color: #f3e9d2;
-    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    text-align: center;
-    opacity: 0;
-    transform: translate(-50%, -42%);
-    transition: opacity 0.6s ease, transform 0.6s ease;
+/* The classic menu and loading screen sit on the stadium key art (the 3D client shows the live stadium). */
+.souls-classic-hud .sg-layer.souls-classic-menu,
+.souls-classic-hud .sg-layer.souls-classic-loading,
+.souls-classic-hud .sg-layer.souls-classic-queue {
+    background:
+        radial-gradient(ellipse at 30% 50%, rgba(6, 5, 9, 0.35), rgba(6, 5, 9, 0.88) 70%),
+        linear-gradient(90deg, rgba(6, 5, 9, 0.92) 0%, rgba(6, 5, 9, 0.35) 55%, rgba(6, 5, 9, 0.65) 100%),
+        url("/img/backdrop.jpg") 60% 50% / cover no-repeat,
+        #060509;
 }
 
-.souls-classic-end.shown {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-}
-
-.souls-classic-end-title {
-    margin: 0 0 6px;
-    font-family: ArchivoBlack-Regular, Impact, sans-serif;
-    font-size: 40px;
-    letter-spacing: 1px;
-}
-
-.souls-classic-end-victory .souls-classic-end-title {
-    color: #ffd54a;
-}
-
-.souls-classic-end-defeat .souls-classic-end-title {
-    color: #ff6b5e;
-}
-
-.souls-classic-end-draw .souls-classic-end-title {
-    color: #d5d5d5;
-}
-
-.souls-classic-end-text {
-    margin: 0 0 12px;
-    color: #e6dcc6;
-}
-
-.souls-classic-end-rewards {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px 22px;
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-    font-size: 18px;
-    font-weight: 700;
-}
-
-.souls-classic-end-coins {
-    color: #ffd54a;
-}
-
-.souls-classic-end-rating.up {
-    color: #8dff9c;
-}
-
-.souls-classic-end-rating.down {
-    color: #ff8a80;
-}
-
-.souls-classic-end-subtitle {
-    margin: 10px 0 6px;
-    color: #ffe9a8;
-    font-size: 17px;
-}
-
-.souls-classic-end-quests {
-    margin: 0 0 14px;
-    padding: 0;
-    list-style: none;
-    text-align: left;
-}
-
-.souls-classic-end-quests li {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 3px 10px;
-    padding: 7px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.souls-classic-quest-text {
-    grid-column: 1 / -1;
-}
-
-.souls-classic-quest-bar {
-    position: relative;
-    align-self: center;
-    height: 8px;
-    border-radius: 4px;
-    background: #3a2f22;
-    overflow: hidden;
-}
-
-.souls-classic-quest-fill {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    background: #d4ac0d;
-}
-
-.souls-classic-quest-progress {
-    color: #c9bfae;
-    font-size: 13px;
-}
-
-.souls-classic-quest-reward {
-    grid-column: 1 / -1;
-    color: #c9bfae;
-    font-size: 13px;
-}
-
-.souls-classic-end-quests li.done .souls-classic-quest-fill {
-    background: #4cd328;
-}
-
-.souls-classic-end-quests li.done .souls-classic-quest-reward {
-    color: #8dff9c;
-    font-weight: 700;
-}
-
-.souls-classic-end-continue {
-    padding: 9px 22px;
-    border: 1px solid #d4ac0d;
-    border-radius: 999px;
-    background: #c0392b;
-    color: #fff;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.souls-classic-end-continue:hover {
-    background: #a93226;
-}
-
-.souls-classic-end-continue:focus-visible {
-    outline: 2px solid #f1c40f;
-    outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .souls-classic-end {
-        transition: none;
-    }
+/* Short and narrow screens: full-screen layers start below the client switch in the top right corner. */
+@media (max-height: 560px), (max-width: 760px) {
+    .souls-classic-hud .sg-layer { padding-top: max(60px, env(safe-area-inset-top)); }
 }

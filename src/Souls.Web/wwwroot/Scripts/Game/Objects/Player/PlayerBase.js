@@ -1,4 +1,4 @@
-﻿define("playerbase", ["jquery", "pixi", "asset", "iAnimation", "animation"], function ($, Pixi, Asset, AnimationInterface, Animation) {
+﻿define("playerbase", ["jquery", "pixi", "asset", "iAnimation", "animation", "hud"], function ($, Pixi, Asset, AnimationInterface, Animation, Hud) {
 
     function ToNumber(value, fallback) {
         if (value === undefined || value === null || value === '') return fallback;
@@ -46,6 +46,7 @@
         this.handCount = undefined;
         this.deckCount = undefined;
         this.fatigue = 0;
+        this.rating = undefined;
         this.canAttack = false;
         this.canUsePower = false;
         this.heroPowerUsed = false;
@@ -181,6 +182,9 @@
         }
 
         this.SetupHud();
+
+        // Mana, deck, hand and fatigue: a status pill (DOM) next to the hero, placed in SetPosition.
+        this.status = Hud.Status(isPlayer);
     }
     // Constructor
     PlayerBase.prototype = Object.create(Pixi.Sprite.prototype);
@@ -227,22 +231,9 @@
         this.armorBadge.y = this.isPlayer ? 50 : -50;
         this.armorBadge.visible = false;
 
-        // Health out of max, mana, deck and hand: a small strip to the right of the hero
-        this.statText = new Pixi.Text(" ", {
-            font: "bold 22px Arial",
-            fill: "#f3e9d2",
-            stroke: "#000000",
-            strokeThickness: 5,
-            align: "left"
-        });
-        this.statText.anchor = { x: 0, y: 0.5 };
-        this.statText.x = 280;
-        this.statText.y = this.isPlayer ? 10 : -10;
-
         hud.addChild(this.glow);
         hud.addChild(this.targetMark);
         hud.addChild(this.armorBadge);
-        hud.addChild(this.statText);
         this.addChild(hud);
     }
 
@@ -315,6 +306,7 @@
         if (text.hand !== undefined) this.handCount = ToNumber(text.hand, this.handCount);
         if (text.deck !== undefined) this.deckCount = ToNumber(text.deck, this.deckCount);
         if (text.fatigue !== undefined) this.fatigue = ToNumber(text.fatigue, 0);
+        if (text.rating !== undefined && text.rating !== null) this.rating = ToNumber(text.rating, this.rating);
         if (text.canAttack !== undefined) this.canAttack = !!text.canAttack;
         if (text.canUsePower !== undefined) this.canUsePower = !!text.canUsePower;
         if (text.heroPowerUsed !== undefined) this.heroPowerUsed = !!text.heroPowerUsed;
@@ -353,28 +345,28 @@
         this.armorBadge.visible = this.armor > 0;
         if (this.armorBadge.visible) SetLabel(this.armorText, this.armor);
 
-        var lines = [];
-        if (typeof this.health === 'number') {
-            lines.push("\u2665 " + this.health + (typeof this.maxHealth === 'number' ? " / " + this.maxHealth : "") +
-                (this.armor > 0 ? "   Armor " + this.armor : ""));
-        }
-        if (typeof this.mana === 'number') {
-            lines.push("Mana " + this.mana + " / " + Math.max(this.maxMana || 0, this.mana));
-        }
-        if (typeof this.deckCount === 'number' || typeof this.handCount === 'number') {
-            var cards = [];
-            if (typeof this.deckCount === 'number') cards.push("Deck " + this.deckCount);
-            if (typeof this.handCount === 'number') cards.push("Hand " + this.handCount);
-            lines.push(cards.join(" \u00B7 "));
-        }
-        var text = lines.join("\n") || " ";
-        if (text !== this._statText) {
-            this._statText = text;
-            this.statText.setText(text);
-        }
-
+        this.RefreshStatus();
         this.UpdateManaCrystals();
         this.glow.visible = !!this.isPlayer && this.canAttack && !!this.engine.myTurn && !this.isDead;
+    }
+
+    /// The status pill: mana (own hero), deck, hand and fatigue (rebuilt only when a number changes).
+    PlayerBase.prototype.RefreshStatus = function () {
+        if (!this.status || (this.engine && this.engine.ended)) return;
+        if (typeof this.deckCount !== 'number' && typeof this.handCount !== 'number' && typeof this.mana !== 'number') return;
+        this.status.Set({
+            mana: typeof this.mana === 'number' ? this.mana : 0,
+            maxMana: this.maxMana,
+            deck: typeof this.deckCount === 'number' ? this.deckCount : null,
+            hand: typeof this.handCount === 'number' ? this.handCount : null,
+            fatigue: this.fatigue
+        });
+    }
+
+    /// Removes the DOM parts (the game state is sent again after a reconnect).
+    PlayerBase.prototype.Destroy = function () {
+        if (this.status) this.status.Destroy();
+        this.status = null;
     }
 
     /// Tints the portrait for a moment.
@@ -405,6 +397,12 @@
         this.position = new Pixi.Point(xy.x, xy.y);
         this.homeX = xy.x;
         this.homeY = xy.y;
+        // The status pill: ours right of the hero power (225 right of the hero, 25 up), clear of the minimized chat
+        // in the corner; the opponent's (deck and hand only) under their hero power, clear of the switch and the log.
+        if (this.status) {
+            if (this.isPlayer) this.status.SetPosition(xy.x + 320, xy.y - 25);
+            else this.status.SetPosition(xy.x + 225, xy.y + 90, true);
+        }
     }
 
     PlayerBase.prototype.GetHome = function () {

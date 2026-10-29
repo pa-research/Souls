@@ -374,14 +374,14 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         timeout: function (e) {
             var hero = this.Hero(e.id);
             var mine = hero === this.engine.player;
-            Fx.Banner(this.engine, mine ? "Time's up!" : "Your opponent ran out of time", mine ? "#ff6b5e" : "#f3e9d2", null, mine ? 72 : 52);
+            this.engine.ScreenMessage([mine ? "Time's up!" : "Your opponent ran out of time"], mine ? 'warn' : 'info');
             return 900;
         },
 
         heroDeath: function (e) {
             var hero = this.Hero(e.id);
             if (!hero) return 0;
-            if (hero.heroPower) hero.heroPower.alpha = 0.3;
+            if (hero.heroPower) hero.heroPower.SetDimmed(true);
             return Animation.Player.Death(hero);
         }
     };

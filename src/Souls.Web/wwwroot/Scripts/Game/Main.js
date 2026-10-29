@@ -53,9 +53,12 @@ require.config({
         "endturnbutton": "Objects/Environment/EndTurnButton",
         "queue": "Objects/Environment/Queue",
         "audio": "Objects/Environment/AudioButton",
+        "settings": "Objects/Environment/Settings",
         "turntimer": "Objects/Environment/TurnTimer",
         "tooltip": "Objects/Environment/Tooltip",
         "battlelog": "Objects/Environment/BattleLog",
+        "hud": "Objects/Environment/Hud",
+        "menu": "Objects/Environment/Menu",
         //// Player
         "player": "Objects/Player/Player",
         "playerbase": "Objects/Player/PlayerBase",
@@ -119,6 +122,10 @@ define('conf', ['cardtype', 'asset'], function (CardType, Asset) {
         // keywords, deckSize, maxHandCards); see Client/Rules.js.
         this.rules = settings.rules || {};
 
+        // The signed in player for the menu: {name, type, typeName, rating, rank, tier, tierCss, rankProgress,
+        // money, quests: [{text, progress, target, reward, done}]}, or null.
+        this.profile = settings.profile || null;
+
         settings.cards.forEach(function (value) {
             CardType.Portrait[value.id] = value.portrait;
             Asset.Textures[value.id] = value.portrait;
@@ -130,7 +137,7 @@ define('conf', ['cardtype', 'asset'], function (CardType, Asset) {
 
 
 //Engine class
-require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stats'], function ($, Pixi, Asset, Conf, Gamestate, Game, Socket, stats) {
+require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stats', 'hud', 'menu', 'audio'], function ($, Pixi, Asset, Conf, Gamestate, Game, Socket, stats, Hud, Menu, Sound) {
 
 
     function Initialize() {
@@ -138,38 +145,13 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         this.stage = new Pixi.Stage(0x000000, true);
 
         var textureBg = Pixi.Texture.fromImage("/Content/Images/bg_faded.png");
-        var logo = new Pixi.Sprite(textureBg);
-        logo.anchor = { x: 0, y: 0 }
-        logo.x = 0;
-        logo.y = 0;
-        logo.width = Conf.width;
-        logo.height = Conf.height;
-        this.stage.addChild(logo);
-
-        var textureLogo = Pixi.Texture.fromImage("/Content/Images/logo.png");
-        var logo = new Pixi.Sprite(textureLogo);
-        logo.anchor = { x: 0.5, y: 0 }
-        logo.x = (Conf.width / 2) - 50;
-        logo.y = 25;
-        this.stage.addChild(logo);
-
-        // Create a loading message
-        var txtLoading = new Pixi.Text("Loading...",
-            {
-                font: "120px Arial bold",
-                fill: "white",
-                stroke: '#FFFFFF',
-                wordWrap: true,
-                align: 'center',
-
-                wordWrapWidth: this.width
-            });
-        txtLoading.anchor = { x: 0.5, y: 0.5 };
-        txtLoading.x = Conf.width / 2;
-        txtLoading.y = Conf.height / 2;
-        this.stage.addChild(txtLoading);
-
-
+        var backdrop = new Pixi.Sprite(textureBg);
+        backdrop.anchor = { x: 0, y: 0 }
+        backdrop.x = 0;
+        backdrop.y = 0;
+        backdrop.width = Conf.width;
+        backdrop.height = Conf.height;
+        this.stage.addChild(backdrop);
 
         this.renderer = new Pixi.autoDetectRenderer(Conf.width, Conf.height, null, false, true);
 
@@ -186,6 +168,10 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
 
         // window = document.querySelector('#game-window');
         window.addEventListener('contextmenu', blockContextMenu);
+
+        // The interface (loading screen, menu, HUD) is a DOM overlay laid over the canvas.
+        Hud.Init(this.renderer.view);
+        var loading = Menu.ShowLoading();
 
 
         // Set current state to LOAD
@@ -215,6 +201,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
 
             });
         // Load all sound into memory (Asset.soundList)
+        Sound.Apply(); // sound on / off as the player left it
         Asset.LoadSound(function (percent) { // On progress
             that.soundPercent = percent;
         },
@@ -224,15 +211,18 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         });
 
         var loadChecker = setInterval(function () {
-            txtLoading.setText("Loading... (" + ((that.texturePercent + that.soundPercent) / 2).toFixed(0) + "%)");
+            var textures = isTextureLoaded ? 100 : that.texturePercent;
+            var sounds = isSoundLoaded ? 100 : that.soundPercent;
+            loading.SetProgress((textures + sounds) / 200);
 
 
             if (isTextureLoaded && isSoundLoaded) {
                 console.log("Everything is loaded...")
+                loading.Close();
                 // After switching from the 3D client mid-game, go straight back into the running game.
                 var resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
                 if (resume) {
-                    gameEngine = new Game(resume.normal, ReadDifficulty());
+                    gameEngine = new Game(resume.normal, ReadDifficulty(), true);
                     Conf.currentState = Gamestate.GAME;
                 }
                 else {
@@ -245,15 +235,19 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         }, 50);
 
 
-        // Show stats
-        var stats = new Stats();
-        stats.setMode(1); // 0: fps, 1: ms
+        // Frame time graph (stats.js), for development: add ?stats to the address to show it.
+        var stats = { begin: function () { }, end: function () { } };
+        if (/[?&]stats\b/.test(window.location.search)) {
+            stats = new Stats();
+            stats.setMode(1); // 0: fps, 1: ms
 
-        // Align top-left
-        stats.domElement.style.position = 'absolute';
-        stats.domElement.style.left = '0px';
-        stats.domElement.style.top = '0px';
-        document.body.appendChild(stats.domElement);
+            // Align top-left
+            stats.domElement.style.position = 'absolute';
+            stats.domElement.style.left = '0px';
+            stats.domElement.style.top = '0px';
+            stats.domElement.style.zIndex = '30';
+            document.body.appendChild(stats.domElement);
+        }
 
         // Fire onResize after init stuff
         OnResize();
@@ -270,11 +264,14 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
 
     }
 
-    // Practice difficulty (0 easy, 1 normal, 2 hard), remembered in this browser.
-    var DIFFICULTY_KEY = 'souls.practiceDifficulty';
+    // Practice difficulty (0 easy, 1 normal, 2 hard), remembered in this browser (shared with the 3D client).
+    var DIFFICULTY_KEY = 'souls.difficulty';
+    var OLD_DIFFICULTY_KEY = 'souls.practiceDifficulty';
     function ReadDifficulty() {
         try {
-            var value = parseInt(window.localStorage.getItem(DIFFICULTY_KEY), 10);
+            var raw = window.localStorage.getItem(DIFFICULTY_KEY);
+            if (raw === null) raw = window.localStorage.getItem(OLD_DIFFICULTY_KEY);
+            var value = parseInt(raw, 10);
             if (value >= 0 && value <= 2) return value;
         } catch (e) { }
         return 1;
@@ -283,149 +280,38 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         try { window.localStorage.setItem(DIFFICULTY_KEY, String(value)); } catch (e) { }
     }
 
+    /// The main menu (DOM, see Objects/Environment/Menu.js) over the backdrop.
     function ShowGameSelect() {
         var menuSound = Asset.GetSound(Asset.Sound.MENU);
         menuSound.play({ loop: 9001, volume: 0.1 });
         this.stage = new Pixi.Stage(0x000000, true);
 
         var textureBg = Asset.GetTexture(Asset.Textures.GAME_LOAD_BG);
-        var logo = new Pixi.Sprite(textureBg);
-        logo.anchor = { x: 0, y: 0 }
-        logo.x = 0;
-        logo.y = 0;
-        logo.width = Conf.width;
-        logo.height = Conf.height;
-        this.stage.addChild(logo);
+        var backdrop = new Pixi.Sprite(textureBg);
+        backdrop.anchor = { x: 0, y: 0 }
+        backdrop.x = 0;
+        backdrop.y = 0;
+        backdrop.width = Conf.width;
+        backdrop.height = Conf.height;
+        this.stage.addChild(backdrop);
 
-        var textureLogo = Asset.GetTexture(Asset.Textures.GAME_LOAD_LOGO);
-        var logo = new Pixi.Sprite(textureLogo);
-        logo.anchor = { x: 0.5, y: 0 }
-        logo.x = (Conf.width / 2) - 50;
-        logo.y = 25;
-        this.stage.addChild(logo);
+        var started = false;
+        function Start(normal, difficulty) {
+            if (started) return;
+            started = true;
+            try { menuSound.stop(); } catch (e) { }
+            menu.Close();
+            gameEngine = new Game(normal, difficulty);
+            Conf.currentState = Gamestate.GAME;
+        }
 
-        var practiceTexture = Asset.GetTexture(Asset.Textures.GAME_LOAD_PRACTICE_OFF);
-        var practiceFocusTexture = Asset.GetTexture(Asset.Textures.GAME_LOAD_PRACTICE_ON);
-        practiceTexture.width = 200;
-        practiceTexture.height = 150;
-        var practiceGame = new Pixi.Sprite(practiceTexture);
-        practiceGame.interactive = true;
-        practiceGame.width = 200;
-        practiceGame.height = 150;
-        practiceGame.anchor = { x: 0.5, y: 0.5 }
-        practiceGame.x = (Conf.width / 3);
-        practiceGame.y = (Conf.height / 2);
-        this.stage.addChild(practiceGame);
-
-        var normalTexture = Asset.GetTexture(Asset.Textures.GAME_LOAD_PVP_OFF);
-        var normalFocusTexture = Asset.GetTexture(Asset.Textures.GAME_LOAD_PVP_ON);
-        normalTexture.width = 200;
-        normalTexture.height = 150;
-        var normalGame = new Pixi.Sprite(normalTexture);
-        normalGame.interactive = true;
-        normalGame.width = 200;
-        normalGame.height = 150;
-        normalGame.anchor = { x: 0.5, y: 0.5 }
-        normalGame.x = (Conf.width / 2) + normalGame.width + 50;
-        normalGame.y = (Conf.height / 2);
-        this.stage.addChild(normalGame);
-
-        // Practice difficulty: Easy / Normal / Hard under the practice button
-        var difficulty = ReadDifficulty();
-        var difficultyLabel = new Pixi.Text("Practice difficulty", {
-            font: "bold 30px Arial",
-            fill: "#f3e9d2",
-            stroke: "#000000",
-            strokeThickness: 6
+        var menu = Menu.ShowMenu({
+            profile: Conf.profile,
+            difficulty: ReadDifficulty(),
+            onDifficulty: WriteDifficulty,
+            onRanked: function () { Start(true); },
+            onPractice: function (difficulty) { Start(false, difficulty); }
         });
-        difficultyLabel.anchor = { x: 0.5, y: 0.5 };
-        difficultyLabel.x = practiceGame.x;
-        difficultyLabel.y = practiceGame.y + 120;
-        this.stage.addChild(difficultyLabel);
-
-        var difficultyButtons = [];
-        ["Easy", "Normal", "Hard"].forEach(function (name, index) {
-            var button = new Pixi.Text(name, { font: "bold 34px Arial", fill: "#ffffff", stroke: "#000000", strokeThickness: 6 });
-            button.anchor = { x: 0.5, y: 0.5 };
-            button.x = practiceGame.x + (index - 1) * 140;
-            button.y = practiceGame.y + 175;
-            button.interactive = true;
-            button.buttonMode = true;
-            button.difficulty = index;
-            button.click = button.tap = function () {
-                difficulty = index;
-                WriteDifficulty(index);
-                paintDifficulty();
-            };
-            difficultyButtons.push(button);
-            this.stage.addChild(button);
-        }, this);
-
-        function paintDifficulty() {
-            difficultyButtons.forEach(function (button) {
-                var selected = button.difficulty === difficulty;
-                button.setStyle({
-                    font: "bold " + (selected ? 40 : 32) + "px Arial",
-                    fill: selected ? "#ffd54a" : "#bdb6a8",
-                    stroke: "#000000",
-                    strokeThickness: 6
-                });
-            });
-        }
-        paintDifficulty();
-
-        // Workaround since interactive = false dont work properly?
-        function clearInteractive() {
-            menuSound.stop();
-            difficultyButtons.forEach(function (button) {
-                button.interactive = false;
-                button.click = button.tap = undefined;
-            });
-            practiceGame.interactive = false; // Should work (Doesnt)
-            that.stage.removeChild(practiceGame); // Should ALSO work (Doesnt)
-            practiceGame.click = practiceGame.tap = undefined; // Holy Fuck, i give up
-
-            normalGame.interactive = false; // Should work (Doesnt)
-            that.stage.removeChild(normalGame); // Should ALSO work (Doesnt)
-            normalGame.click = normalGame.tap = undefined; // Holy Fuck, i give up
-
-        }
-
-
-        var that = this;
-        practiceGame.click = practiceGame.tap = function (mouseData) {
-            clearInteractive();
-
-            gameEngine = new Game(false, difficulty);
-            Conf.currentState = Gamestate.GAME;
-
-        }
-
-        practiceGame.mouseover = function (mouseData) {
-            practiceGame.texture = practiceFocusTexture;
-
-        }
-        practiceGame.mouseout = function (mouseData) {
-            practiceGame.texture = practiceTexture;
-        }
-
-        normalGame.click = normalGame.tap = function (mouseData) {
-            clearInteractive();
-
-
-            gameEngine = new Game(true);
-            Conf.currentState = Gamestate.GAME;
-        }
-
-        normalGame.mouseover = function (mouseData) {
-            normalGame.texture = normalFocusTexture;
-        }
-        normalGame.mouseout = function (mouseData) {
-            normalGame.texture = normalTexture;
-        }
-
-
-
     }
 
     function OnResize() {
@@ -435,6 +321,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         this.renderer.view.style.width = $(window).width() + "px";
         this.renderer.view.style.height = $(window).height() - $(".navbar").outerHeight() + "px";
 
+        Hud.Layout();
     }
 
 
