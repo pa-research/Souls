@@ -18,8 +18,15 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         ViewData["GitHubRepository"] = configuration["Souls:GitHubRepository"];
 
         IReadOnlyList<QuestView>? quests = null;
+        HomeProfile? profile = null;
         if (User.Identity?.IsAuthenticated == true && User.GetPlayerId() is { } playerId)
         {
+            profile = await db.Players.AsNoTracking()
+                .Where(p => p.Id == playerId)
+                .Select(p => new HomeProfile(p.Name, p.PlayerTypeId, p.PlayerType!.Name, p.Rating, p.Rank, p.Money,
+                    db.Games.Count(g => g.Player1Id == p.Id || g.Player2Id == p.Id),
+                    db.Games.Count(g => g.WinnerId == p.Id)))
+                .SingleOrDefaultAsync(ct);
             quests = [.. (await Quests.EnsureTodayAsync(db, playerId, time, ct)).Select(q =>
             {
                 var definition = Quests.Get(q.Kind);
@@ -35,6 +42,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             .ToListAsync(ct);
         return View(new HomeViewModel
         {
+            Profile = profile,
             Quests = quests,
             TopPlayers = [.. top.Select((p, i) => new LeaderboardEntry(i + 1, p.Name, p.Rating, p.Rank, p.Type))],
         });

@@ -121,11 +121,12 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(name, (string)said["name"]!);
             Assert.Equal("<b>good luck</b>", (string)said["message"]!);
 
-            // Our turn: play the cheapest card, attack the bot's hero with ours and pass, until the game ends.
+            // Our turn: play the cheapest card, attack the bot's hero with ours and pass, until the game ends (empty decks
+            // deal growing fatigue damage, so it always ends).
             var mana = int.Parse((string)create["player"]!["info"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
             var hand = create["player"]!["hand"]!.AsObject().Select(c => c.Value!).ToList();
             JsonNode? result = null;
-            for (var turn = 0; turn < 30 && result is null; turn++)
+            for (var turn = 0; turn < 60 && result is null; turn++)
             {
                 var card = hand.Where(c => (int)c["cost"]! <= mana).OrderBy(c => (int)c["cost"]!).FirstOrDefault();
                 if (card is not null)

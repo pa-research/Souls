@@ -1,51 +1,70 @@
+@using Souls.Model
 @model ShopViewModel
-<div class="row align-items-center mb-3">
-    <div class="col-md-6 hansels-shop-title">
-        <h2>Hansel's Card Shop</h2>
-        <p>Hansel was once the champion of souls.<br />Now he sells cards to feed himself and his wife.</p>
+<section class="s-panel s-shop-head s-rise mb-4">
+    <div>
+        <div class="s-eyebrow">Hansel's Card Shop</div>
+        <h1 class="s-h1 s-gold-text">Cards and Upgrades</h1>
+        <p class="s-muted mb-0">Hansel was once the champion of souls. Now he sells cards to feed himself and his wife.<br />Buying a card you already own levels it up: +1 attack and +1 health per level, up to level @GameRules.MaxCardLevel.</p>
     </div>
-    <div class="col-md-6"><div class="hansel"></div></div>
-</div>
+    <img class="hansel-art d-none d-sm-block" src="~/Content/Images/Page/hansel.png" alt="" />
+</section>
 
-<div class="row g-3">
-    <div class="col-lg-3">
+<div class="s-grid s-shop-layout">
+    <aside class="s-grid" style="align-content: start">
         <partial name="_PlayerInfo" model="Model.Player" />
-        <p class="small text-muted mt-2">Win games and finish daily quests to earn soul coins. Buying a card you own levels it up: +1 attack and +1 health per level (up to level 3).</p>
-        <a class="btn btn-sm btn-dark" asp-controller="Deck" asp-action="Index">Build your deck</a>
-    </div>
-    <div class="col-lg-9">
-        <div class="row g-3">
-            @foreach (var card in Model.Cards)
-            {
-                <div class="col-6 col-md-4 col-xl-3 shop-card">
-                    <partial name="_CardTile" model="card" />
+        <a class="s-btn s-btn-gold s-btn-block" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />Build your deck</a>
+        <p class="s-small s-muted mb-0">Win games and finish daily quests to earn soul coins.</p>
+    </aside>
+
+    <div class="s-grid s-shop-grid">
+        @foreach (var card in Model.Cards)
+        {
+            <article class="s-card-wrap s-rise" aria-label="@card.Name">
+                @if (card.Owned)
+                {
+                    <span class="s-ribbon">Owned &middot; Lv @card.Level</span>
+                }
+                <partial name="_CardTile" model="card" />
+                <h2 class="s-card-name h6 mb-0">@card.Name</h2>
+                <p class="s-card-desc">@card.Description</p>
+                <div class="s-card-actions">
                     @if (card.Owned)
                     {
-                        <div class="text-muted small">Owned &middot; level @card.Level</div>
                         @if (card.UpgradeCost is { } cost)
                         {
                             <form asp-controller="Shop" asp-action="Upgrade" method="post" class="buy-form" data-card-name="@card.Name" data-price="@cost" data-upgrade="true">
                                 <input type="hidden" name="cardId" value="@card.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-success">Upgrade to level @(card.Level + 1) for @cost soul coins</button>
+                                <button type="submit" class="s-btn s-btn-success s-btn-sm s-btn-block"><s-icon name="arrow-up" />Level @(card.Level + 1) &middot; <s-icon name="coin" />@cost</button>
                             </form>
+                        }
+                        else
+                        {
+                            <span class="s-chip justify-content-center"><s-icon name="star" />Max level</span>
                         }
                     }
                     else
                     {
                         <form asp-controller="Shop" asp-action="Buy" method="post" class="buy-form" data-card-name="@card.Name" data-price="@card.VendorPrice">
                             <input type="hidden" name="cardId" value="@card.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-dark">Buy for @card.VendorPrice soul coins</button>
+                            <button type="submit" class="s-btn s-btn-gold s-btn-sm s-btn-block">Buy &middot; <s-icon name="coin" />@card.VendorPrice</button>
                         </form>
                     }
                 </div>
-            }
-        </div>
+            </article>
+        }
     </div>
 </div>
 
-<div id="buy-confirm" title="Purchase" class="d-none">
-    <p id="buy-confirm-message"></p>
-</div>
+<dialog id="buy-confirm" class="s-panel s-modal" aria-labelledby="buy-confirm-title">
+    <form method="dialog">
+        <h2 id="buy-confirm-title" class="s-h2 s-gold-text">Purchase</h2>
+        <p id="buy-confirm-message"></p>
+        <div class="d-flex gap-2 justify-content-end">
+            <button value="cancel" class="s-btn s-btn-ghost">Cancel</button>
+            <button value="ok" class="s-btn s-btn-primary" autofocus><s-icon name="coin" />Confirm</button>
+        </div>
+    </form>
+</dialog>
 
 @section scripts {
     <script src="~/js/shop.js" asp-append-version="true"></script>

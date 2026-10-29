@@ -1,5 +1,7 @@
 @model NewsEditorViewModel
-<h2>News Editor</h2>
+<div class="s-admin">
+<section class="s-panel">
+<div class="s-panel-head"><s-icon name="news" /><h2>News Editor</h2></div>
 
 <form asp-action="NewsEditor" method="post" class="mb-4">
     <div asp-validation-summary="All" class="text-danger"></div>
@@ -40,3 +42,6 @@
         <tr><td colspan="5"><b><a asp-action="NewsEditor" asp-route-id="">[NEW]</a></b></td></tr>
     </tbody>
 </table>
+</section>
+</div>
+

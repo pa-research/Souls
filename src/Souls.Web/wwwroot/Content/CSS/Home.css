@@ -95,31 +95,3 @@
     background-size: 100% 150px;
     background-repeat: no-repeat;
 }
-
-.quests-plugin,
-.leaderboard-plugin {
-    border: 1px solid black;
-}
-
-.quests-plugin ul {
-    padding: 0 10px 10px;
-}
-
-.quests-plugin .quest + .quest {
-    margin-top: 8px;
-}
-
-.quests-plugin .quest.done {
-    color: #198754;
-}
-
-.quests-plugin .progress {
-    height: 14px;
-    margin-top: 2px;
-    font-size: 10px;
-}
-
-.leaderboard-plugin table {
-    margin: 0 10px 10px;
-    width: calc(100% - 20px);
-}

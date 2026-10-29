@@ -1,82 +1,103 @@
+@{
+    var fullScreen = ViewData["FullScreen"] is true;
+    var controller = ViewContext.RouteData.Values["controller"] as string;
+    string Active(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+    string? Current(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "page" : null;
+}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Souls Online - a multiplayer card game" />
+    <meta name="theme-color" content="#0d0b12" />
     <title>@ViewData["Title"] - Souls Online</title>
     <link rel="icon" href="~/favicon.ico" />
+    <link rel="preload" href="/fonts/Cinzel.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/jquery-ui/themes/base/jquery-ui.min.css" />
     <link rel="stylesheet" href="~/Content/CSS/Base.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body class="@(ViewData["FullScreen"] is true ? "full-screen" : null)">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-bottom">
-        <div class="container">
-            <a class="navbar-brand" asp-controller="Home" asp-action="Index">Souls Online</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav" aria-controls="main-nav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="main-nav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" asp-controller="Home" asp-action="Index">Home</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="Game" asp-action="Index">Play Now!</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="Shop" asp-action="Index">Shop</a></li>
-                    <li class="nav-item"><a class="nav-link" asp-controller="Deck" asp-action="Index">Deck</a></li>
-                    @if (User.IsAdmin())
-                    {
-                        <li class="nav-item dropup">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="Players">Players</a></li>
-                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="Games">Games</a></li>
-                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardEditor" asp-route-id="">Card Editor</a></li>
-                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="NewsEditor" asp-route-id="">News Editor</a></li>
-                            </ul>
-                        </li>
-                    }
-                </ul>
-                <ul class="navbar-nav">
-                    @if (User.Identity?.IsAuthenticated == true)
-                    {
-                        <li class="nav-item"><span class="navbar-text me-2">@User.Identity.Name</span></li>
-                        <li class="nav-item">
+<body class="s-site @(fullScreen ? "full-screen" : null)">
+    @if (fullScreen)
+    {
+        @* The game clients size themselves to the window minus the .navbar; the game page has no site chrome. *@
+        <div class="navbar s-game-navbar" aria-hidden="true"></div>
+    }
+    else
+    {
+        <a class="s-skip" href="#main">Skip to content</a>
+        <header class="s-topbar navbar navbar-expand-lg">
+            <div class="container-xxl s-topbar-inner">
+                <a class="s-brand" asp-controller="Home" asp-action="Index" aria-label="Souls Online, home">
+                    <img src="~/Content/Images/logo.png" alt="" width="132" height="64" />
+                </a>
+                <button class="navbar-toggler s-btn s-btn-ghost s-btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav" aria-controls="main-nav" aria-expanded="false" aria-label="Menu">
+                    <s-icon name="layout" />
+                </button>
+                <div class="collapse navbar-collapse" id="main-nav">
+                    <ul class="navbar-nav s-nav">
+                        <li class="nav-item"><a class="s-nav-link @Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><s-icon name="home" /><span>Home</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link s-nav-play" asp-controller="Game" asp-action="Index"><s-icon name="swords" /><span>Play</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Deck")" aria-current="@Current("Deck")" asp-controller="Deck" asp-action="Index"><s-icon name="deck" /><span>Deck</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Shop")" aria-current="@Current("Shop")" asp-controller="Shop" asp-action="Index"><s-icon name="shop" /><span>Shop</span></a></li>
+                        @if (User.IsAdmin())
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="s-nav-link dropdown-toggle @Active("Admin")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><s-icon name="crown" /><span>Admin</span></a>
+                                <ul class="dropdown-menu s-dropdown">
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Players"><s-icon name="users" /> Players</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Games"><s-icon name="swords" /> Games</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardEditor" asp-route-id=""><s-icon name="pencil" /> Card Editor</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="NewsEditor" asp-route-id=""><s-icon name="news" /> News Editor</a></li>
+                                </ul>
+                            </li>
+                        }
+                    </ul>
+                    <div class="s-topbar-right">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            @await Component.InvokeAsync("ProfileChip")
                             <form asp-controller="Player" asp-action="Logout" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-link nav-link">Logout</button>
+                                <button type="submit" class="s-btn s-btn-ghost s-btn-icon" aria-label="Logout" title="Logout"><s-icon name="logout" /><span class="d-lg-none">Logout</span></button>
                             </form>
-                        </li>
-                    }
-                    else
-                    {
-                        <li class="nav-item"><a class="nav-link" asp-controller="Player" asp-action="Login">Login</a></li>
-                        <li class="nav-item"><a class="nav-link" asp-controller="Player" asp-action="Register">Register</a></li>
-                    }
-                </ul>
+                        }
+                        else
+                        {
+                            <a class="s-btn s-btn-ghost s-btn-sm" asp-controller="Player" asp-action="Login"><s-icon name="login" />Login</a>
+                            <a class="s-btn s-btn-primary s-btn-sm" asp-controller="Player" asp-action="Register"><s-icon name="user-plus" />Register</a>
+                        }
+                    </div>
+                </div>
             </div>
-        </div>
-    </nav>
+        </header>
+    }
 
-    <div class="page-wrapper container-xxl">
-        @if (ViewData["FullScreen"] is not true)
+    <main id="main" class="@(fullScreen ? "s-main-full" : "s-main container-xxl")">
+        @if (TempData["Message"] is string message)
         {
-            <header class="page-top">
-                <a asp-controller="Home" asp-action="Index" class="page-logo" aria-label="Souls Online"></a>
-            </header>
+            <div class="s-alert s-alert-ok" role="status"><s-icon name="check" /><span>@message</span></div>
         }
+        @if (TempData["Error"] is string error)
+        {
+            <div class="s-alert s-alert-error" role="alert"><s-icon name="info" /><span>@error</span></div>
+        }
+        @RenderBody()
+    </main>
 
-        <main class="page-content">
-            @if (TempData["Message"] is string message)
-            {
-                <div class="alert alert-success" role="status">@message</div>
-            }
-            @if (TempData["Error"] is string error)
-            {
-                <div class="alert alert-danger" role="alert">@error</div>
-            }
-            @RenderBody()
-        </main>
-    </div>
+    @if (!fullScreen)
+    {
+        <footer class="s-footer">
+            <div class="container-xxl s-footer-inner">
+                <img src="~/Content/Images/logo.png" alt="" width="84" height="40" />
+                <span>Souls Online &middot; a card game from 2014, rebuilt</span>
+                <span class="s-footer-credits">Type: Cinzel &amp; Inter (OFL) &middot; Icons: Lucide (ISC)</span>
+            </div>
+        </footer>
+    }
 
     <script src="~/lib/jquery/jquery.min.js"></script>
     <script src="~/lib/jquery-ui/jquery-ui.min.js"></script>

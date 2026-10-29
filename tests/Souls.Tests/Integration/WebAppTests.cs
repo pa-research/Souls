@@ -137,7 +137,7 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Equal(3, level);
         Assert.Equal(100 - (1 + 2) - (1 + 4), money); // Bobby costs 1: level 1->2 for 3, 2->3 for 5
         using var shop = await browser.GetAsync("/Shop");
-        Assert.Contains("Owned &middot; level 3", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("Owned &middot; Lv 3", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
         // Three daily quests on the home page; the leaderboard lists players by rating.
         using var home = await browser.GetAsync("/");

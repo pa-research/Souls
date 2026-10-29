@@ -17,6 +17,30 @@ public static class Ratings
     /// <summary>Rank 1 at the initial rating and below, one rank more for each 50 points above it.</summary>
     public static int RankOf(int rating) => Math.Max(1, 1 + (rating - Initial) / PointsPerRank);
 
+    public sealed record Tier(string Name, string Division, string Css)
+    {
+        public override string ToString() => Division.Length == 0 ? Name : $"{Name} {Division}";
+    }
+
+    private static readonly string[] TierNames = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
+    private static readonly string[] Divisions = ["III", "II", "I"];
+
+    /// <summary>Three ranks per tier: Bronze III (rank 1) up to Diamond I (rank 15), then Champion.</summary>
+    public static Tier TierOf(int rank)
+    {
+        var index = Math.Max(0, rank - 1);
+        if (index >= TierNames.Length * Divisions.Length)
+        {
+            return new Tier("Champion", string.Empty, "tier-champion");
+        }
+
+        var name = TierNames[index / Divisions.Length];
+        return new Tier(name, Divisions[index % Divisions.Length], "tier-" + name.ToLowerInvariant());
+    }
+
+    /// <summary>How far the rating is towards the next rank (0-1).</summary>
+    public static double RankProgress(int rating) => rating < Initial ? 0 : (rating - Initial) % PointsPerRank / (double)PointsPerRank;
+
     /// <summary>Largest rating difference matchmaking accepts after waiting this long.</summary>
     public static int MatchWindow(TimeSpan waited) => 150 + (int)(waited.TotalSeconds * 25);
 }

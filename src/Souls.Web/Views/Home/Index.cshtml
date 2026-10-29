@@ -1,90 +1,133 @@
+@using Souls.Model
 @model HomeViewModel
 @{
     var repository = ViewData["GitHubRepository"] as string;
+    var profile = Model.Profile;
 }
-<div class="row g-3">
-    <div class="col-lg-9">
-        <div class="row g-3">
-            <div class="col-md-5">
-                <div id="news-carousel" class="carousel slide image-slider-plugin" data-bs-ride="carousel">
-                    <div class="carousel-inner">
-                        <div class="carousel-item active"><img src="~/Content/Images/NewsPosts/post1.png" class="d-block w-100" alt="" /></div>
-                        <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post2.png" class="d-block w-100" alt="" /></div>
-                        <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post3.png" class="d-block w-100" alt="" /></div>
-                    </div>
-                </div>
-            </div>
 
-            <div class="col-md-4">
-                <a class="d-block play-now-button" asp-controller="Game" asp-action="Index" aria-label="Play now"></a>
-            </div>
-
-            <div class="col-md-3">
-                <div class="game-stats-feed">
-                    <p class="game-stats-feed-title">Recent Games</p>
-                    <table id="game-stats-feed" class="table table-sm mb-0"><tbody></tbody></table>
-                </div>
-            </div>
-
-            <div class="col-12 news-plugin">
-                <div class="news-wrapper"></div>
-            </div>
+<section class="s-hero s-rise" aria-labelledby="hero-title">
+    <div class="s-hero-copy">
+        <div class="s-eyebrow">@(profile is null ? "A card game of the arena" : $"Welcome back, {profile.Name}")</div>
+        <h1 id="hero-title" class="s-title s-gold-text">The Arena Awaits</h1>
+        <p>Build a deck of souls, step onto the sand in front of a roaring crowd and fight your way up from Bronze to Champion.</p>
+        <div class="s-hero-actions">
+            @if (profile is null)
+            {
+                <a class="s-btn s-btn-primary s-btn-xl s-btn-cta" asp-controller="Player" asp-action="Register"><s-icon name="user-plus" />Join the fight</a>
+                <a class="s-btn s-btn-ghost s-btn-lg" asp-controller="Player" asp-action="Login"><s-icon name="login" />Login</a>
+            }
+            else
+            {
+                <a class="s-btn s-btn-primary s-btn-xl s-btn-cta" asp-controller="Game" asp-action="Index"><s-icon name="swords" />Play</a>
+                <a class="s-btn s-btn-ghost s-btn-lg" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />Deck</a>
+            }
         </div>
     </div>
+</section>
 
-    <div class="col-lg-3">
-        @if (Model.Quests is { } quests)
-        {
-            <div class="quests-plugin mb-3">
-                <p class="services-plugin-title">Daily Quests</p>
-                <ul class="list-unstyled mb-0">
-                    @foreach (var quest in quests)
-                    {
-                        <li class="quest @(quest.Done ? "done" : "")">
-                            <div class="d-flex justify-content-between gap-2">
-                                <span>@(quest.Done ? "\u2714 " : "")@quest.Text</span>
-                                <span class="text-nowrap">@quest.Reward coins</span>
-                            </div>
-                            <div class="progress" role="progressbar" aria-label="@quest.Text" aria-valuenow="@quest.Progress" aria-valuemin="0" aria-valuemax="@quest.Target">
-                                <div class="progress-bar @(quest.Done ? "bg-success" : "bg-warning")" style="width: @(quest.Progress * 100 / Math.Max(1, quest.Target))%">@quest.Progress/@quest.Target</div>
-                            </div>
-                        </li>
-                    }
-                </ul>
+@if (profile is null)
+{
+    <section class="s-grid s-features" aria-label="Features">
+        <div class="s-panel s-feature s-rise"><s-icon name="deck" /><div><h3>Build your deck</h3><p>Twenty cards, nine abilities, four races. Snokulv, Dr. Robotnik, Per, Christine, Huy, Bobby, Anette and the Spirit Wolf.</p></div></div>
+        <div class="s-panel s-feature s-rise"><s-icon name="crown" /><div><h3>Climb the ranks</h3><p>Ranked games move your rating from Bronze III up to Champion. Daily quests and wins fill your purse.</p></div></div>
+        <div class="s-panel s-feature s-rise"><s-icon name="eye" /><div><h3>Watch and replay</h3><p>Take a seat in the stands for any live match, or replay any finished game in 3D.</p></div></div>
+    </section>
+}
+
+<div class="s-grid s-home-grid">
+    @if (profile is not null)
+    {
+        var tier = Ratings.TierOf(profile.Rank);
+        var nextRating = profile.Rating < Ratings.Initial ? Ratings.Initial : profile.Rating - (profile.Rating - Ratings.Initial) % Ratings.PointsPerRank + Ratings.PointsPerRank;
+        <section class="s-panel s-col-4 s-rise" aria-labelledby="profile-title">
+            <div class="s-panel-head"><s-icon name="user" /><h2 id="profile-title">Profile</h2><span class="s-chip s-chip-coin"><s-icon name="coin" /><span class="s-num">@profile.Money</span></span></div>
+            <div class="s-profile-card">
+                <img class="s-portrait-lg" src="/Content/Images/Player/Portraits/@(profile.Type).png" alt="" />
+                <div>
+                    <h2>@profile.Name</h2>
+                    <div class="s-muted s-small">@profile.TypeName</div>
+                    <s-rank rank="@profile.Rank" rating="@profile.Rating" class="mt-2" />
+                </div>
+                <div style="grid-column: 1 / -1">
+                    <div class="d-flex justify-content-between s-small s-muted mb-1"><span>@tier</span><span>Next rank at @nextRating</span></div>
+                    <div class="s-progress" style="--p: @((int)(Ratings.RankProgress(profile.Rating) * 100))%"><span></span></div>
+                </div>
+                <div class="s-profile-stats">
+                    <div class="s-stat"><b>@profile.Games</b><span>Games</span></div>
+                    <div class="s-stat"><b>@profile.Wins</b><span>Wins</span></div>
+                    <div class="s-stat"><b>@(profile.Games == 0 ? "-" : $"{profile.Wins * 100 / profile.Games}%")</b><span>Win rate</span></div>
+                </div>
             </div>
-        }
+        </section>
+    }
 
-        <div class="leaderboard-plugin mb-3">
-            <p class="services-plugin-title">Top Players</p>
-            <table class="table table-sm mb-0">
-                <thead><tr><th>#</th><th>Name</th><th>Rating</th></tr></thead>
-                <tbody>
-                    @foreach (var p in Model.TopPlayers)
-                    {
-                        <tr><td>@p.Position</td><td>@p.Name <span class="text-muted small">@p.Type</span></td><td>@p.Rating</td></tr>
-                    }
-                </tbody>
-            </table>
+    @if (Model.Quests is { } quests)
+    {
+        <section class="s-panel s-col-4 s-rise" aria-labelledby="quests-title">
+            <div class="s-panel-head"><s-icon name="quest" /><h2 id="quests-title">Daily Quests</h2></div>
+            <ul class="s-quests">
+                @foreach (var quest in quests)
+                {
+                    var percent = quest.Progress * 100 / Math.Max(1, quest.Target);
+                    <li class="s-quest @(quest.Done ? "done" : null)">
+                        <span class="s-quest-icon"><s-icon name="@(quest.Done ? "check" : "quest")" /></span>
+                        <span class="s-quest-text">@quest.Text</span>
+                        <span class="s-chip s-chip-coin s-quest-reward"><s-icon name="coin" />@quest.Reward</span>
+                        <div>
+                            <div class="s-progress @(quest.Done ? "s-progress-done" : null)" style="--p: @percent%" role="progressbar" aria-label="@quest.Text" aria-valuenow="@quest.Progress" aria-valuemin="0" aria-valuemax="@quest.Target"><span></span></div>
+                            <span class="s-quest-count s-num">@quest.Progress / @quest.Target</span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    <section class="s-panel s-col-4 s-rise" aria-labelledby="leaders-title">
+        <div class="s-panel-head"><s-icon name="trophy" /><h2 id="leaders-title">Top Players</h2></div>
+        <ol class="s-leaders">
+            @foreach (var p in Model.TopPlayers)
+            {
+                <li class="s-leader">
+                    <span class="s-leader-pos">@p.Position</span>
+                    <s-rank rank="@p.Rank" rating="@p.Rating" compact="true" />
+                    <span class="s-leader-name">@p.Name<small>@p.Type</small></span>
+                    <span class="s-num s-muted">@p.Rating</span>
+                </li>
+            }
+        </ol>
+    </section>
+
+    <section class="s-panel @(profile is null ? "s-col-4" : "s-col-8") s-rise" aria-labelledby="news-title">
+        <div class="s-panel-head"><s-icon name="news" /><h2 id="news-title">News</h2></div>
+        <div id="news-carousel" class="carousel slide mb-3" data-bs-ride="carousel">
+            <div class="carousel-inner rounded-3 overflow-hidden">
+                <div class="carousel-item active"><img src="~/Content/Images/NewsPosts/post1.png" class="d-block w-100" alt="Studies show that Souls is a great game" /></div>
+                <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post2.png" class="d-block w-100" alt="Souls winning game of the year (probably)" /></div>
+                <div class="carousel-item"><img src="~/Content/Images/NewsPosts/post3.png" class="d-block w-100" alt="Spirit wolf coming to Souls" /></div>
+            </div>
         </div>
+        <div class="news-wrapper"></div>
+    </section>
+
+    <div class="s-col-4 s-grid" style="align-content: start">
+        <section class="s-panel s-rise" aria-labelledby="games-title">
+            <div class="s-panel-head"><s-icon name="swords" /><h2 id="games-title">Recent Games</h2></div>
+            <ul id="game-stats-feed" class="s-feed s-scroll"></ul>
+        </section>
+
+        <section class="s-panel s-rise" aria-labelledby="status-title">
+            <div class="s-panel-head"><s-icon name="server" /><h2 id="status-title">Server Status</h2></div>
+            <ul id="services-plugin" class="s-status"></ul>
+        </section>
 
         @if (!string.IsNullOrEmpty(repository))
         {
-            <div class="github-feed mb-3" data-repository="@repository">
-                <p class="github-feed-title">Souls Updates</p>
-                <table id="github-feed" class="table table-sm">
-                    <thead><tr><th>Message</th><th>Committer</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+            <section class="s-panel github-feed s-rise" data-repository="@repository" aria-labelledby="updates-title">
+                <div class="s-panel-head"><s-icon name="sparkles" /><h2 id="updates-title">Souls Updates</h2></div>
+                <ul id="github-feed" class="s-feed s-scroll"></ul>
+            </section>
         }
-
-        <div class="services-plugin">
-            <p class="services-plugin-title">Server Status</p>
-            <table id="services-plugin" class="table table-sm">
-                <thead><tr><th>Service</th><th>Status</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
     </div>
 </div>
 

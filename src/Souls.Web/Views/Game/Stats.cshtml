@@ -1,44 +1,73 @@
+@using Souls.Model
 @model GameStatsViewModel
-<div class="stats-title">Game Summary for #@Model.GameId</div>
-<div class="stats-meta text-center mb-2">
-    @(Model.IsPractice ? "Practice game" : "Ranked game")@(Model.Turns > 0 ? $" \u00b7 {Model.Turns} turns" : "")
+@{
+    static (string Icon, string Css) Kind(string line)
+    {
+        if (line.Contains(" wins against ", StringComparison.Ordinal) || line.Contains(" play a draw", StringComparison.Ordinal)) return ("trophy", "s-tl-end");
+        if (line.Contains(" dies", StringComparison.Ordinal) || line.Contains(" has fallen", StringComparison.Ordinal)) return ("skull", "s-tl-death");
+        if (line.Contains(" attacks ", StringComparison.Ordinal) || line.Contains(" burns ", StringComparison.Ordinal) || line.Contains("curse", StringComparison.Ordinal)) return ("sword", "s-tl-attack");
+        if (line.Contains(" heal", StringComparison.Ordinal) || line.Contains(" drains ", StringComparison.Ordinal) || line.Contains(" blesses ", StringComparison.Ordinal)) return ("heart-pulse", "s-tl-heal");
+        if (line.Contains(" gives the turn ", StringComparison.Ordinal) || line.Contains("ran out of time", StringComparison.Ordinal)) return ("hourglass", "s-tl-turn");
+        if (line.Contains(" plays ", StringComparison.Ordinal) || line.Contains(" summons ", StringComparison.Ordinal)) return ("deck", "s-tl-play");
+        if (line.Contains(" uses ", StringComparison.Ordinal) || line.Contains(" paralyzes ", StringComparison.Ordinal) || line.Contains(" hardens ", StringComparison.Ordinal)) return ("wand", "s-tl-play");
+        if (line.Contains("haunt", StringComparison.OrdinalIgnoreCase)) return ("ghost", "s-tl-death");
+        return ("flag", "");
+    }
+}
+<div class="s-page-head">
+    <div>
+        <div class="s-eyebrow">@(Model.IsPractice ? "Practice game" : "Ranked game")@(Model.Turns > 0 ? $" · {Model.Turns} turns" : "")</div>
+        <h1 class="s-h1 s-gold-text">Game Summary for #@Model.GameId</h1>
+    </div>
     @if (Model.HasReplay)
     {
-        <a class="btn btn-sm btn-dark ms-2" asp-controller="Game" asp-action="Replay" asp-route-id="@Model.GameId">Watch the replay in 3D</a>
+        <a class="s-btn s-btn-primary s-btn-lg" asp-controller="Game" asp-action="Replay" asp-route-id="@Model.GameId"><s-icon name="play" />Watch the replay in 3D</a>
     }
 </div>
 
-<div class="container-fluid stats-battlewindow">
-    <div class="row align-items-center">
+<section class="s-panel s-rise mb-4" aria-label="Result">
+    <div class="s-versus">
         @for (var i = 0; i < Model.Players.Count; i++)
         {
             var player = Model.Players[i];
             var won = !Model.IsDraw && Model.Winner?.Id == player.Id;
+            var state = Model.IsDraw ? "draw" : won ? "won" : "lost";
             if (i == 1)
             {
-                <div class="stats-versus col-lg-2"></div>
+                <div class="s-vs-mark" aria-hidden="true">VS</div>
             }
-            <div class="stats-player-block col-lg-5">
-                <div class="stats-player-name">@player.Name the @(Model.IsDraw ? "Undefeated" : won ? "Victorious" : "Defeated")</div>
-                <div class="stats-player-portrait @(won ? "winner" : "loser")" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).png');"></div>
-                <div class="stats-player-stats">
+            <div class="s-fighter @state">
+                <div class="s-fighter-portrait" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).png');"></div>
+                <span class="s-fighter-result">@(Model.IsDraw ? "Draw" : won ? "Victorious" : "Defeated")</span>
+                <h2>@player.Name the @(Model.IsDraw ? "Undefeated" : won ? "Victorious" : "Defeated")</h2>
+                <div class="s-fighter-meta">
+                    @if (!player.IsSystem)
+                    {
+                        <s-rank rank="@player.Rank" rating="@player.Rating" />
+                    }
                     @if (!Model.IsPractice && Model.RatingChanges[i] != 0)
                     {
-                        <p>Rating: @player.Rating (@(Model.RatingChanges[i] > 0 ? "+" : "")@Model.RatingChanges[i])</p>
+                        var change = Model.RatingChanges[i];
+                        <span class="s-chip @(change > 0 ? "s-chip-up" : "s-chip-down")">Rating: @player.Rating (@(change > 0 ? "+" : "")@change)</span>
                     }
-                    <p>Type: @player.PlayerType?.Name</p>
-                    <p>Attack: @player.PlayerType?.Attack</p>
-                    <p>Health: @player.PlayerType?.Health</p>
+                </div>
+                <div class="s-fighter-meta mt-2">
+                    <span class="s-chip">@player.PlayerType?.Name</span>
+                    <span class="s-chip" title="Attack"><s-icon name="sword" />@player.PlayerType?.Attack</span>
+                    <span class="s-chip" title="Health"><s-icon name="heart" />@player.PlayerType?.Health</span>
                 </div>
             </div>
         }
     </div>
+</section>
 
-    <div class="stats-log-title">Game History</div>
-    <div class="stats-log">
+<section class="s-panel s-rise" aria-labelledby="history-title">
+    <div class="s-panel-head"><s-icon name="list" /><h2 id="history-title">Game History</h2><span class="s-chip">@Model.Log.Count events</span></div>
+    <ol class="s-timeline s-scroll">
         @foreach (var line in Model.Log)
         {
-            <div>@line</div>
+            var (icon, css) = Kind(line);
+            <li class="@css"><span class="s-tl-icon"><s-icon name="@icon" /></span><span>@line</span></li>
         }
-    </div>
-</div>
+    </ol>
+</section>

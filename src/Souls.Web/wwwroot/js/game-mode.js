@@ -85,8 +85,26 @@
     function renderSwitch() {
         var bar = document.createElement('div');
         bar.className = 'game-mode-switch';
-        bar.setAttribute('role', 'group');
-        bar.setAttribute('aria-label', 'Game client');
+
+        // The game page has no site navigation: a way home.
+        var home = document.createElement('a');
+        home.className = 'sg-icon-btn';
+        home.href = '/';
+        home.setAttribute('aria-label', 'Home');
+        home.title = 'Home';
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 's-icon');
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '/img/icons.svg#i-home');
+        svg.appendChild(use);
+        home.appendChild(svg);
+        bar.appendChild(home);
+
+        var seg = document.createElement('div');
+        seg.className = 's-seg';
+        seg.setAttribute('role', 'group');
+        seg.setAttribute('aria-label', 'Game client');
         [['classic', 'Classic'], ['3d', 'Modern 3D']].forEach(function (option) {
             var button = document.createElement('button');
             button.type = 'button';
@@ -99,8 +117,9 @@
                 // Drop ?mode= so the saved choice wins after the reload.
                 window.location.replace(window.location.pathname);
             });
-            bar.appendChild(button);
+            seg.appendChild(button);
         });
+        bar.appendChild(seg);
         document.body.appendChild(bar);
     }
 
@@ -116,6 +135,25 @@
         document.body.appendChild(script);
     }
 
+    /** Removes the boot screen once the client shows its own interface (or after a while, whatever happens). */
+    function dismissBoot() {
+        var boot = document.getElementById('sg-boot');
+        if (!boot) return;
+        var done = function () {
+            boot.classList.add('gone');
+            setTimeout(function () { boot.remove(); }, 600);
+            observer.disconnect();
+        };
+        var ready = function () {
+            return document.querySelector('.sg-root, #game-window canvas') !== null;
+        };
+        var observer = new MutationObserver(function () { if (ready()) done(); });
+        observer.observe(document.body, { childList: true, subtree: true });
+        setTimeout(done, 30000);
+        if (ready()) done();
+    }
+
     if (!spectatorPage()) renderSwitch();
+    dismissBoot();
     loadClient();
 })();

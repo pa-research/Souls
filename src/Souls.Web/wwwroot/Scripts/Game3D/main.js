@@ -46,7 +46,7 @@ async function main() {
     }
 
     const stage = new Stage(host);
-    const ui = new UI(host);
+    const ui = new UI(host, config);
     const effects = new Effects(stage);
     const arena = new Arena(stage.scene, stage.quality);
     const crowd = new CrowdAudio();
@@ -90,7 +90,7 @@ async function main() {
     let choice;
     if (config.replayUrl) {
         choice = { mode: 'replay' };
-    } else if (config.watch) {
+    } else if (config.watch || new URLSearchParams(location.search).get('live')) {
         choice = { mode: 'watch' };
     } else if (resume) {
         choice = { mode: resume.normal ? 'normal' : 'practice', difficulty: ui.difficulty };
@@ -145,6 +145,8 @@ function exposeTestHooks(stage, game, ui) {
             ident: game.ident,
         }),
         sync: () => game.lastSync,
+        // The interface object, so tests can render states that take long to reach (end screens).
+        ui,
         log: () => ui.logLines(),
         power: () => {
             const r = ui.power.getBoundingClientRect();
@@ -152,7 +154,7 @@ function exposeTestHooks(stage, game, ui) {
             return ui.power.hidden ? null : { x: r.left + r.width / 2 - host.left, y: r.top + r.height / 2 - host.top, disabled: ui.power.disabled };
         },
         tooltip: () => (ui.tooltip.hidden ? null : ui.tooltip.textContent),
-        timer: () => (ui.timer.hidden ? null : ui.timerText.textContent),
+        timer: () => (ui.timer.hidden ? null : ui.timerLeft),
         // The visible strip of a hand card (the next card covers the rest of it, as in the classic client).
         handCard: index => {
             const last = index === game.player.hand.size - 1;

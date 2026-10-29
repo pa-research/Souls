@@ -1,49 +1,28 @@
-/* Classic / Modern 3D switch (shown by /js/game-mode.js in both clients). */
+/*
+ * The game page: the Classic / Modern 3D switch (both clients) and the placement of the 3D client's interface.
+ * The look of the interface comes from theme.css and game-hud.css.
+ */
+
+/* ---- Client switch and home button (shown by /js/game-mode.js in both clients) ------------------------------- */
+
 .game-mode-switch {
     position: fixed;
-    top: 10px;
-    right: 10px;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
     z-index: 2000;
     display: flex;
-    border-radius: 999px;
-    overflow: hidden;
-    background: rgba(10, 12, 18, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-    font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    align-items: center;
+    gap: 8px;
 }
 
-.game-mode-switch button {
-    border: 0;
-    background: transparent;
-    color: #e8e8e8;
-    padding: 8px 14px;
-    cursor: pointer;
-}
+.game-mode-switch .s-seg { box-shadow: var(--s-shadow-sm); backdrop-filter: blur(6px); }
+.game-mode-switch .sg-icon-btn { width: 38px; height: 38px; }
 
-.game-mode-switch button:hover {
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.game-mode-switch button.active {
-    background: #c0392b;
-    color: #fff;
-    cursor: default;
-}
-
-.game-mode-switch button:focus-visible {
-    outline: 2px solid #f1c40f;
-    outline-offset: -2px;
-}
-
-/* ---- 3D client ------------------------------------------------------------------------------------------------ */
+/* ---- 3D client ---------------------------------------------------------------------------------------------- */
 
 #souls3d {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     overflow: hidden;
     background: #120d08;
     user-select: none;
@@ -57,695 +36,236 @@
     height: 100%;
 }
 
-.souls3d-ui {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #fff;
-}
-
-.souls3d-ui button,
-.souls3d-ui textarea,
-.souls3d-chat {
-    pointer-events: auto;
-}
-
-.souls3d-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.7) 100%);
-    transition: opacity 2.5s linear 2s;
-    pointer-events: auto;
-}
-
-.souls3d-overlay.fading {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.souls3d-logo {
-    width: min(560px, 60vw);
-    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.7));
-}
-
-.souls3d-status {
-    font-size: clamp(28px, 5vw, 64px);
-    font-weight: bold;
-    text-shadow: 0 0 4px #000, 3px 3px 0 #000;
-    min-height: 1.2em;
-    text-align: center;
-}
-
-.souls3d-progress {
-    width: min(420px, 70vw);
-    height: 10px;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.15);
-    overflow: hidden;
-}
-
-.souls3d-progress > div {
-    width: 0;
-    height: 100%;
-    background: linear-gradient(90deg, #c0392b, #f1c40f);
-    transition: width 0.2s;
-}
-
-.souls3d-menu {
-    display: flex;
-    gap: clamp(24px, 8vw, 160px);
-    align-items: center;
-}
-
-.souls3d-views[hidden],
-.souls3d-chat[hidden],
-.souls3d-log[hidden],
-.souls3d-timer[hidden],
-.souls3d-power[hidden],
-.souls3d-tooltip[hidden],
-.souls3d-banner[hidden],
-.souls3d-menu[hidden],
-.souls3d-progress[hidden],
-.souls3d-overlay[hidden],
-.souls3d-end[hidden],
-.souls3d-turn[hidden] {
-    display: none;
-}
-
-.souls3d-menu-button {
-    border: 0;
-    padding: 0;
-    background: none;
-    cursor: pointer;
-    transition: transform 0.15s;
-}
-
-.souls3d-menu-button:hover,
-.souls3d-menu-button:focus-visible {
-    transform: scale(1.06);
-}
-
-.souls3d-menu-button img {
-    width: clamp(160px, 18vw, 260px);
-    display: block;
-    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6));
-}
-
-.souls3d-flash {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: clamp(32px, 5vw, 70px);
-    text-align: center;
-    white-space: nowrap;
-    -webkit-text-stroke: 2px #000;
-    text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
-    opacity: 0;
-}
-
-.souls3d-flash.show {
-    animation: souls3d-flash 2s linear;
-}
-
-@keyframes souls3d-flash {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
-    25% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    75% { opacity: 1; }
-    100% { opacity: 0; }
-}
-
-.souls3d-turn {
-    position: absolute;
-    top: 56px;
-    right: 10px;
-    padding: 6px 18px;
-    border-radius: 999px;
-    background: rgba(10, 12, 18, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    font-size: 15px;
-    font-weight: bold;
-    letter-spacing: 0.04em;
-}
-
-.souls3d-turn.mine {
-    background: rgba(46, 125, 50, 0.85);
-}
-
-.souls3d-end {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0);
-    animation: souls3d-end-bg 5s linear forwards;
-    pointer-events: auto;
-}
-
-.souls3d-end-text {
-    font-size: clamp(64px, 12vw, 180px);
-    font-weight: bold;
-    font-style: italic;
-    -webkit-text-stroke: 4px #000;
-    text-shadow: 6px 6px 0 rgba(0, 0, 0, 0.6);
-    animation: souls3d-end-text 7.5s ease-in-out forwards;
-}
-
-.souls3d-end.victory .souls3d-end-text { color: #f1c40f; }
-.souls3d-end.defeat .souls3d-end-text { color: #e74c3c; }
-.souls3d-end.draw .souls3d-end-text { color: #ecf0f1; }
-
-.souls3d-end-hint {
-    margin-top: 16px;
-    font-size: 18px;
-    opacity: 0.8;
-}
-
-@keyframes souls3d-end-bg {
-    to { background: rgba(0, 0, 0, 0.75); }
-}
-
-@keyframes souls3d-end-text {
-    0% { opacity: 0; transform: scale(0.6); }
-    15% { opacity: 1; transform: scale(1); }
-    35% { transform: scale(1.25); }
-    50% { transform: scale(1); }
-    65% { transform: scale(1.25); }
-    80% { transform: scale(1); }
-    100% { transform: scale(1); }
-}
-
-.souls3d-audio {
-    position: absolute;
-    right: 14px;
-    bottom: 14px;
-    width: 64px;
-    height: 40px;
-    border: 0;
-    padding: 0;
-    background: none;
-    cursor: pointer;
-    opacity: 0.8;
-}
-
-.souls3d-audio:hover { opacity: 1; }
-
-.souls3d-audio img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.souls3d-chat {
-    position: absolute;
-    right: 14px;
-    bottom: 64px;
-    width: min(360px, calc(100vw - 28px));
-    display: flex;
-    flex-direction: column;
-    border-radius: 10px;
-    overflow: hidden;
-    background: rgba(10, 12, 18, 0.78);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-    opacity: 0.55;
-    transition: opacity 0.2s;
-}
-
-.souls3d-chat:hover,
-.souls3d-chat:focus-within {
-    opacity: 1;
-}
-
-.souls3d-chat-header {
-    border: 0;
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    text-align: left;
-    padding: 7px 12px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.souls3d-chat-badge {
-    float: right;
-    color: #f1c40f;
-}
-
-.souls3d-chat-body {
-    display: flex;
-    height: 170px;
-}
-
-.souls3d-chat-log {
-    flex: 1;
-    overflow-y: auto;
-    padding: 6px 10px;
-    font-size: 13px;
-    line-height: 1.35;
-    word-break: break-word;
-}
-
-.souls3d-chat-members {
-    width: 30%;
-    border-left: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 6px 8px;
-    font-size: 12px;
-    color: #bbb;
-    overflow-y: auto;
-}
-
-.souls3d-chat textarea.souls3d-chat-input {
-    border: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0;
-    background: rgba(0, 0, 0, 0.35);
-    color: #fff;
-    resize: none;
-    font-size: 13px;
-}
-
-.souls3d-chat.collapsed .souls3d-chat-body,
-.souls3d-chat.collapsed .souls3d-chat-input {
-    display: none;
-}
+.souls3d-ui .sg-layer { z-index: 30; }
+.souls3d-end { z-index: 35; }
 
 .souls3d-unsupported {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
     padding: 24px;
-    color: #fff;
-    font: 18px Arial, sans-serif;
+    color: var(--s-text);
+    font: 18px/1.5 var(--s-font-body);
     text-align: center;
 }
 
+/* Camera views and settings: top left. */
 .souls3d-views {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 10px;
-    background: rgba(10, 12, 18, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    pointer-events: auto;
-    font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-.souls3d-views button {
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: #e8e8e8;
-    padding: 7px 10px;
-    cursor: pointer;
-}
-
-.souls3d-views button:hover { background: rgba(255, 255, 255, 0.12); }
-.souls3d-views button.active { background: #c0392b; color: #fff; }
-
-.souls3d-views kbd {
-    display: inline-block;
-    min-width: 16px;
-    padding: 1px 4px;
-    margin-right: 2px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.15);
-    color: inherit;
-    font: inherit;
-    font-size: 11px;
-    box-shadow: none;
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 20;
 }
 
 .souls3d-views-hint {
-    padding: 0 8px;
-    color: #aab;
-    font-weight: 400;
-    font-size: 12px;
+    animation: souls3d-hint 10s ease-in forwards;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(8, 6, 12, 0.6);
+    color: var(--s-muted);
+    font-size: 0.74rem;
+    pointer-events: none;
 }
 
-@media (max-width: 700px) {
-    .souls3d-views-hint { display: none; }
+.souls3d-settings {
+    top: 66px;
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 25;
+    animation: s-rise-in 0.25s var(--s-ease) both;
 }
 
-/* Pre-fight "VS" splash */
+/* Battle log: on the left between the two hands. */
+.souls3d-log {
+    left: max(12px, env(safe-area-inset-left));
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 15;
+}
+
+/* Elements that follow the 3D scene: positioned every frame with transforms. */
+.souls3d-status,
+#souls3d .sg-power,
+#souls3d .sg-fuse {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 12;
+}
+
+.souls3d-status { white-space: nowrap; }
+
+/* Spectator bar and replay transport. */
+.souls3d-banner {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    max-width: calc(100vw - 440px);
+}
+
+.souls3d-replay {
+    position: absolute;
+    left: 50%;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 8px 12px;
+}
+
+.souls3d-live { animation: s-rise-in 0.4s var(--s-ease) both; }
+
+/* Chat: bottom right, collapsed to its header. */
+.souls3d-chat {
+    position: absolute;
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 15;
+    width: min(340px, calc(100vw - 28px));
+    border: 1px solid var(--s-line);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(26, 21, 32, 0.92), rgba(10, 8, 14, 0.92));
+    box-shadow: var(--s-shadow);
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+    color: var(--s-text);
+}
+
+.souls3d-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    background: linear-gradient(180deg, rgba(60, 46, 30, 0.6), rgba(30, 24, 36, 0.4));
+    color: var(--s-gold-1);
+    font: 700 0.78rem/1 var(--s-font-display);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.souls3d-chat-header .s-icon { color: var(--s-gold-2); }
+.souls3d-chat-badge:empty { display: none; }
+.souls3d-chat-badge { margin-left: auto; padding: 1px 7px; border-radius: 999px; background: var(--s-ember); color: #fff; font-size: 0.68rem; letter-spacing: 0; }
+
+.souls3d-chat-body { display: grid; grid-template-columns: 1fr 96px; height: 150px; }
+.souls3d-chat-log { padding: 8px 10px; overflow-y: auto; font-size: 0.82rem; line-height: 1.4; overflow-wrap: anywhere; }
+.souls3d-chat-members { padding: 8px; border-left: 1px solid var(--s-line-soft); overflow-y: auto; font-size: 0.75rem; color: var(--s-muted); }
+
+.souls3d-chat textarea.souls3d-chat-input {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    padding: 8px 10px;
+    border: 0;
+    border-top: 1px solid var(--s-line-soft);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.45);
+    color: var(--s-text);
+    font: 0.85rem var(--s-font-body);
+    resize: none;
+    outline: none;
+}
+
+.souls3d-chat.collapsed .souls3d-chat-body,
+.souls3d-chat.collapsed .souls3d-chat-input { display: none; }
+
+/* ---- Pre-fight "VS" splash ---------------------------------------------------------------------------------- */
+
 .souls3d-versus {
     position: absolute;
     inset: 0;
+    z-index: 32;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: clamp(12px, 4vw, 60px);
-    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.75));
-    animation: souls3d-fade-in 0.3s ease-out;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.8));
+    animation: s-fade-in 0.3s ease-out;
     pointer-events: none;
 }
 
-.souls3d-versus.leaving {
-    animation: souls3d-fade-out 0.7s ease-in forwards;
-}
-
-.souls3d-versus-side {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
+.souls3d-versus.leaving { animation: souls3d-fade-out 0.7s ease-in forwards; }
+.souls3d-versus-side { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
 .souls3d-versus-side img {
     width: clamp(110px, 22vw, 300px);
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: 50%;
-    border: 6px solid #c98a3d;
-    box-shadow: 0 0 40px rgba(255, 140, 40, 0.65), 0 10px 30px rgba(0, 0, 0, 0.8);
+    border: 6px solid var(--s-gold-2);
+    box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 10px 30px rgba(0, 0, 0, 0.8);
 }
 
 .souls3d-versus-side.left { animation: souls3d-slide-left 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
 .souls3d-versus-side.right { animation: souls3d-slide-right 0.7s cubic-bezier(0.2, 1.4, 0.4, 1); }
-.souls3d-versus-side.left img { border-color: #3498db; box-shadow: 0 0 40px rgba(52, 152, 219, 0.8), 0 10px 30px rgba(0, 0, 0, 0.8); }
-.souls3d-versus-side.right img { border-color: #e74c3c; box-shadow: 0 0 40px rgba(231, 76, 60, 0.8), 0 10px 30px rgba(0, 0, 0, 0.8); }
+.souls3d-versus-side.left img { border-color: #4a9be0; box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 0 50px rgba(74, 155, 224, 0.75); }
+.souls3d-versus-side.right img { border-color: #e0314b; box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.6), 0 0 50px rgba(224, 49, 75, 0.75); }
 
 .souls3d-versus-name {
     max-width: 26vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font: bold clamp(18px, 2.6vw, 34px) Arial, Helvetica, sans-serif;
-    text-shadow: 0 0 6px #000, 2px 2px 0 #000;
+    font: 800 clamp(18px, 2.6vw, 34px) var(--s-font-display);
+    letter-spacing: 0.06em;
+    color: var(--s-gold-1);
+    text-shadow: 0 0 8px #000, 2px 2px 0 #000;
 }
 
 .souls3d-versus-mark {
-    font: italic 900 clamp(64px, 12vw, 180px) "Arial Black", Impact, sans-serif;
+    font: 900 clamp(64px, 12vw, 180px) var(--s-font-title);
     color: #ffd400;
     -webkit-text-stroke: 4px #4a0d00;
     text-shadow: 0 0 30px #ff6a00, 0 0 60px #ff2a00, 6px 6px 0 #000;
     animation: souls3d-vs 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) 0.35s both, souls3d-flicker 0.18s linear 1.2s 8 alternate;
 }
 
-@keyframes souls3d-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes souls3d-fade-out { to { opacity: 0; transform: scale(1.08); } }
+@keyframes souls3d-hint { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 @keyframes souls3d-slide-left { from { transform: translateX(-60vw) rotate(-20deg); } to { transform: none; } }
 @keyframes souls3d-slide-right { from { transform: translateX(60vw) rotate(20deg); } to { transform: none; } }
 @keyframes souls3d-vs { from { opacity: 0; transform: scale(4) rotate(-12deg); } to { opacity: 1; transform: none; } }
 @keyframes souls3d-flicker { to { text-shadow: 0 0 45px #ffb300, 0 0 90px #ff4000, 6px 6px 0 #000; } }
 
-/* Touch screens: bigger targets, more room for the arena. */
+/* ---- Small and touch screens -------------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+    .souls3d-views-hint { display: none; }
+}
+
 @media (pointer: coarse) {
-    .souls3d-views button { padding: 9px 12px; }
-    .souls3d-chat { width: min(300px, calc(100vw - 28px)); }
-    .souls3d-chat-body { height: 130px; }
+    .souls3d-views .s-seg > button { padding: 9px 12px; }
+}
+
+@media (max-width: 700px), (max-height: 500px) {
+    .souls3d-views .s-seg kbd { display: none; }
+    .souls3d-log { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(260px, calc(100vw - 20px)); }
+    .souls3d-chat { width: min(260px, calc(100vw - 20px)); }
+    .souls3d-chat-body { height: 110px; grid-template-columns: 1fr; }
+    .souls3d-chat-members { display: none; }
+    .souls3d-banner { max-width: calc(100vw - 24px); top: auto; bottom: 70px; }
+    #souls3d .sg-power-orb { width: 54px; height: 54px; }
+    #souls3d .sg-power-name { display: none; }
+    .souls3d-status { font-size: 0.72rem; padding: 4px 8px; }
+}
+
+@media (max-height: 560px), (max-width: 760px) {
+    /* Full-screen layers start below the client switch in the top right corner. */
+    .souls3d-ui .sg-layer { padding-top: max(60px, env(safe-area-inset-top)); }
 }
 
 @media (max-height: 500px) {
-    .souls3d-chat { bottom: 52px; }
-    .souls3d-turn { top: 50px; }
-    .souls3d-views-hint { display: none; }
     /* Short landscape screens: the camera buttons go to the middle of the left edge, clear of both hands. */
     .souls3d-views {
         top: 50%;
         transform: translateY(-50%);
         flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
     }
-}
-
-/* Menu: practice difficulty and spectating */
-.souls3d-menu-extras {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    margin-top: 6px;
-}
-
-.souls3d-difficulty {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px;
-    background: rgba(0, 0, 0, 0.55);
-    border-radius: 8px;
-}
-
-.souls3d-difficulty-label {
-    padding: 0 6px;
-    color: #ccc;
-    font: 14px Arial, Helvetica, sans-serif;
-}
-
-.souls3d-difficulty button,
-.souls3d-watch-button,
-.souls3d-live button,
-.souls3d-banner button,
-.souls3d-replay button,
-.souls3d-end-links a {
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 6px;
-    background: rgba(20, 20, 20, 0.75);
-    color: #eee;
-    font: 14px Arial, Helvetica, sans-serif;
-    padding: 6px 12px;
-    cursor: pointer;
-    text-decoration: none;
-}
-
-.souls3d-difficulty button.active,
-.souls3d-replay button.active { background: #c0392b; border-color: #e74c3c; color: #fff; }
-.souls3d-difficulty button:hover,
-.souls3d-watch-button:hover,
-.souls3d-live button:hover,
-.souls3d-banner button:hover,
-.souls3d-replay button:hover,
-.souls3d-end-links a:hover { background: rgba(255, 255, 255, 0.15); }
-
-/* Live games */
-.souls3d-live {
-    width: min(560px, calc(100vw - 32px));
-    max-height: 70vh;
-    overflow: auto;
-    padding: 16px 20px;
-    background: rgba(10, 10, 10, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-    color: #eee;
-    pointer-events: auto;
-}
-
-.souls3d-live h2 { margin: 0 0 10px; font: bold 22px Arial, Helvetica, sans-serif; }
-.souls3d-live ul { list-style: none; margin: 0; padding: 0; }
-.souls3d-live li {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2px 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.souls3d-live li button { grid-row: span 2; align-self: center; }
-.souls3d-live-names { font-weight: bold; overflow-wrap: anywhere; }
-.souls3d-live-meta { font-size: 13px; color: #aaa; }
-.souls3d-live-empty { color: #bbb; }
-.souls3d-live-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
-
-/* Turn timer: a burning rope under the End Turn sign */
-.souls3d-timer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: clamp(110px, 12vw, 190px);
-    height: 18px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 2px solid #5c3d1e;
-    border-radius: 9px;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.souls3d-timer-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #8a5a2b, #d9a35b);
-    transition: width 0.25s linear;
-}
-
-.souls3d-timer:not(.mine) .souls3d-timer-bar { background: linear-gradient(90deg, #4b5563, #9ca3af); }
-.souls3d-timer.urgent .souls3d-timer-bar { background: linear-gradient(90deg, #7f1d1d, #ff6a00); animation: souls3d-burn 0.4s linear infinite alternate; }
-.souls3d-timer.urgent { border-color: #ff6a00; box-shadow: 0 0 14px rgba(255, 106, 0, 0.8); }
-
-.souls3d-timer-text {
-    position: absolute;
-    inset: 0;
-    text-align: center;
-    font: bold 13px/18px Arial, Helvetica, sans-serif;
-    color: #fff;
-    text-shadow: 0 0 3px #000, 1px 1px 0 #000;
-}
-
-@keyframes souls3d-burn { to { filter: brightness(1.5); } }
-
-/* Hero power */
-.souls3d-power {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px 6px 6px;
-    border: 2px solid #7c5a2e;
-    border-radius: 999px;
-    background: radial-gradient(circle at 30% 30%, #4a3520, #1d140b);
-    color: #f5e6c8;
-    font: bold 14px Arial, Helvetica, sans-serif;
-    cursor: pointer;
-    pointer-events: auto;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-    touch-action: manipulation;
-}
-
-.souls3d-power-cost {
-    display: inline-flex;
-    width: 26px;
-    height: 26px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #8fd3ff, #1d5f99);
-    color: #fff;
-    text-shadow: 0 0 2px #000;
-}
-
-.souls3d-power.ready { border-color: #2ecc71; box-shadow: 0 0 16px rgba(46, 204, 113, 0.75), 0 4px 12px rgba(0, 0, 0, 0.6); }
-.souls3d-power.armed { border-color: #ffd34d; box-shadow: 0 0 22px rgba(255, 211, 77, 0.95); }
-.souls3d-power:disabled { cursor: default; filter: grayscale(0.8) brightness(0.7); }
-.souls3d-power.used .souls3d-power-name { text-decoration: line-through; }
-
-/* Tooltips */
-.souls3d-tooltip {
-    position: absolute;
-    left: 0;
-    top: 0;
-    z-index: 5;
-    max-width: 280px;
-    padding: 8px 10px;
-    background: rgba(12, 10, 8, 0.94);
-    border: 1px solid #a07a45;
-    border-radius: 8px;
-    color: #eee;
-    font: 13px/1.35 Arial, Helvetica, sans-serif;
-    pointer-events: none;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
-}
-
-.souls3d-tooltip-title { margin-bottom: 4px; font-weight: bold; font-size: 15px; color: #ffd98a; }
-.souls3d-tooltip-line + .souls3d-tooltip-line { margin-top: 3px; }
-
-/* Battle log: on the left between the two hands */
-.souls3d-log {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: min(320px, calc(100vw - 28px));
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    color: #ddd;
-    font: 13px/1.35 Arial, Helvetica, sans-serif;
-    pointer-events: auto;
-}
-
-.souls3d-log-header {
-    width: 100%;
-    padding: 6px 10px;
-    border: 0;
-    background: transparent;
-    color: #ffd98a;
-    font: bold 13px Arial, Helvetica, sans-serif;
-    text-align: left;
-    cursor: pointer;
-}
-
-.souls3d-log-list {
-    max-height: 22vh;
-    margin: 0;
-    padding: 0 10px 8px 26px;
-    overflow-y: auto;
-}
-
-.souls3d-log.collapsed .souls3d-log-list { display: none; }
-.souls3d-log li { padding: 1px 0; }
-
-/* Spectating and replays */
-.souls3d-banner {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    max-width: calc(100vw - 260px);
-    padding: 6px 8px 6px 14px;
-    background: rgba(0, 0, 0, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 999px;
-    color: #fff;
-    font: bold 14px Arial, Helvetica, sans-serif;
-    pointer-events: auto;
-}
-
-.souls3d-banner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.souls3d-replay {
-    position: absolute;
-    left: 50%;
-    bottom: 14px;
-    transform: translateX(-50%);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px;
-    background: rgba(0, 0, 0, 0.7);
-    border-radius: 10px;
-    pointer-events: auto;
-}
-
-.souls3d-replay-progress { width: 140px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; overflow: hidden; }
-.souls3d-replay-progress div { height: 100%; width: 0; background: #e74c3c; }
-
-/* End screen rewards */
-.souls3d-end-hint { display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 1; }
-.souls3d-end-detail { font-size: 20px; }
-.souls3d-rewards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.souls3d-reward { padding: 6px 12px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font: bold 18px Arial, Helvetica, sans-serif; }
-.souls3d-reward.coins { color: #ffd34d; }
-.souls3d-reward.rating.up { color: #2ecc71; }
-.souls3d-reward.rating.down { color: #e74c3c; }
-.souls3d-quests { list-style: none; margin: 0; padding: 0; min-width: min(420px, 90vw); }
-.souls3d-quests li { display: flex; justify-content: space-between; gap: 16px; padding: 4px 10px; background: rgba(0, 0, 0, 0.45); border-radius: 4px; margin-top: 4px; font-size: 15px; }
-.souls3d-quests li.done { color: #2ecc71; }
-.souls3d-quest-progress { color: #bbb; white-space: nowrap; }
-.souls3d-end-links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-
-@media (max-height: 500px), (max-width: 700px) {
-    .souls3d-log { top: 10px; left: 50%; transform: translateX(-50%); width: min(240px, calc(100vw - 20px)); }
-    .souls3d-log-list { max-height: 30vh; }
-    .souls3d-banner { max-width: calc(100vw - 20px); top: auto; bottom: 64px; }
+    .souls3d-views .s-seg { flex-direction: column; border-radius: 14px; }
+    .souls3d-settings { top: 12px; left: 64px; }
 }

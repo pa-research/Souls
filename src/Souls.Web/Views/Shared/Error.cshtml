@@ -1,30 +1,21 @@
 @{
     ViewData["Title"] = "Error";
     var status = ViewData["StatusCode"] as int?;
+    var (title, text) = status switch
+    {
+        404 => ("Lost in the arena", "The page you are looking for does not exist."),
+        429 => ("Slow down", "Too many requests. Please wait a minute and try again."),
+        >= 400 and < 500 => ($"Request failed", $"The request could not be completed ({status})."),
+        _ => ("Something broke", "An error occurred while processing your request."),
+    };
 }
-<div class="text-center py-5">
-    @if (status == 404)
+<section class="s-panel s-error s-rise">
+    <div class="s-title s-gold-text">@(status?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "500")</div>
+    <h1 class="s-h2">@title</h1>
+    <p class="s-muted">@text</p>
+    @if (status is null or >= 500 && ViewData["RequestId"] is string requestId)
     {
-        <h1>Not found</h1>
-        <p>The page you are looking for does not exist.</p>
+        <p class="s-muted s-small">Request id: <code>@requestId</code></p>
     }
-    else if (status == 429)
-    {
-        <h1>Slow down</h1>
-        <p>Too many requests. Please wait a minute and try again.</p>
-    }
-    else if (status is >= 400 and < 500)
-    {
-        <h1>Request failed (@status)</h1>
-    }
-    else
-    {
-        <h1>Error</h1>
-        <p>An error occurred while processing your request.</p>
-        @if (ViewData["RequestId"] is string requestId)
-        {
-            <p class="text-muted small">Request id: <code>@requestId</code></p>
-        }
-    }
-    <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Back to the home page</a>
-</div>
+    <a asp-controller="Home" asp-action="Index" class="s-btn s-btn-gold mt-2"><s-icon name="home" />Back to the home page</a>
+</section>

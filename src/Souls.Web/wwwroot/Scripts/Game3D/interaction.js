@@ -285,7 +285,7 @@ export class Interaction {
         this.mode = 'power';
         this.powerTargets = this.game.candidates(power.targets);
         this.game.ui.setPowerArmed(true);
-        this.game.ui.screenMessage(`${power.name}: pick a target`);
+        this.game.ui.screenMessage(`${power.name}: pick a target`, false);
         this.target = null;
         if (this.ndc) this.updatePowerArrow();
     }

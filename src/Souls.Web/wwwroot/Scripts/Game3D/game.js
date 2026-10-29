@@ -144,6 +144,11 @@ export class Game {
         stage.onResize(() => this.layout(false));
         this.layout(false);
         ui.onPower = () => this.onPowerButton();
+        if (!this.spectator) {
+            ui.onLeave = () => {
+                if (!this.active || window.confirm('Leave the game? You lose it if you do not come back within a minute.')) window.location.href = '/Game';
+            };
+        }
 
         if (mode !== 'replay') {
             const wsBase = config.wsBase.startsWith('/')
@@ -162,7 +167,7 @@ export class Game {
             this.playReplay();
             return;
         }
-        this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting...');
+        this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
         this.gameSocket.connect();
         if (!this.spectator) this.chatSocket.connect();
         this.login();
@@ -182,7 +187,7 @@ export class Game {
 
     spectate(gameId) {
         this.watchId = gameId;
-        this.ui.showQueue('Joining the game...');
+        this.ui.showQueue('Joining the game...', 'watch');
         this.gameSocket.send(Request.SPECTATE, { gameId });
     }
 
@@ -340,22 +345,21 @@ export class Game {
 
     // ---- Rules text (tooltips) ------------------------------------------------------------------------------------
 
-    /** Tooltip content for a card or hero: {title, lines}. */
+    /** Tooltip content for a card or hero (see UI.showTooltip). */
     describe(obj) {
         const r = this.rules;
         if (obj instanceof Hero3D) {
             const info = obj.info;
             const type = r.heroTypes[info.type];
             const power = r.heroPowers[info.type];
-            const health = info.maxHealth && Number(info.health) < Number(info.maxHealth) ? `${info.health}/${info.maxHealth}` : info.health;
             return {
                 title: String(info.name ?? ''),
-                lines: [
-                    `${type ? type.name + ' · ' : ''}Attack ${info.attack} · Health ${health}${Number(info.armor) > 0 ? ` · Armor ${info.armor}` : ''}`,
-                    power ? `Hero power, ${power.name} (${power.cost} mana): ${power.text}` : null,
-                    type && type.mana ? `+${type.mana} mana every turn.` : null,
-                    info.rating ? `Rating ${info.rating}` : null,
-                    Number(info.armor) > 0 ? r.keywords.armor : null,
+                sub: [type && type.name, info.rating ? `Rating ${info.rating}` : null].filter(Boolean).join(' \u00b7 '),
+                stats: { attack: info.attack, health: info.health, maxHealth: info.maxHealth, armor: info.armor },
+                blocks: [
+                    power ? { label: 'Hero power', text: `${power.name} (${power.cost} mana): ${power.text}` } : null,
+                    type && type.mana ? { kind: 'info', text: `+${type.mana} mana every turn.` } : null,
+                    Number(info.armor) > 0 ? { kind: 'info', text: r.keywords.armor } : null,
                 ],
             };
         }
@@ -366,19 +370,18 @@ export class Game {
         const race = d.race && r.races[d.race.id];
         const side = this.sideOf(obj);
         const onBoard = side.board.get(obj.cid) === obj;
-        const health = d.maxHealth !== undefined && Number(d.health) < Number(d.maxHealth) ? `${d.health}/${d.maxHealth}` : d.health;
         const exhausted = onBoard && side.isPlayer && this.yourTurn && !obj.ready && !d.paralyzed;
         return {
-            title: `${d.name}${level > 1 ? ' ' + '★'.repeat(level - 1) : ''}`,
-            lines: [
-                `Cost ${d.cost} · Attack ${d.attack} · Health ${health}${Number(d.armor) > 0 ? ` · Armor ${d.armor}` : ''}`,
-                ability ? `${ability.name}: ${ability.text}` : null,
-                race ? `${race.name}. ${race.text}` : null,
-                d.paralyzed ? r.keywords.paralyzed : null,
-                exhausted ? 'Exhausted: it already acted this turn, or arrived this turn.' : null,
-                !onBoard && side.isPlayer && !ability?.activated && ability?.name !== 'Charge' ? r.keywords.summoningSick : null,
-                d.token ? 'Token: summoned, not part of any deck.' : null,
-                level > 1 ? `Level ${level}: +${level - 1} attack and health.` : null,
+            title: `${d.name}${level > 1 ? ' ' + '\u2605'.repeat(level - 1) : ''}`,
+            sub: [race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            stats: { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
+            blocks: [
+                ability ? { label: ability.name, text: ability.text } : null,
+                race ? { kind: 'race', label: race.name, text: race.text } : null,
+                d.paralyzed ? { kind: 'warn', text: r.keywords.paralyzed } : null,
+                exhausted ? { kind: 'warn', text: 'Exhausted: it already acted this turn, or arrived this turn.' } : null,
+                !onBoard && side.isPlayer && !ability?.activated && ability?.name !== 'Charge' ? { kind: 'info', text: r.keywords.summoningSick } : null,
+                level > 1 ? { kind: 'info', text: `Level ${level}: +${level - 1} attack and health.` } : null,
             ],
         };
     }
@@ -631,9 +634,10 @@ export class Game {
         this.addHandCards(this.player, playerHand, { deal: true });
         this.addHandCards(this.opponent, p.opponent.hand || [], { deal: true });
 
+        this.ui.setNames(String(p.player.info.name ?? ''), String(p.opponent.info.name ?? ''));
         if (spectating) {
             const names = `${p.player.info.name} vs ${p.opponent.info.name}`;
-            this.ui.showSpectating(this.mode === 'replay' ? `Replay: ${names}` : `Watching ${names}`, () => this.leave());
+            this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' });
         } else if (p.ident === 1 && p.create) {
             // The first player creates the game's chat room.
             this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
@@ -660,6 +664,18 @@ export class Game {
             this.ui.setTurn(this.current === 1, `${name}'s turn`);
         } else {
             this.ui.setTurn(this.yourTurn);
+        }
+    }
+
+    /** The big banner when a turn starts. */
+    turnBanner() {
+        const turn = this.lastSync ? this.lastSync.turn + 1 : null;
+        if (this.spectator) {
+            if (this.current) this.ui.banner(`${this.heroOf(this.current).info.name}`, { sub: turn ? `Turn ${turn}` : null, enemy: this.current !== 1 });
+        } else if (this.yourTurn) {
+            this.ui.banner('Your turn', { sub: turn ? `Turn ${turn}` : null });
+        } else {
+            this.ui.banner('Enemy turn', { enemy: true });
         }
     }
 
@@ -734,10 +750,10 @@ export class Game {
         if (p.turnEndsIn) this.ui.setTimer(performance.now() + p.turnEndsIn, p.turnEndsIn, this.yourTurn);
         if (this.yourTurn) {
             this.sign.spin().then(() => this.sign.setActive(true));
-            this.ui.screenMessage('Your turn!');
         } else {
             this.sign.setActive(false);
         }
+        this.bannerPending = true;
         return wait(200);
     }
 
@@ -758,15 +774,25 @@ export class Game {
                     const power = this.heroPower;
                     this.ui.setPower(power && !this.ended ? {
                         ...power,
+                        type: Number(this.player.hero.info.type),
                         canUse: !!info.canUsePower && this.yourTurn,
                         used: !!info.heroPowerUsed,
                     } : null);
+                }
+                if (!this.ended) {
+                    this.ui.setStatus3d(side.isPlayer ? 'player' : 'opponent', {
+                        mana: info.mana, maxMana: info.maxMana, deck: info.deck, hand: info.hand, fatigue: info.fatigue,
+                    });
                 }
             }
             this.reconcileBoard(side, (s.board && s.board[ident]) || [], ident);
         }
         if (typeof s.turnEndsIn === 'number' && !this.ended) {
-            this.ui.setTimer(performance.now() + s.turnEndsIn, s.turnTime || 75000, this.yourTurn);
+            this.ui.setTimer(performance.now() + s.turnEndsIn, s.turnTime || 75000, this.spectator ? s.current === 1 : this.yourTurn);
+        }
+        if (this.bannerPending && !this.ended) {
+            this.bannerPending = false;
+            this.turnBanner();
         }
     }
 
@@ -1242,6 +1268,15 @@ export class Game {
 
     // ---- Hero power targeting -------------------------------------------------------------------------------------
 
+    /** Screen position for a side's status pill (mana, deck, hand): on the other side of the hero from the power. */
+    statusAnchor(side) {
+        const hero = side.hero;
+        const center = this.stage.toScreen(hero.position);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
+        return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
+    }
+
     /** Screen position for the hero power button: beside the player's hero. */
     powerAnchor() {
         const hero = this.player.hero;
@@ -1333,6 +1368,12 @@ export class Game {
         if (this.active && !this.spectator) {
             const anchor = this.powerAnchor();
             this.ui.placePower(anchor.x, anchor.y);
+        }
+        if (this.active) {
+            for (const side of [this.player, this.opponent]) {
+                const at = this.statusAnchor(side);
+                this.ui.placeStatus(side.isPlayer ? 'player' : 'opponent', at.x, at.y);
+            }
         }
     }
 }

@@ -3,10 +3,12 @@
     var card = Model.Card;
     var raceTexture = Model.Races.FirstOrDefault(r => r.Id == card.RaceId)?.CardUrl;
 }
+<div class="s-admin">
+<section class="s-panel">
+<div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2></div>
 <div class="row">
     <div class="col-lg-3">
-        <h2>Card Editor</h2>
-        <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, Model.Abilities.FirstOrDefault(a => a.Id == card.AbilityId)?.Name, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false)" />
+                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, Model.Abilities.FirstOrDefault(a => a.Id == card.AbilityId)?.Name, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false)" />
     </div>
 
     <div class="col-lg-9">
@@ -70,6 +72,8 @@
         <tr><td colspan="8"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
     </tbody>
 </table>
+</section>
+</div>
 
 @section scripts {
     <script src="~/js/card-editor.js" asp-append-version="true"></script>

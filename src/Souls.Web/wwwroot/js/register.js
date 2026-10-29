@@ -1,3 +1,4 @@
+// Registration: count the starter cards and stop at five.
 (function ($) {
     "use strict";
 
@@ -9,12 +10,4 @@
 
     $(".cards").on("change", updateCards);
     updateCards();
-
-    // Show the class portrait when hovering a class.
-    $(".race-type").on("mouseover", function () {
-        var id = parseInt($(this).data("type-id"), 10);
-        $(".class-portrait").css("background-image", "url(/Content/Images/Player/Portraits/" + id + ".png)").show();
-    }).on("mouseleave", function () {
-        $(".class-portrait").hide();
-    });
 })(jQuery);

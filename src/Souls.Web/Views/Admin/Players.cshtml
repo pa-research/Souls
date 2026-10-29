@@ -1,6 +1,7 @@
 @model AdminPlayersViewModel
-<h2>Players</h2>
-<p class="text-muted">Online status, kick, ban and reset are live actions on the game server.</p>
+<div class="s-admin">
+<section class="s-panel">
+<div class="s-panel-head"><s-icon name="users" /><h2>Players</h2><span class="s-muted s-small">Online status, kick, ban and reset are live actions on the game server.</span></div>
 
 <div class="table-responsive">
     <table class="table table-sm align-middle" id="admin-players">
@@ -39,6 +40,8 @@
             }
         </tbody>
     </table>
+</div>
+</section>
 </div>
 
 @section scripts {

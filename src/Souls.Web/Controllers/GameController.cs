@@ -4,11 +4,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
 using Souls.Model.Entities;
+using Souls.Model.Security;
 using Souls.Web.Models;
 
 namespace Souls.Web.Controllers;
 
-public sealed class GameController(SoulsDbContext db, IConfiguration configuration) : Controller
+public sealed class GameController(SoulsDbContext db, IConfiguration configuration, TimeProvider time) : Controller
 {
     /// <summary>The game client. It connects to the game server's WebSockets with the login cookie.</summary>
     /// <param name="watch">A running game to spectate (3D client).</param>
@@ -44,7 +45,32 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
             .Select(c => new CardPortrait(c.Id, c.Portrait ?? CardTile.DefaultPortrait))
             .ToListAsync(ct);
         var heroTypes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
-        return new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards) { Rules = RulesConfig.Create(heroTypes) };
+        return new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards) { Rules = RulesConfig.Create(heroTypes), Profile = await ProfileAsync(ct) };
+    }
+
+    private async Task<GameProfile?> ProfileAsync(CancellationToken ct)
+    {
+        if (User.GetPlayerId() is not { } playerId)
+        {
+            return null;
+        }
+
+        var player = await db.Players.AsNoTracking()
+            .Where(p => p.Id == playerId)
+            .Select(p => new { p.Name, p.PlayerTypeId, Type = p.PlayerType!.Name, p.Rating, p.Rank, p.Money })
+            .SingleOrDefaultAsync(ct);
+        if (player is null)
+        {
+            return null;
+        }
+
+        var quests = (await Quests.EnsureTodayAsync(db, playerId, time, ct)).Select(q =>
+        {
+            var definition = Quests.Get(q.Kind);
+            return new QuestView(definition.Text, q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
+        }).ToList();
+        var tier = Ratings.TierOf(player.Rank);
+        return new GameProfile(player.Name, player.PlayerTypeId, player.Type, player.Rating, player.Rank, tier.ToString(), tier.Css, Ratings.RankProgress(player.Rating), player.Money, quests);
     }
 
     [AllowAnonymous]

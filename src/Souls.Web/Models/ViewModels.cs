@@ -106,8 +106,11 @@ public sealed record QuestView(string Text, int Progress, int Target, int Reward
 
 public sealed record LeaderboardEntry(int Position, string Name, int Rating, int Rank, string? Type);
 
+public sealed record HomeProfile(string Name, int Type, string TypeName, int Rating, int Rank, int Money, int Games, int Wins);
+
 public sealed class HomeViewModel
 {
+    public HomeProfile? Profile { get; init; }
     public IReadOnlyList<QuestView>? Quests { get; init; }
     public required IReadOnlyList<LeaderboardEntry> TopPlayers { get; init; }
 }
@@ -132,7 +135,12 @@ public sealed record GameConfig(string WsBase, IReadOnlyList<CardPortrait> Cards
     /// <summary>Where the replay to play back is (3D client).</summary>
     public string? ReplayUrl { get; init; }
     public int? ReplayGameId { get; init; }
+
+    /// <summary>The signed in player, for the game menu.</summary>
+    public GameProfile? Profile { get; init; }
 }
+
+public sealed record GameProfile(string Name, int Type, string TypeName, int Rating, int Rank, string Tier, string TierCss, double RankProgress, int Money, IReadOnlyList<QuestView> Quests);
 
 public sealed record RuleInfo(string Name, string Text);
 

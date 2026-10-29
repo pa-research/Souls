@@ -28,6 +28,7 @@ by the web app authenticates the WebSockets on the game server (same origin, no 
 | Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 9 abilities, hero powers, Taunt, turn timer (see below) |
 | Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
 | Watching | none | live spectating and 3D replays of every game |
+| Look | 2014 light page, bottom navbar, image buttons | one dark-fantasy design system for the site and both game clients (see below) |
 | Tests | 1 empty test project | 89 unit + integration tests (xUnit v3, Testcontainers PostgreSQL), including the rules engine and the bot |
 | Deploy | `start.bat` | Dockerfile, `compose.yaml` + Caddy (automatic TLS), Kustomize base/components/overlays, GitHub Actions |
 
@@ -50,6 +51,21 @@ the cards carry the names that go with that art and with the people they were na
 
 Cards that were only ever created in the live database's card editor (Paul and others) are not in the git
 history; they can be re-created with the admin card editor, which now offers all nine abilities.
+
+## Interface
+
+The website and both game clients share one design system: `wwwroot/css/theme.css` (colours, type, panels,
+buttons, chips, rank emblems, progress bars, forms) and `wwwroot/css/game-hud.css` (the in-game components: main
+menu, loading and matchmaking screens, turn banners, toasts, mana and deck status, hero power orb, turn fuse,
+battle log, card tooltips, settings, end screen with animated rewards, live games, spectator and replay bars).
+Display type is Cinzel, text is Inter (both self-hosted, SIL Open Font License, `wwwroot/fonts`); icons are an
+SVG sprite of Lucide icons (ISC, `wwwroot/img/icons.svg`) used through the `<s-icon name="..." />` tag helper,
+and `<s-rank rank="..." rating="..." />` draws the rank emblem (Bronze III up to Champion). Card tiles on the
+site are laid out exactly like the in-game card face. The backdrop is a colour-graded render of the 3D stadium.
+
+The game page is full-screen (no site navigation; a home button sits next to the client switch). Pages work
+from phone to desktop, keep WCAG AA text contrast, show focus outlines for keyboard users and respect
+"reduce motion".
 
 ## Rules and progression
 
