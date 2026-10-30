@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -30,7 +31,7 @@ public class BotTests
 
         Card Definition(int id, int attack, int health, int cost, int? ability = null) =>
             new() { Id = id, Name = "c" + id, BaseAttack = attack, BaseHealth = health, Cost = cost, AbilityId = ability };
-        IReadOnlyList<Card> deck = [.. Enumerable.Range(0, GameRules.DeckSize).Select(i => Definition(i % 3 + 1, 2 + i % 3, 3, 1 + i % 3, i % 5 == 0 ? Model.Entities.Ability.Heal : null))];
+        IReadOnlyList<Card> deck = [.. Enumerable.Range(0, GameRules.DeckSize).Select(i => Definition(i % 3 + 1, 2 + i % 3, 3, i % 4 == 3 ? 5 : 1 + i % 3, i % 5 == 0 ? Model.Entities.Ability.Heal : null))];
 
         var human = new Player { Id = 1, Name = "human", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, GameContext = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true } };
         var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
@@ -43,7 +44,30 @@ public class BotTests
         var running = Task.Run(() => ai.RunAsync(cts.Token));
 
         GameRoom? room = null;
-        await state.RunExclusiveAsync(() => { room = engine.CreateGame(new Pair<Player>(human, bot), practice: true); return Task.CompletedTask; });
+        var expensive = 0;
+        await state.RunExclusiveAsync(async () =>
+        {
+            room = engine.CreateGame(new Pair<Player>(human, bot), practice: true);
+            expensive = bot.GPlayer!.HandCards.Values.Count(c => c.Cost > 4);
+            await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
+        });
+
+        // The bot sends back its expensive starting cards (easy bots keep them), then the game starts.
+        var mulliganEnds = DateTime.UtcNow.AddSeconds(15);
+        while (room!.InMulligan && DateTime.UtcNow < mulliganEnds)
+        {
+            await Task.Delay(20);
+        }
+
+        var inbox = ((BotConnection)human.GameContext!).Inbox;
+        var replaced = -1;
+        while (inbox.TryRead(out var json))
+        {
+            var m = JsonNode.Parse(json)!;
+            replaced = (int?)m["Type"] == (int)GameResponse.GameOpponentMulligan ? (int)m["Payload"]!["replaced"]! : replaced;
+        }
+
+        Assert.Equal(difficulty == 0 ? 0 : expensive, replaced);
         var botTurns = 0;
         for (var turn = 0; turn < 12 && !room!.IsEnded; turn++)
         {
@@ -89,7 +113,7 @@ public class BotTests
         // Two ready 3/3s against 6 health. Killing the 5/1 scores best after one action, but two hits to the face win.
         GameRoom room = null!;
         var trade = Definition(5, 1, 1).NewInstance();
-        await state.RunExclusiveAsync(() =>
+        await state.RunExclusiveAsync(async () =>
         {
             room = engine.CreateGame(new Pair<Player>(bot, human), practice: true);
             foreach (var slot in new[] { 0, 1 })
@@ -102,7 +126,8 @@ public class BotTests
             human.GPlayer!.BoardCards[0] = trade;
             human.GPlayer.Health = 6;
             room.Sync();
-            return Task.CompletedTask;
+            // The human keeps the starting hand; the bot answers the mulligan when it runs, then its turn starts.
+            await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
         });
 
         var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)),

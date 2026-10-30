@@ -85,8 +85,9 @@ from phone to desktop, keep WCAG AA text contrast, show focus outlines for keybo
 The full rules and the protocol are in [docs/game-protocol.md](docs/game-protocol.md). In short:
 
 - **Decks**: 20 cards, at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary, built on
-  the **Deck** page from the cards you own (or an automatic deck). Start with 3 cards (4 when going second), draw
-  one each turn; an empty deck deals growing **fatigue** damage and a draw with 10 cards in hand **burns** the card.
+  the **Deck** page from the cards you own (or an automatic deck). Start with 3 cards, replace any of them once
+  (**mulligan**, 30 seconds, both players at once; going second then adds a 4th card), draw one each turn; an empty
+  deck deals growing **fatigue** damage and a draw with 10 cards in hand **burns** the card.
 - **Mana**: the round number plus the class bonus (every turn, at most 10); going second gives 1 extra mana on
   the first turn.
 - **Armor** absorbs damage before health, on cards and heroes. Healing stops at maximum health.

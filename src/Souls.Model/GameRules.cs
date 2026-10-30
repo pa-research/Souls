@@ -10,7 +10,10 @@ public static class GameRules
     public const int MaxCardLevel = 3;
     public const int StartingHand = 3;
 
-    /// <summary>The player going second starts with this many more cards (and 1 extra mana on their first turn).</summary>
+    /// <summary>
+    /// The player going second draws this many more cards when the mulligan is over (and gets 1 extra mana on their
+    /// first turn).
+    /// </summary>
     public const int SecondPlayerExtraCards = 1;
     public const int HeroPowerCost = 2;
     public const int MaxMana = 10;
