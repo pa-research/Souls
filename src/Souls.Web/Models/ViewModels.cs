@@ -222,6 +222,26 @@ public sealed class AdminPlayersViewModel
     public required IReadOnlyList<PlayerPermission> Permissions { get; init; }
 }
 
+/// <summary>Games in which a card was played and how many of them its player won.</summary>
+public sealed record WinRate(int Games, int Wins)
+{
+    public double? Rate => Games == 0 ? null : Wins / (double)Games;
+
+    public string Percent => Rate is { } rate ? (rate * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%" : "-";
+}
+
+/// <summary>A card's win rate in all games and per hero class (in the order of <see cref="CardStatisticsViewModel.Classes"/>).</summary>
+public sealed record CardStatistics(Card Card, WinRate Total, IReadOnlyList<WinRate> ByClass);
+
+public sealed class CardStatisticsViewModel
+{
+    /// <summary>Win rates from fewer games than this are marked as unreliable.</summary>
+    public const int FewGames = 30;
+
+    public required IReadOnlyList<PlayerType> Classes { get; init; }
+    public required IReadOnlyList<CardStatistics> Cards { get; init; }
+}
+
 public sealed class CardEditorModel
 {
     public int? Id { get; set; }

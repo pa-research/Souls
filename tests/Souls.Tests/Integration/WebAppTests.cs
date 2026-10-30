@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model.Entities;
 
@@ -263,6 +264,53 @@ public class WebAppTests(SoulsAppFixture app)
         using var allowed = await admin.GetAsync("/Admin/Players");
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
         Assert.Contains(name, await allowed.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CardStatisticsCountDecidedGamesBetweenPlayers()
+    {
+        // The Pale Reaper: a legendary that no other test's player owns, so only these games count for it.
+        const int card = 28;
+        var (one, two) = (NewName(), NewName());
+        using var player = app.CreateBrowser();
+        await player.RegisterAsync(one, Password, playerType: 1);
+        await player.RegisterAsync(two, Password, playerType: 2);
+        await app.WithDbAsync(async db =>
+        {
+            var ids = await db.Players.Where(p => p.Name == one || p.Name == two).ToDictionaryAsync(p => p.Name, p => p.Id);
+            var (a, b) = (ids[one], ids[two]);
+            void Store(int? winner, bool practice, params int[] playedBy)
+            {
+                var game = new Game { Player1Id = a, Player2Id = b, WinnerId = winner, IsPractice = practice };
+                db.Games.Add(game);
+                db.GameLogs.AddRange(playedBy.Select(id => new GameLog
+                {
+                    Game = game, GameLogTypeId = (int)GameLogKind.UseCard, Obj1Id = id, Obj2Id = card, Obj1Type = "Player", Obj2Type = "Card",
+                }));
+            }
+
+            Store(winner: a, practice: false, a, a, b); // played twice by the winner: one game
+            Store(winner: b, practice: false, a);
+            Store(winner: null, practice: false, a); // draws are left out
+            Store(winner: a, practice: true, a); // and practice games
+            return await db.SaveChangesAsync();
+        });
+
+        using var _ = await player.LoginAsync(one, Password);
+        using var forbidden = await player.GetAsync("/Admin/CardStatistics");
+        Assert.Equal(HttpStatusCode.Redirect, forbidden.StatusCode);
+        Assert.Contains("/Home/AccessDenied", forbidden.Headers.Location!.ToString(), StringComparison.Ordinal);
+
+        using var admin = app.CreateBrowser();
+        using var __ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        using var page = await admin.GetAsync("/Admin/CardStatistics");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var row = Regex.Match(await page.Content.ReadAsStringAsync(), $"<tr data-card-id=\"{card}\">(.*?)</tr>", RegexOptions.Singleline).Groups[1].Value;
+        var cells = Regex.Matches(row, "<td[^>]*>(.*?)</td>", RegexOptions.Singleline)
+            .Select(m => Regex.Replace(m.Groups[1].Value, "<[^>]+>", string.Empty).Trim());
+
+        // Card, race, rarity, games, wins, win rate, then win rate (games) for Rabid Soul, Lurker, Harrison and Fader.
+        Assert.Equal(["The Pale Reaper", "Darkness", "Legendary", "3", "1", "33.3%", "50.0% (2)", "0.0% (1)", "- (0)", "- (0)"], cells);
     }
 
     [Fact]

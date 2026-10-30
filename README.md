@@ -125,6 +125,9 @@ within 49-55%, the player going first wins about 52% and a game lasts about 17 t
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md
 ```
 
+The admin page **Admin > Card Statistics** shows the same "played" win rate per card and hero class from real
+games between players (draws and practice games against the bot left out), to compare with the report.
+
 ## Game clients: Classic and Modern 3D
 
 The game page has a **Classic | Modern 3D** switch (top right). The choice is remembered per browser, can be
