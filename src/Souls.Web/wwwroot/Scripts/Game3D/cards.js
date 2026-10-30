@@ -366,7 +366,9 @@ export class Card3D extends THREE.Group {
                     }`,
                 fragmentShader: `uniform float time; uniform vec3 color; uniform float fade; varying vec3 vNormal; varying vec3 vView; varying vec3 vPos;
                     void main() {
-                        float rim = pow(1.0 - abs(dot(vNormal, vView)), 2.2);
+                        // Clamped: interpolated vectors can give |dot| a hair above 1, and pow() of a negative base is NaN, which
+                        // the bloom blur spreads over the whole frame.
+                        float rim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vView))), 0.0, 1.0), 2.2);
                         float hex = 0.5 + 0.5 * sin(vPos.x * 0.12 + time * 1.5) * sin(vPos.y * 0.12 - time * 1.1);
                         float alpha = (0.08 + rim * 0.75 + hex * 0.06) * fade;
                         gl_FragColor = vec4(color * (0.6 + rim), alpha);
