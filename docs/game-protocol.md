@@ -6,14 +6,16 @@ animate what the server reports.
 
 ## Rules in short
 
-- Decks have 20 cards (at most 4 copies of a card), shuffled at the start. Each player starts with 3 cards; the player
-  whose turn starts draws one. An empty deck deals fatigue damage (1, then 2, ...). Drawing with 10 cards in hand
+- Decks have 20 cards (at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary), shuffled
+  at the start. Each player starts with 3 cards (4 when going second);
+  the player whose turn starts draws one. An empty deck deals fatigue damage (1, then 2, ...). Drawing with 10 cards in hand
   burns the drawn card.
 - Mana each turn: the round number plus the class bonus, at most 10. The player going second gets 1 extra mana on
   their first turn. Hero powers cost 2 mana, once per turn.
 - Armor absorbs damage before health (cards and heroes). Healing never goes above maximum health.
 - Cards arrive exhausted: they cannot attack or use their ability the turn they are played, unless they have Charge.
-  A card either attacks or uses its ability once per turn. Heroes can attack once per turn.
+  A card either attacks or uses its ability once per turn (Fury cards may attack twice). Heroes can attack once per
+  turn.
 - Attacks deal the attacker's attack to the defender and the defender's attack back to the attacker (heroes included).
 - If the enemy has a Taunt card, attacks (card and hero attacks) must target a Taunt card. Abilities and hero powers
   ignore Taunt.
@@ -26,17 +28,33 @@ animate what the server reports.
 | 3 Lightbringer | Blessing: when played, restores 2 health to its hero. Its Heal restores 2 more. |
 | 4 Ferocious | Frenzy: +1 attack when it attacks. |
 
-| Ability | Kind | Targets (UseAbility `type`) | Effect |
+Abilities have a value per card (`ability.value` in the card JSON; Burn 3 deals 3 damage). `X` below is that value;
+the default is used when a card has none.
+
+| Ability | Kind | Targets (UseAbility `type`) | Effect (default X) |
 |---|---|---|---|
-| 1 Heal | activated | 0 friendly card, 1 own hero | +3 health (+5 Lightbringer); cards next to a healed card get +1 |
+| 1 Heal | activated | 0 friendly card, 1 own hero | +X health (+2 more for Lightbringer); cards next to a healed card get +1 (3) |
 | 2 Sacrifice | activated | 0 friendly card (not itself), 1 own hero | dies, target gains its attack, health (and max health) and armor |
 | 3 Taunt | passive | | must be attacked first |
-| 4 Summon | on play | | summons a 1/1 Lost Soul (card id 0) in the nearest free slot |
+| 4 Summon | on play | | summons X 1/1 Lost Souls (card id 0) in the nearest free slots (1) |
 | 5 Paralyze | activated | 3 enemy card | the target cannot attack or act during its owner's next turn |
 | 6 Haunt | on death | | the first time it dies, a fresh copy returns to the owner's hand |
-| 7 Harden | activated | 0 friendly card, 1 own hero | +3 armor |
-| 8 Burn | activated | 2 enemy hero, 3 enemy card | 2 damage |
+| 7 Harden | activated | 0 friendly card, 1 own hero | +X armor (3) |
+| 8 Burn | activated | 2 enemy hero, 3 enemy card | X damage (2) |
 | 9 Charge | passive | | can attack the turn it is played |
+| 10 Ward | passive | | the first damage it would take breaks the ward instead (`ward: true` until then) |
+| 11 Fury | passive | | can attack twice each turn |
+| 12 Venom | passive | | destroys any card it damages (attacking or defending); a ward stops it |
+| 13 Rally | on play | | the cards next to it gain +X attack (1) |
+| 14 Insight | on play | | its owner draws X cards (1) |
+| 15 Inferno | on play | | X damage to every enemy card (1) |
+| 16 Regenerate | turn start | | restores X health to itself at the start of its owner's turn (2) |
+| 17 Grow | turn start | | +X attack, +X health and max health at the start of its owner's turn (1) |
+| 18 Drain | activated | 2 enemy hero, 3 enemy card | X damage, and +X health to its hero (2) |
+| 19 Brood | on death | | summons X Lost Souls where it died (1) |
+
+Cards have a rarity (`rarity`: 1 common, 2 rare, 3 epic, 4 legendary) that limits the copies in a deck and sets the
+shop price.
 
 | Class (hero `type`) | Hero power (cost 2) | Targets (HeroPower `type`) |
 |---|---|---|
@@ -89,7 +107,7 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 
 The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks and abilities are reported as events.
 
-**Card JSON**: `{cid, id, name, attack, health, maxHealth, armor, cost, slotId, level, portrait, ability: {id, name} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, token, hasAttacked, isDead}`.
+**Card JSON**: `{cid, id, name, attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
 In GameSync board cards also have `canAct` (it is that player's turn and the card can attack or use its ability).
 
 **Hero info** (`info`, `pInfo`, `playerInfo`, `opponentInfo`, GameSync heroes): `{name, type, ident, health, maxHealth, armor, attack, mana, maxMana, rating}`.
@@ -113,13 +131,16 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 | `damage` | `to`, `amount`, `armorLost`, `health`, `armor` | damage taken (`amount` includes what armor absorbed) |
 | `heal` | `to`, `amount`, `health` | health restored |
 | `armor` | `to`, `amount`, `armor` | armor gained |
-| `buff` | `to`, `attack`, `health`, `maxHealth`, `armor` | new stats after Sacrifice |
-| `lifesteal` | `src` (card ref), `to` (hero ref), `amount`, `health` | Vampiric heal |
+| `buff` | `to`, `attack`, `health`, `maxHealth`, `armor`, `src` (ref, optional) | new stats after Sacrifice, Rally (`src` is the rallying card) or Grow |
+| `lifesteal` | `src` (ref), `to` (hero ref), `amount`, `health` | Vampiric heal, or the heal of Drain (`src` is the drained target) |
 | `blessing` | `cid`, `to` (hero ref) | Lightbringer card played (a `heal` follows) |
 | `ability` | `abilityId`, `src` (card ref), `dst` (ref) | an activated ability is used (effects follow) |
 | `heroPower` | `id` (ident), `power` (class), `name`, `dst` (ref) | a hero power is used (effects follow) |
 | `paralyze` | `cid`, `on` | a card is paralyzed |
-| `summon` | `src` (cid), `owner` (ident), `card` | a token appears in `card.slotId` |
+| `summon` | `src` (cid), `owner` (ident), `card` | a token appears in `card.slotId` (Summon, or Brood from a dead card) |
+| `trigger` | `abilityId`, `src` (card ref), `label` | an on-play, turn-start or on-death ability fires (its effects follow) |
+| `ward` | `to` (card ref), `on` | a ward broke (`on: false`): the damage was blocked |
+| `venom` | `src` (card ref), `to` (card ref) | venom destroys the damaged card (a `death` follows) |
 | `death` | `cid`, `owner` | a card died and left the board |
 | `curse` | `src` (cid of the dead card), `owner`, `dst` (ref) | Darkness death curse (a `damage` follows) |
 | `haunt` | `cid`, `newCid`, `owner` | a dead Haunt card returns (the owner then gets NewCard `returned: true`) |
@@ -142,6 +163,20 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
   "board": {"1": [card + canAct], "2": [card + canAct]}
 }
 ```
+
+### Card JSON
+
+```json
+{"cid": 12, "id": 27, "name": "Pesta", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
+ "rarity": 3, "ward": false, "paralyzed": false, "taunt": false, "token": false, "slotId": 2, "isDead": false,
+ "hasAttacked": false, "portrait": "/Content/Images/Card/Portraits/27.jpg",
+ "flavor": "Where she rakes, a few survive. Where she sweeps, nobody does.",
+ "race": {"id": 1, "name": "Darkness", "cardUrl": "/Content/Images/Card/Texture/darkness.png"},
+ "ability": {"id": 15, "name": "Inferno", "value": 2, "label": "Inferno 2", "activated": false,
+             "text": "When played, deals 2 damage to every enemy card."}}
+```
+
+`ability.label` is what the card face prints and `ability.text` the rules text with the card's numbers filled in.
 
 ## Replays
 

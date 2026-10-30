@@ -17,6 +17,11 @@ public sealed class Card
     public int? AbilityId { get; init; }
     public string? AbilityName { get; init; }
     public string? AbilityParameter { get; init; }
+
+    /// <summary>The card's ability value as given on the card (Burn 3), or <c>null</c> for the ability's default.</summary>
+    public int? AbilityValueOverride { get; init; }
+    public int Rarity { get; init; } = Model.Rarity.Common;
+    public string? Flavor { get; init; }
     public int? RaceId { get; init; }
     public string? RaceName { get; init; }
     public string? RaceCardUrl { get; init; }
@@ -52,9 +57,20 @@ public sealed class Card
 
     public bool IsToken { get; init; }
 
+    /// <summary>Has an unbroken ward (Ward ability): the next damage it would take breaks the ward instead.</summary>
+    public bool Ward { get; set; }
+
+    /// <summary>Attacks made this turn (Fury cards attack twice).</summary>
+    public int AttacksThisTurn { get; set; }
+
     public bool HasTaunt => AbilityId == AbilityIds.Taunt;
     public bool HasCharge => AbilityId == AbilityIds.Charge;
+    public bool HasFury => AbilityId == AbilityIds.Fury;
+    public bool HasVenom => AbilityId == AbilityIds.Venom;
     public bool CanAct => !HasAttacked && !Paralyzed && !IsDead;
+
+    /// <summary>The value the ability works with (Burn 3 deals 3 damage).</summary>
+    public int AbilityValue => AbilityId is { } id ? GameRules.AbilityValue(id, AbilityValueOverride) : 0;
 
     public static Card FromEntity(Model.Entities.Card c, int level = 1)
     {
@@ -69,6 +85,9 @@ public sealed class Card
             AbilityId = c.Ability?.Id ?? c.AbilityId,
             AbilityName = c.Ability?.Name,
             AbilityParameter = c.Ability?.Parameter,
+            AbilityValueOverride = c.AbilityValue,
+            Rarity = c.Rarity,
+            Flavor = c.Flavor,
             RaceId = c.Race?.Id ?? c.RaceId,
             RaceName = c.Race?.Name,
             RaceCardUrl = c.Race?.CardUrl,
@@ -89,7 +108,8 @@ public sealed class Card
         Id = GameRules.LostSoulId,
         Name = "Lost Soul",
         Cost = 0,
-        Portrait = "/Content/Images/Card/Portraits/0.png",
+        Portrait = GameRules.LostSoulPortrait,
+        Flavor = "A soul that lost its way to the afterlife.",
         BaseAttack = 1,
         BaseHealth = 1,
         Attack = 1,
@@ -107,6 +127,9 @@ public sealed class Card
         card.IsDead = false;
         card.HasAttacked = false;
         card.Paralyzed = false;
+        card.Haunted = false;
+        card.AttacksThisTurn = 0;
+        card.Ward = AbilityId == AbilityIds.Ward;
         card.Attack = BaseAttack;
         card.Health = BaseHealth;
         card.MaxHealth = BaseHealth;
@@ -122,11 +145,15 @@ public sealed class Card
         ["slotId"] = SlotId,
         ["hasAttacked"] = HasAttacked,
         ["id"] = Id,
-        ["ability"] = AbilityId is null ? null : new JsonObject
+        ["ability"] = AbilityId is not { } abilityId ? null : new JsonObject
         {
-            ["id"] = AbilityId,
-            ["name"] = AbilityName ?? (GameRules.AbilityTexts.TryGetValue(AbilityId.Value, out var t) ? t.Name : null),
+            ["id"] = abilityId,
+            ["name"] = AbilityName ?? (GameRules.AbilityTexts.TryGetValue(abilityId, out var t) ? t.Name : null),
             ["parameter"] = AbilityParameter,
+            ["value"] = AbilityValue,
+            ["label"] = GameRules.AbilityLabel(abilityId, AbilityValueOverride),
+            ["text"] = GameRules.AbilityText(abilityId, AbilityValueOverride, RaceId),
+            ["activated"] = GameRules.IsActivated(abilityId),
         },
         ["race"] = RaceId is null ? null : new JsonObject
         {
@@ -146,6 +173,9 @@ public sealed class Card
         ["paralyzed"] = Paralyzed,
         ["taunt"] = HasTaunt,
         ["token"] = IsToken,
+        ["ward"] = Ward,
+        ["rarity"] = Rarity,
+        ["flavor"] = Flavor,
     };
 
     /// <summary>Reads a card sent by the server (used by the bot).</summary>
@@ -161,6 +191,9 @@ public sealed class Card
         Level = (int?)node["level"] ?? 1,
         AbilityId = (int?)node["ability"]?["id"],
         AbilityName = (string?)node["ability"]?["name"],
+        AbilityValueOverride = (int?)node["ability"]?["value"],
+        Rarity = (int?)node["rarity"] ?? Model.Rarity.Common,
+        Ward = (bool?)node["ward"] ?? false,
         RaceId = (int?)node["race"]?["id"],
         Cid = (int?)node["cid"] ?? 0,
         SlotId = (int?)node["slotId"] ?? 0,

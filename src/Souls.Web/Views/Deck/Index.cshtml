@@ -3,7 +3,7 @@
     <div>
         <div class="s-eyebrow">Deck builder</div>
         <h1 class="s-h1 s-gold-text">Your Deck</h1>
-        <p>Pick exactly @Model.DeckSize cards, at most @Model.MaxCopies copies of each. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.</p>
+        <p>Pick exactly @Model.DeckSize cards: at most @Model.MaxCopies copies of a common card, @Model.MaxRare of a rare, @Model.MaxEpic of an epic and @Model.MaxLegendary of a legendary. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.</p>
     </div>
     <a class="s-btn s-btn-ghost" asp-controller="Shop" asp-action="Index"><s-icon name="shop" />Get more cards</a>
 </div>
@@ -13,9 +13,10 @@
         <div class="s-grid s-deck-grid">
             @foreach (var entry in Model.Entries)
             {
-                <article class="s-card-wrap deck-card" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost">
+                <article class="s-card-wrap deck-card rarity-@entry.Card.RarityCss" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost" data-max="@entry.Card.MaxCopies" data-rarity="@entry.Card.RarityCss">
                     <partial name="_CardTile" model="entry.Card" />
                     <h2 class="s-card-name h6 mb-0">@entry.Card.Name</h2>
+                    <span class="s-rarity">@entry.Card.RarityName &middot; max @entry.Card.MaxCopies</span>
                     @if (!string.IsNullOrEmpty(entry.Card.Description))
                     {
                         <p class="s-card-desc">@entry.Card.Description</p>
@@ -23,7 +24,7 @@
                     <div class="s-stepper">
                         <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-minus" aria-label="One copy less of @entry.Card.Name"><s-icon name="minus" /></button>
                         <label class="s-sr-only" for="count_@entry.Card.Id">Copies of @entry.Card.Name</label>
-                        <input class="s-input deck-count" type="number" min="0" max="@Model.MaxCopies" step="1" inputmode="numeric"
+                        <input class="s-input deck-count" type="number" min="0" max="@entry.Card.MaxCopies" step="1" inputmode="numeric"
                                id="count_@entry.Card.Id" name="count[@entry.Card.Id]" value="@entry.Count" />
                         <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-plus" aria-label="One copy more of @entry.Card.Name"><s-icon name="plus" /></button>
                     </div>

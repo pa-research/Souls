@@ -111,7 +111,7 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(1, (int)create["ident"]!);
             Assert.StartsWith("[BOT] ", (string)create["opponent"]!["info"]!["name"]!, StringComparison.Ordinal);
             Assert.Equal(3, create["player"]!["hand"]!.AsObject().Count);
-            Assert.Equal(3, create["opponent"]!["hand"]!.AsArray().Count);
+            Assert.Equal(4, create["opponent"]!["hand"]!.AsArray().Count); // the bot goes second: one more card
 
             // In-game chat with the bot.
             await chat.SendAsync(1009);
@@ -125,6 +125,7 @@ public class GameServerTests(SoulsAppFixture app)
             // deal growing fatigue damage, so it always ends).
             var mana = int.Parse((string)create["player"]!["info"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
             var hand = create["player"]!["hand"]!.AsObject().Select(c => c.Value!).ToList();
+            var played = new HashSet<int>();
             JsonNode? result = null;
             for (var turn = 0; turn < 60 && result is null; turn++)
             {
@@ -136,6 +137,7 @@ public class GameServerTests(SoulsAppFixture app)
                     if (Type(used) == 207)
                     {
                         hand.Remove(card);
+                        played.Add((int)card["cid"]!);
                     }
                 }
 
@@ -158,7 +160,7 @@ public class GameServerTests(SoulsAppFixture app)
 
                 mana = int.Parse((string)next["Payload"]!["playerInfo"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
                 hand.AddRange(game.Received.Where(m => Type(m) == 222).SelectMany(m => m["Payload"]!["card"]!.AsArray()).Select(c => c!)
-                    .Where(c => hand.All(h => (int)h["cid"]! != (int)c["cid"]!)));
+                    .Where(c => !played.Contains((int)c["cid"]!) && hand.All(h => (int)h["cid"]! != (int)c["cid"]!)));
             }
 
             Assert.NotNull(result);

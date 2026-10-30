@@ -92,12 +92,12 @@
                 if (!card.abilityId) {
                     hint = card.name + " has no ability";
                 }
-                else if (!Rules.IsActivated(card.abilityId)) {
+                else if (!Rules.IsActivated(card.abilityId, card.abilityActivated)) {
                     hint = (ability ? ability.name : card.abilityName || "This ability") + " works on its own";
                 }
                 else {
                     kinds = Rules.AbilityTargets(card.abilityId);
-                    if (ability) hint = ability.name + ": pick " + Rules.DescribeTargets(kinds);
+                    if (ability || card.abilityName) hint = (ability ? ability.name : card.abilityName) + ": pick " + Rules.DescribeTargets(kinds);
                 }
                 found = this.arrow.Aim(card, kinds, 'ability', hint);
             }

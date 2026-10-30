@@ -111,6 +111,56 @@ namespace Souls.Model.Migrations
                         {
                             Id = 9,
                             Name = "Charge"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Name = "Ward"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Name = "Fury"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Name = "Venom"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Name = "Rally"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Name = "Insight"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Name = "Inferno"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Name = "Regenerate"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Name = "Grow"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Name = "Drain"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Name = "Brood"
                         });
                 });
 
@@ -166,6 +216,10 @@ namespace Souls.Model.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("fk_ability");
 
+                    b.Property<int?>("AbilityValue")
+                        .HasColumnType("integer")
+                        .HasColumnName("ability_value");
+
                     b.Property<int>("Armor")
                         .HasColumnType("integer")
                         .HasColumnName("armor");
@@ -177,6 +231,11 @@ namespace Souls.Model.Migrations
                     b.Property<int>("Cost")
                         .HasColumnType("integer")
                         .HasColumnName("cost");
+
+                    b.Property<string>("Flavor")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("flavor");
 
                     b.Property<int>("Health")
                         .HasColumnType("integer")
@@ -201,6 +260,12 @@ namespace Souls.Model.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("fk_race");
 
+                    b.Property<int>("Rarity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("rarity");
+
                     b.Property<int>("VendorPrice")
                         .HasColumnType("integer")
                         .HasColumnName("vendor_price");
@@ -216,101 +281,428 @@ namespace Souls.Model.Migrations
                     b.HasData(
                         new
                         {
-                            Id = 1,
-                            AbilityId = 1,
-                            Armor = 3,
-                            Attack = 5,
-                            Cost = 6,
-                            Health = 7,
+                            Id = 20,
+                            Armor = 0,
+                            Attack = 1,
+                            Cost = 1,
+                            Flavor = "Small, spiteful and always grinning at a funeral.",
+                            Health = 2,
                             Level = 1,
-                            Name = "Snokulv",
-                            Portrait = "/Content/Images/Card/Portraits/1.png",
-                            RaceId = 4,
-                            VendorPrice = 1
+                            Name = "Gloom Imp",
+                            Portrait = "/Content/Images/Card/Portraits/20.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 21,
+                            AbilityId = 12,
+                            Armor = 0,
+                            Attack = 1,
+                            Cost = 2,
+                            Flavor = "It has eaten better men than you. Mostly afterwards.",
+                            Health = 2,
+                            Level = 2,
+                            Name = "Grave Rat",
+                            Portrait = "/Content/Images/Card/Portraits/21.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 22,
+                            AbilityId = 8,
+                            AbilityValue = 1,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 2,
+                            Flavor = "What the lantern misses, the Shade remembers.",
+                            Health = 2,
+                            Level = 2,
+                            Name = "Shade",
+                            Portrait = "/Content/Images/Card/Portraits/22.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 23,
+                            AbilityId = 6,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "Barrow-kings never stay buried for long.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Draugr",
+                            Portrait = "/Content/Images/Card/Portraits/23.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 24,
+                            AbilityId = 5,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "She rides the chest of the sleeper until dawn.",
+                            Health = 4,
+                            Level = 2,
+                            Name = "Mara",
+                            Portrait = "/Content/Images/Card/Portraits/24.jpg",
+                            RaceId = 1,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 4,
+                            AbilityId = 5,
+                            Armor = 1,
+                            Attack = 3,
+                            Cost = 4,
+                            Flavor = "One look, and you forget how to move.",
+                            Health = 4,
+                            Level = 2,
+                            Name = "Christine",
+                            Portrait = "/Content/Images/Card/Portraits/4.png",
+                            RaceId = 1,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 25,
+                            AbilityId = 19,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 4,
+                            Flavor = "Every grave is a door, if you know how to knock.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Gravecaller",
+                            Portrait = "/Content/Images/Card/Portraits/25.jpg",
+                            RaceId = 1,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 26,
+                            AbilityId = 3,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 5,
+                            Flavor = "Built from a thousand fallen champions. None of them agreed to it.",
+                            Health = 5,
+                            Level = 1,
+                            Name = "Bone Colossus",
+                            Portrait = "/Content/Images/Card/Portraits/26.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 27,
+                            AbilityId = 15,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 6,
+                            Flavor = "Where she rakes, a few survive. Where she sweeps, nobody does.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Pesta",
+                            Portrait = "/Content/Images/Card/Portraits/27.jpg",
+                            RaceId = 1,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 28,
+                            AbilityId = 18,
+                            AbilityValue = 3,
+                            Armor = 0,
+                            Attack = 6,
+                            Cost = 7,
+                            Flavor = "Every soul in the arena is already on his list.",
+                            Health = 6,
+                            Level = 2,
+                            Name = "The Pale Reaper",
+                            Portrait = "/Content/Images/Card/Portraits/28.jpg",
+                            RaceId = 1,
+                            Rarity = 4,
+                            VendorPrice = 10
+                        },
+                        new
+                        {
+                            Id = 6,
+                            AbilityId = 3,
+                            Armor = 0,
+                            Attack = 1,
+                            Cost = 1,
+                            Flavor = "Bobby holds the line. Bobby has always held the line.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Bobby",
+                            Portrait = "/Content/Images/Card/Portraits/6.png",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 30,
+                            AbilityId = 9,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 1,
+                            Flavor = "The first drop is always the sweetest.",
+                            Health = 1,
+                            Level = 2,
+                            Name = "Blood Bat",
+                            Portrait = "/Content/Images/Card/Portraits/30.jpg",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 2,
+                            Flavor = "He serves the count. He no longer remembers why.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Blood Thrall",
+                            Portrait = "/Content/Images/Card/Portraits/31.jpg",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 32,
+                            AbilityId = 11,
+                            Armor = 0,
+                            Attack = 3,
+                            Cost = 3,
+                            Flavor = "Hers is the last kiss they ever feel twice.",
+                            Health = 2,
+                            Level = 2,
+                            Name = "Vampire Bride",
+                            Portrait = "/Content/Images/Card/Portraits/32.jpg",
+                            RaceId = 2,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 33,
+                            AbilityId = 1,
+                            AbilityValue = 3,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "Drink, and be whole again.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Blood Priest",
+                            Portrait = "/Content/Images/Card/Portraits/33.jpg",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 34,
+                            AbilityId = 10,
+                            Armor = 0,
+                            Attack = 3,
+                            Cost = 4,
+                            Flavor = "First blood is a matter of honour. Hers.",
+                            Health = 3,
+                            Level = 2,
+                            Name = "Crimson Duelist",
+                            Portrait = "/Content/Images/Card/Portraits/34.jpg",
+                            RaceId = 2,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 35,
+                            AbilityId = 4,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 3,
+                            Cost = 4,
+                            Flavor = "A circle of salt, a cup of blood, and something answers.",
+                            Health = 3,
+                            Level = 2,
+                            Name = "Blood Ritualist",
+                            Portrait = "/Content/Images/Card/Portraits/35.jpg",
+                            RaceId = 2,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 36,
+                            AbilityId = 16,
+                            AbilityValue = 2,
+                            Armor = 1,
+                            Attack = 4,
+                            Cost = 5,
+                            Flavor = "His wounds close before his enemies can boast of them.",
+                            Health = 4,
+                            Level = 2,
+                            Name = "Sanguine Knight",
+                            Portrait = "/Content/Images/Card/Portraits/36.jpg",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 37,
+                            AbilityId = 17,
+                            AbilityValue = 1,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 6,
+                            Flavor = "Every night the count grows older. And stronger.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Lord Varga",
+                            Portrait = "/Content/Images/Card/Portraits/37.jpg",
+                            RaceId = 2,
+                            Rarity = 4,
+                            VendorPrice = 10
+                        },
+                        new
+                        {
+                            Id = 38,
+                            AbilityId = 11,
+                            Armor = 0,
+                            Attack = 5,
+                            Cost = 7,
+                            Flavor = "The plague follows him like a loyal dog.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Nosferatu",
+                            Portrait = "/Content/Images/Card/Portraits/38.jpg",
+                            RaceId = 2,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 40,
+                            AbilityId = 13,
+                            AbilityValue = 1,
+                            Armor = 0,
+                            Attack = 1,
+                            Cost = 1,
+                            Flavor = "One horn call, and the faithful stand taller.",
+                            Health = 1,
+                            Level = 1,
+                            Name = "Acolyte of Dawn",
+                            Portrait = "/Content/Images/Card/Portraits/40.jpg",
+                            RaceId = 3,
+                            Rarity = 1,
+                            VendorPrice = 2
                         },
                         new
                         {
                             Id = 2,
                             AbilityId = 2,
                             Armor = 1,
-                            Attack = 1,
+                            Attack = 2,
                             Cost = 2,
-                            Health = 1,
-                            Level = 1,
+                            Flavor = "Every great plan needs a volunteer.",
+                            Health = 2,
+                            Level = 2,
                             Name = "Dr. Robotnik",
                             Portrait = "/Content/Images/Card/Portraits/2.png",
                             RaceId = 3,
-                            VendorPrice = 1
+                            Rarity = 4,
+                            VendorPrice = 10
                         },
                         new
                         {
-                            Id = 3,
-                            AbilityId = 4,
-                            Armor = 1,
-                            Attack = 6,
-                            Cost = 4,
-                            Health = 4,
-                            Level = 1,
-                            Name = "Per",
-                            Portrait = "/Content/Images/Card/Portraits/3.png",
-                            RaceId = 4,
-                            VendorPrice = 1
-                        },
-                        new
-                        {
-                            Id = 4,
-                            AbilityId = 5,
-                            Armor = 2,
-                            Attack = 5,
-                            Cost = 4,
-                            Health = 5,
-                            Level = 2,
-                            Name = "Christine",
-                            Portrait = "/Content/Images/Card/Portraits/4.png",
-                            RaceId = 1,
-                            VendorPrice = 3
-                        },
-                        new
-                        {
-                            Id = 5,
-                            AbilityId = 1,
-                            Armor = 2,
-                            Attack = 3,
-                            Cost = 5,
-                            Health = 6,
-                            Level = 1,
-                            Name = "Huy",
-                            Portrait = "/Content/Images/Card/Portraits/5.png",
-                            RaceId = 4,
-                            VendorPrice = 1
-                        },
-                        new
-                        {
-                            Id = 6,
+                            Id = 41,
                             AbilityId = 3,
-                            Armor = 1,
+                            Armor = 0,
                             Attack = 2,
-                            Cost = 1,
-                            Health = 3,
+                            Cost = 2,
+                            Flavor = "Behind her shield, the line does not break.",
+                            Health = 2,
                             Level = 1,
-                            Name = "Bobby",
-                            Portrait = "/Content/Images/Card/Portraits/6.png",
-                            RaceId = 2,
-                            VendorPrice = 1
+                            Name = "Shieldmaiden",
+                            Portrait = "/Content/Images/Card/Portraits/41.jpg",
+                            RaceId = 3,
+                            Rarity = 1,
+                            VendorPrice = 2
                         },
                         new
                         {
-                            Id = 7,
-                            AbilityId = 6,
-                            Armor = 12,
+                            Id = 42,
+                            AbilityId = 14,
+                            AbilityValue = 1,
+                            Armor = 0,
                             Attack = 1,
-                            Cost = 5,
+                            Cost = 2,
+                            Flavor = "Follow the lantern and you find what you were looking for.",
                             Health = 1,
                             Level = 2,
-                            Name = "Anette",
-                            Portrait = "/Content/Images/Card/Portraits/16.jpg",
-                            RaceId = 4,
+                            Name = "Lantern Bearer",
+                            Portrait = "/Content/Images/Card/Portraits/42.jpg",
+                            RaceId = 3,
+                            Rarity = 1,
                             VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 43,
+                            AbilityId = 10,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "Faith is the first shield. Steel is the second.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Templar",
+                            Portrait = "/Content/Images/Card/Portraits/43.jpg",
+                            RaceId = 3,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 44,
+                            AbilityId = 1,
+                            AbilityValue = 3,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "The sun asks nothing in return. The cleric does.",
+                            Health = 3,
+                            Level = 2,
+                            Name = "Sun Cleric",
+                            Portrait = "/Content/Images/Card/Portraits/44.jpg",
+                            RaceId = 3,
+                            Rarity = 2,
+                            VendorPrice = 4
                         },
                         new
                         {
@@ -319,12 +711,244 @@ namespace Souls.Model.Migrations
                             Armor = 0,
                             Attack = 4,
                             Cost = 4,
-                            Health = 3,
+                            Flavor = "Promised in 2014. Worth the wait.",
+                            Health = 4,
                             Level = 2,
                             Name = "Spirit Wolf",
                             Portrait = "/Content/Images/Card/Portraits/18.png",
                             RaceId = 3,
-                            VendorPrice = 3
+                            Rarity = 4,
+                            VendorPrice = 10
+                        },
+                        new
+                        {
+                            Id = 45,
+                            AbilityId = 11,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 5,
+                            Flavor = "She chooses who falls. Today she chose your army.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Valkyrie",
+                            Portrait = "/Content/Images/Card/Portraits/45.jpg",
+                            RaceId = 3,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 46,
+                            AbilityId = 7,
+                            AbilityValue = 3,
+                            Armor = 2,
+                            Attack = 4,
+                            Cost = 6,
+                            Flavor = "Mountains move before the Bastion does.",
+                            Health = 6,
+                            Level = 2,
+                            Name = "Bastion Guardian",
+                            Portrait = "/Content/Images/Card/Portraits/46.jpg",
+                            RaceId = 3,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 47,
+                            AbilityId = 15,
+                            AbilityValue = 2,
+                            Armor = 1,
+                            Attack = 5,
+                            Cost = 8,
+                            Flavor = "Judgement comes on burning wings.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Archangel",
+                            Portrait = "/Content/Images/Card/Portraits/47.jpg",
+                            RaceId = 3,
+                            Rarity = 4,
+                            VendorPrice = 10
+                        },
+                        new
+                        {
+                            Id = 50,
+                            AbilityId = 9,
+                            Armor = 0,
+                            Attack = 1,
+                            Cost = 1,
+                            Flavor = "Small teeth, big ambitions.",
+                            Health = 2,
+                            Level = 1,
+                            Name = "Wolf Pup",
+                            Portrait = "/Content/Images/Card/Portraits/50.jpg",
+                            RaceId = 4,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Armor = 0,
+                            Attack = 3,
+                            Cost = 2,
+                            Flavor = "It does not stop. It does not turn. It does not care.",
+                            Health = 3,
+                            Level = 1,
+                            Name = "Raging Boar",
+                            Portrait = "/Content/Images/Card/Portraits/51.jpg",
+                            RaceId = 4,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 52,
+                            AbilityId = 12,
+                            Armor = 0,
+                            Attack = 2,
+                            Cost = 3,
+                            Flavor = "Lovely from the front. Never look behind her.",
+                            Health = 3,
+                            Level = 2,
+                            Name = "Huldra",
+                            Portrait = "/Content/Images/Card/Portraits/52.jpg",
+                            RaceId = 4,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 3,
+                            AbilityId = 4,
+                            AbilityValue = 1,
+                            Armor = 1,
+                            Attack = 4,
+                            Cost = 4,
+                            Flavor = "Per never fights alone.",
+                            Health = 4,
+                            Level = 2,
+                            Name = "Per",
+                            Portrait = "/Content/Images/Card/Portraits/3.png",
+                            RaceId = 4,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 53,
+                            AbilityId = 16,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 4,
+                            Cost = 4,
+                            Flavor = "Cut it down and it grows back meaner.",
+                            Health = 5,
+                            Level = 2,
+                            Name = "Forest Troll",
+                            Portrait = "/Content/Images/Card/Portraits/53.jpg",
+                            RaceId = 4,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 5,
+                            AbilityId = 1,
+                            AbilityValue = 2,
+                            Armor = 1,
+                            Attack = 4,
+                            Cost = 5,
+                            Flavor = "Big hands, gentle heart.",
+                            Health = 6,
+                            Level = 1,
+                            Name = "Huy",
+                            Portrait = "/Content/Images/Card/Portraits/5.png",
+                            RaceId = 4,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 7,
+                            AbilityId = 6,
+                            Armor = 8,
+                            Attack = 3,
+                            Cost = 5,
+                            Flavor = "Death is only a short break for Anette.",
+                            Health = 2,
+                            Level = 2,
+                            Name = "Anette",
+                            Portrait = "/Content/Images/Card/Portraits/16.jpg",
+                            RaceId = 4,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 54,
+                            AbilityId = 13,
+                            AbilityValue = 1,
+                            Armor = 1,
+                            Attack = 4,
+                            Cost = 5,
+                            Flavor = "When the chieftain roars, the whole mountain answers.",
+                            Health = 6,
+                            Level = 2,
+                            Name = "Troll Chieftain",
+                            Portrait = "/Content/Images/Card/Portraits/54.jpg",
+                            RaceId = 4,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 1,
+                            AbilityId = 1,
+                            AbilityValue = 2,
+                            Armor = 1,
+                            Attack = 6,
+                            Cost = 6,
+                            Flavor = "The snow wolf of the north: the first card ever drawn in Souls.",
+                            Health = 7,
+                            Level = 2,
+                            Name = "Snokulv",
+                            Portrait = "/Content/Images/Card/Portraits/1.png",
+                            RaceId = 4,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 55,
+                            AbilityId = 3,
+                            Armor = 1,
+                            Attack = 7,
+                            Cost = 8,
+                            Flavor = "Older than the mountains, and twice as patient.",
+                            Health = 7,
+                            Level = 2,
+                            Name = "Frost Jotun",
+                            Portrait = "/Content/Images/Card/Portraits/55.jpg",
+                            RaceId = 4,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 56,
+                            AbilityId = 11,
+                            Armor = 0,
+                            Attack = 7,
+                            Cost = 9,
+                            Flavor = "No chain forged by gods or men holds him for long.",
+                            Health = 8,
+                            Level = 2,
+                            Name = "Fenrir",
+                            Portrait = "/Content/Images/Card/Portraits/56.jpg",
+                            RaceId = 4,
+                            Rarity = 4,
+                            VendorPrice = 10
                         });
                 });
 
@@ -655,6 +1279,20 @@ namespace Souls.Model.Migrations
                             Description = "A Darkness card curses X",
                             Text = "{0} curses {1}",
                             Title = "DEATH_CURSE"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Description = "A card ability triggers on its own",
+                            Text = "{0}: {1}",
+                            Title = "ABILITY_TRIGGERED"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Description = "A card drains X",
+                            Text = "{0} drains {1}",
+                            Title = "ABILITY_DRAIN"
                         });
                 });
 
@@ -1014,9 +1652,9 @@ namespace Souls.Model.Migrations
                         {
                             Id = 1,
                             AbilityId = 1,
-                            Armor = 2,
-                            Attack = 5,
-                            Health = 20,
+                            Armor = 0,
+                            Attack = 3,
+                            Health = 33,
                             Mana = 0,
                             Name = "Rabid Soul",
                             RaceId = 1
@@ -1025,9 +1663,9 @@ namespace Souls.Model.Migrations
                         {
                             Id = 2,
                             AbilityId = 2,
-                            Armor = 4,
+                            Armor = 2,
                             Attack = 2,
-                            Health = 35,
+                            Health = 33,
                             Mana = 1,
                             Name = "Lurker",
                             RaceId = 2
@@ -1037,8 +1675,8 @@ namespace Souls.Model.Migrations
                             Id = 3,
                             AbilityId = 1,
                             Armor = 0,
-                            Attack = 10,
-                            Health = 10,
+                            Attack = 5,
+                            Health = 22,
                             Mana = 0,
                             Name = "Harrison",
                             RaceId = 3
@@ -1047,9 +1685,9 @@ namespace Souls.Model.Migrations
                         {
                             Id = 4,
                             AbilityId = 2,
-                            Armor = 15,
+                            Armor = 6,
                             Attack = 1,
-                            Health = 20,
+                            Health = 44,
                             Mana = 2,
                             Name = "Fader",
                             RaceId = 4

@@ -27,6 +27,8 @@ public enum GameLogKind
     Haunt,
     CardBurned,
     DeathCurse,
+    AbilityTriggered,
+    AbilityDrain,
 }
 
 public static class GameLogKinds
@@ -58,6 +60,8 @@ public static class GameLogKinds
         GameLogKind.Haunt => "HAUNT",
         GameLogKind.CardBurned => "CARD_BURNED",
         GameLogKind.DeathCurse => "DEATH_CURSE",
+        GameLogKind.AbilityTriggered => "ABILITY_TRIGGERED",
+        GameLogKind.AbilityDrain => "ABILITY_DRAIN",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 }

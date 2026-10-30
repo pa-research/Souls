@@ -11,7 +11,8 @@ define('rules', ['conf'], function (Conf) {
         2: ['friendlyCard', 'ownHero'], // Sacrifice
         5: ['enemyCard'],               // Paralyze
         7: ['friendlyCard', 'ownHero'], // Harden
-        8: ['enemyCard', 'enemyHero']   // Burn
+        8: ['enemyCard', 'enemyHero'],  // Burn
+        18: ['enemyCard', 'enemyHero']  // Drain
     };
     var FALLBACK_POWER_TARGETS = {
         1: ['enemyCard', 'enemyHero'],
@@ -19,6 +20,9 @@ define('rules', ['conf'], function (Conf) {
         3: ['friendlyCard', 'ownHero'],
         4: []
     };
+
+    // Card rarity (card JSON "rarity").
+    var RARITY = { 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary' };
 
     // UseAbility / HeroPower "type" of each target kind.
     var TARGET_TYPE = { friendlyCard: 0, ownHero: 1, enemyHero: 2, enemyCard: 3 };
@@ -45,6 +49,11 @@ define('rules', ['conf'], function (Conf) {
         return lookup(rules.abilities, abilityId);
     };
 
+    /// "common", "rare", "epic" or "legendary" (card JSON "rarity" 1-4), or null.
+    Rules.prototype.Rarity = function (rarity) {
+        return RARITY[Number(rarity)] || null;
+    };
+
     /// {name, text} of a race, or null.
     Rules.prototype.Race = function (raceId) {
         return lookup(rules.races, raceId);
@@ -60,15 +69,17 @@ define('rules', ['conf'], function (Conf) {
         return lookup(rules.heroTypes, heroType);
     };
 
-    /// A keyword text (summoningSick, paralyzed, armor, fatigue, burned) or "".
+    /// A keyword text (summoningSick, paralyzed, armor, fatigue, burned, ward) or "".
     Rules.prototype.Keyword = function (key) {
         return (rules.keywords && typeof rules.keywords[key] === 'string') ? rules.keywords[key] : '';
     };
 
-    /// Whether an ability is used by dragging from the card to a target.
-    Rules.prototype.IsActivated = function (abilityId) {
+    /// Whether an ability is used by dragging from the card to a target. cardActivated: the card JSON's own
+    /// "ability.activated", used when the page config does not know the ability.
+    Rules.prototype.IsActivated = function (abilityId, cardActivated) {
         var ability = this.Ability(abilityId);
         if (ability) return !!ability.activated;
+        if (cardActivated !== undefined && cardActivated !== null) return !!cardActivated;
         return !!FALLBACK_ABILITY_TARGETS[abilityId];
     };
 

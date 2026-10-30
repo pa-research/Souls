@@ -63,6 +63,9 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.VendorPrice).HasColumnName("vendor_price");
             e.Property(x => x.Level).HasColumnName("level");
             e.Property(x => x.Portrait).HasColumnName("portrait").HasMaxLength(255);
+            e.Property(x => x.AbilityValue).HasColumnName("ability_value");
+            e.Property(x => x.Rarity).HasColumnName("rarity").HasDefaultValue(Rarity.Common);
+            e.Property(x => x.Flavor).HasColumnName("flavor").HasMaxLength(500);
             e.HasOne(x => x.Ability).WithMany().HasForeignKey(x => x.AbilityId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Race).WithMany().HasForeignKey(x => x.RaceId).OnDelete(DeleteBehavior.SetNull);
             e.HasData(SeedData.Cards);

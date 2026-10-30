@@ -588,6 +588,46 @@
 .sg-tip-block.race b { background: rgba(184, 140, 255, 0.16); color: #d9c4ff; }
 .sg-tip-block.warn { color: #ffb3c0; }
 .sg-tip-block.info { color: var(--s-muted); font-size: 0.78rem; }
+.sg-tip-block.flavor { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--s-line-soft); color: var(--s-muted); font: italic 0.8rem/1.4 Georgia, 'Times New Roman', serif; }
+.sg-tip[data-rarity="rare"] .s-tip-title { color: #8cc8ff; }
+.sg-tip[data-rarity="epic"] .s-tip-title { color: #d9a8ff; }
+.sg-tip[data-rarity="legendary"] .s-tip-title { color: #ffc65a; text-shadow: 0 0 12px rgba(255, 176, 46, 0.45); }
+.sg-tip[data-rarity="legendary"] { border-color: rgba(255, 192, 77, 0.55); box-shadow: var(--s-shadow), 0 0 24px rgba(255, 176, 46, 0.25); }
+.sg-tip[data-rarity="epic"] { border-color: rgba(178, 107, 255, 0.45); }
+
+/* A legendary card enters the arena: its name sweeps across the screen. */
+.sg-legend {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    z-index: 26;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 14px 64px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at center, rgba(40, 24, 6, 0.85) 0%, rgba(40, 24, 6, 0.55) 55%, transparent 75%);
+    pointer-events: none;
+    animation: sg-legend 2.6s var(--s-ease) both;
+}
+.sg-legend small { color: #ffe3a3; font: 700 0.8rem/1 var(--s-font-display); letter-spacing: 0.5em; text-transform: uppercase; }
+.sg-legend b {
+    font: 900 clamp(30px, 5vw, 64px)/1.05 var(--s-font-title);
+    letter-spacing: 0.04em;
+    background: linear-gradient(180deg, #fff6d6 0%, #ffd36b 45%, #c97d0b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 18px rgba(255, 176, 46, 0.65)) drop-shadow(0 3px 0 #3a2200);
+}
+.sg-legend.enemy small { color: #ffb3a8; }
+@keyframes sg-legend {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); letter-spacing: 0.3em; }
+    14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    80% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); }
+    100% { opacity: 0; transform: translate(-50%, -58%) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) { .sg-legend { animation-duration: 2.6s; animation-name: s-fade-in; } }
 
 /* ---- Corner controls (settings, sound, views) --------------------------------------------------------------- */
 

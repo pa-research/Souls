@@ -474,6 +474,15 @@ export class UI {
         setTimeout(() => { if (b.isConnected) b.remove(); }, 2200);
     }
 
+    /** A legendary card enters the arena: its name in gold across the screen. */
+    legendary(name, enemy = null) {
+        const b = el('div', `sg-legend${enemy ? ' enemy' : ''}`, this.root);
+        b.setAttribute('aria-hidden', 'true');
+        el('small', '', b, 'Legendary');
+        el('b', '', b, name);
+        setTimeout(() => { if (b.isConnected) b.remove(); }, 2600);
+    }
+
     /** Short messages ("Not enough mana!"). */
     screenMessage(text, warn = true) {
         if (this.toasts.childElementCount >= 3) this.toasts.firstElementChild.remove();
@@ -518,6 +527,7 @@ export class UI {
         }
         const t = this.tooltip;
         t.replaceChildren();
+        t.dataset.rarity = info.rarity || '';
         el('div', 's-tip-title', t, info.title);
         if (info.sub) el('div', 'sg-tip-sub', t, info.sub);
         if (info.stats) {

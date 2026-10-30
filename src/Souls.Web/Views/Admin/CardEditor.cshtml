@@ -8,7 +8,7 @@
 <div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2></div>
 <div class="row">
     <div class="col-lg-3">
-                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, Model.Abilities.FirstOrDefault(a => a.Id == card.AbilityId)?.Name, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false)" />
+                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, card.AbilityId is { } abilityId ? Souls.Model.GameRules.AbilityLabel(abilityId, card.AbilityValue) : null, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false) { Armor = card.Armor, Rarity = card.Rarity, Flavor = card.Flavor, AbilityText = card.AbilityId is { } a ? Souls.Model.GameRules.AbilityText(a, card.AbilityValue) : null }" />
     </div>
 
     <div class="col-lg-9">
@@ -51,9 +51,21 @@
                         <div class="col-6"><label asp-for="Card.Health" class="form-label">Health</label><input asp-for="Card.Health" class="form-control" data-preview=".card-health" /></div>
                         <div class="col-6"><label asp-for="Card.Armor" class="form-label">Armor</label><input asp-for="Card.Armor" class="form-control" /></div>
                         <div class="col-6"><label asp-for="Card.VendorPrice" class="form-label">Price</label><input asp-for="Card.VendorPrice" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.AbilityValue" class="form-label">Ability value</label><input asp-for="Card.AbilityValue" class="form-control" placeholder="default" /></div>
+                        <div class="col-6">
+                            <label asp-for="Card.Rarity" class="form-label">Rarity</label>
+                            <select asp-for="Card.Rarity" class="form-select">
+                                @for (var r = Souls.Model.Rarity.Common; r <= Souls.Model.Rarity.Legendary; r++)
+                                {
+                                    <option value="@r">@Souls.Model.Rarity.Name(r)</option>
+                                }
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
+            <label asp-for="Card.Flavor" class="form-label mt-2">Flavor text</label>
+            <input asp-for="Card.Flavor" class="form-control" />
             <button type="submit" class="btn btn-primary mt-3">@(card.Id is null ? "Create" : "Update")</button>
         </form>
     </div>

@@ -67,13 +67,22 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     /// <summary>Rules text: ability and race passive.</summary>
     public string? Description { get; init; }
 
+    public int Rarity { get; init; } = Model.Rarity.Common;
+    public string RarityName => Model.Rarity.Name(Rarity);
+    public string RarityCss => Model.Rarity.Css(Rarity);
+    public int MaxCopies => Model.Rarity.MaxCopies(Rarity);
+    public string? RaceName { get; init; }
+    public string? AbilityText { get; init; }
+    public string? Flavor { get; init; }
+
     public static CardTile From(Card c, bool owned = false, int level = 1)
     {
         var bonus = GameRules.LevelBonus(level);
         var lines = new List<string>();
-        if (c.AbilityId is { } ability && GameRules.AbilityTexts.TryGetValue(ability, out var abilityText))
+        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, c.AbilityValue, c.RaceId) : null;
+        if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
         {
-            lines.Add($"{abilityText.Name}: {abilityText.Text}");
+            lines.Add($"{GameRules.AbilityLabel(id, c.AbilityValue)}: {abilityText}");
         }
 
         if (c.RaceId is { } race && GameRules.RaceTexts.TryGetValue(race, out var raceText))
@@ -81,12 +90,17 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
             lines.Add($"{raceText.Name}. {raceText.Text}");
         }
 
-        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.Ability?.Name, c.Race?.CardUrl, c.Portrait ?? DefaultPortrait, c.VendorPrice, owned)
+        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } a ? GameRules.AbilityLabel(a, c.AbilityValue) : null,
+            c.Race?.CardUrl, c.Portrait ?? DefaultPortrait, c.VendorPrice, owned)
         {
             Armor = c.Armor,
             Level = level,
             UpgradeCost = owned && level < GameRules.MaxCardLevel ? GameRules.UpgradeCost(c, level) : null,
             Description = string.Join(" ", lines),
+            Rarity = c.Rarity,
+            RaceName = c.Race?.Name,
+            AbilityText = abilityText,
+            Flavor = c.Flavor,
         };
     }
 }
@@ -123,6 +137,9 @@ public sealed class DeckViewModel
     public bool Custom { get; init; }
     public int DeckSize => GameRules.DeckSize;
     public int MaxCopies => GameRules.MaxCopiesInDeck;
+    public int MaxRare => Model.Rarity.MaxCopies(Model.Rarity.Rare);
+    public int MaxEpic => Model.Rarity.MaxCopies(Model.Rarity.Epic);
+    public int MaxLegendary => Model.Rarity.MaxCopies(Model.Rarity.Legendary);
 }
 
 public sealed record GameConfig(string WsBase, IReadOnlyList<CardPortrait> Cards)
@@ -175,6 +192,7 @@ public sealed record RulesConfig(
                 ["armor"] = GameRules.Keywords.Armor,
                 ["fatigue"] = GameRules.Keywords.Fatigue,
                 ["burned"] = GameRules.Keywords.Burned,
+                ["ward"] = GameRules.Keywords.Ward,
             },
             GameRules.DeckSize,
             10);
@@ -230,6 +248,16 @@ public sealed class CardEditorModel
     public int VendorPrice { get; set; }
 
     public int? AbilityId { get; set; }
+
+    /// <summary>The ability's strength (Burn 3); empty for the ability's default.</summary>
+    [Range(0, 20)]
+    public int? AbilityValue { get; set; }
+
+    [Range(Model.Rarity.Common, Model.Rarity.Legendary)]
+    public int Rarity { get; set; } = Model.Rarity.Common;
+
+    [StringLength(500)]
+    public string? Flavor { get; set; }
 
     [Required]
     public int? RaceId { get; set; }

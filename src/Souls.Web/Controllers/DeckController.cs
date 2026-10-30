@@ -7,7 +7,7 @@ using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
-/// <summary>The deck builder: pick 20 cards (at most 4 copies of each) from the cards you own.</summary>
+/// <summary>The deck builder: pick 20 cards from the cards you own (at most 4 copies of a common card, 1 of a legendary).</summary>
 public sealed class DeckController(SoulsDbContext db) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken ct)
@@ -23,12 +23,12 @@ public sealed class DeckController(SoulsDbContext db) : Controller
         var saved = await db.DeckCards.AsNoTracking().Where(d => d.PlayerId == playerId).ToListAsync(ct);
 
         // The deck the game server will use: the saved one if valid, otherwise the automatic one.
-        var deck = Decks.Build(owned, pc => pc.CardId, saved.Select(d => (d.CardId, d.Count)));
+        var deck = Decks.Build(owned, pc => pc.CardId, pc => pc.Card!.Rarity, saved.Select(d => (d.CardId, d.Count)));
         var counts = deck.GroupBy(pc => pc.CardId).ToDictionary(g => g.Key, g => g.Count());
         return View(new DeckViewModel
         {
             Entries = [.. owned.Select(pc => new DeckEntry(CardTile.From(pc.Card!, owned: false, pc.Level), counts.GetValueOrDefault(pc.CardId)))],
-            Custom = saved.Count > 0 && deck.Count == GameRules.DeckSize && Decks.Validate(saved.Select(d => (d.CardId, d.Count)), owned.Select(pc => pc.CardId).ToHashSet()) is null,
+            Custom = saved.Count > 0 && deck.Count == GameRules.DeckSize && Decks.Validate(saved.Select(d => (d.CardId, d.Count)), owned.ToDictionary(pc => pc.CardId, pc => pc.Card!.Rarity)) is null,
         });
     }
 
@@ -38,7 +38,9 @@ public sealed class DeckController(SoulsDbContext db) : Controller
     {
         var playerId = User.RequirePlayerId();
         counts ??= [];
-        var owned = (await db.PlayerCards.Where(pc => pc.PlayerId == playerId).Select(pc => pc.CardId).ToListAsync(ct)).ToHashSet();
+        var owned = await db.PlayerCards.Where(pc => pc.PlayerId == playerId)
+            .Select(pc => new { pc.CardId, pc.Card!.Rarity })
+            .ToDictionaryAsync(pc => pc.CardId, pc => pc.Rarity, ct);
         var deck = counts.Where(c => c.Value != 0).Select(c => (c.Key, c.Value)).ToList();
         if (Decks.Validate(deck, owned) is { } error)
         {

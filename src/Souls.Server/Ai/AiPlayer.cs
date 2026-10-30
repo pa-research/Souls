@@ -34,13 +34,19 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         public bool Taunt { get; init; }
         public bool CanAct { get; init; }
         public int? Ability { get; init; }
+        public int AbilityValue { get; init; }
         public int? Race { get; init; }
         public int SlotId { get; init; }
+        public bool Ward { get; init; }
+        public bool Venom => Ability == AbilityIds.Venom;
 
         /// <summary>Damage this unit deals when it attacks.</summary>
         public int Hit => Attack + (Race == Races.Ferocious ? 1 : 0);
         public int Toughness => Health + Armor;
-        public int Value => Attack * 2 + Health + Armor + (Taunt ? 2 : 0) + (Ability is not null ? 2 : 0);
+        public int Value => Attack * 2 + Health + Armor + (Taunt ? 2 : 0) + (Ability is not null ? 2 : 0) + (Ward ? 2 : 0) + (Venom ? 3 : 0);
+
+        /// <summary>Whether an attack of <paramref name="damage"/> (from a venom card or not) kills this unit.</summary>
+        public bool DiesTo(int damage, bool venom) => !Ward && damage > 0 && (venom || damage >= Toughness);
     }
 
     private sealed class Hero
@@ -205,8 +211,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             Taunt = (bool?)c["taunt"] ?? false,
             CanAct = (bool?)c["canAct"] ?? false,
             Ability = (int?)c["ability"]?["id"],
+            AbilityValue = Int(c["ability"]?["value"]),
             Race = (int?)c["race"]?["id"],
             SlotId = Int(c["slotId"]),
+            Ward = (bool?)c["ward"] ?? false,
         })]
         : [];
 
@@ -262,8 +270,8 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         var ready = _myBoard.Where(u => u.CanAct).ToList();
-        var damage = ready.Where(u => u.Ability != AbilityIds.Burn).Sum(u => u.Hit)
-            + ready.Count(u => u.Ability == AbilityIds.Burn) * GameRules.BurnDamage
+        static bool Shoots(Unit u) => u.Ability is AbilityIds.Burn or AbilityIds.Drain;
+        var damage = ready.Sum(u => Shoots(u) ? Math.Max(u.Hit, u.AbilityValue) : u.Ability == AbilityIds.Fury ? 2 * u.Hit : u.Hit)
             + (_me.CanAttack ? _me.Attack : 0)
             + (_me.CanUsePower && _me.Type is 1 or 2 ? 1 : 0);
         if (damage < _enemy.Toughness)
@@ -273,7 +281,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
         foreach (var unit in ready.OrderByDescending(u => u.Hit))
         {
-            var m = unit.Ability == AbilityIds.Burn
+            var m = Shoots(unit) && unit.AbilityValue >= unit.Hit
                 ? Ability(unit.Cid, TargetType.EnemyHero, -1)
                 : AttackMessage(unit.Cid, -1, 1);
             if (Try(m) is { } ok)
@@ -306,6 +314,16 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return null;
         }
 
+        // Inferno is held back while the enemy has (almost) nothing to burn, unless the hand is nearly full.
+        if (difficulty > 0 && _enemyBoard.Count < 2 && _hand.Count < 8)
+        {
+            affordable = [.. affordable.Where(c => c.AbilityId != AbilityIds.Inferno)];
+            if (affordable.Count == 0)
+            {
+                return null;
+            }
+        }
+
         var card = difficulty == 0
             ? affordable[_random.Next(affordable.Count)]
             : affordable
@@ -314,9 +332,24 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                 .ThenByDescending(c => c.Attack + c.Health + c.Armor)
                 .First();
 
-        // Taunts go in the middle, the rest fill from the left.
-        var slot = card.AbilityId == AbilityIds.Taunt ? free.OrderBy(s => Math.Abs(s - 3)).First() : free[0];
-        return Try(Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = slot }));
+        return Try(Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = PickSlot(card, free) }));
+    }
+
+    /// <summary>
+    /// Taunts go in the middle, Rally next to as many friends as possible, Summon where its Lost Souls fit; the rest
+    /// fill from the left.
+    /// </summary>
+    private int PickSlot(Card card, List<int> free)
+    {
+        int Neighbours(int slot) => _myBoard.Count(u => Math.Abs(u.SlotId - slot) == 1);
+        int OpenAround(int slot) => free.Count(f => Math.Abs(f - slot) == 1);
+        return difficulty == 0 ? free[0] : card.AbilityId switch
+        {
+            AbilityIds.Taunt => free.OrderBy(s => Math.Abs(s - 3)).First(),
+            AbilityIds.Rally => free.OrderByDescending(Neighbours).ThenBy(s => Math.Abs(s - 3)).First(),
+            AbilityIds.Summon => free.OrderByDescending(OpenAround).ThenBy(s => Math.Abs(s - 3)).First(),
+            _ => free[0],
+        };
     }
 
     // ---- Abilities ------------------------------------------------------------------------------------------------
@@ -331,9 +364,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                 AbilityIds.Sacrifice => SacrificeTarget(unit),
                 AbilityIds.Paralyze => _enemyBoard.Where(u => u.Attack >= 3).OrderByDescending(u => u.Attack).Select(u => Ability(unit.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault(),
                 AbilityIds.Harden => _me.Health <= _me.MaxHealth / 2 ? Ability(unit.Cid, TargetType.OwnHero, -1)
-                    : _myBoard.Where(u => u.Taunt).Select(u => Ability(unit.Cid, TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),
-                AbilityIds.Burn => _enemyBoard.Where(u => u.Toughness <= GameRules.BurnDamage).OrderByDescending(u => u.Value)
-                    .Select(u => Ability(unit.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault() ?? Ability(unit.Cid, TargetType.EnemyHero, -1),
+                    : _myBoard.Where(u => u.Taunt).Select(u => Ability(unit.Cid, TargetType.FriendlyCard, u.Cid)).FirstOrDefault()
+                        ?? (difficulty >= 2 && _enemyBoard.Count > 0 ? Ability(unit.Cid, TargetType.FriendlyCard, unit.Cid) : null),
+                AbilityIds.Burn or AbilityIds.Drain => ShootTarget(unit),
                 _ => null,
             };
             if (m is not null && Try(m) is { } ok)
@@ -343,6 +376,22 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         return null;
+    }
+
+    /// <summary>Burn and Drain: kill the best card it can (or pop a ward), otherwise hit the hero.</summary>
+    private Message? ShootTarget(Unit shooter)
+    {
+        // A card that hits harder than it shoots attacks instead (unless an attack would only bounce off a taunt).
+        if (difficulty > 0 && shooter.Hit > shooter.AbilityValue + 1 && !_enemyBoard.Any(u => u.Taunt))
+        {
+            return null;
+        }
+
+        var kill = _enemyBoard.Where(u => u.DiesTo(shooter.AbilityValue, venom: false) || u.Ward && u.Value >= 6)
+            .OrderByDescending(u => u.Value).FirstOrDefault();
+        return kill is not null
+            ? Ability(shooter.Cid, TargetType.EnemyCard, kill.Cid)
+            : Ability(shooter.Cid, TargetType.EnemyHero, -1);
     }
 
     private Message? HealTarget(Unit healer)
@@ -391,7 +440,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     {
         if (taunts.Count > 0)
         {
-            return taunts.OrderByDescending(t => attacker.Hit >= t.Toughness).ThenBy(t => t.Toughness).First();
+            return taunts.OrderByDescending(t => t.DiesTo(attacker.Hit, attacker.Venom)).ThenBy(t => t.Toughness).First();
         }
 
         if (_enemyBoard.Count == 0)
@@ -405,19 +454,26 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         // Kill something without dying.
-        var clean = _enemyBoard.Where(e => attacker.Hit >= e.Toughness && e.Attack < attacker.Toughness).OrderByDescending(e => e.Value).FirstOrDefault();
+        bool Survives(Unit e) => attacker.Ward || e.Attack <= 0 || !e.Venom && e.Attack < attacker.Toughness;
+        var clean = _enemyBoard.Where(e => e.DiesTo(attacker.Hit, attacker.Venom) && Survives(e)).OrderByDescending(e => e.Value).FirstOrDefault();
         if (clean is not null)
         {
             return clean;
         }
 
-        // Hard: trade into anything worth more, and defend when the enemy board threatens us.
+        // Hard: trade into anything worth more, pop wards with small cards, and defend when the enemy board threatens us.
         if (difficulty >= 2)
         {
-            var trade = _enemyBoard.Where(e => attacker.Hit >= e.Toughness && e.Value > attacker.Value).OrderByDescending(e => e.Value).FirstOrDefault();
+            var trade = _enemyBoard.Where(e => e.DiesTo(attacker.Hit, attacker.Venom) && e.Value > attacker.Value).OrderByDescending(e => e.Value).FirstOrDefault();
             if (trade is not null)
             {
                 return trade;
+            }
+
+            var ward = _enemyBoard.Where(e => e.Ward && e.Value >= attacker.Value && Survives(e)).OrderByDescending(e => e.Value).FirstOrDefault();
+            if (ward is not null)
+            {
+                return ward;
             }
 
             if (_enemyBoard.Sum(e => e.Hit) >= _me.Toughness - 3)
@@ -438,7 +494,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
         var taunts = _enemyBoard.Where(u => u.Taunt).ToList();
         var targets = taunts.Count > 0 ? taunts : _enemyBoard;
-        var kill = targets.Where(u => _me.Attack >= u.Toughness && u.Attack < _me.Toughness - 5).OrderByDescending(u => u.Value).FirstOrDefault();
+        var kill = targets.Where(u => u.DiesTo(_me.Attack, venom: false) && !u.Venom && u.Attack < _me.Toughness - 5).OrderByDescending(u => u.Value).FirstOrDefault();
         if (kill is not null)
         {
             return Try(AttackMessage(-1, kill.Cid, 2));
@@ -462,7 +518,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
         var m = _me.Type switch
         {
-            1 or 2 => _enemyBoard.Where(u => u.Toughness <= 1).OrderByDescending(u => u.Value).Select(u => Power(TargetType.EnemyCard, u.Cid)).FirstOrDefault()
+            1 or 2 => _enemyBoard.Where(u => u.DiesTo(1, venom: false) || u.Ward).OrderByDescending(u => u.Value).Select(u => Power(TargetType.EnemyCard, u.Cid)).FirstOrDefault()
                 ?? Power(TargetType.EnemyHero, -1),
             3 => _me.Health < _me.MaxHealth ? Power(TargetType.OwnHero, -1)
                 : _myBoard.Where(u => u.Health < u.MaxHealth).Select(u => Power(TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),

@@ -1,0 +1,15 @@
+{
+  "name": "souls-card-art",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Procedural 'painted emblem' card portraits for Souls, built from game-icons.net silhouettes (CC BY 3.0).",
+  "scripts": {
+    "generate": "node generate.js",
+    "sheets": "node sheets.js --out sheets"
+  },
+  "dependencies": {
+    "@iconify-json/game-icons": "1.2.4",
+    "playwright": "1.63.0",
+    "sharp": "0.34.4"
+  }
+}

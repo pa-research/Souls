@@ -80,6 +80,9 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
                 Level = card.Level,
                 VendorPrice = card.VendorPrice,
                 AbilityId = card.AbilityId,
+                AbilityValue = card.AbilityValue,
+                Rarity = card.Rarity,
+                Flavor = card.Flavor,
                 RaceId = card.RaceId,
                 Portrait = card.Portrait,
             };
@@ -131,6 +134,9 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         card.Level = model.Level;
         card.VendorPrice = model.VendorPrice;
         card.AbilityId = model.AbilityId;
+        card.AbilityValue = model.AbilityValue;
+        card.Rarity = model.Rarity;
+        card.Flavor = string.IsNullOrWhiteSpace(model.Flavor) ? null : model.Flavor.Trim();
         card.RaceId = model.RaceId;
         card.Portrait = string.IsNullOrWhiteSpace(model.Portrait) ? null : model.Portrait;
         await db.SaveChangesAsync(ct);
