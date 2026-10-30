@@ -42,6 +42,9 @@ public sealed class GamePlayer
     public int Rank { get; init; }
     public int Rating { get; init; }
     public int Type { get; init; }
+
+    /// <summary>The hero power (see <see cref="Model.GameRules.HeroPowers"/>), one of the class's.</summary>
+    public int Power { get; init; }
     public int? RaceId { get; init; }
     public bool HasAttacked { get; set; }
     public bool HeroPowerUsed { get; set; }
@@ -76,6 +79,7 @@ public sealed class GamePlayer
         ["mana"] = Mana.ToString(CultureInfo.InvariantCulture),
         ["name"] = Name,
         ["type"] = Type.ToString(CultureInfo.InvariantCulture),
+        ["power"] = Power,
         ["armor"] = Armor,
         ["maxHealth"] = MaxHealth,
         ["maxMana"] = MaxMana,
@@ -101,6 +105,7 @@ public sealed class GamePlayer
             Rank = Rank,
             Rating = Rating,
             Type = Type,
+            Power = Power,
             RaceId = RaceId,
             HasAttacked = HasAttacked,
             HeroPowerUsed = HeroPowerUsed,

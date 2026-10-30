@@ -515,6 +515,8 @@ a:hover { color: #fff0c2; }
 }
 .s-class input:checked + .s-class-card img { filter: none; }
 .s-class input:focus-visible + .s-class-card { box-shadow: var(--s-focus); }
+.s-powers { max-width: 760px; }
+.s-powers .s-class-race { display: flex; align-items: center; gap: 6px; }
 
 .s-pick { position: relative; cursor: pointer; }
 .s-pick .s-card-wrap { height: 100%; }

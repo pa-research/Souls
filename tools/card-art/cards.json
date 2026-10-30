@@ -519,6 +519,98 @@
       "tweak": {"SkyTop": "#030a12", "SkyBot": "#16303c", "GlowCol": "#a8dcf0", "DiscCol": "#f0faff", "CloudLit": "#5a8494", "CloudDark": "#0a1620", "FogCol": "#3a5866", "SceneFar": "#3a5a6a", "SceneMid": "#122028", "RimCol": "#e8faff", "AuraCol": "#8cd0f0", "KeyCol": "#b8d4e8", "BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "ShadowTint": "#0c3040", "HiTint": "#f0faff", "EmitCol": "#c8f4ff", "GlowStr": 0.7, "KeyStr": 0.75}
     },
     {
+      "id": 70,
+      "name": "Rabid Ghoul",
+      "race": "darkness",
+      "rarity": "C",
+      "layers": [{"icon": "raise-zombie"}],
+      "material": "flesh",
+      "light": [0.7, 0.24],
+      "motif": "barrow",
+      "particles": "motes",
+      "tweak": {"BaseCol": "#4a5040", "Base2Col": "#7c846a"}
+    },
+    {
+      "id": 71,
+      "name": "Night Terror",
+      "race": "darkness",
+      "rarity": "R",
+      "layers": [{"icon": "terror"}],
+      "material": "ethereal",
+      "light": [0.3, 0.24],
+      "particles": "wisps",
+      "tweak": {"BaseCol": "#3c3450", "Base2Col": "#8a7cae"}
+    },
+    {
+      "id": 72,
+      "name": "Night Stalker",
+      "race": "vampiric",
+      "rarity": "C",
+      "layers": [{"icon": "hooded-assassin"}],
+      "material": "cloth",
+      "light": [0.72, 0.24],
+      "motif": "castle",
+      "tweak": {"BaseCol": "#2c1418", "Base2Col": "#5a2028"}
+    },
+    {
+      "id": 73,
+      "name": "Crimson Feast",
+      "race": "vampiric",
+      "rarity": "R",
+      "layers": [{"icon": "pouring-chalice"}],
+      "material": "gold",
+      "light": [0.32, 0.26],
+      "particles": "blood",
+      "motif": "crypt"
+    },
+    {
+      "id": 74,
+      "name": "Sunlance",
+      "race": "lightbringer",
+      "rarity": "C",
+      "layers": [{"icon": "sun-spear", "rot": -20}],
+      "material": "gold",
+      "light": [0.5, 0.26],
+      "motif": "sky"
+    },
+    {
+      "id": 75,
+      "name": "Dawn Paladin",
+      "race": "lightbringer",
+      "rarity": "E",
+      "layers": [{"icon": "mounted-knight"}],
+      "material": "iron",
+      "light": [0.66, 0.28],
+      "maxW": 0.9,
+      "motif": "cathedral",
+      "tweak": {"BaseCol": "#8a8c98", "Base2Col": "#d0d2dc"}
+    },
+    {
+      "id": 76,
+      "name": "Phantom Wolf",
+      "race": "ferocious",
+      "rarity": "C",
+      "layers": [{"icon": "hound"}],
+      "material": "ethereal",
+      "light": [0.3, 0.24],
+      "lightKind": "moon",
+      "particles": "wisps",
+      "motifOpts": {"treeSide": 1},
+      "tweak": {"BaseCol": "#4a6a7a", "Base2Col": "#a8d0dc"}
+    },
+    {
+      "id": 77,
+      "name": "Ironhide Bear",
+      "race": "ferocious",
+      "rarity": "R",
+      "layers": [{"icon": "bear-head"}],
+      "material": "iron",
+      "light": [0.68, 0.28],
+      "motif": "mountains",
+      "motifOpts": {"treeSide": -1},
+      "tweak": {"BaseCol": "#4a4440", "Base2Col": "#8a8278"}
+    },
+    {
       "id": "lost-soul",
       "name": "Lost Soul",
       "race": "neutral",

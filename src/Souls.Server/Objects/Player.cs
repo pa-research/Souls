@@ -14,6 +14,9 @@ public sealed class Player
     public int Rating { get; init; } = Model.Ratings.Initial;
     public required PlayerTypeInfo PlayerType { get; init; }
 
+    /// <summary>The hero power the player picked; <c>null</c> (or another class's power) uses the class's default.</summary>
+    public int? HeroPower { get; init; }
+
     /// <summary>The cards the player owns (with their upgrade level).</summary>
     public required IReadOnlyList<Card> OwningCards { get; init; }
 
@@ -65,6 +68,7 @@ public sealed class Player
         Rating = Rating,
         IsPlayerOne = playerOne,
         Type = PlayerType.Id,
+        Power = Model.GameRules.PowerOf(PlayerType.Id, HeroPower),
         RaceId = PlayerType.RaceId,
     };
 

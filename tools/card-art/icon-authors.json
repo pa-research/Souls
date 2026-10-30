@@ -11,6 +11,10 @@
     "slug": "lorc",
     "name": "Lorc"
   },
+  "bear-head": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
   "bleeding-heart": {
     "slug": "lorc",
     "name": "Lorc"
@@ -99,7 +103,15 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "hooded-assassin": {
+    "slug": "darkzaitzev",
+    "name": "DarkZaitzev"
+  },
   "horned-helm": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "hound": {
     "slug": "lorc",
     "name": "Lorc"
   },
@@ -119,6 +131,10 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "mounted-knight": {
+    "slug": "skoll",
+    "name": "Skoll"
+  },
   "ogre": {
     "slug": "delapouite",
     "name": "Delapouite"
@@ -131,9 +147,17 @@
     "slug": "lorc",
     "name": "Lorc"
   },
+  "pouring-chalice": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
   "prayer": {
     "slug": "lorc",
     "name": "Lorc"
+  },
+  "raise-zombie": {
+    "slug": "skoll",
+    "name": "Skoll"
   },
   "rat": {
     "slug": "delapouite",
@@ -179,9 +203,17 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "sun-spear": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
   "templar-shield": {
     "slug": "delapouite",
     "name": "Delapouite"
+  },
+  "terror": {
+    "slug": "lorc",
+    "name": "Lorc"
   },
   "thrown-spear": {
     "slug": "lorc",

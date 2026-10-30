@@ -52,14 +52,14 @@
     <div class="s-grid s-shop-grid">
         @foreach (var card in Model.Cards.OrderBy(c => c.Cost).ThenBy(c => c.Name))
         {
-            <article class="s-card-wrap s-rise rarity-@card.RarityCss" aria-label="@card.Name" data-rarity="@card.RarityCss" data-race="@card.RaceName" data-owned="@(card.Owned ? "true" : "false")">
+            <article class="s-card-wrap s-rise rarity-@card.RarityCss" aria-label="@card.Name" data-rarity="@card.RarityCss" data-race="@card.RaceName" data-class="@card.ClassName" data-owned="@(card.Owned ? "true" : "false")">
                 @if (card.Owned)
                 {
                     <span class="s-ribbon">Owned &middot; Lv @card.Level</span>
                 }
                 <partial name="_CardTile" model="card" />
                 <h2 class="s-card-name h6 mb-0">@card.Name</h2>
-                <span class="s-rarity">@card.RarityName &middot; @card.RaceName</span>
+                <span class="s-rarity">@card.RarityName &middot; @card.RaceName@(card.ClassName is null ? "" : $" · {card.ClassName} only")</span>
                 <p class="s-card-desc">@card.Description</p>
                 @if (card.Flavor is not null)
                 {

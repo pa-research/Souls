@@ -161,11 +161,12 @@ public static class GameRules
     public static IReadOnlyList<string> AbilityTargets(int abilityId) =>
         Abilities.TryGetValue(abilityId, out var a) ? a.Targets : [];
 
-    /// <summary>What a hero power target kind ("enemy", "friendly", "none") allows.</summary>
+    /// <summary>What a hero power target kind ("enemy", "friendly", "enemyCard", "friendlyCard", "none") allows.</summary>
     public static IReadOnlyList<string> PowerTargets(string target) => target switch
     {
         "enemy" => EnemyTargets,
         "friendly" => FriendlyTargets,
+        "enemyCard" or "friendlyCard" => [target],
         _ => [],
     };
 
@@ -180,16 +181,55 @@ public static class GameRules
         [Races.Ferocious] = new("Ferocious", "Frenzy: +1 attack when it attacks."),
     };
 
-    public sealed record HeroPowerText(string Name, string Text, string Target);
+    /// <summary>A hero power of the class <paramref name="ClassId"/>. Target: see <see cref="PowerTargets"/>.</summary>
+    public sealed record HeroPowerText(string Name, string Text, string Target, int ClassId);
 
-    /// <summary>Hero powers by player type (class) id. Target: "enemy", "friendly" or "none".</summary>
+    /// <summary>Hero power ids: 1-4 are the classes' first powers (id = class id), 5-8 their second ones.</summary>
+    public static class Powers
+    {
+        public const int RabidBite = 1;
+        public const int Drain = 2;
+        public const int HolyLight = 3;
+        public const int Fade = 4;
+        public const int Ravage = 5;
+        public const int BloodGift = 6;
+        public const int Aegis = 7;
+        public const int ThickHide = 8;
+    }
+
+    /// <summary>Damage Ravage deals to an enemy card, and what it costs its own hero.</summary>
+    public const int RavageDamage = 2;
+    public const int RavageSelfDamage = 1;
+
+    /// <summary>Attack and health Blood Gift gives.</summary>
+    public const int BloodGiftAttack = 1;
+    public const int BloodGiftHealth = 2;
+
+    /// <summary>Armor Thick Hide gives.</summary>
+    public const int ThickHideArmor = 1;
+
+    /// <summary>Hero powers by id: two per class; players pick one (the class's first is the default).</summary>
     public static readonly IReadOnlyDictionary<int, HeroPowerText> HeroPowers = new Dictionary<int, HeroPowerText>
     {
-        [1] = new("Rabid Bite", "Deal 1 damage to an enemy card or hero.", "enemy"),
-        [2] = new("Drain", "Deal 1 damage to an enemy card or hero and restore 1 health to your hero.", "enemy"),
-        [3] = new("Holy Light", "Restore 2 health to a friendly card or your hero.", "friendly"),
-        [4] = new("Fade", "Your hero gains 2 armor.", "none"),
+        [Powers.RabidBite] = new("Rabid Bite", "Deal 1 damage to an enemy card or hero.", "enemy", 1),
+        [Powers.Drain] = new("Drain", "Deal 1 damage to an enemy card or hero and restore 1 health to your hero.", "enemy", 2),
+        [Powers.HolyLight] = new("Holy Light", "Restore 2 health to a friendly card or your hero.", "friendly", 3),
+        [Powers.Fade] = new("Fade", "Your hero gains 2 armor.", "none", 4),
+        [Powers.Ravage] = new("Ravage", $"Deal {RavageDamage} damage to an enemy card. Your hero takes {RavageSelfDamage} damage.", "enemyCard", 1),
+        [Powers.BloodGift] = new("Blood Gift", $"A friendly card gains +{BloodGiftAttack} attack and +{BloodGiftHealth} health.", "friendlyCard", 2),
+        [Powers.Aegis] = new("Aegis", "A friendly card without a ward gains Ward.", "friendlyCard", 3),
+        [Powers.ThickHide] = new("Thick Hide", $"A friendly card gains {ThickHideArmor} armor.", "friendlyCard", 4),
     };
+
+    /// <summary>The hero powers a class can pick from, the default first.</summary>
+    public static IReadOnlyList<int> PowersOf(int classId) => [.. HeroPowers.Where(p => p.Value.ClassId == classId).Select(p => p.Key).Order()];
+
+    /// <summary>The power a hero of the class uses: <paramref name="chosen"/> if it is one of the class's, else the default (0: none).</summary>
+    public static int PowerOf(int classId, int? chosen) =>
+        chosen is { } id && HeroPowers.TryGetValue(id, out var power) && power.ClassId == classId ? id : PowersOf(classId).FirstOrDefault();
+
+    /// <summary>Whether a player of the class may own and play a card of class <paramref name="cardClassId"/> (null: every class).</summary>
+    public static bool CanUse(int? cardClassId, int classId) => cardClassId is null || cardClassId == classId;
 
     /// <summary>What players can say in a game (the Emote request sends the index): greeting, well played, thanks, oops, threaten, sorry.</summary>
     public static readonly IReadOnlyList<string> Emotes = ["Greetings!", "Well played!", "Thanks!", "Oops!", "Your soul is mine!", "Sorry!"];

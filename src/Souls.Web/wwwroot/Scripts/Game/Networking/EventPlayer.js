@@ -8,7 +8,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
     var ABILITY = { SUMMON: 4, BURN: 8, WARD: 10, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
     var ABILITY_COLOR = Card.ABILITY_COLOR;
-    var POWER_COLOR = { 1: 0xff5544, 2: 0xa569bd, 3: 0xffe082, 4: 0x8fc8ff };
+    var POWER_COLOR = { 1: 0xff5544, 2: 0xa569bd, 3: 0xffe082, 4: 0x8fc8ff, 5: 0xb03a2e, 6: 0xff3b6b, 7: 0xffd36b, 8: 0xc8a27a }; // by hero power id
 
     // Hits that land at the same moment (Inferno on every enemy card) are shown together.
     var SIMULTANEOUS = { damage: true, ward: true, venom: true };

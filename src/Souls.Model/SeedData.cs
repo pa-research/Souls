@@ -154,7 +154,30 @@ public static class SeedData
             flavor: "Troll blood closes any wound. The taste is another matter."),
         Spell(69, "Frostbite", Ferocious, R, cost: 0, Ability.Paralyze,
             flavor: "The cold of the high passes does not kill. It waits."),
+
+        // ---- Class cards: only heroes of their class can own and play them (two per class, of the class's race). ---
+        Card(70, "Rabid Ghoul", Darkness, C, cost: 2, attack: 3, health: 1, armor: 0, Ability.Charge, classId: RabidSoul,
+            flavor: "It smelled the battle three graveyards away."),
+        Card(71, "Night Terror", Darkness, R, cost: 4, attack: 4, health: 3, armor: 0, Ability.Fury, classId: RabidSoul,
+            flavor: "It strikes twice: once in the dark, once in your dreams."),
+        Card(72, "Night Stalker", Vampiric, C, cost: 3, attack: 2, health: 3, armor: 0, Ability.Paralyze, classId: Lurker,
+            flavor: "You never see the Lurker's hunters. You only stop moving."),
+        Spell(73, "Crimson Feast", Vampiric, R, cost: 3, Ability.Drain, value: 2, classId: Lurker,
+            flavor: "The Lurker drinks twice: once from the wound, once from the fear."),
+        Spell(74, "Sunlance", Lightbringer, C, cost: 2, Ability.Burn, value: 2, classId: Harrison,
+            flavor: "Harrison throws it like he swings his sword: straight and without mercy."),
+        Card(75, "Dawn Paladin", Lightbringer, E, cost: 5, attack: 4, health: 5, armor: 0, Ability.Drain, value: 2, classId: Harrison,
+            flavor: "Every blow he lands closes one of Harrison's wounds."),
+        Card(76, "Phantom Wolf", Ferocious, C, cost: 3, attack: 3, health: 2, armor: 0, Ability.Haunt, classId: Fader,
+            flavor: "Kill it and it fades. Turn around and it is back."),
+        Card(77, "Ironhide Bear", Ferocious, R, cost: 4, attack: 3, health: 5, armor: 0, Ability.Harden, value: 3, classId: Fader,
+            flavor: "Fader's bears sleep in armor. They wake up in more."),
     ];
+
+    private const int RabidSoul = 1;
+    private const int Lurker = 2;
+    private const int Harrison = 3;
+    private const int Fader = 4;
 
     /// <summary>
     /// Hero classes. Their identities come from the 2015 database (Harrison hits hard but is frail, Fader hides behind
@@ -216,10 +239,11 @@ public static class SeedData
     public const string BotPlayerName = "BOT";
 
     private static Card Card(int id, string name, int race, int rarity, int cost, int attack, int health, int armor, int? ability, int? value = null,
-        bool starter = false, string? portrait = null, string? flavor = null) => new()
+        bool starter = false, string? portrait = null, string? flavor = null, int? classId = null) => new()
     {
         Id = id,
         Name = name,
+        ClassId = classId,
         Attack = attack,
         Health = health,
         Armor = armor,
@@ -234,9 +258,9 @@ public static class SeedData
         Flavor = flavor,
     };
 
-    private static Card Spell(int id, string name, int race, int rarity, int cost, int ability, int? value = null, string? flavor = null)
+    private static Card Spell(int id, string name, int race, int rarity, int cost, int ability, int? value = null, string? flavor = null, int? classId = null)
     {
-        var card = Card(id, name, race, rarity, cost, attack: 0, health: 0, armor: 0, ability, value, flavor: flavor);
+        var card = Card(id, name, race, rarity, cost, attack: 0, health: 0, armor: 0, ability, value, flavor: flavor, classId: classId);
         card.Kind = CardKind.Spell;
         return card;
     }

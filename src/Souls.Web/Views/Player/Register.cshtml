@@ -37,7 +37,7 @@
                 GameRules.RaceTexts.TryGetValue(group.Race.Id, out var race);
                 foreach (var type in group.Types)
                 {
-                    GameRules.HeroPowers.TryGetValue(type.Id, out var power);
+                    var powers = GameRules.PowersOf(type.Id).Select(id => GameRules.HeroPowers[id]).ToList();
                     <label class="s-class race-type" data-type-id="@type.Id" for="type-@type.Id">
                         <input type="radio" name="Form.PlayerType" id="type-@type.Id" value="@type.Id" checked="@(Model.Form.PlayerType == type.Id)" />
                         <span class="s-class-card">
@@ -57,9 +57,9 @@
                                         <span class="s-chip s-chip-mana" title="Bonus mana every turn"><s-icon name="gem" />+@type.Mana</span>
                                     }
                                 </span>
-                                @if (power is not null)
+                                @foreach (var power in powers)
                                 {
-                                    <span class="s-class-text d-block"><b class="text-white-50">@power.Name:</b> @power.Text</span>
+                                    <span class="s-class-text d-block"><b class="text-white-50">@(power == powers[0] ? "" : "Or ")@power.Name:</b> @power.Text</span>
                                 }
                                 @if (race is not null)
                                 {

@@ -11,7 +11,7 @@
 // (kept focusable and hoverable, so its tooltip and the reason it cannot be used still show).
 define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animation) {
 
-    var ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus' };
+    var ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus', 5: 'skull', 6: 'heart-pulse', 7: 'shield', 8: 'castle' }; // by hero power id
     var RADIUS = 46;        // stage units: the area of the power for Contains() and effects
     var ORB_HALF = 33;      // half the orb's CSS height: the element is placed by the orb's centre
     var DRAG_PX = 10;       // moving further than this from the press turns it into a drag

@@ -69,8 +69,10 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.Rarity).HasColumnName("rarity").HasDefaultValue(Rarity.Common);
             e.Property(x => x.Flavor).HasColumnName("flavor").HasMaxLength(500);
             e.Property(x => x.Kind).HasColumnName("kind");
+            e.Property(x => x.ClassId).HasColumnName("fk_class");
             e.HasOne(x => x.Ability).WithMany().HasForeignKey(x => x.AbilityId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Race).WithMany().HasForeignKey(x => x.RaceId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Class).WithMany().HasForeignKey(x => x.ClassId).OnDelete(DeleteBehavior.SetNull);
             e.HasData(SeedData.Cards);
         });
 
@@ -103,6 +105,7 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.ToTable("player");
             Key(e);
             e.Property(x => x.PlayerTypeId).HasColumnName("fk_type");
+            e.Property(x => x.HeroPowerId).HasColumnName("hero_power");
             e.Property(x => x.Name).HasColumnName("name").HasMaxLength(32);
             e.Property(x => x.NormalizedName).HasColumnName("normalized_name").HasMaxLength(32);
             e.Property(x => x.Password).HasColumnName("password").HasMaxLength(255);

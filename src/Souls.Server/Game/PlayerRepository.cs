@@ -30,7 +30,9 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             .Include(pc => pc.Card).ThenInclude(c => c!.Ability)
             .Include(pc => pc.Card).ThenInclude(c => c!.Race)
             .ToListAsync(ct);
-        var cards = owned.Where(pc => pc.Card is not null).Select(pc => Objects.Card.FromEntity(pc.Card!, pc.Level)).OrderBy(c => c.Id).ToList();
+        // Another class's cards never reach a game: a saved deck with one is invalid and the automatic deck is used.
+        var cards = owned.Where(pc => pc.Card is not null && GameRules.CanUse(pc.Card.ClassId, player.PlayerTypeId))
+            .Select(pc => Objects.Card.FromEntity(pc.Card!, pc.Level)).OrderBy(c => c.Id).ToList();
         var deck = await db.DeckCards.AsNoTracking().Where(d => d.PlayerId == playerId).ToListAsync(ct);
 
         return new Objects.Player
@@ -40,12 +42,16 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             Rank = player.Rank,
             Rating = player.Rating,
             PlayerType = ToInfo(player.PlayerType),
+            HeroPower = player.HeroPowerId,
             OwningCards = cards,
             Deck = Decks.Build(cards, c => c.Id, c => c.Rarity, deck.Select(d => (d.CardId, d.Count))),
         };
     }
 
-    /// <summary>Creates the practice bot. It plays a deck of one or two races from every card in the game; on Hard its cards are upgraded.</summary>
+    /// <summary>
+    /// Creates the practice bot. It plays a deck of one or two races from every card its class can play, and one of its
+    /// class's hero powers at random; on Hard its cards are upgraded.
+    /// </summary>
     public async Task<Objects.Player> CreateBotAsync(string displayName, int difficulty = 1, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
@@ -53,14 +59,17 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
 
         var (id, type) = await GetBotAccountAsync(db, ct);
         var level = difficulty >= 2 ? 2 : 1;
-        var cards = (await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).OrderBy(c => c.Id).ToListAsync(ct))
+        var cards = (await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race)
+                .Where(c => c.ClassId == null || c.ClassId == type.Id).OrderBy(c => c.Id).ToListAsync(ct))
             .Select(c => Objects.Card.FromEntity(c, level)).ToList();
+        var powers = GameRules.PowersOf(type.Id);
         return new Objects.Player
         {
             Id = id,
             Name = displayName,
             Rank = 1,
             PlayerType = type,
+            HeroPower = powers.Count == 0 ? null : powers[Random.Shared.Next(powers.Count)],
             OwningCards = cards,
             Deck = Decks.Themed(cards, c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, Random.Shared),
             IsBot = true,

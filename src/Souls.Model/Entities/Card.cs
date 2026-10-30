@@ -10,6 +10,10 @@ public class Card
     public int? AbilityValue { get; set; }
     public int? RaceId { get; set; }
     public Race? Race { get; set; }
+
+    /// <summary>A class card can only be owned and played by heroes of this class (see <see cref="GameRules.CanUse"/>); <c>null</c>: every class.</summary>
+    public int? ClassId { get; set; }
+    public PlayerType? Class { get; set; }
     public required string Name { get; set; }
     public int Attack { get; set; }
     public int Health { get; set; }

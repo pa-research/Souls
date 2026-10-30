@@ -349,11 +349,11 @@
         // Hero power buttons next to the heroes (DOM, over the canvas): ours can be used, the opponent's is shown
         engine.player.heroPower = new HeroPower(engine, engine.player, true);
         engine.player.heroPower.SetPosition(engine.player.GetHome().x + 225, engine.player.GetHome().y - 25);
-        engine.player.heroPower.SetType(engine.player.type);
+        engine.player.heroPower.SetType(engine.player.power);
 
         engine.opponent.heroPower = new HeroPower(engine, engine.opponent, false);
         engine.opponent.heroPower.SetPosition(engine.opponent.GetHome().x + 225, engine.opponent.GetHome().y - 5);
-        engine.opponent.heroPower.SetType(engine.opponent.type);
+        engine.opponent.heroPower.SetType(engine.opponent.power);
 
         // Give cards to hand
         engine.player.cardManager.JSONToHandCards(payload.player && payload.player.hand, { x: 165, y: 980 });
@@ -493,7 +493,7 @@
             if (!hero || !info) continue;
             hero.SetText(info);
             if (hero.heroPower) {
-                hero.heroPower.SetType(info.type);
+                hero.heroPower.SetType(hero.power);
                 hero.heroPower.SetState(info.canUsePower, info.heroPowerUsed);
             }
             if (hero === engine.opponent && typeof info.hand === 'number') {

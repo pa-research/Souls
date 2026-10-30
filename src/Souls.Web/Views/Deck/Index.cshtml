@@ -8,15 +8,40 @@
     <a class="s-btn s-btn-ghost" asp-controller="Shop" asp-action="Index"><s-icon name="shop" />Get more cards</a>
 </div>
 
+@{
+    // The same icons as the hero power buttons in the game clients.
+    var powerIcons = new Dictionary<int, string> { [1] = "flame", [2] = "droplet", [3] = "sparkles", [4] = "shield-plus", [5] = "skull", [6] = "heart-pulse", [7] = "shield", [8] = "castle" };
+}
+<form asp-controller="Deck" asp-action="HeroPower" method="post" id="power-form" class="s-panel mb-4">
+    <div class="s-panel-head"><s-icon name="zap" /><h2>Hero power</h2></div>
+    <p class="s-small s-muted">@Model.ClassName can use one of two powers (@Model.HeroPowerCost mana, once per turn). Your pick is used from your next game.</p>
+    <div class="s-grid s-classes s-powers" role="radiogroup" aria-label="Hero power">
+        @foreach (var option in Model.HeroPowers)
+        {
+            <label class="s-class" for="power-@option.Id" data-power-id="@option.Id">
+                <input type="radio" name="power" id="power-@option.Id" value="@option.Id" checked="@option.Selected" />
+                <span class="s-class-card">
+                    <span class="s-class-body">
+                        <span class="s-class-race"><s-icon name="@(powerIcons.GetValueOrDefault(option.Id, "zap"))" />@(option.Selected ? "Your hero power" : "Alternative")</span>
+                        <span class="s-class-name d-block">@option.Power.Name</span>
+                        <span class="s-class-text d-block">@option.Power.Text</span>
+                    </span>
+                </span>
+            </label>
+        }
+    </div>
+    <button type="submit" class="s-btn s-btn-primary s-btn-sm mt-3" id="power-save"><s-icon name="save" />Use this power</button>
+</form>
+
 <form asp-controller="Deck" asp-action="Save" method="post" id="deck-form" data-deck-size="@Model.DeckSize" data-max-copies="@Model.MaxCopies">
     <div class="s-grid s-deck-layout">
         <div class="s-grid s-deck-grid">
             @foreach (var entry in Model.Entries)
             {
-                <article class="s-card-wrap deck-card rarity-@entry.Card.RarityCss" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost" data-max="@entry.Card.MaxCopies" data-rarity="@entry.Card.RarityCss">
+                <article class="s-card-wrap deck-card rarity-@entry.Card.RarityCss" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost" data-max="@entry.Card.MaxCopies" data-rarity="@entry.Card.RarityCss" data-class="@entry.Card.ClassName">
                     <partial name="_CardTile" model="entry.Card" />
                     <h2 class="s-card-name h6 mb-0">@entry.Card.Name</h2>
-                    <span class="s-rarity">@entry.Card.RarityName &middot; max @entry.Card.MaxCopies</span>
+                    <span class="s-rarity">@entry.Card.RarityName &middot; max @entry.Card.MaxCopies@(entry.Card.ClassName is null ? "" : $" · {entry.Card.ClassName} only")</span>
                     @if (!string.IsNullOrEmpty(entry.Card.Description))
                     {
                         <p class="s-card-desc">@entry.Card.Description</p>
