@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Production example: managed PostgreSQL, Gateway API, autoscaled web tier, pinned image versions.
+# Production example: managed PostgreSQL with nightly dumps, Gateway API, autoscaled web tier, pinned image versions.
 # Copy this overlay, adjust the hostname/gateway/tags and create secrets.env (see secrets.env.example).
 namespace: souls
 
@@ -11,6 +11,7 @@ resources:
 
 components:
   - ../../components/gateway-api
+  - ../../components/backup
   # Traces, metrics, dashboard and alerts. Needs an OpenTelemetry Collector and the Prometheus Operator in the
   # cluster (see the component); without them the PrometheusRule fails to apply, so it is off until they exist.
   # - ../../components/observability
@@ -44,6 +45,17 @@ patches:
           - name: public-gateway
             namespace: envoy-gateway-system
             sectionName: https
+  # The backup job dumps the managed database (TLS verified against the system CAs).
+  - target: { kind: ConfigMap, name: souls-backup-config }
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: souls-backup-config
+      data:
+        PGHOST: db.example.internal
+        PGSSLMODE: verify-full
+        PGSSLROOTCERT: system
   # Traffic arrives from the gateway's data plane namespace.
   - target: { kind: NetworkPolicy, name: allow-http-from-ingress }
     patch: |-

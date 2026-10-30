@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Nightly pg_dump (custom format) of the database to the souls-backup PersistentVolumeClaim, keeping the newest
+# KEEP dumps. Connects to the in-cluster PostgreSQL (components/postgres) with postgres-password from souls-secrets;
+# for another database patch PGHOST etc. in souls-backup-config (see overlays/production). Restore: README.
+resources:
+  - backup.yaml
+
+configMapGenerator:
+  - name: souls-backup-config
+    literals:
+      - PGHOST=souls-postgres
+      - PGPORT=5432
+      - PGDATABASE=souls
+      - PGUSER=souls
+      - KEEP=7
