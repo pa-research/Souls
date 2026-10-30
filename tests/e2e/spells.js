@@ -88,10 +88,15 @@ const BURN = 8, INSIGHT = 14;
     return created ? created.p.ident : 1;
   }
 
-  /** Waits for the player's turn; false when the game ended or it never came. */
+  /**
+   * Waits for the player's turn, also in the client: it plays the messages in order with their animations and may lag
+   * behind the socket (End Turn does nothing until it has). False when the game ended or the turn never came.
+   */
   async function myTurn(s, ident, turnFrom) {
     const f = await s.waitFrame(x => x.dir === 'in' && ((x.type === 236 && x.p.current === ident) || RESULT.includes(x.type)), turnFrom, 180000);
-    return !!f && f.type === 236;
+    if (!f || f.type !== 236) return false;
+    return s.page.waitForFunction(() => window.__souls3d ? window.__souls3d.state().yourTurn : !!(window.gameEngine && window.gameEngine.myTurn),
+      null, { timeout: 60000, polling: 300 }).then(() => true, () => false);
   }
 
   /** The cast (224) of a spell and its events: the ability (or trigger) event comes from the spell's cid. */
@@ -154,6 +159,7 @@ const BURN = 8, INSIGHT = 14;
       await sleep(1500);
       for (let k = 0; k < 3; k++) {
         const st = await hook('state()');
+        if (st.hand.some(c => c.ability === INSIGHT)) cast3d.insightDrawn = true;
         const index = st.hand.findIndex(c => c.spell && c.cost <= st.mana && !c.pending && (c.ability === BURN ? !cast3d.burn : c.ability === INSIGHT && !cast3d.insight));
         if (index < 0) break;
         const card = st.hand[index];
@@ -190,7 +196,14 @@ const BURN = 8, INSIGHT = 14;
       await A.page.mouse.click(sign.x, sign.y);
       await A.waitFrame(f => f.dir === 'in' && (f.type === 226 || RESULT.includes(f.type)), turnFrom, 10000);
     }
-    step('3D: both spells were cast', !!cast3d.burn && !!cast3d.insight);
+    if (!(cast3d.burn && cast3d.insight)) {
+      const st = await hook('state()').catch(() => null);
+      console.log('3D state at the end:', JSON.stringify(st && { mana: st.mana, current: st.current, ended: st.ended, hand: st.hand }));
+      await A.snap('end-3d');
+    }
+    // A deck of 20 with 4 Revelations: now and then none comes up in 10 turns.
+    step('3D: the spells that came up were cast', !!cast3d.burn && (!!cast3d.insight || !cast3d.insightDrawn),
+      cast3d.insightDrawn ? '' : 'no Revelation was drawn');
     const botSpells = A.frames.filter(f => f.dir === 'in' && f.type === 225).map(f => f.p.card.name);
     console.log('bot spells seen in the 3D game:', botSpells.join(', ') || 'none');
     step('no console errors in the 3D game', A.problems.length === 0, A.problems.slice(0, 4).join(' || '));
@@ -213,14 +226,23 @@ const BURN = 8, INSIGHT = 14;
         const spell = await B.page.evaluate(({ mana, done }) => {
           const hand = Object.values(window.gameEngine.player.cardManager.hand);
           const card = hand.find(c => c.spell && Number(c.cost) <= mana && [8, 14].includes(c.abilityId) && !done.includes(c.abilityId));
-          // The next card covers all but the left strip of a hand card (as in classic_ui.js).
-          const last = card && hand.every(c => c.position.originX <= card.position.originX);
-          return card ? { cid: card.cid, ability: card.abilityId, name: card.name, x: card.position.originX - (last ? 0 : 45), y: card.position.originY } : null;
+          return card ? { cid: card.cid, ability: card.abilityId, name: card.name, x: card.position.originX + 45, y: card.position.originY } : null;
         }, { mana, done: [castClassic.burn ? BURN : -1, castClassic.insight ? INSIGHT : -1] });
         if (!spell) break;
         const from = B.frames.length;
-        const a = await at(spell.x, spell.y), b = spell.ability === BURN ? await at(956, 141) : await at(960, 540);
-        await B.page.mouse.move(a.x, a.y); await sleep(300); await B.page.mouse.down(); await sleep(200);
+        // Overlapping hand cards: PixiJS gives a press to the lowest card under the pointer, and the hand moves while
+        // cards are drawn. Press, check which card the client holds, and try another point if it is not the spell.
+        const b = spell.ability === BURN ? await at(956, 141) : await at(960, 540);
+        let a = null;
+        for (const dx of [0, 25, -20, 55]) {
+          const point = await at(spell.x + dx, spell.y);
+          await B.page.mouse.move(point.x, point.y); await sleep(300); await B.page.mouse.down(); await sleep(300);
+          if (await B.page.evaluate(cid => (window.gameEngine.player.holdingCard || {}).cid === cid, spell.cid)) { a = point; break; }
+          // Drag the wrong card off (a click would arm a spell) and let it go back to the hand.
+          const off = await at(spell.x + dx, 1075);
+          await B.page.mouse.move(off.x, off.y, { steps: 4 }); await sleep(200); await B.page.mouse.up(); await sleep(1200);
+        }
+        if (!a) { step(`classic: picks up ${spell.name}`, false); break; }
         await B.page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 8 }); await sleep(400);
         await B.page.mouse.move(b.x, b.y, { steps: 8 }); await sleep(500);
         if (spell.ability === BURN) await B.snap('targeting');
