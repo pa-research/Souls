@@ -36,7 +36,7 @@ public static class SoulsHostingExtensions
         return Directory.Exists(path) ? configuration.AddKeyPerFile(path, optional: true) : configuration;
     }
 
-    /// <summary>Registers the PostgreSQL database, session/password services and a readiness health check.</summary>
+    /// <summary>Registers the PostgreSQL database, session/password services, season options and a readiness health check.</summary>
     public static IServiceCollection AddSoulsDatabase(this IServiceCollection services)
     {
         services.AddDbContext<SoulsDbContext>((provider, options) =>
@@ -58,6 +58,7 @@ public static class SoulsHostingExtensions
         });
 
         services.AddSingleton(TimeProvider.System);
+        services.AddOptions<SeasonOptions>().BindConfiguration("Souls:Seasons");
         services.AddSingleton<PasswordService>();
         services.AddScoped<SessionService>();
         services.AddHealthChecks().AddDbContextCheck<SoulsDbContext>("database", tags: ["ready"]);

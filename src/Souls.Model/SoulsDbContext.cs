@@ -25,6 +25,8 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
     public DbSet<DeckCard> DeckCards => Set<DeckCard>();
     public DbSet<PlayerQuest> PlayerQuests => Set<PlayerQuest>();
     public DbSet<GameReplay> GameReplays => Set<GameReplay>();
+    public DbSet<Season> Seasons => Set<Season>();
+    public DbSet<SeasonStanding> SeasonStandings => Set<SeasonStanding>();
 
     /// <summary>ASP.NET Core Data Protection key ring, shared by the web and game server.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -257,6 +259,34 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.GameId).HasColumnName("fk_game").ValueGeneratedNever();
             e.Property(x => x.Data).HasColumnName("data");
             e.HasOne(x => x.Game).WithOne().HasForeignKey<GameReplay>(x => x.GameId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Season>(e =>
+        {
+            e.ToTable("season");
+            e.HasKey(x => x.Number);
+            e.Property(x => x.Number).HasColumnName("number").ValueGeneratedNever();
+            e.Property(x => x.Name).HasColumnName("name").HasMaxLength(64);
+            e.Property(x => x.StartsAt).HasColumnName("starts_at");
+            e.Property(x => x.EndsAt).HasColumnName("ends_at");
+        });
+
+        modelBuilder.Entity<SeasonStanding>(e =>
+        {
+            e.ToTable("season_standing");
+            e.HasKey(x => new { x.SeasonNumber, x.PlayerId });
+            e.Property(x => x.SeasonNumber).HasColumnName("fk_season");
+            e.Property(x => x.PlayerId).HasColumnName("fk_player");
+            e.Property(x => x.Position).HasColumnName("position");
+            e.Property(x => x.Rating).HasColumnName("rating");
+            e.Property(x => x.Rank).HasColumnName("rank");
+            e.Property(x => x.Games).HasColumnName("games");
+            e.Property(x => x.Wins).HasColumnName("wins");
+            e.Property(x => x.RewardCoins).HasColumnName("reward_coins");
+            e.Property(x => x.RewardCardId).HasColumnName("fk_reward_card");
+            e.HasOne(x => x.Season).WithMany().HasForeignKey(x => x.SeasonNumber).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.RewardCard).WithMany().HasForeignKey(x => x.RewardCardId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<DataProtectionKey>(e => e.ToTable("data_protection_keys"));

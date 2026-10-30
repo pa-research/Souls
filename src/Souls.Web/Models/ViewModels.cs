@@ -133,6 +133,29 @@ public sealed class HomeViewModel
     public HomeProfile? Profile { get; init; }
     public IReadOnlyList<QuestView>? Quests { get; init; }
     public required IReadOnlyList<LeaderboardEntry> TopPlayers { get; init; }
+
+    /// <summary>The signed in player's current season.</summary>
+    public SeasonProfile? Season { get; init; }
+}
+
+/// <summary>A player's normal games and wins in the current season and their best final place in an earlier one.</summary>
+public sealed record SeasonProfile(Season Season, int Games, int Wins, SeasonStanding? BestFinish);
+
+public sealed record SeasonEntry(int Position, string Name, int Rating, int Rank, int Games, int Wins)
+{
+    /// <summary>The reward paid at the end of the season (past seasons only).</summary>
+    public int? RewardCoins { get; init; }
+    public string? RewardCard { get; init; }
+}
+
+public sealed class SeasonViewModel
+{
+    public required Season Season { get; init; }
+    public bool IsCurrent { get; init; }
+
+    /// <summary>Every season, newest first.</summary>
+    public required IReadOnlyList<Season> Seasons { get; init; }
+    public required IReadOnlyList<SeasonEntry> Standings { get; init; }
 }
 
 public sealed record DeckEntry(CardTile Card, int Count);
@@ -301,6 +324,23 @@ public sealed class CardEditorViewModel
     public required IReadOnlyList<Ability> Abilities { get; init; }
     public required IReadOnlyList<Race> Races { get; init; }
     public required IReadOnlyList<Card> Cards { get; init; }
+}
+
+public sealed class SeasonEditorModel
+{
+    public int Number { get; set; }
+
+    [Required, StringLength(64)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The end of the season in UTC.</summary>
+    public DateTime EndsAt { get; set; }
+}
+
+public sealed class AdminSeasonViewModel
+{
+    public required Season Current { get; init; }
+    public required SeasonEditorModel Form { get; init; }
 }
 
 public sealed class NewsEditorModel

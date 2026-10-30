@@ -1746,6 +1746,78 @@ namespace Souls.Model.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.Season", b =>
+                {
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<DateTimeOffset>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.HasKey("Number");
+
+                    b.ToTable("season", (string)null);
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.SeasonStanding", b =>
+                {
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_season");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer")
+                        .HasColumnName("games");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<int?>("RewardCardId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_reward_card");
+
+                    b.Property<int>("RewardCoins")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_coins");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer")
+                        .HasColumnName("wins");
+
+                    b.HasKey("SeasonNumber", "PlayerId");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("RewardCardId");
+
+                    b.ToTable("season_standing", (string)null);
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.UploadedImage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1954,6 +2026,32 @@ namespace Souls.Model.Migrations
                     b.Navigation("Ability");
 
                     b.Navigation("Race");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.SeasonStanding", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Souls.Model.Entities.Card", "RewardCard")
+                        .WithMany()
+                        .HasForeignKey("RewardCardId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Souls.Model.Entities.Season", "Season")
+                        .WithMany()
+                        .HasForeignKey("SeasonNumber")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("RewardCard");
+
+                    b.Navigation("Season");
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.UploadedImage", b =>

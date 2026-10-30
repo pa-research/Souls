@@ -44,6 +44,7 @@
                         <li class="nav-item"><a class="s-nav-link s-nav-play" asp-controller="Game" asp-action="Index"><s-icon name="swords" /><span>Play</span></a></li>
                         <li class="nav-item"><a class="s-nav-link @Active("Deck")" aria-current="@Current("Deck")" asp-controller="Deck" asp-action="Index"><s-icon name="deck" /><span>Deck</span></a></li>
                         <li class="nav-item"><a class="s-nav-link @Active("Shop")" aria-current="@Current("Shop")" asp-controller="Shop" asp-action="Index"><s-icon name="shop" /><span>Shop</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Season")" aria-current="@Current("Season")" asp-controller="Season" asp-action="Index"><s-icon name="trophy" /><span>Season</span></a></li>
                         @if (User.IsAdmin())
                         {
                             <li class="nav-item dropdown">
@@ -52,6 +53,7 @@
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="Players"><s-icon name="users" /> Players</a></li>
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="Games"><s-icon name="swords" /> Games</a></li>
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardStatistics"><s-icon name="gauge" /> Card Statistics</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Season"><s-icon name="trophy" /> Season</a></li>
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardEditor" asp-route-id=""><s-icon name="pencil" /> Card Editor</a></li>
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="NewsEditor" asp-route-id=""><s-icon name="news" /> News Editor</a></li>
                                 </ul>

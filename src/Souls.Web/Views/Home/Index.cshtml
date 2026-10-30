@@ -57,6 +57,15 @@
                     <div class="s-stat"><b>@profile.Wins</b><span>Wins</span></div>
                     <div class="s-stat"><b>@(profile.Games == 0 ? "-" : $"{profile.Wins * 100 / profile.Games}%")</b><span>Win rate</span></div>
                 </div>
+                @if (Model.Season is { } season)
+                {
+                    <div class="s-small" style="grid-column: 1 / -1" id="profile-season">
+                        <a asp-controller="Season" asp-action="Index">@season.Season.Name</a>:
+                        <span class="s-num">@season.Games</span> ranked games, <span class="s-num">@season.Wins</span> wins
+                        <span class="s-muted">&middot; ends @season.Season.EndsAt.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+                        <div class="s-muted">Best finish: @(season.BestFinish is { } best ? $"#{best.Position} in {best.Season!.Name} ({Ratings.TierOf(best.Rank)})" : "none yet")</div>
+                    </div>
+                }
             </div>
         </section>
     }
@@ -84,7 +93,7 @@
     }
 
     <section class="s-panel s-col-4 s-rise" aria-labelledby="leaders-title">
-        <div class="s-panel-head"><s-icon name="trophy" /><h2 id="leaders-title">Top Players</h2></div>
+        <div class="s-panel-head"><s-icon name="trophy" /><h2 id="leaders-title">Top Players</h2><a class="s-small" asp-controller="Season" asp-action="Index">Season leaderboard</a></div>
         <ol class="s-leaders">
             @foreach (var p in Model.TopPlayers)
             {

@@ -3,12 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Souls.Model.Entities;
 using Souls.Model.Security;
 
 namespace Souls.Model.Hosting;
 
-/// <summary>Applies migrations and creates the runtime seed rows (bot account, optional bootstrap admin).</summary>
+/// <summary>Applies migrations and creates the runtime seed rows (bot account, first season, optional bootstrap admin).</summary>
 public static class DatabaseSetup
 {
     public static async Task MigrateAndSeedAsync(IServiceProvider services, CancellationToken ct = default)
@@ -56,6 +57,14 @@ public static class DatabaseSetup
             });
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Created system account for the practice bot");
+        }
+
+        if (!await db.Seasons.AnyAsync(ct))
+        {
+            var length = scope.ServiceProvider.GetRequiredService<IOptions<SeasonOptions>>().Value.Length;
+            db.Seasons.Add(new Season { Number = 1, Name = "Season 1", StartsAt = now, EndsAt = now + length });
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Started season 1, it ends {EndsAt}", now + length);
         }
 
         await EnsureAdminAsync(db, configuration, passwords, time, logger, ct);

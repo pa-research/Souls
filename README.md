@@ -107,6 +107,10 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 - **Turn timer**: 75 seconds, then the turn ends; three timeouts in a row forfeit.
 - **Rating**: normal games change an Elo rating (rank = one step per 50 points above 1000); matchmaking pairs
   players of similar rating, widening the window while they wait. The home page shows the top players.
+- **Seasons** (8 weeks by default): when one ends, everyone who played a normal game in it gets coins for the
+  tier of their final rating (Bronze 5, Silver 10, Gold 20, Platinum 30, Diamond 40, Champion 50; Diamond and
+  Champion also a legendary card they don't own), the final standings are kept on the season leaderboard
+  (`/Season`), and every rating moves halfway back to 1000. Admins can rename a season, move its end or end it now.
 - **Coins**: 3 per normal win (+1 against a higher rated opponent), 1 per loss or draw, 1-3 per practice win
   (by bot difficulty), plus **daily quests** (three a day, shown on the home page and after each game).
 - **Card upgrades**: buying a card you own levels it up (to level 3), +1 attack and +1 health per level.
@@ -500,6 +504,7 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__RateLimits__AuthPerMinute` / `UploadsPerMinute` | web | Per-IP limits (defaults 10 / 20). |
 | `Souls__AllowedOrigins` | server | Extra allowed WebSocket origins. Empty = same origin only. |
 | `Souls__Matchmaker__ReconnectGracePeriod` | server | How long a disconnected player may reconnect before forfeiting (default 1 min). |
+| `Souls__Seasons__Length` | migrate, server | Length of a new season (default 56 days). The game server ends seasons, checking once a minute. |
 | `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
 | `Souls__Game__TurnTime` | server | Length of a turn (default 75 s). |
 | `Souls__Game__MaxTimeoutsInARow` | server | Timed-out turns in a row that forfeit the game (default 3). |
