@@ -10,6 +10,7 @@ import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
+import { VERSUS_MS } from './ui.js';
 
 // Classic layout (stage pixels).
 const HAND_X = 165;
@@ -935,7 +936,7 @@ export class Game {
             });
             // The opponent may have chosen during the VS splash.
             if (this.opponentReplaced !== null) this.ui.mulliganChosen(false, [], this.opponentReplaced);
-        }, create ? 3000 : 0);
+        }, create ? VERSUS_MS : 0);
     }
 
     /** A starting hand after the mulligan: all cards are new instances (the opponent's and spectators' face down). */

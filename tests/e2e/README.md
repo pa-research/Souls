@@ -19,7 +19,7 @@ npm install
 | `restart.js <base> <out> [restart] [redeploy]` | Running games survive a restart of the game server: a 3D practice game restarted during the mulligan and during the bot's turn, a ranked 3D vs classic game with a spectator restarted mid-turn and redeployed (stop and start) during the classic turn; everyone reconnects, the games finish, ratings change once, replays are complete. The commands default to `$SOULS_RESTART_CMD` / `$SOULS_REDEPLOY_CMD`, else `docker compose restart server` |
 | `vfx3d.js <base> <out>` | Replays the new card set's effects in the 3D client (legendary entrance, inferno, ward, venom, ice, grow, rally, drain, shatter) |
 | `hud3d.js <base> <out> [width height]` | Screenshots of the 3D client's interface states |
-| `ui_capture.js <base> <out>` | Every website page on desktop and phone, including the admin pages |
+| `ui_capture.js <base> <out>` | Every website page on desktop (1600x900) and phone (412x915), with their validation errors, flash messages and empty states, including the admin pages; fails on a console error or a page that scrolls sideways |
 
 `<base>` is the site, e.g. `https://localhost`; `<out>` a folder for the screenshots. Each script prints
 `PASS`/`FAIL` lines or a list of console problems.

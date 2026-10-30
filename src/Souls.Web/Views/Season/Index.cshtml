@@ -37,7 +37,14 @@
     <div class="s-panel-head"><s-icon name="trophy" /><h2 id="standings-title">@(Model.IsCurrent ? "Top players" : "Final standings")</h2></div>
     @if (Model.Standings.Count == 0)
     {
-        <p class="s-muted mb-0">@(Model.IsCurrent ? "No ranked games yet this season." : "Nobody played a ranked game this season.")</p>
+        <div class="s-empty">
+            <s-icon name="trophy" />
+            <p>@(Model.IsCurrent ? "No ranked games yet this season. Win one and you lead the table." : "Nobody played a ranked game this season.")</p>
+            @if (Model.IsCurrent)
+            {
+                <a class="s-btn s-btn-primary s-btn-sm" asp-controller="Game" asp-action="Index"><s-icon name="swords" />Play ranked</a>
+            }
+        </div>
     }
     else
     {
