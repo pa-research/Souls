@@ -339,7 +339,10 @@ export class Interaction {
         this.effects.hideArrow();
         this.setTarget(null, POWER_COLOR);
         this.game.ui.setPowerArmed(false);
-        if (this.spell && !this.spell.pending) this.game.setHovered(null);
+        if (this.spell) {
+            this.game.setHovered(null);
+            this.game.ui.hideTooltip();
+        }
         this.mode = null;
         this.spell = null;
         this.powerTargets = [];
