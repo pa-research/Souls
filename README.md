@@ -150,7 +150,7 @@ The game page has a **Classic | Modern 3D** switch (top right). The choice is re
 forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the browser supports WebGL 2.
 
 - **Classic** is the original 2014 PixiJS client.
-- **Modern 3D** (`wwwroot/Scripts/Game3D`, three.js r186, ES modules, no build step) keeps the classic card
+- **Modern 3D** (`wwwroot/Scripts/Game3D`, three.js r186 on WebGPU or WebGL 2, ES modules, no build step) keeps the classic card
   artwork, hero frames, hand/slot layout and controls (hover a hand card to zoom it, drag it onto a slot to play
   it, left-drag from your card or hero to attack, right-drag from a card to use its ability, click End Turn),
   and adds camera views (buttons top left, or keys 1-4):

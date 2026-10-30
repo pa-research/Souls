@@ -2,9 +2,11 @@
 // client. In the other views a 3D stadium rises out of the ground around the sand: an arena wall in team
 // colours, terraces packed with a cheering crowd, the two "Souls" tunnel towers, gate towers with torches,
 // floodlights, flags and a dusk sky.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
+import { attribute, color, exp, fract, length, mix, mod, normalGeometry, positionGeometry, positionLocal, positionView, screenDPR, sin, smoothstep, step, atan, uniform, uv, varying, vec3, vec4 } from '/lib/three/three.tsl.js';
+import { mergeGeometries } from '/lib/three/addons/utils/BufferGeometryUtils.js';
 import { Images, loadImage, textureFrom } from './assets.js';
-import { toWorld, STAGE_W, STAGE_H } from './scene.js';
+import { toWorld, spriteGeometry, STAGE_W, STAGE_H } from './scene.js';
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -24,6 +26,9 @@ const PILLAR_H = 1250;
 const SCREEN_W = 300;
 const SCREEN_H = 169;
 const SCREEN_Y = 380; // just above the tunnel mouth, so it is in view from the arena
+// The screen is drawn in 1024x576 units onto a half-size canvas: it is never shown larger than that on screen, and a
+// WebGPU canvas upload (ten a second) costs CPU time in proportion to its pixels.
+const SCREEN_SCALE = 0.5;
 
 const STONE = new THREE.Color(0x4b4e57);
 const RISER = new THREE.Color(0x585b64);
@@ -137,26 +142,22 @@ function buildCrowd(uniforms, quality) {
     body.translate(0, 12, 0);
     const head = new THREE.IcosahedronGeometry(6.5, 0);
     head.translate(0, 31, 0);
+    // Spectators hop (higher when the crowd is excited) and sway. positionLocal is already placed on the seat here.
+    const { uTime, uExcite, uWave, uWaveAmp } = uniforms;
+    const aPhase = attribute('aPhase', 'float');
+    const speed = fract(aPhase.mul(13.7)).mul(3).add(3);
+    const hop = sin(uTime.mul(speed).add(aPhase.mul(6.2831))).max(0);
+    const eager = step(0.3, fract(aPhase.mul(3.1)));
+    // Mexican wave: spectators near the wave front jump up and stretch.
+    const d = mod(atan(positionLocal.z, positionLocal.x).sub(uWave).add(3.14159265), 6.2831853).sub(3.14159265);
+    const wave = exp(d.mul(d).mul(-30)).mul(uWaveAmp);
+    const motion = vec3(
+        sin(uTime.mul(1.3).add(aPhase.mul(20))).mul(1.5),
+        hop.mul(hop).mul(uExcite.mul(16).mul(eager).add(1.5)).add(wave.mul(positionGeometry.y.mul(0.6).add(22))),
+        0);
     const material = () => {
-        const m = new THREE.MeshLambertMaterial();
-        m.onBeforeCompile = shader => {
-            shader.uniforms.uTime = uniforms.uTime;
-            shader.uniforms.uExcite = uniforms.uExcite;
-            shader.uniforms.uWave = uniforms.uWave;
-            shader.uniforms.uWaveAmp = uniforms.uWaveAmp;
-            shader.vertexShader = 'attribute float aPhase;\nuniform float uTime;\nuniform float uExcite;\nuniform float uWave;\nuniform float uWaveAmp;\n' +
-                shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-                    float speed = 3.0 + fract(aPhase * 13.7) * 3.0;
-                    float hop = max(0.0, sin(uTime * speed + aPhase * 6.2831));
-                    float eager = step(0.3, fract(aPhase * 3.1));
-                    transformed.y += hop * hop * (1.5 + 16.0 * uExcite * eager);
-                    transformed.x += sin(uTime * 1.3 + aPhase * 20.0) * 1.5;
-                    // Mexican wave: spectators near the wave front jump up and stretch.
-                    vec2 seat = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
-                    float d = mod(atan(seat.y, seat.x) - uWave + 3.14159265, 6.2831853) - 3.14159265;
-                    float wave = exp(-d * d * 30.0) * uWaveAmp;
-                    transformed.y += wave * (22.0 + position.y * 0.6);`);
-        };
+        const m = new THREE.MeshLambertNodeMaterial();
+        m.positionNode = positionLocal.add(motion);
         return m;
     };
     const bodies = new THREE.InstancedMesh(body, material(), places.length);
@@ -192,17 +193,16 @@ function buildCrowd(uniforms, quality) {
 function buildFlashes(places, count) {
     const picks = [];
     for (let i = 0; i < count && places.length; i++) picks.push(places[Math.floor(Math.random() * places.length)]);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(picks.flatMap(p => [p.x, p.y + 34, p.z]), 3));
-    geometry.setAttribute('flash', new THREE.Float32BufferAttribute(new Float32Array(picks.length), 1));
-    const material = new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        vertexShader: `attribute float flash; varying float vFlash;
-            void main() { vFlash = flash; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = flash * 9000.0 / -mv.z; gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `varying float vFlash;
-            void main() { float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vec3(1.0, 0.98, 0.9), vFlash * smoothstep(0.5, 0.0, d)); }`,
-    });
-    const points = new THREE.Points(geometry, material);
+    const geometry = spriteGeometry({
+        point: new THREE.InstancedBufferAttribute(new Float32Array(picks.flatMap(p => [p.x, p.y + 34, p.z])), 3),
+        flash: new THREE.InstancedBufferAttribute(new Float32Array(picks.length), 1).setUsage(THREE.DynamicDrawUsage),
+    }, picks.length);
+    const material = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false });
+    const flash = attribute('flash', 'float');
+    material.positionNode = attribute('point', 'vec3');
+    material.sizeNode = flash.mul(9000).div(positionView.z.negate()).div(screenDPR); // device pixels
+    material.colorNode = vec4(1.0, 0.98, 0.9, flash.mul(smoothstep(0, 0.5, length(uv().sub(0.5))).oneMinus()));
+    const points = new THREE.Mesh(geometry, material);
     points.frustumCulled = false;
     return points;
 }
@@ -212,10 +212,12 @@ function buildFlashes(places, count) {
  * health during a match, and a flash for big moments ("KO!", "VICTORY!"). Redrawn about ten times a second.
  */
 class StadiumScreen {
-    constructor() {
+    /** `memory`: draw in memory (see Card3D) for WebGPU. WebGL uploads a GPU canvas far cheaper, ten times a second. */
+    constructor(memory) {
         this.canvas = document.createElement('canvas');
-        this.canvas.width = 1024;
-        this.canvas.height = 576;
+        this.canvas.width = 1024 * SCREEN_SCALE;
+        this.canvas.height = 576 * SCREEN_SCALE;
+        this.canvas.getContext('2d', { willReadFrequently: memory });
         this.texture = new THREE.CanvasTexture(this.canvas);
         this.texture.colorSpace = THREE.SRGBColorSpace;
         this.texture.anisotropy = 8;
@@ -228,7 +230,7 @@ class StadiumScreen {
         this.grid = document.createElement('canvas');
         this.grid.width = 1024;
         this.grid.height = 576;
-        const g = this.grid.getContext('2d');
+        const g = this.grid.getContext('2d', { willReadFrequently: memory }); // drawn into the screen: the same kind
         g.fillStyle = 'rgba(0,0,0,0.35)';
         for (let x = 0; x < 1024; x += 4) g.fillRect(x, 0, 1, 576);
         for (let y = 0; y < 576; y += 4) g.fillRect(0, y, 1024, 1);
@@ -244,6 +246,7 @@ class StadiumScreen {
         if (now - this.lastDraw < 100) return;
         this.lastDraw = now;
         const g = this.canvas.getContext('2d');
+        g.setTransform(SCREEN_SCALE, 0, 0, SCREEN_SCALE, 0, 0); // shadowBlur is in canvas pixels, so it is scaled below
         const W = 1024, H = 576;
         const bg = g.createLinearGradient(0, 0, 0, H);
         bg.addColorStop(0, '#050914');
@@ -269,7 +272,7 @@ class StadiumScreen {
             g.textAlign = 'center';
             g.textBaseline = 'middle';
             g.shadowColor = '#ff3b30';
-            g.shadowBlur = 40;
+            g.shadowBlur = 40 * SCREEN_SCALE;
             g.fillStyle = Math.floor(t * 12) % 2 ? '#ffd400' : '#ffffff';
             g.fillText(this.flashText, 0, 0, W - 80);
             g.restore();
@@ -277,7 +280,7 @@ class StadiumScreen {
             const pulse = 0.75 + 0.25 * Math.sin(now * 0.003);
             g.save();
             g.shadowColor = `rgba(150,255,80,${pulse})`;
-            g.shadowBlur = 50;
+            g.shadowBlur = 50 * SCREEN_SCALE;
             if (this.logo) {
                 const w = 760, h = w * this.logo.height / this.logo.width;
                 g.drawImage(this.logo, (W - w) / 2, this.scoreboard ? 40 : (H - h) / 2, w, h);
@@ -315,7 +318,7 @@ class StadiumScreen {
 function glowTexture(inner, outer) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 128;
-    const g = canvas.getContext('2d');
+    const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
     const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
     grad.addColorStop(0, inner);
     grad.addColorStop(0.35, outer);
@@ -460,7 +463,48 @@ function gateTower(x, z, fireTexture, lights) {
     return group;
 }
 
-function floodlight(angle, lampTexture) {
+/** Identity of a material's look, so that equal materials made separately can share one merged mesh. */
+const materialKey = m => (m.isNodeMaterial ? m.uuid : [m.type, m.color?.getHex(), m.emissive?.getHex(), m.emissiveIntensity, m.roughness,
+    m.metalness, m.side, m.transparent, m.opacity, m.map?.uuid, m.vertexColors, m.blending, m.depthWrite, m.toneMapped].join());
+
+/**
+ * Moves the meshes of `groups` that look alike (material and shadows) into one merged mesh each, in a new group.
+ * Hundreds of stadium pieces become a few dozen draw calls, which is most of the per-frame CPU cost of rendering.
+ * Sprites, lights and one-of-a-kind meshes stay where they are. The groups must not be transformed yet.
+ */
+function mergeStatic(groups) {
+    const merged = new THREE.Group();
+    const buckets = new Map();
+    for (const group of groups) {
+        group.updateMatrixWorld(true);
+        group.traverse(o => {
+            if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material)) return;
+            const key = `${materialKey(o.material)}|${o.castShadow}|${o.receiveShadow}`;
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key).push(o);
+        });
+    }
+    for (const meshes of buckets.values()) {
+        if (meshes.length < 2) continue;
+        const geometries = meshes.map(m => m.geometry.clone().applyMatrix4(m.matrixWorld));
+        const indexed = geometries.every(g => g.index);
+        const mesh = new THREE.Mesh(mergeGeometries(indexed ? geometries : geometries.map(g => (g.index ? g.toNonIndexed() : g))), meshes[0].material);
+        mesh.castShadow = meshes[0].castShadow;
+        mesh.receiveShadow = meshes[0].receiveShadow;
+        merged.add(mesh);
+        for (const m of meshes) m.removeFromParent();
+    }
+    return merged;
+}
+
+/** The faint shaft of light from a floodlight towards the sand (one material for all four, so they merge). */
+function lightShaftMaterial() {
+    const shaft = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    shaft.colorNode = vec4(1.0, 0.95, 0.8, uv().y.mul(uv().y).mul(0.07));
+    return shaft;
+}
+
+function floodlight(angle, lampTexture, shaft) {
     const group = new THREE.Group();
     const r = STANDS_OUT + 180;
     const x = Math.cos(angle) * r, z = Math.sin(angle) * r;
@@ -489,11 +533,7 @@ function floodlight(angle, lampTexture) {
 
     // A faint light shaft towards the sand.
     const length = Math.hypot(r, 1270) * 0.85;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(520, length, 32, 1, true), new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        vertexShader: 'varying float vY; void main() { vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying float vY; void main() { gl_FragColor = vec4(vec3(1.0, 0.95, 0.8), 0.07 * vY * vY); }',
-    }));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(520, length, 32, 1, true), shaft);
     const dir = new THREE.Vector3(-x, -1270, -z).normalize();
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
     cone.position.set(x, 1270, z).addScaledVector(dir, length / 2);
@@ -503,10 +543,10 @@ function floodlight(angle, lampTexture) {
 
 function flags(uniforms) {
     const group = new THREE.Group();
-    const colors = [0xc0392b, 0x2e86c1, 0xf1c40f];
+    const colors = [0xc0392b, 0x2e86c1, 0xf1c40f].map(c => new THREE.Color(c));
     const poleMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd3d8, metalness: 0.7, roughness: 0.3 });
-    const flagGeometry = new THREE.PlaneGeometry(110, 66, 10, 4);
-    flagGeometry.translate(55, 0, 0);
+    // All flags are one mesh: each vertex carries its distance along its flag and the flag's phase, and its colour.
+    const cloths = [];
     for (let i = 0; i < 28; i++) {
         const a = (i / 28) * Math.PI * 2 + 0.05;
         if (Math.abs(Math.cos(a)) > Math.cos(GAP * 1.6)) continue; // not over the tunnel towers
@@ -514,64 +554,61 @@ function flags(uniforms) {
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 220, 6), poleMaterial);
         pole.position.set(Math.cos(a) * r, TOP + 170, Math.sin(a) * r);
         group.add(pole);
-        const material = new THREE.MeshLambertMaterial({ color: colors[i % 3], side: THREE.DoubleSide });
-        material.onBeforeCompile = shader => {
-            shader.uniforms.uTime = uniforms.uTime;
-            shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-                float w = position.x / 110.0;
-                transformed.z += sin(position.x * 0.06 - uTime * 5.0 + ${(i * 1.7).toFixed(1)}) * 12.0 * w;
-                transformed.y += sin(position.x * 0.04 - uTime * 3.0) * 4.0 * w;`);
-        };
-        const flag = new THREE.Mesh(flagGeometry, material);
-        flag.position.set(Math.cos(a) * r, TOP + 245, Math.sin(a) * r);
-        flag.rotation.y = -a + Math.PI / 2;
-        group.add(flag);
+        const cloth = new THREE.PlaneGeometry(110, 66, 10, 4).translate(55, 0, 0);
+        const n = cloth.attributes.position.count;
+        const wave = new Float32Array(n * 2), rgb = new Float32Array(n * 3);
+        for (let v = 0; v < n; v++) {
+            wave.set([cloth.attributes.position.getX(v), i * 1.7], v * 2);
+            colors[i % 3].toArray(rgb, v * 3);
+        }
+        cloth.setAttribute('wave', new THREE.BufferAttribute(wave, 2));
+        cloth.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+        cloths.push(cloth.rotateY(-a + Math.PI / 2).translate(Math.cos(a) * r, TOP + 245, Math.sin(a) * r));
     }
+    // Flutters more towards the free end: across the cloth (its normal) and a little up and down.
+    const material = new THREE.MeshLambertNodeMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    const wave = attribute('wave', 'vec2'), x = wave.x, w = x.div(110), t = uniforms.uTime;
+    material.positionNode = positionLocal
+        .add(normalGeometry.mul(sin(x.mul(0.06).sub(t.mul(5)).add(wave.y)).mul(12).mul(w)))
+        .add(vec3(0, sin(x.mul(0.04).sub(t.mul(3))).mul(4).mul(w), 0));
+    group.add(new THREE.Mesh(mergeGeometries(cloths), material));
     return group;
 }
 
 function skyDome(lowPower) {
     const group = new THREE.Group();
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(30000, 32, 16), new THREE.ShaderMaterial({
-        side: THREE.BackSide, depthWrite: false, fog: false,
-        uniforms: {
-            top: { value: new THREE.Color(0x0b1026) },
-            mid: { value: new THREE.Color(0x3b2a5c) },
-            horizon: { value: new THREE.Color(0xf08a4b) },
-        },
-        vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; varying vec3 vDir;
-            void main() {
-                float h = max(vDir.y, 0.0);
-                vec3 c = mix(horizon, mid, smoothstep(0.0, 0.25, h));
-                c = mix(c, top, smoothstep(0.25, 0.8, h));
-                gl_FragColor = vec4(c, 1.0);
-                #include <colorspace_fragment>
-            }`,
-    }));
+    const sky = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
+    const h = varying(positionLocal.normalize()).y.max(0);
+    sky.colorNode = mix(mix(color(0xf08a4b), color(0x3b2a5c), smoothstep(0, 0.25, h)), color(0x0b1026), smoothstep(0.25, 0.8, h));
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(30000, 32, 16), sky);
     group.add(dome);
     const stars = [];
     for (let i = 0; i < (lowPower ? 400 : 1500); i++) {
         const a = Math.random() * Math.PI * 2, e = 0.25 + Math.random() * 1.2;
         stars.push(Math.cos(a) * Math.cos(e) * 28000, Math.sin(e) * 28000, Math.sin(a) * Math.cos(e) * 28000);
     }
-    const starGeometry = new THREE.BufferGeometry();
-    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(stars, 3));
-    group.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false })));
+    const starGeometry = spriteGeometry({ point: new THREE.InstancedBufferAttribute(new Float32Array(stars), 3) }, stars.length / 3);
+    const starMaterial = new THREE.PointsNodeMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false, transparent: false });
+    starMaterial.positionNode = attribute('point', 'vec3');
+    const starPoints = new THREE.Mesh(starGeometry, starMaterial);
+    starPoints.frustumCulled = false;
+    group.add(starPoints);
     return group;
 }
 
 // ---- The arena ----------------------------------------------------------------------------------------------------
 
 export class Arena {
-    constructor(scene, quality) {
+    /** `backend`: 'webgpu' or 'webgl2' (Stage.backend). */
+    constructor(scene, quality, backend) {
         this.scene = scene;
         this.quality = quality;
+        this.backend = backend;
         this.lowPower = quality !== 'high';
         this.rise = 0; // 0 = classic picture, 1 = stadium
         this.target = 0;
         this.excite = 0.1;
-        this.uniforms = { uTime: { value: 0 }, uExcite: { value: 0.1 }, uWave: { value: 0 }, uWaveAmp: { value: 0 } };
+        this.uniforms = { uTime: uniform(0), uExcite: uniform(0.1), uWave: uniform(0), uWaveAmp: uniform(0) };
         this.waveUntil = 0;
         this.nextWave = 20000;
     }
@@ -619,23 +656,24 @@ export class Arena {
         stands.add(this.flashes);
         part(stands, 0);
 
-        this.screen = new StadiumScreen();
-        part(tunnelTower(-1, this.screen), 0.15);
-        part(tunnelTower(1, this.screen), 0.15);
+        // Parts that rise together share their merged meshes (see mergeStatic).
+        const merged = (groups, delay) => { for (const g of groups) part(g, delay); part(mergeStatic(groups), delay); };
+        this.screen = new StadiumScreen(this.backend === 'webgpu');
+        merged([tunnelTower(-1, this.screen), tunnelTower(1, this.screen)], 0.15);
 
         const fire = glowTexture('rgba(255,250,220,1)', 'rgba(255,140,30,0.8)');
         this.towers = [];
         for (const sx of [-1, 1]) {
             for (const sz of [-1, 1]) {
-                const tower = gateTower(sx * 348, sz * 612, fire, this.quality === 'high');
-                this.towers.push(tower);
-                part(tower, 0.25);
+                this.towers.push(gateTower(sx * 348, sz * 612, fire, this.quality === 'high'));
             }
         }
+        merged(this.towers, 0.25);
 
         const lamp = glowTexture('rgba(255,255,245,1)', 'rgba(255,240,200,0.35)');
-        for (let i = 0; i < 4; i++) part(floodlight(deg(45 + i * 90), lamp), 0.35);
-        part(flags(this.uniforms), 0.45);
+        const shaft = lightShaftMaterial();
+        merged([0, 1, 2, 3].map(i => floodlight(deg(45 + i * 90), lamp, shaft)), 0.35);
+        merged([flags(this.uniforms)], 0.45);
 
         this.sky = skyDome(this.lowPower);
         this.stadium.add(this.sky);

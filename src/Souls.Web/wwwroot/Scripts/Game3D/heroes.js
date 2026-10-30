@@ -1,5 +1,6 @@
 // Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
+import { float, texture } from '/lib/three/three.tsl.js';
 import { Images, loadImage } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
@@ -39,10 +40,15 @@ export class Hero3D extends THREE.Group {
         this.canvas = document.createElement('canvas');
         this.canvas.width = HERO_W * PX;
         this.canvas.height = HERO_H * PX;
+        this.canvas.getContext('2d', { willReadFrequently: true }); // see Card3D: a memory canvas uploads everywhere
         this.texture = new THREE.CanvasTexture(this.canvas);
         this.texture.colorSpace = THREE.SRGBColorSpace;
         this.texture.anisotropy = 8;
-        this.faceMaterial = new THREE.MeshStandardMaterial({ map: this.texture, transparent: true, alphaTest: 0.05, roughness: 0.5 });
+        this.faceMaterial = new THREE.MeshStandardNodeMaterial({ map: this.texture, transparent: true, roughness: 0.5 });
+        // The cut-out as nodes, not alphaTest: an alphaTest that differs between shadow casters makes three.js re-key
+        // every caster of the shadow pass each frame. The mask keeps the cut-out shape in the shadow.
+        this.faceMaterial.alphaTestNode = float(0.05);
+        this.faceMaterial.maskShadowNode = texture(this.texture).a.greaterThan(0.05);
         this.face = new THREE.Mesh(new THREE.PlaneGeometry(HERO_W, HERO_H), this.faceMaterial);
         this.face.castShadow = true;
         this.face.userData.hero = this;
@@ -217,6 +223,7 @@ export class Hero3D extends THREE.Group {
             this.plate.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(now * 0.005);
         }
         for (const gem of this.gems) {
+            gem.visible = gem.scale.x > 0.002; // spent gems shrink to nothing: skip drawing them
             gem.rotation.y = now * 0.0015 + gem.userData.phase;
             gem.position.z = 18 + Math.sin(now * 0.003 + gem.userData.phase) * 3;
         }

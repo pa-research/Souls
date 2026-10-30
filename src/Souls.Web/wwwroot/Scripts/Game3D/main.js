@@ -46,9 +46,10 @@ async function main() {
     }
 
     const stage = new Stage(host);
+    await stage.init();
     const ui = new UI(host, config);
     const effects = new Effects(stage);
-    const arena = new Arena(stage.scene, stage.quality);
+    const arena = new Arena(stage.scene, stage.quality, stage.backend);
     const crowd = new CrowdAudio();
     let game = null;
     let torches = null;
@@ -179,6 +180,9 @@ function exposeTestHooks(stage, game, ui) {
         hovered: () => (game.hovered ? game.hovered.cid : null),
         camera: () => stage.camera.position.toArray().map(v => Math.round(v)),
         quality: () => stage.quality,
+        // 'webgpu', or 'webgl2' when the browser has no WebGPU (or with ?renderer=webgl), and the GPU it runs on.
+        backend: () => stage.backend,
+        gpu: () => stage.gpu,
     };
 }
 
