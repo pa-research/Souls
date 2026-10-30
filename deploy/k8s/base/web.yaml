@@ -96,19 +96,23 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
-        # Only the connection string; the bootstrap admin password is only given to the migration.
+        # No bootstrap admin password: it is only given to the migration.
         - name: secrets
           secret:
             secretName: souls-secrets
             items:
               - key: ConnectionStrings__Souls
                 path: ConnectionStrings__Souls
+              - key: Souls__DataProtection__Certificate
+                path: Souls__DataProtection__Certificate
         - name: secrets-migrate
           secret:
             secretName: souls-secrets
             items:
               - key: ConnectionStrings__Souls
                 path: ConnectionStrings__Souls
+              - key: Souls__DataProtection__Certificate
+                path: Souls__DataProtection__Certificate
               - key: Souls__Admin__Password
                 path: Souls__Admin__Password
 ---

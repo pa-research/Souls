@@ -65,6 +65,8 @@ services:
         target: /run/secrets/souls/ConnectionStrings__Souls
       - source: admin-password
         target: /run/secrets/souls/Souls__Admin__Password
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [backend]
     depends_on:
       db: { condition: service_healthy }
@@ -81,6 +83,8 @@ services:
     secrets:
       - source: connection-string
         target: /run/secrets/souls/ConnectionStrings__Souls
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [frontend, backend]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -96,6 +100,8 @@ services:
     secrets:
       - source: connection-string
         target: /run/secrets/souls/ConnectionStrings__Souls
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [frontend, backend]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -132,6 +138,9 @@ secrets:
     file: ./deploy/compose/secrets/ConnectionStrings__Souls
   admin-password:
     file: ./deploy/compose/secrets/Souls__Admin__Password
+  # Encrypts the Data Protection keys (login cookies) in the database; created by init-secrets.sh.
+  dataprotection-certificate:
+    file: ./deploy/compose/secrets/Souls__DataProtection__Certificate
 
 volumes:
   pgdata:

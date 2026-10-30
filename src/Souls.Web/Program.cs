@@ -28,7 +28,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 });
 
 builder.Services.AddSoulsDatabase();
-builder.Services.AddSoulsAuthentication();
+builder.Services.AddSoulsAuthentication(builder.Configuration);
 builder.Services.AddSoulsForwardedHeaders(builder.Configuration);
 builder.Services.AddSoulsTelemetry(builder.Configuration);
 
