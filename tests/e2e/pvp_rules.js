@@ -55,6 +55,7 @@ async function register(s, name, type) {
 }
 const hook = (s, expr) => s.page.evaluate(`window.__souls3d && window.__souls3d.${expr}`);
 async function drag(s, from, to, button = 'left') {
+  if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
   const m = s.page.mouse;
   await m.move(from.x, from.y, { steps: 3 }); await sleep(250);
   await m.down({ button }); await sleep(200);
@@ -216,7 +217,7 @@ async function turnClassic(s, turn) {
   await hook(C, "view('classic')").catch(() => {});
   let result = null;
   const t0 = Date.now();
-  for (let turn = 0; turn < 40 && !result; turn++) {
+  for (let turn = 0; turn < 80 && !result; turn++) {
     if ([A, B].some(x => x.frames.some(f => f.dir === 'in' && RESULT.includes(f.type)))) break;
     const current = (await hook(A, 'sync()').catch(() => null))?.current;
     console.log(`[${Math.round((Date.now() - t0) / 1000)}s] loop ${turn}: current ${current}`);
