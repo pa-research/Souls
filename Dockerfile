@@ -13,19 +13,19 @@ FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-noble AS build
 WORKDIR /src
 
 # Restore first so the package layer is cached until a project file changes.
+# The packages stay in this layer, not in a cache mount: CI's layer cache does not carry
+# cache mounts, so a cached restore layer would leave publish without its packages.
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/Souls.Model/Souls.Model.csproj src/Souls.Model/
 COPY src/Souls.Web/Souls.Web.csproj src/Souls.Web/
 COPY src/Souls.Server/Souls.Server.csproj src/Souls.Server/
-RUN --mount=type=cache,id=souls-nuget,target=/root/.nuget/packages \
-    --mount=type=secret,id=ca-certificates,target=/run/secrets/ca-certificates.crt,required=false \
+RUN --mount=type=secret,id=ca-certificates,target=/run/secrets/ca-certificates.crt,required=false \
     if [ -s /run/secrets/ca-certificates.crt ]; then export SSL_CERT_FILE=/run/secrets/ca-certificates.crt; fi; \
     dotnet restore src/Souls.Web/Souls.Web.csproj && \
     dotnet restore src/Souls.Server/Souls.Server.csproj
 
 COPY src/ src/
-RUN --mount=type=cache,id=souls-nuget,target=/root/.nuget/packages \
-    dotnet publish src/Souls.Web/Souls.Web.csproj -c Release -o /out/web --no-restore -p:UseAppHost=false && \
+RUN dotnet publish src/Souls.Web/Souls.Web.csproj -c Release -o /out/web --no-restore -p:UseAppHost=false && \
     dotnet publish src/Souls.Server/Souls.Server.csproj -c Release -o /out/server --no-restore -p:UseAppHost=false
 
 # Chiseled ("distroless") Ubuntu image: no shell or package manager, runs as the non-root
