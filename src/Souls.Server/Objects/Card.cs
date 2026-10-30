@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Souls.Model;
 using AbilityIds = Souls.Model.Entities.Ability;
+using CardKind = Souls.Model.Entities.CardKind;
 
 namespace Souls.Server.Objects;
 
@@ -22,6 +23,7 @@ public sealed class Card
     public int? AbilityValueOverride { get; init; }
     public int Rarity { get; init; } = Model.Rarity.Common;
     public string? Flavor { get; init; }
+    public CardKind Kind { get; init; }
     public int? RaceId { get; init; }
     public string? RaceName { get; init; }
     public string? RaceCardUrl { get; init; }
@@ -67,14 +69,18 @@ public sealed class Card
     public bool HasCharge => AbilityId == AbilityIds.Charge;
     public bool HasFury => AbilityId == AbilityIds.Fury;
     public bool HasVenom => AbilityId == AbilityIds.Venom;
+    public bool IsSpell => Kind == CardKind.Spell;
     public bool CanAct => !HasAttacked && !Paralyzed && !IsDead;
 
     /// <summary>The value the ability works with (Burn 3 deals 3 damage).</summary>
     public int AbilityValue => AbilityId is { } id ? GameRules.AbilityValue(id, AbilityValueOverride) : 0;
 
+    /// <summary>A card of the player's collection at its upgrade level (cards gain attack and health, spells value).</summary>
     public static Card FromEntity(Model.Entities.Card c, int level = 1)
     {
-        var bonus = GameRules.LevelBonus(level);
+        var spell = c.Kind == CardKind.Spell;
+        var bonus = spell ? 0 : GameRules.LevelBonus(level);
+        var abilityId = c.Ability?.Id ?? c.AbilityId;
         return new Card
         {
             Id = c.Id,
@@ -82,12 +88,13 @@ public sealed class Card
             Cost = c.Cost,
             VendorPrice = c.VendorPrice,
             Portrait = c.Portrait,
-            AbilityId = c.Ability?.Id ?? c.AbilityId,
+            AbilityId = abilityId,
             AbilityName = c.Ability?.Name,
             AbilityParameter = c.Ability?.Parameter,
-            AbilityValueOverride = c.AbilityValue,
+            AbilityValueOverride = spell && abilityId is { } id ? GameRules.SpellValue(id, c.AbilityValue, level) : c.AbilityValue,
             Rarity = c.Rarity,
             Flavor = c.Flavor,
+            Kind = c.Kind,
             RaceId = c.Race?.Id ?? c.RaceId,
             RaceName = c.Race?.Name,
             RaceCardUrl = c.Race?.CardUrl,
@@ -179,6 +186,7 @@ public sealed class Card
         ["ward"] = Ward,
         ["rarity"] = Rarity,
         ["flavor"] = Flavor,
+        ["kind"] = IsSpell ? "spell" : "minion",
     };
 
     /// <summary>Reads a card sent by the server (used by the bot).</summary>
@@ -196,6 +204,7 @@ public sealed class Card
         AbilityName = (string?)node["ability"]?["name"],
         AbilityValueOverride = (int?)node["ability"]?["value"],
         Rarity = (int?)node["rarity"] ?? Model.Rarity.Common,
+        Kind = (string?)node["kind"] == "spell" ? CardKind.Spell : CardKind.Minion,
         Ward = (bool?)node["ward"] ?? false,
         RaceId = (int?)node["race"]?["id"],
         Cid = (int?)node["cid"] ?? 0,

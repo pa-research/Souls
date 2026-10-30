@@ -129,7 +129,6 @@ public sealed partial class GameEngine(
             return;
         }
 
-        var slot = message.GetInt("slotId");
         var cid = message.GetInt("cid");
 
         if (!gp.HandCards.TryGetValue(cid, out var card))
@@ -144,6 +143,13 @@ public sealed partial class GameEngine(
             return;
         }
 
+        if (card.IsSpell)
+        {
+            await CastSpellAsync(player, gp, opponent, card, message);
+            return;
+        }
+
+        var slot = message.GetInt("slotId");
         if (slot is < 0 or >= GamePlayer.BoardSlots || gp.BoardCards.ContainsKey(slot))
         {
             RequestReleaseCard(player, message);

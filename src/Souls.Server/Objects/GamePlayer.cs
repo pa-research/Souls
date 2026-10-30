@@ -19,6 +19,9 @@ public sealed class GamePlayer
     /// <summary>The shuffled deck; the next card is drawn from the end.</summary>
     public List<Card> Deck { get; } = [];
 
+    /// <summary>Spells that were cast: they leave the hand for this pile, never the board.</summary>
+    public List<Card> Used { get; } = [];
+
     public bool IsPlayerOne { get; init; }
 
     /// <summary>1 for player one, 2 for player two: how events and the state refer to the heroes.</summary>
@@ -110,6 +113,7 @@ public sealed class GamePlayer
         }
 
         copy.Deck.AddRange(Deck.Select(c => c.Copy()));
+        copy.Used.AddRange(Used);
         room.Random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(copy.Deck));
         return copy;
     }

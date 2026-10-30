@@ -28,4 +28,15 @@ public class Card
 
     /// <summary>A line of story text shown under the rules text.</summary>
     public string? Flavor { get; set; }
+
+    /// <summary>Minions go on the board; spells are cast from the hand and have no attack or health.</summary>
+    public CardKind Kind { get; set; }
+}
+
+public enum CardKind
+{
+    Minion,
+
+    /// <summary>Cast from the hand on its target (or on nothing), then used up: it never takes a board slot.</summary>
+    Spell,
 }

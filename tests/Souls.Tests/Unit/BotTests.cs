@@ -141,4 +141,77 @@ public class BotTests
         Assert.Equal(1, trade.Health);
         Assert.Equal(2, ai.PlanTimes.Count);
     }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public async Task BotCastsALethalBurnPastATaunt(int difficulty, bool lookahead)
+    {
+        var spell = new Card { Id = 60, Name = "Soul Rend", Kind = Model.Entities.CardKind.Spell, AbilityId = Model.Entities.Ability.Burn, AbilityValueOverride = 3, Cost = 1 }.NewInstance();
+        var (room, bot, me, _) = await PlayFirstTurnAsync(difficulty, lookahead, (side, enemy) =>
+        {
+            side.HandCards[spell.Cid] = spell;
+            enemy.BoardCards[0] = new Card { Id = 2, Name = "wall", BaseAttack = 1, BaseHealth = 9, AbilityId = Model.Entities.Ability.Taunt }.NewInstance();
+            enemy.Health = 3;
+        });
+
+        Assert.Same(bot, room.Winner);
+        Assert.Equal("Soul Rend", Assert.Single(me.Used).Name);
+    }
+
+    [Fact]
+    public async Task LookaheadCastsASpellToSetUpLethal()
+    {
+        var empower = new Card { Id = 68, Name = "Primal Might", Kind = Model.Entities.CardKind.Spell, AbilityId = Model.Entities.Ability.Empower, AbilityValueOverride = 2, Cost = 1 }.NewInstance();
+        var (room, bot, me, ai) = await PlayFirstTurnAsync(2, true, (side, enemy) =>
+        {
+            side.HandCards[empower.Cid] = empower;
+            side.BoardCards[0] = new Card { Id = 3, Name = "wolf", BaseAttack = 3, BaseHealth = 3 }.NewInstance();
+            enemy.Health = 5;
+        });
+
+        // 3 damage is not enough; empowered to 5/5 it is.
+        Assert.Same(bot, room.Winner);
+        Assert.Single(me.Used);
+        Assert.Equal(2, ai.PlanTimes.Count);
+    }
+
+    /// <summary>
+    /// The bot (player one, nothing affordable in its deck) plays its first turn after <paramref name="setup"/> changed
+    /// its side and the enemy's; returns when the game is over (or after 10 seconds).
+    /// </summary>
+    private static async Task<(GameRoom Room, Player Bot, GamePlayer Me, AiPlayer Ai)> PlayFirstTurnAsync(int difficulty, bool lookahead, Action<GamePlayer, GamePlayer> setup)
+    {
+        var state = new ServerState();
+        var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var scopes = services.GetRequiredService<IServiceScopeFactory>();
+        var metrics = new GameMetrics(services.GetRequiredService<IMeterFactory>(), state);
+        var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System, Options.Create(new GameOptions()), metrics, NullLogger<GameEngine>.Instance);
+        var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
+
+        IReadOnlyList<Card> deck = [.. Enumerable.Range(0, GameRules.DeckSize).Select(_ => new Card { Id = 1, Name = "c", BaseAttack = 1, BaseHealth = 1, Cost = 10 })];
+        var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
+        var bot = new Player { Id = 1, Name = "bot", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, IsBot = true, Difficulty = difficulty, GameContext = connection };
+        var human = new Player { Id = 2, Name = "human", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, GameContext = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true } };
+        state.GameClients[connection] = bot;
+
+        GameRoom room = null!;
+        GamePlayer me = null!;
+        await state.RunExclusiveAsync(async () =>
+        {
+            room = engine.CreateGame(new Pair<Player>(bot, human), practice: true);
+            me = bot.GPlayer!;
+            setup(me, human.GPlayer!);
+            room.Sync();
+            await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
+        });
+
+        var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)),
+            new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero }, difficulty, NullLogger.Instance,
+            lookahead ? engine : null, () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await ai.RunAsync(cts.Token); // returns when the game is over
+
+        return (room, bot, me, ai);
+    }
 }

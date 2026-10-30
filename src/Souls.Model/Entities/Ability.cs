@@ -25,6 +25,9 @@ public class Ability
     public const int Drain = 18;
     public const int Brood = 19;
 
+    // Added with spells.
+    public const int Empower = 20;
+
     public int Id { get; set; }
     public required string Name { get; set; }
     public string? Parameter { get; set; }
