@@ -1,25 +1,33 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Souls.Server.Game;
 
 namespace Souls.Server.Objects;
 
-/// <summary>The in-game state of a player (hero stats, deck, hand and board).</summary>
+/// <summary>
+/// The in-game state of a player (hero stats, deck, hand and board). Saved as JSON with the game (see
+/// <see cref="GameRoom.Snapshot"/>): every property with a setter is state, and so are the collections.
+/// </summary>
 public sealed class GamePlayer
 {
     public const int MaxHandCards = 10;
     public const int BoardSlots = 7;
 
     /// <summary>Hand cards keyed by <see cref="Card.Cid"/>, in the order they were drawn.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public OrderedDictionary<int, Card> HandCards { get; } = new(MaxHandCards);
 
     /// <summary>Board cards keyed by slot id.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<int, Card> BoardCards { get; } = new(BoardSlots);
 
     /// <summary>The shuffled deck; the next card is drawn from the end.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public List<Card> Deck { get; } = [];
 
     /// <summary>Spells that were cast: they leave the hand for this pile, never the board.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public List<Card> Used { get; } = [];
 
     public bool IsPlayerOne { get; init; }
@@ -51,6 +59,8 @@ public sealed class GamePlayer
 
     /// <summary>Damage of the next draw from an empty deck.</summary>
     public int Fatigue { get; set; }
+
+    [JsonIgnore]
     public GameRoom? GameRoom { get; set; }
 
     // What the player did, for daily quests.

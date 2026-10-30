@@ -59,14 +59,32 @@ public sealed partial class GameEngine(
         return room;
     }
 
+    /// <summary>
+    /// Takes over a game restored from the database after a restart (see <see cref="GameStore"/>). Its human players
+    /// count as disconnected until they log in again (with the usual grace period); the matchmaker seats the bot.
+    /// </summary>
+    public void Resume(GameRoom room)
+    {
+        state.Rooms[room.GameId] = room;
+        foreach (var player in new[] { room.Players.First, room.Players.Second }.Where(p => !p.IsBot))
+        {
+            // A closed connection stands in, like the dropped socket of a player who lost the connection.
+            var offline = new BotConnection { Kind = ServiceKind.Game };
+            offline.Close("Offline");
+            player.GameContext = offline;
+            player.DisconnectedAt = time.GetUtcNow();
+            state.GameClients[offline] = player;
+        }
+
+        logger.LogInformation("Game {GameId} restored: {Player1} vs {Player2}, turn {Turn}", room.GameId, room.Players.First.Name, room.Players.Second.Name, room.Turn);
+    }
+
     public void RequestQueue(Player player, bool normal, int difficulty = 1)
     {
         if (player.GPlayer?.GameRoom is { } room)
         {
             // Reconnected while in a game: send the current state.
-            var response = room.GenerateGameUpdate();
-            player.Send(player.GPlayer.IsPlayerOne ? response.First : response.Second);
-            player.GameContext?.Send(new Response(GameResponse.GameSync, room.SyncPayload()));
+            SendState(player, room);
             return;
         }
 
@@ -83,6 +101,14 @@ public sealed partial class GameEngine(
         (normal ? state.NormalQueue : state.PracticeQueue).AddLast(player);
         player.Send(new Response(GameResponse.QueueOk, "You are now in queue!"));
         logger.LogDebug("{Player} queued ({Mode})", player.Name, normal ? "normal" : "practice");
+    }
+
+    /// <summary>The whole game for a player who (re)joins it: GameCreate (with the mulligan while it runs), then GameSync.</summary>
+    public static void SendState(Player player, GameRoom room)
+    {
+        var response = room.GenerateGameUpdate();
+        player.Send(player.GPlayer!.IsPlayerOne ? response.First : response.Second);
+        player.GameContext?.Send(new Response(GameResponse.GameSync, room.SyncPayload()));
     }
 
     public void RemoveFromQueues(Player player)

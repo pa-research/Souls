@@ -21,11 +21,16 @@ public sealed class MatchmakerOptions
     public TimeSpan SeasonCheckInterval { get; set; } = TimeSpan.FromMinutes(1);
 }
 
-/// <summary>Pairs queued players, starts practice games against the bot, cleans up abandoned players and ends seasons.</summary>
+/// <summary>
+/// Pairs queued players, starts practice games against the bot, cleans up abandoned players and ends seasons. It also
+/// restores the running games saved by the previous instance when the server starts, and saves them when it stops
+/// (see <see cref="GameStore"/>).
+/// </summary>
 public sealed class Matchmaker(
     ServerState state,
     GameEngine engine,
     GameService gameService,
+    GameStore store,
     PlayerRepository players,
     ConnectionRegistry registry,
     IServiceScopeFactory scopes,
@@ -34,8 +39,11 @@ public sealed class Matchmaker(
     IOptions<AiOptions> aiOptions,
     IOptions<SeasonOptions> seasonOptions,
     GameMetrics metrics,
-    ILoggerFactory loggerFactory) : BackgroundService
+    ILoggerFactory loggerFactory) : BackgroundService, IHostedLifecycleService
 {
+    /// <summary>Why a stopping server closes the connections (the clients reconnect).</summary>
+    public const string RestartReason = "Server restarting";
+
     private readonly ILogger _logger = loggerFactory.CreateLogger<Matchmaker>();
     private readonly List<Task> _bots = [];
     private DateTimeOffset _lastRevalidation;
@@ -60,6 +68,41 @@ public sealed class Matchmaker(
         await Task.WhenAll(_bots);
     }
 
+    /// <summary>Restores the games of the previous instance. Runs before the web host accepts connections.</summary>
+    public async Task StartingAsync(CancellationToken cancellationToken)
+    {
+        var rooms = await store.LoadAsync(cancellationToken);
+        await state.RunExclusiveAsync(() =>
+        {
+            foreach (var room in rooms)
+            {
+                engine.Resume(room);
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// The server is stopping (SIGTERM on a restart or redeploy), before the web host stops: saves every game for the
+    /// next instance and closes all connections so the clients reconnect to it. Afterwards nothing changes the games.
+    /// </summary>
+    public Task StoppingAsync(CancellationToken cancellationToken) => state.RunExclusiveAsync(async () =>
+    {
+        state.ShuttingDown = true;
+        await store.SaveAsync(all: true);
+        foreach (var connection in registry.Snapshot())
+        {
+            connection.Close(RestartReason);
+        }
+
+        _logger.LogInformation("Stopping: {Count} running games saved for the next start", state.Rooms.Count);
+    });
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     internal async Task TickAsync(CancellationToken ct)
     {
         // Database work happens outside the state lock.
@@ -77,13 +120,20 @@ public sealed class Matchmaker(
 
         await state.RunExclusiveAsync(async () =>
         {
+            if (state.ShuttingDown)
+            {
+                return;
+            }
+
             RemoveDisconnected(state.NormalQueue);
             RemoveDisconnected(state.PracticeQueue);
             MatchNormal();
             MatchPractice(bots, ct);
+            SeatRestoredBots(ct);
             await ForfeitAbandonedAsync();
             await engine.CheckTurnTimersAsync();
             engine.ExpireChallenges();
+            await store.SaveAsync();
         });
 
         _bots.RemoveAll(t => t.IsCompleted);
@@ -155,25 +205,39 @@ public sealed class Matchmaker(
 
             metrics.QueueWaited("practice", time.GetUtcNow() - human.QueuedAt);
             engine.RemoveFromQueues(human);
-
-            var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
-            bot.GameContext = connection;
-            bot.ChatContext = connection;
-            bot.ChPlayer = new ChatPlayer(bot.Name) { ChatContext = connection };
-            state.GameClients[connection] = bot;
-
-            var logger = loggerFactory.CreateLogger<AiPlayer>();
-            var ai = new AiPlayer(
-                connection,
-                message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger, metrics)),
-                aiOptions.Value,
-                bot.Difficulty,
-                logger,
-                engine,
-                () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
-            _bots.Add(Task.Run(() => ai.RunAsync(ct), ct));
-
+            SeatBot(bot, ct);
             engine.CreateGame(new Pair<Player>(human, bot), practice: true);
+        }
+    }
+
+    /// <summary>Connects an AI to the bot player; it plays through an in-memory connection.</summary>
+    private void SeatBot(Player bot, CancellationToken ct)
+    {
+        var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
+        bot.GameContext = connection;
+        bot.ChatContext = connection;
+        bot.ChPlayer = new ChatPlayer(bot.Name) { ChatContext = connection };
+        state.GameClients[connection] = bot;
+
+        var logger = loggerFactory.CreateLogger<AiPlayer>();
+        var ai = new AiPlayer(
+            connection,
+            message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger, metrics)),
+            aiOptions.Value,
+            bot.Difficulty,
+            logger,
+            engine,
+            () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
+        _bots.Add(Task.Run(() => ai.RunAsync(ct), ct));
+    }
+
+    /// <summary>A restored practice game has its bot but no AI yet: a new one reads the game and plays on.</summary>
+    private void SeatRestoredBots(CancellationToken ct)
+    {
+        foreach (var bot in state.Rooms.Values.SelectMany(r => new[] { r.Players.First, r.Players.Second }).Where(p => p.IsBot && p.GameContext is null).ToList())
+        {
+            SeatBot(bot, ct);
+            GameEngine.SendState(bot, bot.GPlayer!.GameRoom!);
         }
     }
 

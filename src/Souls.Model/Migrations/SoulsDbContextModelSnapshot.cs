@@ -2133,6 +2133,46 @@ namespace Souls.Model.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.RunningGame", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer")
+                        .HasColumnName("game_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("GameId");
+
+                    b.ToTable("running_game", (string)null);
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.RunningGameReplay", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_running_game");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<string>("Entry")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("entry");
+
+                    b.HasKey("GameId", "Seq");
+
+                    b.ToTable("running_game_replay", (string)null);
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.Season", b =>
                 {
                     b.Property<int>("Number")
@@ -2420,6 +2460,15 @@ namespace Souls.Model.Migrations
                     b.Navigation("Ability");
 
                     b.Navigation("Race");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.RunningGameReplay", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.RunningGame", null)
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.SeasonStanding", b =>

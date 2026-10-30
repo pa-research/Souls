@@ -4,10 +4,24 @@ using Souls.Server.Objects;
 
 namespace Souls.Server.Network;
 
-/// <summary>The <c>/ws/game</c> endpoint.</summary>
-public sealed class GameService(ServerState state, GameEngine engine, PlayerRepository players, TimeProvider time, ILogger<GameService> logger) : IClientService
+/// <summary>The <c>/ws/game</c> endpoint. With a <paramref name="store"/> the games a request changed are saved after it.</summary>
+public sealed class GameService(ServerState state, GameEngine engine, PlayerRepository players, TimeProvider time, ILogger<GameService> logger, GameStore? store = null) : IClientService
 {
     public async Task ProcessAsync(Connection connection, Message message)
+    {
+        if (state.ShuttingDown)
+        {
+            return;
+        }
+
+        await HandleAsync(connection, message);
+        if (store is not null)
+        {
+            await store.SaveAsync();
+        }
+    }
+
+    private async Task HandleAsync(Connection connection, Message message)
     {
         if (connection.LoggedIn && state.GameClients.TryGetValue(connection, out var player))
         {
@@ -144,7 +158,8 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
 
     public async Task OnDisconnectedAsync(Connection connection)
     {
-        if (!state.GameClients.TryGetValue(connection, out var player) || player.GameContext != connection)
+        // A stopping server closes every socket; the players' games wait for them in the next instance.
+        if (state.ShuttingDown || !state.GameClients.TryGetValue(connection, out var player) || player.GameContext != connection)
         {
             return;
         }

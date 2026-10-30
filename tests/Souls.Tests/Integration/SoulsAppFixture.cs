@@ -20,6 +20,7 @@ public sealed class SoulsAppFixture : IAsyncLifetime
     public const string AdminPassword = "Adm1n-Passw0rd!";
 
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:18-alpine").Build();
+    private Dictionary<string, string?> _settings = [];
 
     public WebApplicationFactory<WebAssemblyMarker> Web { get; private set; } = null!;
     public WebApplicationFactory<ServerAssemblyMarker> Server { get; private set; } = null!;
@@ -28,7 +29,7 @@ public sealed class SoulsAppFixture : IAsyncLifetime
     {
         await _database.StartAsync();
 
-        var settings = new Dictionary<string, string?>
+        var settings = _settings = new Dictionary<string, string?>
         {
             ["ConnectionStrings:Souls"] = _database.GetConnectionString(),
             ["Souls:SecureCookies"] = "false",
@@ -53,6 +54,14 @@ public sealed class SoulsAppFixture : IAsyncLifetime
         await Web.DisposeAsync();
         await Server.DisposeAsync();
         await _database.DisposeAsync();
+    }
+
+    /// <summary>Stops the game server (as on SIGTERM) and starts a new one on the same database, like a redeploy.</summary>
+    public async Task RestartServerAsync()
+    {
+        await Server.DisposeAsync();
+        Server = new WebApplicationFactory<ServerAssemblyMarker>().WithWebHostBuilder(b => Configure(b, _settings));
+        _ = Server.Server;
     }
 
     public TestBrowser CreateBrowser() => new(Web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false }));

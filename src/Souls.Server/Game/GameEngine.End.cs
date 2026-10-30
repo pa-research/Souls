@@ -129,6 +129,11 @@ public sealed partial class GameEngine
 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
+
+        // The saved running game goes first (see GameStore). If storing the result fails after that, the game is lost
+        // as it was before games were saved; but a game whose result is stored can never be restored and count twice.
+        await db.RunningGames.Where(g => g.GameId == room.GameId).ExecuteDeleteAsync();
+
         var game = new Model.Entities.Game
         {
             Player1Id = player.Id,

@@ -57,9 +57,10 @@ public sealed partial class GameEngine
 
     public static void MuteEmotes(Player player, bool muted)
     {
-        if (player.GPlayer is { } gp)
+        if (player.GPlayer is { GameRoom: { } room } gp)
         {
             gp.EmotesMuted = muted;
+            room.Dirty = true;
         }
     }
 
