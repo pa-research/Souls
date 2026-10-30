@@ -1179,14 +1179,11 @@
                         // Scale up
                         this.scale = { x: 2.2, y: 2.2 };
 
-                        // Run tween (x too: a hover may interrupt the tween that sorts the hand)
-                        this.interactive = false;
+                        // Run tween (x too: a hover may interrupt the tween that sorts the hand). The card stays
+                        // pressable: another tween (a card let go goes back to the hand) may override this one, and a
+                        // card left non-interactive would hand the next press to the card under it.
                         this.engine.CreateJS.Tween.get(this, { override: true })
-                            .to({ x: this.position.originX, y: this.position.originY - 120 }, 200, this.engine.CreateJS.Ease.elasticOut)
-                            .call(function () {
-                                this.interactive = true;
-                            })
-
+                            .to({ x: this.position.originX, y: this.position.originY - 120 }, 200, this.engine.CreateJS.Ease.elasticOut);
 
                         this.OrderLast();
                     }
@@ -1201,13 +1198,8 @@
                         if (!this._reset) {
 
                             // Run tween
-                            this.interactive = false;
                             this.engine.CreateJS.Tween.get(this, { override: true })
-                                .to({ x: this.position.originX, y: this.position.originY }, 500, this.engine.CreateJS.Ease.elasticOut)
-                                .call(function () {
-                                    this.interactive = true;
-                                })
-
+                                .to({ x: this.position.originX, y: this.position.originY }, 500, this.engine.CreateJS.Ease.elasticOut);
 
                             this.ScaleDown();
                             this._reset = true;
@@ -1436,6 +1428,9 @@
         /// </summary>
         Card.prototype.mousedown = Card.prototype.touchstart = function (mouseData) {
             if (this.isDead || this.cardFlipped) return;
+
+            // A hand card may still be moving (popping up under the pointer, sorting): the drag takes over.
+            if (!this.inSlot) this.engine.CreateJS.Tween.removeTweens(this);
 
             var pointer = Pointer(mouseData);
             this.rightClick = pointer.right;

@@ -10,7 +10,7 @@ npm install
 
 | Script | What it checks |
 |---|---|
-| `rules3d.js <base> <out> [difficulty]` | A full 3D practice game: hero power, cards, attacks, turn timer, tooltips, rewards, stats page, 3D replay |
+| `rules3d.js <base> <out> [difficulty]` | A full 3D practice game: hero power (and its targeting hint), cards, attacks, turn timer, tooltips, rewards, stats page, 3D replay; every animation frame, no two full-screen layers (matchmaking, VS splash, mulligan, end screen) at once and no banner or tooltip over one |
 | `classic_ui.js <base> <out> [width height]` | A classic practice game with the HUD: menu, queue, cards, hero power, tooltip, settings |
 | `pvp_rules.js <base> <out>` | A ranked game between a 3D and a classic player, watched live by a spectator |
 | `social.js <base> <out>` | Friendly challenges (accept, decline, challenge link) and emotes (mute) between a 3D and a classic player; no rating change |

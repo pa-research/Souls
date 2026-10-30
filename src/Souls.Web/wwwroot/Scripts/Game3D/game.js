@@ -2,7 +2,7 @@
 // can play each other, see docs/game-protocol.md). Server messages are played in order through a queue: each one
 // finishes its animation before the next starts, and GameSync (the full state after every action) is the truth for
 // all numbers. The same code plays live games, spectated games and recorded replays.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS } from './cards.js';
@@ -613,7 +613,7 @@ export class Game {
                 this.ui.showQueue('You are banned!');
                 break;
             case Response.QUEUE_OK:
-                this.ui.setStatus(this.normalGame ? 'Waiting for an opponent of your rank...' : 'Waiting for Match');
+                this.ui.setStatus(this.normalGame ? 'Waiting for an opponent of your rank...' : 'Waiting for a match...');
                 break;
             case Response.QUEUE_ALREADY_IN:
                 this.ui.setStatus('You are already in queue!');
@@ -765,7 +765,8 @@ export class Game {
         this.active = true;
         sound.stopMusic();
         sound.playMusic('GAME_MUSIC', 0.1);
-        this.ui.hideQueue();
+        // A new game cuts from the queue straight to the VS splash; a rejoined one fades in.
+        this.ui.hideQueue(!p.create);
         this.ui.showViews(true, { chat: !this.spectator });
         if (!this.spectator) this.markInGame();
         return wait(p.create ? 600 : 100);
@@ -954,6 +955,7 @@ export class Game {
     onNextTurn(p) {
         clearTimeout(this.mulliganTimer);
         this.ui.hideMulligan();
+        if (this.interaction) this.interaction.cancelTargeting();
         this.opponent.hero.setInfo(p.opponentInfo);
         this.player.hero.setInfo(p.playerInfo);
         if (this.spectator) {
@@ -1505,6 +1507,7 @@ export class Game {
     stopPlaying() {
         this.ended = true;
         this.active = false;
+        if (this.interaction) this.interaction.cancelTargeting();
         this.effects.hideArrow();
         this.showSlots(false);
         this.sign.visible = false;
@@ -1512,7 +1515,8 @@ export class Game {
         this.ui.setPower(null);
         this.ui.hideTooltip();
         clearTimeout(this.mulliganTimer);
-        this.ui.hideMulligan();
+        // The end screen fades in over the arena, not over a fading mulligan.
+        this.ui.hideMulligan(false);
         for (const side of [this.player, this.opponent]) {
             side.hero.setReady(false);
             for (const card of side.board.values()) card.setReady(false);

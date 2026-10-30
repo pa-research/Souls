@@ -32,7 +32,9 @@ define("game",
             this.friendly = friendly || null;
             this.friendlyGame = !!friendly; // also set when a challenge is accepted while queued
             that = this;
-            State.call(this, "0xCAECAE");
+            // The sand of the arena: the colour behind the board, should a frame ever be drawn without it (seen now and
+            // then on one GPU; it was a mint green flash).
+            State.call(this, "0xE6C276");
             // Variables
             this.gameId = undefined;
             this.conf = Conf;
@@ -90,6 +92,19 @@ define("game",
             this.settings = new Settings(this);
             this.emotes = new Emotes(this);
             this.tooltip = new Tooltip(this);
+
+            // The board is landscape: held upright, a phone gets this instead (CSS shows it, see Game.css).
+            var rotate = Hud.Layer('souls-classic-rotate');
+            rotate.setAttribute('role', 'dialog');
+            rotate.setAttribute('aria-label', 'Turn to landscape');
+            var box = Hud.El('div', 's-panel', rotate);
+            box.appendChild(Hud.Icon('rotate', 's-icon s-icon-lg'));
+            Hud.El('h2', 's-h3', box, 'Turn to landscape');
+            Hud.El('p', 's-muted', box, 'The classic board needs a wide screen: turn your device sideways, or play on in the 3D client.');
+            Hud.Button('s-btn s-btn-gold', box, 'Play in Modern 3D', 'monitor').addEventListener('click', function () {
+                var other = document.querySelector('.game-mode-switch .s-seg button:not(.active)');
+                if (other) other.click();
+            });
 
             // Connect to the chat service
             this.chatService = new ChatService(this);

@@ -12,9 +12,6 @@
         if (label.text !== text) label.setText(text);
     }
 
-    var MANA_FULL = 0x6e93b3;
-    var MANA_SPENT = 0x2c3540;
-
     PlayerBase = function (engine, isPlayer) {
         var frame = (isPlayer) ? Asset.GetTexture(Asset.Textures.PLAYER_FRAME) : Asset.GetTexture(Asset.Textures.OPPONENT_FRAME);
         Pixi.Sprite.call(this, Asset.GetTexture(Asset.Textures.PLAYER_NONE));
@@ -145,6 +142,7 @@
         // Adding sprites to base
         this.addChild(this.pPortrait);
         this.addChild(masking);
+        this.frame = pFrame;
         this.addChild(pFrame);
         this.addChild(this.pNamePanelText);
         this.addChild(this.pAttackText);
@@ -173,7 +171,6 @@
             item.anchor = { x: 0.5, y: 0.5 };
             item.width = 30;
             item.height = 30;
-            item.tint = MANA_FULL;
             item.x = this.x + radiusX * Math.cos(deg + (degJump * (i + startOffset))) - 2;
             item.y = this.y + radiusY * Math.sin(deg + (degJump * (i + startOffset))) - 15 + YOffset;
             item.visible = false;
@@ -196,13 +193,17 @@
         var hud = this.hud = new Pixi.DisplayObjectContainer();
         hud.scale.x = 1 / (this._originalScale.x || 1);
         hud.scale.y = 1 / (this._originalScale.y || 1);
+        // The rings go behind the frame: they show around it, not over the attack, health and name.
+        var rings = new Pixi.DisplayObjectContainer();
+        rings.scale.x = hud.scale.x;
+        rings.scale.y = hud.scale.y;
         var side = this.isPlayer ? 1 : -1;
         this.ringCenterY = -18 * side;
 
         // Can attack: green ring around the portrait
         this.glow = new Pixi.Graphics();
-        this.glow.lineStyle(8, 0x4dff7a, 1);
-        this.glow.drawEllipse(0, this.ringCenterY, 122, 112);
+        this.glow.lineStyle(10, 0x4dff7a, 1);
+        this.glow.drawEllipse(0, this.ringCenterY, 124, 114);
         this.glow.visible = false;
 
         // Valid target while aiming
@@ -231,8 +232,9 @@
         this.armorBadge.y = this.isPlayer ? 50 : -50;
         this.armorBadge.visible = false;
 
-        hud.addChild(this.glow);
-        hud.addChild(this.targetMark);
+        rings.addChild(this.glow);
+        rings.addChild(this.targetMark);
+        this.addChildAt(rings, this.children.indexOf(this.frame));
         hud.addChild(this.armorBadge);
         this.addChild(hud);
     }
@@ -317,16 +319,9 @@
         this.RefreshHud();
     }
 
-    /// Mana crystals: maxMana crystals are shown, the spent ones dark.
+    /// Mana crystals: hidden (the status pill shows the mana); Player.CheckManaCost shows the cost of a hovered card.
     PlayerBase.prototype.UpdateManaCrystals = function () {
-        var mana = typeof this.mana === 'number' ? this.mana : 0;
-        var max = Math.max(typeof this.maxMana === 'number' ? this.maxMana : 0, mana);
-        for (var i = 0; i < this.manaCrystals.length; i++) {
-            var item = this.manaCrystals[i];
-            item.visible = i < max;
-            item.alpha = 1;
-            item.tint = i < mana ? MANA_FULL : MANA_SPENT;
-        }
+        for (var i = 0; i < this.manaCrystals.length; i++) this.manaCrystals[i].visible = false;
     }
 
     PlayerBase.prototype.RefreshHud = function () {

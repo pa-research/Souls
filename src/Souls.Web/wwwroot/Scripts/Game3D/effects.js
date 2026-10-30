@@ -1,6 +1,8 @@
 // Visual effects: particles, floating numbers, the targeting arrow, hero beams and camera shake.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
+import { abs, attribute, positionView, screenDPR, sin, texture, uniform, uv, vec4 } from '/lib/three/three.tsl.js';
 import { Images, loadImage, textureFrom } from './assets.js';
+import { spriteGeometry } from './scene.js';
 import { tweens, Ease } from './tween.js';
 
 const MAX_PARTICLES = 6000;
@@ -16,39 +18,25 @@ export class Effects {
     }
 
     async initParticles() {
-        const geometry = new THREE.BufferGeometry();
+        const image = await loadImage(Images.particle);
+        if (!image) return;
         this.pPositions = new Float32Array(MAX_PARTICLES * 3);
         this.pColors = new Float32Array(MAX_PARTICLES * 4);
         this.pSizes = new Float32Array(MAX_PARTICLES);
-        geometry.setAttribute('position', new THREE.BufferAttribute(this.pPositions, 3).setUsage(THREE.DynamicDrawUsage));
-        geometry.setAttribute('pcolor', new THREE.BufferAttribute(this.pColors, 4).setUsage(THREE.DynamicDrawUsage));
-        geometry.setAttribute('size', new THREE.BufferAttribute(this.pSizes, 1).setUsage(THREE.DynamicDrawUsage));
-        this.pMaterial = new THREE.ShaderMaterial({
-            uniforms: { map: { value: null }, scale: { value: 800 }, maxSize: { value: 64 } },
-            vertexShader: `attribute float size; attribute vec4 pcolor; varying vec4 vColor; uniform float scale; uniform float maxSize;
-                void main() {
-                    vColor = pcolor;
-                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-                    // Capped so particles right in front of the camera do not turn into huge blobs.
-                    gl_PointSize = min(size * scale / -mv.z, maxSize);
-                    gl_Position = projectionMatrix * mv;
-                }`,
-            fragmentShader: `uniform sampler2D map; varying vec4 vColor;
-                void main() {
-                    vec4 t = texture2D(map, gl_PointCoord);
-                    gl_FragColor = vec4(vColor.rgb * t.rgb, t.a * vColor.a);
-                    if (gl_FragColor.a < 0.01) discard;
-                }`,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-        });
-        this.points = new THREE.Points(geometry, this.pMaterial);
+        const dynamic = (array, size) => new THREE.InstancedBufferAttribute(array, size).setUsage(THREE.DynamicDrawUsage);
+        const geometry = spriteGeometry({ point: dynamic(this.pPositions, 3), pcolor: dynamic(this.pColors, 4), size: dynamic(this.pSizes, 1) }, 0);
+        this.pMaterial = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false, alphaTest: 0.01 });
+        this.pMaterial.uniforms = { scale: uniform(800), maxSize: uniform(64) };
+        this.pMaterial.positionNode = attribute('point', 'vec3');
+        // Device pixels, capped so particles right in front of the camera do not turn into huge blobs.
+        const { scale, maxSize } = this.pMaterial.uniforms;
+        this.pMaterial.sizeNode = attribute('size', 'float').mul(scale).div(positionView.z.negate()).min(maxSize).div(screenDPR);
+        const pcolor = attribute('pcolor', 'vec4'), t = texture(textureFrom(image), uv());
+        this.pMaterial.colorNode = vec4(pcolor.rgb.mul(t.rgb), t.a.mul(pcolor.a));
+        this.points = new THREE.Mesh(geometry, this.pMaterial);
         this.points.frustumCulled = false;
         this.points.renderOrder = 10;
         this.scene.add(this.points);
-        const image = await loadImage(Images.particle);
-        if (image) this.pMaterial.uniforms.map.value = textureFrom(image);
     }
 
     /** Emits a burst of particles. */
@@ -145,13 +133,10 @@ export class Effects {
 
     /** A column of light rising from a point (heroes entering the arena). */
     lightPillar(position, color = 0xfff1c0, duration = 2200) {
-        const material = new THREE.ShaderMaterial({
-            uniforms: { color: { value: new THREE.Color(color) }, fade: { value: 0 } },
-            vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-            fragmentShader: `uniform vec3 color; uniform float fade; varying vec2 vUv;
-                void main() { gl_FragColor = vec4(color, fade * (1.0 - vUv.y) * (1.0 - vUv.y) * 0.45); }`,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        });
+        const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+        material.uniforms = { color: uniform(new THREE.Color(color)), fade: uniform(0) };
+        const below = uv().y.oneMinus();
+        material.colorNode = vec4(material.uniforms.color, material.uniforms.fade.mul(below).mul(below).mul(0.45));
         const beam = new THREE.Mesh(new THREE.CylinderGeometry(110, 140, 1600, 32, 1, true), material);
         beam.position.copy(position).setY(800);
         beam.renderOrder = 11;
@@ -281,10 +266,14 @@ export class Effects {
             this.pSizes[i] = p.size * (0.5 + 0.5 * k);
         }
         const geometry = this.points.geometry;
-        geometry.setDrawRange(0, n);
-        geometry.attributes.position.needsUpdate = true;
-        geometry.attributes.pcolor.needsUpdate = true;
-        geometry.attributes.size.needsUpdate = true;
+        geometry.instanceCount = n;
+        if (n === 0) return;
+        for (const [name, size] of [['point', 3], ['pcolor', 4], ['size', 1]]) {
+            const attribute = geometry.attributes[name];
+            attribute.clearUpdateRanges();
+            attribute.addUpdateRange(0, n * size); // only the live particles, not all 6000
+            attribute.needsUpdate = true;
+        }
         this.pMaterial.uniforms.scale.value = this.stage.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.stage.camera.fov / 2)));
         this.pMaterial.uniforms.maxSize.value = 72 * this.stage.renderer.getPixelRatio();
     }
@@ -293,16 +282,17 @@ export class Effects {
     floatText(text, position, color = '#ff4136', size = 90) {
         const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 128;
-        const g = canvas.getContext('2d');
+        const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
         g.font = 'bold 96px Arial, Helvetica, sans-serif';
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.lineJoin = 'round';
         g.lineWidth = 12;
         g.strokeStyle = '#000';
-        g.strokeText(text, 128, 64);
+        // Long labels ("Rabid Bite", "Fatigue 3") are squeezed to the canvas instead of clipped.
+        g.strokeText(text, 128, 64, 240);
         g.fillStyle = color;
-        g.fillText(text, 128, 64);
+        g.fillText(text, 128, 64, 240);
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
@@ -388,17 +378,12 @@ export class Effects {
     beam(from, to, color = 0xffd34d, duration = 1600) {
         const dir = to.clone().sub(from);
         const length = dir.length();
-        const material = new THREE.ShaderMaterial({
-            uniforms: { time: { value: 0 }, color: { value: new THREE.Color(color) }, fade: { value: 0 } },
-            vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-            fragmentShader: `uniform float time; uniform vec3 color; uniform float fade; varying vec2 vUv;
-                void main() {
-                    float stripes = 0.6 + 0.4 * sin(vUv.y * 60.0 - time * 30.0);
-                    float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
-                    gl_FragColor = vec4(color * (0.7 + core) * stripes, fade * (0.4 + 0.6 * core));
-                }`,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        });
+        const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+        material.uniforms = { time: uniform(0), color: uniform(new THREE.Color(color)), fade: uniform(0) };
+        const { time, fade } = material.uniforms;
+        const stripes = sin(uv().y.mul(60).sub(time.mul(30))).mul(0.4).add(0.6);
+        const core = abs(uv().x.sub(0.5)).mul(2).oneMinus();
+        material.colorNode = vec4(material.uniforms.color.mul(core.add(0.7)).mul(stripes), fade.mul(core.mul(0.6).add(0.4)));
         const mesh = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 1, 16, 1, true), material);
         mesh.renderOrder = 15;
         mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
@@ -446,7 +431,7 @@ export class Effects {
 function makeSigilTexture() {
     const size = 256, canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
-    const g = canvas.getContext('2d');
+    const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
     g.translate(size / 2, size / 2);
     g.strokeStyle = '#fff';
     g.fillStyle = '#fff';
@@ -480,7 +465,7 @@ function makeSigilTexture() {
 function makeSlashTexture() {
     const size = 256, canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
-    const g = canvas.getContext('2d');
+    const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
     const gradient = g.createLinearGradient(30, 0, 226, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,0)');
     gradient.addColorStop(0.5, 'rgba(255,255,255,1)');

@@ -144,8 +144,8 @@
         this.arrow.Reset();
     }
 
-    // Colours the mana crystals: the cost of the hovered card (or hero power) in green (affordable),
-    // yellow (not affordable) or red (missing); spent crystals are dark.
+    // Shows the cost of the hovered card (or hero power) as mana crystals around the hero: green (affordable),
+    // yellow (not affordable) or red (missing).
     Player.prototype.CheckManaCost = function () {
         var preview = null;
         if (!!this._chover && typeof this._chover.cost === 'number') preview = this._chover.cost;
@@ -156,14 +156,9 @@
 
         for (var i = 0; i < 10 && i < preview; i++) {
             var item = this.manaCrystals[i];
-            if (i < this.mana) {
-                item.tint = (this.mana >= preview) ? 0x4cd328 : 0xFFFE00; // Green / yellow crystal
-            }
-            else {
-                item.visible = true;
-                item.tint = 0xe52a2a; // Red crystal
-                item.alpha = 0.5;
-            }
+            item.visible = true;
+            item.alpha = i < this.mana ? 1 : 0.5;
+            item.tint = i >= this.mana ? 0xe52a2a : (this.mana >= preview ? 0x4cd328 : 0xFFFE00); // red / green / yellow
         }
     }
 

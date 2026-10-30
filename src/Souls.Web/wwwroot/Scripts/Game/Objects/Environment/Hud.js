@@ -124,8 +124,13 @@ define("hud", ["conf"], function (Conf) {
         if (/ rallies | grows stronger| reveals /.test(line)) return ['sparkles', ''];
         if (/ gives the turn |ran out of time/.test(line)) return ['hourglass', 'turn'];
         if (/ plays | summons /.test(line)) return ['deck', ''];
-        if (/ uses | paralyzes | hardens /.test(line)) return ['wand', ''];
+        if (/ uses | casts | paralyzes | hardens /.test(line)) return ['wand', ''];
         if (/haunt/i.test(line)) return ['ghost', ''];
+        if (/fatigue damage/.test(line)) return ['skull', 'attack'];
+        if (/ starting (hand|card)/.test(line)) return ['refresh', ''];
+        if (/^The battle begins/.test(line)) return ['swords', ''];
+        if (/ extra mana/.test(line)) return ['gem', ''];
+        if (/ left the game| forfeits /.test(line)) return ['logout', 'turn'];
         return ['flag', ''];
     }
 
@@ -194,6 +199,14 @@ define("hud", ["conf"], function (Conf) {
             this.canvas = canvas;
             // Whether the mouse is over the board (tooltips of board objects only show then).
             canvas.addEventListener('mouseenter', function () { that.overCanvas = true; });
+            // The board saw no moves while the mouse was over the interface (or the interface closed under it): the
+            // mouse is where it entered. Not after a tap (touch has no hover; its handlers set the point themselves).
+            canvas.addEventListener('pointerenter', function (e) {
+                if (e.pointerType !== 'mouse') return;
+                var p = that.ToStage(e.clientX, e.clientY);
+                Conf.mouse.x = p.x;
+                Conf.mouse.y = p.y;
+            });
             canvas.addEventListener('mouseleave', function () { that.overCanvas = false; });
         }
         if (!this._listening) {

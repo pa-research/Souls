@@ -1,5 +1,5 @@
 // Loads the classic game's artwork and sounds (shared by both clients).
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
 
 const IMG = '/Content/Images/';
 const SND = '/Content/Sound/';

@@ -183,6 +183,52 @@ div.chat-content-wrapper
     box-shadow: inset 0 0 0 2px var(--s-gold-2);
 }
 
+/* Chat: bottom right, built like the battle log (collapsed it is only its header). */
+.souls-classic-hud .souls-classic-chat {
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(300px, calc(100vw - 28px));
+}
+
+.souls-classic-hud .souls-classic-chat.collapsed { width: auto; }
+
+/* Open, it is above what is placed on the board (status pills, hero powers, banners, toasts); the tooltip (40) and
+   the full-screen layers (35) stay above it. */
+.souls-classic-hud .souls-classic-chat:not(.collapsed) { z-index: 31; }
+
+.souls-classic-hud .souls-classic-chat.collapsed .souls-classic-chat-members,
+.souls-classic-hud .souls-classic-chat.collapsed .souls-classic-chat-input { display: none; }
+
+.souls-classic-hud .souls-classic-chat .sg-log-list {
+    height: min(140px, 26vh);
+    overflow-wrap: anywhere;
+}
+
+.souls-classic-hud .souls-classic-chat-members {
+    padding: 0 12px 6px;
+    font-size: 0.72rem;
+    color: var(--s-muted);
+}
+
+.souls-classic-hud .souls-classic-chat-members:empty { display: none; }
+
+.souls-classic-hud .souls-classic-chat-input {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    border-top: 1px solid var(--s-line-soft);
+    background: rgba(6, 5, 9, 0.6);
+    color: var(--s-text);
+    font: 0.82rem/1.35 var(--s-font-body);
+    resize: none;
+}
+
+.souls-classic-hud .souls-classic-chat-input:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--s-gold-2);
+}
+
 /* Settings: top left corner of the board (the minimized chat sits bottom right). */
 .souls-classic-hud .souls-classic-settings-btn {
     position: absolute;
@@ -286,6 +332,36 @@ div.chat-content-wrapper
         white-space: nowrap;
         letter-spacing: 0.06em;
     }
+}
+
+/* Full-screen layers (loading, menu, matchmaking, mulligan, end screen) cover everything placed on the board, also an
+   open chat, emote bubbles and toasts. */
+.souls-classic-hud > .sg-layer { z-index: 35; }
+
+/* Held upright, the 16:9 board would be squeezed to a quarter of its width: while no other full-screen layer (the
+   mulligan, the end screen) is up, a prompt to turn the device or switch to the 3D client covers it. */
+.souls-classic-hud > .souls-classic-rotate { display: none; z-index: 41; }
+
+.souls-classic-hud .souls-classic-rotate .s-panel {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    max-width: 330px;
+    padding: 24px 22px;
+    text-align: center;
+}
+
+.souls-classic-hud .souls-classic-rotate .s-icon-lg { width: 44px; height: 44px; color: var(--s-gold-2); }
+.souls-classic-hud .souls-classic-rotate h2,
+.souls-classic-hud .souls-classic-rotate p { margin: 0; }
+
+@media (orientation: portrait) {
+    .souls-classic-hud:not(:has(> .sg-layer:not(.souls-classic-rotate))) > .souls-classic-rotate { display: grid; }
+}
+
+/* Short screens: the classic layers start below the client switch, so the mulligan drops its eyebrow to fit. */
+@media (max-height: 560px) {
+    .souls-classic-hud .sg-mulligan .s-eyebrow { display: none; }
 }
 
 /* Short screens (phones held sideways): a compact matchmaking panel that fits without scrolling. */
