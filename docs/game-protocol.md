@@ -57,12 +57,29 @@ the default is used when a card has none.
 Cards have a rarity (`rarity`: 1 common, 2 rare, 3 epic, 4 legendary) that limits the copies in a deck and sets the
 shop price.
 
-| Class (hero `type`) | Hero power (cost 2) | Targets (HeroPower `type`) |
+Every class has two hero powers (cost 2, once per turn) and plays the one the player picked on the Deck page
+(`player.hero_power`; nothing picked, or a power of another class, means the class's first one, which every player
+had before). The bot picks one of its class's powers at random each game. Heroes carry the power's id as `power` (see
+[hero info](#responses-server-to-client)); powers 1-4 have the id of their class, so a client or replay that only knows
+`type` finds the first power under the same id.
+
+| Class (hero `type`) | Power (`power`): effect | Targets (HeroPower `type`) |
 |---|---|---|
-| 1 Rabid Soul | Rabid Bite: 1 damage | 2 enemy hero, 3 enemy card |
-| 2 Lurker | Drain: 1 damage and +1 health to your hero | 2 enemy hero, 3 enemy card |
-| 3 Harrison | Holy Light: +2 health | 0 friendly card, 1 own hero |
-| 4 Fader | Fade: your hero gains 2 armor | none (send type 1) |
+| 1 Rabid Soul | 1 Rabid Bite: 1 damage | 2 enemy hero, 3 enemy card |
+| | 5 Ravage: 2 damage, and 1 damage to your own hero | 3 enemy card |
+| 2 Lurker | 2 Drain: 1 damage and +1 health to your hero | 2 enemy hero, 3 enemy card |
+| | 6 Blood Gift: +1 attack, +2 health and max health | 0 friendly card |
+| 3 Harrison | 3 Holy Light: +2 health | 0 friendly card, 1 own hero |
+| | 7 Aegis: the card gains Ward (refused if it has one) | 0 friendly card |
+| 4 Fader | 4 Fade: your hero gains 2 armor | none (send type 1) |
+| | 8 Thick Hide: +1 armor | 0 friendly card |
+
+A power used on a target it cannot take is refused with a GeneralMessage and costs nothing.
+
+**Class cards**: a card with a class (`card.fk_class`) can only be owned and played by heroes of that class. The shop
+neither shows nor sells another class's cards, packs never contain them, the deck builder refuses them (and a saved
+deck with one is not used: the game server leaves another class's cards out and plays the automatic deck), and they
+are never starter cards or season rewards. Two per class (ids 70-77), of the class's race.
 
 Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON). A spell gets +1
 to its value per level instead (Burn 3 at level 2 deals 4; Paralyze has no value and does not change).
@@ -162,7 +179,9 @@ The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks a
 **Card JSON**: `{cid, id, name, kind: "minion" | "spell", attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
 In GameSync board cards also have `canAct` (it is that player's turn and the card can attack or use its ability).
 
-**Hero info** (`info`, `pInfo`, `playerInfo`, `opponentInfo`, GameSync heroes): `{name, type, ident, health, maxHealth, armor, attack, mana, maxMana, rating}`.
+**Hero info** (`info`, `pInfo`, `playerInfo`, `opponentInfo`, GameSync heroes): `{name, type, power, ident, health, maxHealth, armor, attack, mana, maxMana, rating}`.
+`type` is the class, `power` the id of the hero power the hero plays (1-8, see the table above; replays recorded
+before hero powers could be picked have no `power`: use `type`).
 Numbers in the original fields (`health`, `attack`, `mana`, `type`) are strings for compatibility; the new ones are numbers.
 
 ### Message order
@@ -188,15 +207,15 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 | `damage` | `to`, `amount`, `armorLost`, `health`, `armor` | damage taken (`amount` includes what armor absorbed) |
 | `heal` | `to`, `amount`, `health` | health restored |
 | `armor` | `to`, `amount`, `armor` | armor gained |
-| `buff` | `to`, `attack`, `health`, `maxHealth`, `armor`, `src` (ref, optional) | new stats after Sacrifice, Rally (`src` is the rallying card) or Grow |
+| `buff` | `to`, `attack`, `health`, `maxHealth`, `armor`, `src` (ref, optional) | new stats after Sacrifice, Rally (`src` is the rallying card), Grow, Empower or Blood Gift |
 | `lifesteal` | `src` (ref), `to` (hero ref), `amount`, `health` | Vampiric heal, or the heal of Drain (`src` is the drained target) |
 | `blessing` | `cid`, `to` (hero ref) | Lightbringer card played (a `heal` follows) |
 | `ability` | `abilityId`, `src` (card ref), `dst` (ref) | an activated ability is used (effects follow) |
-| `heroPower` | `id` (ident), `power` (class), `name`, `dst` (ref) | a hero power is used (effects follow) |
+| `heroPower` | `id` (ident), `power` (hero power id), `name`, `dst` (ref) | a hero power is used (effects follow); `dst` is the own hero for powers without a target |
 | `paralyze` | `cid`, `on` | a card is paralyzed |
 | `summon` | `src` (cid), `owner` (ident), `card` | a token appears in `card.slotId` (Summon, or Brood from a dead card) |
 | `trigger` | `abilityId`, `src` (card ref), `label` | an on-play, turn-start or on-death ability fires (its effects follow) |
-| `ward` | `to` (card ref), `on` | a ward broke (`on: false`): the damage was blocked |
+| `ward` | `to` (card ref), `on` | a ward broke (`on: false`): the damage was blocked; or the card gained a ward (`on: true`, Aegis) |
 | `venom` | `src` (card ref), `to` (card ref) | venom destroys the damaged card (a `death` follows) |
 | `death` | `cid`, `owner` | a card died and left the board |
 | `curse` | `src` (cid of the dead card), `owner`, `dst` (ref) | Darkness death curse (a `damage` follows) |
@@ -213,7 +232,7 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 {
   "turn": 3, "round": 2, "current": 1, "turnEndsIn": 74850, "turnTime": 75000,
   "heroes": {
-    "1": {"name", "type", "ident", "health", "maxHealth", "armor", "attack", "mana", "maxMana", "rating",
+    "1": {"name", "type", "power", "ident", "health", "maxHealth", "armor", "attack", "mana", "maxMana", "rating",
           "hand": 4, "deck": 15, "fatigue": 0, "heroPowerUsed": false, "canAttack": true, "canUsePower": true},
     "2": {}
   },

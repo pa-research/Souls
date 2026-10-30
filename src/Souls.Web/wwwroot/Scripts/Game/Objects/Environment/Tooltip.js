@@ -182,7 +182,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
 
         Stats(el, { attack: hero.attack, health: hero.health, maxHealth: hero.maxHealth, armor: hero.armor });
 
-        var power = Rules.HeroPower(hero.type);
+        var power = Rules.HeroPower(hero.power);
         if (power) Block(el, '', power.name, '(' + power.cost + ' mana) ' + power.text);
         if (type && type.race) {
             var race = Rules.Race(type.race);

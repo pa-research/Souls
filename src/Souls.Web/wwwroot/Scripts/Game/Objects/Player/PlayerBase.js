@@ -287,6 +287,9 @@
                 this.pPortrait.height = 250;
             }
         }
+        // The hero power id (older replays only send the class, whose first power has the same id).
+        if (text.power !== undefined && text.power !== null) this.power = ToNumber(text.power, 0);
+        if (!this.power) this.power = this.type;
         if (text.ident !== undefined) this.ident = ToNumber(text.ident, this.ident);
         if (text.maxHealth !== undefined && text.maxHealth !== null) this.maxHealth = ToNumber(text.maxHealth, this.maxHealth);
         if (text.health !== undefined && text.health !== null && text.health !== '') {

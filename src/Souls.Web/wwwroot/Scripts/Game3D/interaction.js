@@ -217,6 +217,8 @@ export class Interaction {
         } else if (this.mode === 'arrow') {
             this.updateArrow(e);
         } else if (e.pointerType === 'mouse' && !this.mode) {
+            // Over the hero power button its own tooltip shows (UI); the board below must not replace it.
+            if (e.target instanceof Element && e.target.closest('.sg-power')) return;
             // Idle mouse: zoom the hovered hand card, lift a hovered board card, explain what is under the pointer.
             game.setHovered(game.canAct ? this.handCardAt(ndc) : null);
             const own = game.hovered || !game.canAct ? null : this.pick(ndc, [...game.player.board.values(), game.player.hero]);

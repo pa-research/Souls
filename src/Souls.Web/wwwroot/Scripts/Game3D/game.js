@@ -29,10 +29,13 @@ const BOARD_HEIGHT = 2;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 
-// Colours of abilities (by ability id, see cards.js) and hero powers (by class).
+// Colours of abilities (by ability id, see cards.js) and hero powers (by power id: 1-4 the classes' first, 5-8 their second).
 export { ABILITY_COLORS };
 const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19, EMPOWER: 20 };
-const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1 };
+const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1, 5: 0xb03a2e, 6: 0xff3b6b, 7: 0xffd36b, 8: 0xc8a27a };
+
+/** The hero power id of a hero's info (older replays only have the class, whose first power had the same id). */
+const powerOf = info => info.power ?? info.type;
 
 // Messages that change the game: played in order through the queue.
 const QUEUED = new Set([
@@ -383,7 +386,7 @@ export class Game {
         if (obj instanceof Hero3D) {
             const info = obj.info;
             const type = r.heroTypes[info.type];
-            const power = r.heroPowers[info.type];
+            const power = r.heroPowers[powerOf(info)];
             return {
                 title: String(info.name ?? ''),
                 sub: [type && type.name, info.rating ? `Rating ${info.rating}` : null].filter(Boolean).join(' \u00b7 '),
@@ -558,7 +561,7 @@ export class Game {
     }
 
     get heroPower() {
-        return this.rules.heroPowers[this.player.hero.info.type] || null;
+        return this.rules.heroPowers[powerOf(this.player.hero.info)] || null;
     }
 
     /** The hero power button: fire it, or start targeting (see Interaction.beginPower). */
@@ -988,7 +991,7 @@ export class Game {
                     const power = this.heroPower;
                     this.ui.setPower(power && !this.ended ? {
                         ...power,
-                        type: Number(this.player.hero.info.type),
+                        type: Number(powerOf(this.player.hero.info)),
                         canUse: !!info.canUsePower && this.yourTurn,
                         used: !!info.heroPowerUsed,
                     } : null);
@@ -1310,10 +1313,17 @@ export class Game {
         }
     }
 
-    /** A ward breaks instead of the card taking damage. */
+    /** A ward breaks instead of the card taking damage (on: false), or a card gains one (on: true, the Aegis power). */
     async showWardBreak(e) {
         const card = this.resolve(e.to);
         if (!(card instanceof Card3D)) return;
+        if (e.on === true) {
+            card.setData({ ward: true });
+            this.crowd.spell('ward', 0.7);
+            this.effects.sparkle(card.center(), 0xffd36b, 40);
+            await wait(250);
+            return;
+        }
         this.crowd.spell('shatter');
         this.effects.shards(card.center());
         this.textAbove(card, 'Blocked!', '#ffd36b', 60);

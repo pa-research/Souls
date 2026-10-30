@@ -26,8 +26,8 @@ origin, no tokens in JavaScript).
 | Game server | console app, websocket-sharp (vendored DLL) | ASP.NET Core WebSockets, same JSON protocol |
 | Data | NHibernate 3.3, MySQL, schema auto-update | EF Core 10, PostgreSQL 18, EF migrations |
 | Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |
-| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 20 abilities, spells, hero powers, Taunt, turn timer (see below) |
-| Cards | 8 cards | 51 cards in four rarities: the 8 originals, a 33-card expansion and 10 spells, balanced with 10 000 simulated games (see below) |
+| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 20 abilities, spells, two hero powers per class to pick from, Taunt, turn timer (see below) |
+| Cards | 8 cards | 59 cards in four rarities: the 8 originals, a 33-card expansion, 10 spells and 8 class cards, balanced with 10 000 simulated games (see below) |
 | Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
 | Watching | none | live spectating and 3D replays of every game |
 | Look | 2014 light page, bottom navbar, image buttons | one dark-fantasy design system for the site and both game clients (see below) |
@@ -103,8 +103,13 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
   your turn: Regenerate X, Grow +X; when it dies: Haunt (back to the hand once), Brood X (Lost Souls).
 - **Hero classes**: Rabid Soul 3 attack, 33 health; Lurker 2 attack, 33 health, 2 armor, +1 mana; Harrison 5
   attack, 22 health; Fader 1 attack, 44 health, 6 armor, +2 mana.
-- **Hero powers** (2 mana, once per turn): Rabid Bite (1 damage), Drain (1 damage, heal 1), Holy Light (heal 2),
-  Fade (+2 armor).
+- **Hero powers** (2 mana, once per turn), two per class, picked on the Deck page (the first is the default):
+  Rabid Soul: Rabid Bite (1 damage) or Ravage (2 damage to an enemy card, 1 to your hero); Lurker: Drain (1 damage,
+  heal 1) or Blood Gift (+1/+2 to a friendly card); Harrison: Holy Light (heal 2) or Aegis (a friendly card gains
+  Ward); Fader: Fade (+2 armor) or Thick Hide (+1 armor to a friendly card). The practice bot picks one at random
+  each game.
+- **Class cards**: two cards per class (ids 70-77) that only that class can own and play; the shop, packs and the
+  deck builder only offer a player their own class's cards.
 - **Turn timer**: 75 seconds, then the turn ends; three timeouts in a row forfeit.
 - **Rating**: normal games change an Elo rating (rank = one step per 50 points above 1000); matchmaking pairs
   players of similar rating, widening the window while they wait. The home page shows the top players.

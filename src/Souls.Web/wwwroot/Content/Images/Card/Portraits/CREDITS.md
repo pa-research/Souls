@@ -16,6 +16,7 @@ Icons made by the game-icons.net contributors listed below, from https://game-ic
 | `angel-outfit` | Lorc | [svg](https://game-icons.net/1x1/lorc/angel-outfit.html) | 47 Archangel |
 | `barbed-spear` | Lorc | [svg](https://game-icons.net/1x1/lorc/barbed-spear.html) | 41 Shieldmaiden |
 | `bat-wing` | Lorc | [svg](https://game-icons.net/1x1/lorc/bat-wing.html) | 37 Lord Varga |
+| `bear-head` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/bear-head.html) | 77 Ironhide Bear |
 | `bleeding-heart` | Lorc | [svg](https://game-icons.net/1x1/lorc/bleeding-heart.html) | 64 Blood Pact |
 | `boar` | Caro Asercion | [svg](https://game-icons.net/1x1/caro-asercion/boar.html) | 51 Raging Boar |
 | `book-aura` | Lorc | [svg](https://game-icons.net/1x1/lorc/book-aura.html) | 67 Revelation |
@@ -38,15 +39,20 @@ Icons made by the game-icons.net contributors listed below, from https://game-ic
 | `goblin` | Caro Asercion | [svg](https://game-icons.net/1x1/caro-asercion/goblin.html) | 38 Nosferatu |
 | `grim-reaper` | Lorc | [svg](https://game-icons.net/1x1/lorc/grim-reaper.html) | 28 The Pale Reaper |
 | `health-potion` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/health-potion.html) | 68 Troll Blood |
+| `hooded-assassin` | DarkZaitzev | [svg](https://game-icons.net/1x1/darkzaitzev/hooded-assassin.html) | 72 Night Stalker |
 | `horned-helm` | Lorc | [svg](https://game-icons.net/1x1/lorc/horned-helm.html) | 23 Draugr |
+| `hound` | Lorc | [svg](https://game-icons.net/1x1/lorc/hound.html) | 76 Phantom Wolf |
 | `ice-golem` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/ice-golem.html) | 55 Frost Jotun |
 | `imp-laugh` | Lorc | [svg](https://game-icons.net/1x1/lorc/imp-laugh.html) | 20 Gloom Imp |
 | `lantern-flame` | Lorc | [svg](https://game-icons.net/1x1/lorc/lantern-flame.html) | 42 Lantern Bearer |
 | `moon-bats` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/moon-bats.html) | 65 Blood Moon |
+| `mounted-knight` | Skoll | [svg](https://game-icons.net/1x1/skoll/mounted-knight.html) | 75 Dawn Paladin |
 | `ogre` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/ogre.html) | 54 Troll Chieftain |
 | `pentagram-rose` | Lorc | [svg](https://game-icons.net/1x1/lorc/pentagram-rose.html) | 35 Blood Ritualist |
 | `poison-gas` | Lorc | [svg](https://game-icons.net/1x1/lorc/poison-gas.html) | 62 Plague Wind |
+| `pouring-chalice` | Lorc | [svg](https://game-icons.net/1x1/lorc/pouring-chalice.html) | 73 Crimson Feast |
 | `prayer` | Lorc | [svg](https://game-icons.net/1x1/lorc/prayer.html) | 40 Acolyte of Dawn |
+| `raise-zombie` | Skoll | [svg](https://game-icons.net/1x1/skoll/raise-zombie.html) | 70 Rabid Ghoul |
 | `rat` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/rat.html) | 21 Grave Rat |
 | `ribcage` | Lorc | [svg](https://game-icons.net/1x1/lorc/ribcage.html) | 26 Bone Colossus |
 | `robe` | Lorc | [svg](https://game-icons.net/1x1/lorc/robe.html) | 25 Gravecaller |
@@ -58,7 +64,9 @@ Icons made by the game-icons.net contributors listed below, from https://game-ic
 | `soul` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/soul.html) | lost-soul Lost Soul |
 | `spectre` | Lorc | [svg](https://game-icons.net/1x1/lorc/spectre.html) | 24 Mara |
 | `sun-priest` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/sun-priest.html) | 44 Sun Cleric |
+| `sun-spear` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/sun-spear.html) | 74 Sunlance |
 | `templar-shield` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/templar-shield.html) | 43 Templar |
+| `terror` | Lorc | [svg](https://game-icons.net/1x1/lorc/terror.html) | 71 Night Terror |
 | `thrown-spear` | Lorc | [svg](https://game-icons.net/1x1/lorc/thrown-spear.html) | 63 Blood Lance |
 | `troll` | Skoll | [svg](https://game-icons.net/1x1/skoll/troll.html) | 53 Forest Troll |
 | `vampire-dracula` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/vampire-dracula.html) | 37 Lord Varga |
