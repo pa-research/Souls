@@ -686,7 +686,7 @@
 .sg-settings {
     position: absolute;
     /* Wide enough for the four graphics levels in one row. */
-    width: min(352px, calc(100vw - 24px));
+    width: min(368px, calc(100vw - 24px));
     display: grid;
     gap: 14px;
 }
