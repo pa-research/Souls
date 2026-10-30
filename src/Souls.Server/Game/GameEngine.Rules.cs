@@ -207,7 +207,7 @@ public sealed partial class GameEngine
             {
                 var enemy = room.Other(side);
                 var targets = enemy.BoardCards.Values.Where(c => c.Health >= 1).Cast<object>().Append(enemy).ToList();
-                var target = targets[Random.Shared.Next(targets.Count)];
+                var target = targets[room.Random.Next(targets.Count)];
                 room.Event("curse", new JsonObject { ["src"] = card.Cid, ["owner"] = side.Ident, ["dst"] = Ref(target) });
                 var text = $"{card.Name}'s death curse hits {NameOf(target)}.";
                 room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);

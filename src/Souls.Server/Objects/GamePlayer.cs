@@ -74,6 +74,45 @@ public sealed class GamePlayer
         ["ident"] = Ident,
     };
 
+    /// <summary>A deep copy for <see cref="GameRoom.Copy"/>; the deck is reshuffled with the copy's random numbers.</summary>
+    public GamePlayer Copy(GameRoom room)
+    {
+        var copy = new GamePlayer
+        {
+            IsPlayerOne = IsPlayerOne,
+            IsDead = IsDead,
+            Attack = Attack,
+            Health = Health,
+            MaxHealth = MaxHealth,
+            Armor = Armor,
+            Mana = Mana,
+            MaxMana = MaxMana,
+            BonusMana = BonusMana,
+            Name = Name,
+            Rank = Rank,
+            Rating = Rating,
+            Type = Type,
+            RaceId = RaceId,
+            HasAttacked = HasAttacked,
+            HeroPowerUsed = HeroPowerUsed,
+            Fatigue = Fatigue,
+            GameRoom = room,
+        };
+        foreach (var (cid, card) in HandCards)
+        {
+            copy.HandCards[cid] = card.Copy();
+        }
+
+        foreach (var (slot, card) in BoardCards)
+        {
+            copy.BoardCards[slot] = card.Copy();
+        }
+
+        copy.Deck.AddRange(Deck.Select(c => c.Copy()));
+        room.Random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(copy.Deck));
+        return copy;
+    }
+
     public bool HasEnoughMana(Card c) => Mana >= c.Cost;
 
     /// <summary>Nobody's turn has started while the mulligan runs.</summary>

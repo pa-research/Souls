@@ -916,6 +916,39 @@ public class GameRulesTests
     }
 
     [Fact]
+    public async Task ACopyOfTheGameIsIndependentAndSilent()
+    {
+        var game = TestGame.Start();
+        var mine = game.Put(game.P1, NewCard(3, 3), 0);
+        var theirs = game.Put(game.P2, NewCard(2, 2, race: Races.Darkness), 0);
+        game.Messages(game.P1);
+        game.Messages(game.P2);
+        var (logs, replay) = (game.Room.Logger.Records.Count, game.Room.Replay.Count);
+
+        var copy = game.Room.Copy();
+        Assert.Equal(game.Room.SyncPayload().ToJsonString(), copy.SyncPayload().ToJsonString());
+        Assert.Equal(game.G1.Deck.Select(c => c.Cid).Order(), copy.Players.First.GPlayer!.Deck.Select(c => c.Cid).Order());
+        Assert.NotSame(game.Room.Random, copy.Random);
+        Assert.Null(copy.Players.First.GameContext);
+
+        // Kill the enemy card (its death curse draws from the copy's random numbers), then the enemy hero.
+        var p1 = copy.Players.First;
+        await game.Engine.RequestAttackAsync(p1, Message.Create(GameRequest.Attack, new JsonObject { ["source"] = mine.Cid, ["target"] = theirs.Cid, ["type"] = 0 }));
+        copy.Players.Second.GPlayer!.Health = 1;
+        await game.Engine.RequestAttackAsync(p1, Message.Create(GameRequest.Attack, new JsonObject { ["source"] = -1, ["target"] = -1, ["type"] = 3 }));
+
+        Assert.True(copy.IsEnded);
+        Assert.Empty(copy.Players.Second.GPlayer!.BoardCards);
+        Assert.False(game.Room.IsEnded);
+        Assert.Same(theirs, game.G2.BoardCards[0]);
+        Assert.Equal((3, 2, 20), (mine.Health, theirs.Health, game.G2.Health));
+        Assert.False(game.G1.HasAttacked);
+        Assert.Empty(game.Messages(game.P1));
+        Assert.Empty(game.Messages(game.P2));
+        Assert.Equal((logs, replay), (game.Room.Logger.Records.Count, game.Room.Replay.Count));
+    }
+
+    [Fact]
     public void RatingsMoveTowardsTheResult()
     {
         Assert.Equal(16, Ratings.Change(1000, 1000, 1));

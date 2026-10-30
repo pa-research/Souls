@@ -117,20 +117,22 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 - **Card upgrades**: buying a card you own levels it up (to level 3), +1 attack and +1 health per level.
 - **Card packs**: 12 coins for five random cards, the last one rare or better, turned over one by one. A card you
   own levels up instead; at level 3 it pays back half its price. Drop rates are in `src/Souls.Model/Packs.cs`.
-- **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard also trades into
-  valuable cards, pops wards, respects venom, defends when threatened and plays upgraded cards. The bot plays a
-  random deck of one or two races.
+- **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard looks one turn ahead:
+  it tries its options for the turn on a copy of the game, scores where each line ends (card values, hero health)
+  and plays the best one. It also plays upgraded cards. The bot plays a random deck of one or two races.
 
 ### Balance
 
-`tools/Souls.Sim` plays the Hard bot against itself (random classes, random one- or two-race decks, thousands
-of games a minute) and reports win rates per card, race and class; `--tune n` adjusts the classes' health
-towards 50%. The card and class numbers were tuned with it. The current report is
-[docs/balance.md](docs/balance.md): every class wins 48-54%, every race 48-52%, every card's "drawn" win rate is
-within 49-55%, the player going first wins about 52% and a game lasts about 17 turns.
+`tools/Souls.Sim` plays the Hard bot against itself (random classes, random one- or two-race decks, several
+hundred games a minute) and reports win rates per card, race and class; `--tune n` adjusts the classes' health
+towards 50%. The card and class numbers were tuned with it, against the Hard bot before it looked ahead. With the
+lookahead the current report, [docs/balance.md](docs/balance.md), is less even and has not been retuned yet:
+classes win 32-60% (Fader weakest, Lurker strongest), races 46-60% (Ferocious strongest), cards' "drawn" win
+rates spread over 43-67%; the player going first wins 50% and a game lasts about 24 turns.
 
 ```sh
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md
+dotnet run --project tools/Souls.Sim -c Release -- --games 4000 --vs-legacy   # Hard against Hard without lookahead
 ```
 
 The admin page **Admin > Card Statistics** shows the same "played" win rate per card and hero class from real
