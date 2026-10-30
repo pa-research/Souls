@@ -270,7 +270,7 @@ deploy/k8s/
 │   └── observability/    OpenTelemetry settings, Grafana dashboard, Prometheus alerts (see Observability)
 └── overlays/
     ├── dev/              in-cluster PostgreSQL + Ingress on http://souls.localtest.me, locally built images
-    └── production/       managed PostgreSQL, Gateway API, HPA, observability, pinned image tags
+    └── production/       managed PostgreSQL, Gateway API, HPA, pinned image tags (observability opt-in)
 ```
 
 Local cluster (kind, k3d, minikube, Docker Desktop) with an ingress controller in the `ingress-nginx`
@@ -329,7 +329,8 @@ it nothing is collected. Everything else uses the standard variables (`OTEL_SERV
 | `souls.websocket.connections` | up-down counter | `service` (game, chat, admin) | Open WebSocket connections. |
 | `souls.errors` | counter | `source` (message, matchmaker, store) | Unhandled errors. |
 
-On Kubernetes, the `observability` component (included in `overlays/production`) sets the variables, allows
+On Kubernetes, the `observability` component (listed but commented out in `overlays/production`; enable it once the
+cluster has the pieces below) sets the variables, allows
 egress to the collector and adds a Grafana dashboard and a `PrometheusRule` (app down, HTTP 5xx ratio, game
 server errors, queue wait p95). It does not install a monitoring stack: it expects an OpenTelemetry Collector at
 `otel-collector.observability:4317`, the Prometheus Operator and Grafana's dashboard sidecar (details in its
