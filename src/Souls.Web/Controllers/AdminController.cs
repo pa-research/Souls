@@ -56,6 +56,45 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         return View();
     }
 
+    /// <summary>
+    /// Win rate of each card when played, per card and hero class, from stored games between players. Like the
+    /// simulator's report (docs/balance.md) it counts decided games only: draws and practice games are left out.
+    /// </summary>
+    public async Task<IActionResult> CardStatistics(CancellationToken ct)
+    {
+        ViewData["Title"] = "Card Statistics";
+
+        // One row per game, player and card played in it (playing a card twice counts once), grouped in the database.
+        var plays = db.GameLogs
+            .Where(l => l.GameLogTypeId == (int)GameLogKind.UseCard && !l.Game!.IsPractice && l.Game.WinnerId != null)
+            .Select(l => new { l.GameId, PlayerId = l.Obj1Id, CardId = l.Obj2Id, Won = l.Game!.WinnerId == l.Obj1Id })
+            .Distinct();
+        var stats = await plays
+            .Join(db.Players, x => x.PlayerId, p => p.Id, (x, p) => new { x.CardId, p.PlayerTypeId, x.Won })
+            .GroupBy(x => new { x.CardId, x.PlayerTypeId })
+            .Select(g => new { g.Key.CardId, g.Key.PlayerTypeId, Games = g.Count(), Wins = g.Count(x => x.Won) })
+            .ToListAsync(ct);
+
+        var classes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
+        var cards = await db.Cards.AsNoTracking().Include(c => c.Race).ToListAsync(ct);
+        WinRate Rate(int cardId, int? classId)
+        {
+            var rows = stats.Where(s => s.CardId == cardId && (classId is null || s.PlayerTypeId == classId)).ToList();
+            return new WinRate(rows.Sum(s => s.Games), rows.Sum(s => s.Wins));
+        }
+
+        return View(new CardStatisticsViewModel
+        {
+            Classes = classes,
+            Cards = [.. cards
+                .Select(c => new CardStatistics(c, Rate(c.Id, null), [.. classes.Select(t => Rate(c.Id, t.Id))]))
+                .OrderByDescending(r => r.Total.Games >= CardStatisticsViewModel.FewGames)
+                .ThenByDescending(r => r.Total.Rate ?? -1)
+                .ThenByDescending(r => r.Total.Games)
+                .ThenBy(r => r.Card.Name)],
+        });
+    }
+
     [HttpGet]
     public async Task<IActionResult> CardEditor(int? id, CancellationToken ct)
     {
