@@ -61,6 +61,49 @@ public sealed class GameRoom
         StartTurn(players.First.GPlayer!);
     }
 
+    /// <summary>See <see cref="Copy"/>.</summary>
+    private GameRoom(GameRoom source)
+    {
+        _time = source._time;
+        Random = source.IsCopy ? source.Random : new Random();
+        IsCopy = true;
+        Turn = source.Turn;
+        Round = source.Round;
+        IsPractice = source.IsPractice;
+        TurnTime = source.TurnTime;
+        TurnDeadline = source.TurnDeadline;
+        StartedAt = source.StartedAt;
+        IsEnded = source.IsEnded;
+        Players = new Pair<Player>(CopyOf(source.Players.First), CopyOf(source.Players.Second));
+        CurrentPlaying = source.CurrentPlaying == source.Players.First ? Players.First : Players.Second;
+
+        // No connections: whatever the copy sends goes nowhere.
+        Player CopyOf(Player p) => new()
+        {
+            Id = p.Id,
+            Name = p.Name,
+            PlayerType = p.PlayerType,
+            OwningCards = [],
+            Deck = [],
+            IsBot = p.IsBot,
+            Difficulty = p.Difficulty,
+            GPlayer = p.GPlayer!.Copy(this),
+        };
+    }
+
+    /// <summary>
+    /// A deep copy for the bot to try moves on. It has its own players (without connections), random numbers and log,
+    /// and reshuffled decks so it does not reveal the next draws. Nothing it does reaches the players, spectators, the
+    /// replay or the database (see <see cref="IsCopy"/>).
+    /// </summary>
+    public GameRoom Copy() => new(this);
+
+    /// <summary>A copy made by <see cref="Copy"/>: it sends no events or state and is never stored.</summary>
+    public bool IsCopy { get; }
+
+    /// <summary>For death curses. A copy has its own (shared with copies of the copy).</summary>
+    public Random Random { get; } = Random.Shared;
+
     /// <summary>In-memory id while running; replaced by the database id when the game is saved.</summary>
     public int GameId { get; set; }
     public Pair<Player> Players { get; }
@@ -136,6 +179,11 @@ public sealed class GameRoom
 
     public void Event(string type, JsonObject data)
     {
+        if (IsCopy)
+        {
+            return;
+        }
+
         data["t"] = type;
         _events.Add(data);
     }
@@ -159,6 +207,11 @@ public sealed class GameRoom
     /// <summary>Flushes the events, then sends the full state to both players.</summary>
     public void Sync()
     {
+        if (IsCopy)
+        {
+            return;
+        }
+
         FlushEvents();
         var response = new Response(GameResponse.GameSync, SyncPayload());
         Players.First.Send(response);
@@ -229,7 +282,7 @@ public sealed class GameRoom
     /// <summary>Called for every message player one receives.</summary>
     public void Mirror(Response response)
     {
-        if (!MirroredTypes.Contains(response.Type))
+        if (IsCopy || !MirroredTypes.Contains(response.Type))
         {
             return;
         }

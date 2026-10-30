@@ -167,7 +167,9 @@ public sealed class Matchmaker(
                 message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger, metrics)),
                 aiOptions.Value,
                 bot.Difficulty,
-                logger);
+                logger,
+                engine,
+                () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
             _bots.Add(Task.Run(() => ai.RunAsync(ct), ct));
 
             engine.CreateGame(new Pair<Player>(human, bot), practice: true);
