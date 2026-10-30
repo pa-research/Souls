@@ -3,10 +3,10 @@ using Souls.Model.Entities;
 
 namespace Souls.Server.Game;
 
-/// <summary>Collects the events of a game and stores them when the game ends.</summary>
-public sealed class GameLogger
+/// <summary>Collects the events of a game (starting with <paramref name="records"/> of a restored game) and stores them when the game ends.</summary>
+public sealed class GameLogger(IEnumerable<GameLog>? records = null)
 {
-    private readonly List<GameLog> _records = [];
+    private readonly List<GameLog> _records = [.. records ?? []];
 
     public IReadOnlyList<GameLog> Records => _records;
 

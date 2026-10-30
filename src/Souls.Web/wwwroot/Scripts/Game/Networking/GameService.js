@@ -199,6 +199,7 @@
     }
 
     function Response_LoggedIn() {
+        that.reconnects = 0;
         that.engine.chatService.Login();
         that.engine.queue.Connected();
         return 0;
@@ -579,6 +580,12 @@
     GameService.prototype.Login = function () {
         this.socket.send(this.message.GENERAL.LOGIN);
 
+        // Back after a lost connection during a game: any queue request sends the running game again.
+        if (this.engine.player && !this.engine.ended) {
+            this.socket.send({ "Type": this.engine.normalGame ? Message.Type.Game.NORMAL_QUEUE : Message.Type.Game.PRACTICE_QUEUE, "Payload": {} });
+            return;
+        }
+
         // Friendly: wait to be challenged, or challenge the player named in the link
         if (this.engine.friendly) {
             if (this.engine.friendly.challenge) this.Challenge(this.engine.friendly.challenge);
@@ -812,6 +819,28 @@
 
         // Recieves all Data from server
         this.socket.onMessage(function (event) { self.TrafficHandler(event); });
+        this.socket.con.onclose = function (event) { self.Reconnect(event); };
+    }
+
+    /// The connection dropped (or the server restarts: running games survive it). Reconnects for about a minute,
+    /// then logs in again; in a game the server sends the game again (206) and the board is rebuilt.
+    GameService.prototype.Reconnect = function (event) {
+        var self = this, engine = this.engine;
+        var reason = (event && event.reason) || '';
+        if (engine.ended || /another window/i.test(reason)) return;
+        this.reconnects = (this.reconnects || 0) + 1;
+        if (this.reconnects > 12) {
+            engine.ScreenMessage(['Connection lost. Reload the page to continue.']);
+            return;
+        }
+        engine.ScreenMessage([/restarting/i.test(reason) ? 'The server is restarting, reconnecting…' : 'Connection lost, reconnecting…'], 'info');
+        setTimeout(function () {
+            if (engine.ended) return;
+            self.Connect();
+            var chat = engine.chatSocket.con;
+            if (!chat || chat.readyState > 1) engine.chatService.Connect();
+            self.Login();
+        }, Math.min(1500 * this.reconnects, 5000));
     }
 
 

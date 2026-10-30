@@ -34,6 +34,18 @@ public sealed class ServerState
     public Dictionary<int, ChatRoom> ChatRooms { get; } = [];
     public int ChatRoomCounter { get; set; }
 
+    /// <summary>
+    /// The server is stopping: the games are saved and stay as they are for the next instance, so nothing may change
+    /// them any more (requests are ignored, disconnects forfeit nothing). Set under the lock, read anywhere.
+    /// </summary>
+    public bool ShuttingDown
+    {
+        get => Volatile.Read(ref _shuttingDown);
+        set => Volatile.Write(ref _shuttingDown, value);
+    }
+
+    private bool _shuttingDown;
+
     public async Task RunExclusiveAsync(Func<Task> action)
     {
         await _lock.WaitAsync();

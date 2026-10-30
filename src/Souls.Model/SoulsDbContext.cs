@@ -27,6 +27,8 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
     public DbSet<GameReplay> GameReplays => Set<GameReplay>();
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<SeasonStanding> SeasonStandings => Set<SeasonStanding>();
+    public DbSet<RunningGame> RunningGames => Set<RunningGame>();
+    public DbSet<RunningGameReplay> RunningGameReplays => Set<RunningGameReplay>();
 
     /// <summary>ASP.NET Core Data Protection key ring, shared by the web and game server.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -291,6 +293,25 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.HasOne(x => x.Season).WithMany().HasForeignKey(x => x.SeasonNumber).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.RewardCard).WithMany().HasForeignKey(x => x.RewardCardId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RunningGame>(e =>
+        {
+            e.ToTable("running_game");
+            e.HasKey(x => x.GameId);
+            e.Property(x => x.GameId).HasColumnName("game_id").ValueGeneratedNever();
+            e.Property(x => x.State).HasColumnName("state").HasColumnType("jsonb");
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            e.HasMany<RunningGameReplay>().WithOne().HasForeignKey(x => x.GameId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RunningGameReplay>(e =>
+        {
+            e.ToTable("running_game_replay");
+            e.HasKey(x => new { x.GameId, x.Seq });
+            e.Property(x => x.GameId).HasColumnName("fk_running_game");
+            e.Property(x => x.Seq).HasColumnName("seq");
+            e.Property(x => x.Entry).HasColumnName("entry").HasColumnType("jsonb");
         });
 
         modelBuilder.Entity<DataProtectionKey>(e => e.ToTable("data_protection_keys"));

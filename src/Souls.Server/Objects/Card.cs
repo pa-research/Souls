@@ -144,6 +144,15 @@ public sealed class Card
         return card;
     }
 
+    /// <summary>New instances get cids above <paramref name="cid"/> (the cards of a restored game keep theirs).</summary>
+    public static void ReserveCids(int cid)
+    {
+        int seen;
+        while ((seen = Volatile.Read(ref _cidCounter)) < cid && Interlocked.CompareExchange(ref _cidCounter, cid, seen) != seen)
+        {
+        }
+    }
+
     /// <summary>The same instance (same <see cref="Cid"/>) as a separate object, for a copy of the game.</summary>
     public Card Copy() => (Card)MemberwiseClone();
 
