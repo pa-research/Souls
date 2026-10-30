@@ -38,16 +38,28 @@
 
     /// The portrait of a card. The card JSON's own "portrait" wins when it is present (new cards such as 7 and 18
     /// get their art even if the page config does not know them), then the config, then the unknown portrait.
-    CardType.prototype.GetPortraitTexture = function (cardId, portraitUrl) {
-        if (this.IsSafePortraitUrl(portraitUrl)) {
-            return Asset.GetTexture(portraitUrl);
-        }
+    /// A portrait that cannot be loaded (e.g. the Lost Soul's before its art exists) is replaced by the next one:
+    /// onFallback(texture) is called with it when that turns out after the texture was handed out.
+    CardType.prototype.GetPortraitTexture = function (cardId, portraitUrl, onFallback) {
+        var candidates = [];
+        if (this.IsSafePortraitUrl(portraitUrl)) candidates.push(portraitUrl);
+        if (CardType.prototype.Portrait[cardId]) candidates.push(CardType.prototype.Portrait[cardId]);
+        candidates.push(CardType.prototype.Portrait[0]);
 
-        if (!CardType.prototype.Portrait[cardId]) {
-            return Asset.GetTexture(CardType.prototype.Portrait[0]);
+        var urls = [];
+        for (var i = 0; i < candidates.length; i++) {
+            if (urls.indexOf(candidates[i]) === -1 && !Asset.IsBroken(candidates[i])) urls.push(candidates[i]);
         }
+        if (urls.length === 0) urls.push(CardType.prototype.Portrait[0]);
 
-        return Asset.GetTexture(CardType.prototype.Portrait[cardId]);
+        var that = this;
+        var texture = Asset.GetTexture(urls[0]);
+        if (onFallback && urls.length > 1) {
+            Asset.OnBroken(texture, urls[0], function () {
+                onFallback(that.GetPortraitTexture(cardId, portraitUrl, onFallback));
+            });
+        }
+        return texture;
     }
 
 

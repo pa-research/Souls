@@ -36,4 +36,36 @@
             dialog.showModal();
         });
     });
+
+    // Filters: rarity, race and "not owned yet".
+    var filters = document.getElementById("shop-filters");
+    if (filters) {
+        var state = { rarity: "", race: "" };
+        var unowned = document.getElementById("shop-unowned");
+        var shown = document.getElementById("shop-shown");
+        var cards = Array.prototype.slice.call(document.querySelectorAll(".s-shop-grid > .s-card-wrap"));
+        var apply = function () {
+            var count = 0;
+            cards.forEach(function (card) {
+                var visible = (!state.rarity || card.dataset.rarity === state.rarity)
+                    && (!state.race || card.dataset.race === state.race)
+                    && (!unowned.checked || card.dataset.owned !== "true");
+                card.hidden = !visible;
+                if (visible) count++;
+            });
+            shown.textContent = count + " of " + cards.length + " cards";
+        };
+        filters.querySelectorAll("button[data-filter]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                state[button.dataset.filter] = button.dataset.value;
+                button.parentElement.querySelectorAll("button").forEach(function (b) {
+                    b.classList.toggle("active", b === button);
+                    b.setAttribute("aria-pressed", b === button ? "true" : "false");
+                });
+                apply();
+            });
+        });
+        unowned.addEventListener("change", apply);
+        apply();
+    }
 })();

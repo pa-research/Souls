@@ -1,0 +1,178 @@
+{
+  "angel-outfit": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "barbed-spear": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "bat-wing": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "boar": {
+    "slug": "caro-asercion",
+    "name": "Caro Asercion"
+  },
+  "breaking-chain": {
+    "slug": "skoll",
+    "name": "Skoll"
+  },
+  "broadsword": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "chalice-drops": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "closed-barbute": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "cowled": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "crenulated-shield": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "crown": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "dread-skull": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "elf-helmet": {
+    "slug": "kier-heyl",
+    "name": "Kier Heyl"
+  },
+  "evil-bat": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "feathered-wing": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "female-vampire": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "fencer": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "goblin": {
+    "slug": "caro-asercion",
+    "name": "Caro Asercion"
+  },
+  "grim-reaper": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "horned-helm": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "ice-golem": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "imp-laugh": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "lantern-flame": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "ogre": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "pentagram-rose": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "prayer": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "rat": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "ribcage": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "robe": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "sacrificial-dagger": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "shambling-zombie": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "skull-staff": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "soul": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "spectre": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "sun-priest": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "templar-shield": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "troll": {
+    "slug": "skoll",
+    "name": "Skoll"
+  },
+  "vampire-dracula": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "viking-shield": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "witch-flight": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "wolf-head": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "wolf-howl": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "woman-elf-face": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
+  "wood-club": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  }
+}

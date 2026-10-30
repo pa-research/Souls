@@ -13,8 +13,14 @@
     var list = document.getElementById("deck-list");
     var cards = Array.prototype.slice.call(form.querySelectorAll(".deck-card"));
 
+    // Each card has its own limit (rarity); the form's is the common one.
+    function limit(input) {
+        var card = input.closest(".deck-card");
+        return card && card.dataset.max ? Number(card.dataset.max) : max;
+    }
+
     function value(input) {
-        return Math.max(0, Math.min(max, Math.floor(Number(input.value) || 0)));
+        return Math.max(0, Math.min(limit(input), Math.floor(Number(input.value) || 0)));
     }
 
     function update() {
@@ -27,7 +33,7 @@
             sum += n;
             buckets[Math.min(7, cost)] += n;
             card.classList.toggle("in-deck", n > 0);
-            if (n > 0) entries.push({ name: card.dataset.cardName, cost: cost, n: n });
+            if (n > 0) entries.push({ name: card.dataset.cardName, cost: cost, n: n, rarity: card.dataset.rarity });
         });
         total.textContent = String(sum);
         count.classList.toggle("bad", sum !== size);
@@ -55,6 +61,7 @@
             gem.textContent = String(e.cost);
             var name = document.createElement("span");
             name.textContent = e.name;
+            if (e.rarity) name.className = "s-r-" + e.rarity;
             var n = document.createElement("span");
             n.className = "s-x";
             n.textContent = "×" + e.n;
@@ -67,7 +74,7 @@
         var input = card.querySelector(".deck-count");
         input.addEventListener("input", update);
         card.querySelector(".deck-minus").addEventListener("click", function () { input.value = String(Math.max(0, value(input) - 1)); update(); });
-        card.querySelector(".deck-plus").addEventListener("click", function () { input.value = String(Math.min(max, value(input) + 1)); update(); });
+        card.querySelector(".deck-plus").addEventListener("click", function () { input.value = String(Math.min(limit(input), value(input) + 1)); update(); });
     });
     update();
 })();

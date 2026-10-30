@@ -2,6 +2,9 @@
 //http://www.sitepoint.com/understanding-requirejs-for-effective-javascript-module-loading/
 
 require.config({
+    // No load timeout: on a slow device or network the modules arrive late rather than never (RequireJS gives up
+    // after 7 seconds by default, which leaves the client on a blank screen).
+    waitSeconds: 0,
     //baseUrl: "Scripts/GamePLS",
     paths: {
         // Third party

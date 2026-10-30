@@ -49,7 +49,8 @@ public sealed class GameRoom
                 gp.Deck.Add(card.NewInstance());
             }
 
-            for (var i = 0; i < GameRules.StartingHand && gp.Deck.Count > 0; i++)
+            var handSize = GameRules.StartingHand + (gp.IsPlayerOne ? 0 : GameRules.SecondPlayerExtraCards);
+            for (var i = 0; i < handSize && gp.Deck.Count > 0; i++)
             {
                 var card = gp.Deck[^1];
                 gp.Deck.RemoveAt(gp.Deck.Count - 1);
@@ -125,6 +126,7 @@ public sealed class GameRoom
         foreach (var card in gp.BoardCards.Values)
         {
             card.HasAttacked = false;
+            card.AttacksThisTurn = 0;
         }
 
         TurnDeadline = _time.GetUtcNow() + TurnTime;

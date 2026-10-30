@@ -9,18 +9,23 @@ public static class GameRules
     public const int MaxCopiesInDeck = 4;
     public const int MaxCardLevel = 3;
     public const int StartingHand = 3;
+
+    /// <summary>The player going second starts with this many more cards (and 1 extra mana on their first turn).</summary>
+    public const int SecondPlayerExtraCards = 1;
     public const int HeroPowerCost = 2;
     public const int MaxMana = 10;
 
-    /// <summary>Heal ability amount (+2 for Lightbringer cards); adjacent friendly cards get 1.</summary>
+    /// <summary>Default Heal ability amount (+2 for Lightbringer cards); adjacent friendly cards get 1.</summary>
     public const int HealAmount = 3;
+    public const int LightbringerHealBonus = 2;
     public const int HardenArmor = 3;
     public const int BurnDamage = 2;
     public const int DeathCurseDamage = 2;
     public const int LightbringerBlessing = 2;
 
-    /// <summary>Id of the token card created by Summon (not a database card).</summary>
+    /// <summary>Id of the token card created by Summon and Brood (not a database card).</summary>
     public const int LostSoulId = 0;
+    public const string LostSoulPortrait = "/Content/Images/Card/Portraits/lost-soul.jpg";
 
     /// <summary>Coins needed to upgrade a card from <paramref name="level"/> to the next level.</summary>
     public static int UpgradeCost(Card card, int level) => card.VendorPrice + 2 * level;
@@ -38,36 +43,109 @@ public static class GameRules
 
     public sealed record RuleText(string Name, string Text);
 
-    public static readonly IReadOnlyDictionary<int, RuleText> AbilityTexts = new Dictionary<int, RuleText>
+    /// <summary>When an ability does its thing.</summary>
+    public enum Timing
     {
-        [Ability.Heal] = new("Heal", $"Restores {HealAmount} health to a friendly card or your hero, and 1 to the cards next to it."),
-        [Ability.Sacrifice] = new("Sacrifice", "Destroys this card and gives its attack, health and armor to a friendly card or your hero."),
-        [Ability.Taunt] = new("Taunt", "Enemies must attack this card before anything else."),
-        [Ability.Summon] = new("Summon", "When played, summons a 1/1 Lost Soul next to it."),
-        [Ability.Paralyze] = new("Paralyze", "An enemy card cannot attack or act during its next turn."),
-        [Ability.Haunt] = new("Haunt", "The first time it dies, it returns to your hand."),
-        [Ability.Harden] = new("Harden", $"A friendly card or your hero gains {HardenArmor} armor."),
-        [Ability.Burn] = new("Burn", $"Deals {BurnDamage} damage to an enemy card or hero."),
-        [Ability.Charge] = new("Charge", "Can attack the turn it is played."),
-    };
+        /// <summary>Always on (Taunt, Charge, Ward, Fury, Venom).</summary>
+        Passive,
+
+        /// <summary>Used like an attack: drag from the card to a target.</summary>
+        Activated,
+
+        /// <summary>When the card is played.</summary>
+        OnPlay,
+
+        /// <summary>At the start of its owner's turn.</summary>
+        TurnStart,
+
+        /// <summary>When the card dies.</summary>
+        OnDeath,
+    }
+
+    /// <summary>
+    /// An ability. <paramref name="Template"/> is the rules text with <c>{0}</c> for the card's value (Burn 3 deals 3
+    /// damage); <paramref name="DefaultValue"/> is used by cards without one.
+    /// </summary>
+    public sealed record AbilityDefinition(int Id, string Name, Timing Timing, int DefaultValue, string Template, IReadOnlyList<string> Targets);
+
+    private static readonly string[] FriendlyTargets = ["friendlyCard", "ownHero"];
+    private static readonly string[] EnemyTargets = ["enemyCard", "enemyHero"];
+
+    public static readonly IReadOnlyDictionary<int, AbilityDefinition> Abilities = new AbilityDefinition[]
+    {
+        new(Ability.Heal, "Heal", Timing.Activated, HealAmount, "Restores {0} health to a friendly card or your hero, and 1 to the cards next to it.", FriendlyTargets),
+        new(Ability.Sacrifice, "Sacrifice", Timing.Activated, 0, "Destroys this card and gives its attack, health and armor to a friendly card or your hero.", FriendlyTargets),
+        new(Ability.Taunt, "Taunt", Timing.Passive, 0, "Enemies must attack this card before anything else.", []),
+        new(Ability.Summon, "Summon", Timing.OnPlay, 1, "When played, summons {0} 1/1 Lost Soul(s) next to it.", []),
+        new(Ability.Paralyze, "Paralyze", Timing.Activated, 0, "An enemy card cannot attack or act during its next turn.", ["enemyCard"]),
+        new(Ability.Haunt, "Haunt", Timing.OnDeath, 0, "The first time it dies, it returns to your hand.", []),
+        new(Ability.Harden, "Harden", Timing.Activated, HardenArmor, "A friendly card or your hero gains {0} armor.", FriendlyTargets),
+        new(Ability.Burn, "Burn", Timing.Activated, BurnDamage, "Deals {0} damage to an enemy card or hero.", EnemyTargets),
+        new(Ability.Charge, "Charge", Timing.Passive, 0, "Can attack the turn it is played.", []),
+        new(Ability.Ward, "Ward", Timing.Passive, 0, "The first time it would take damage, the ward breaks instead.", []),
+        new(Ability.Fury, "Fury", Timing.Passive, 0, "Can attack twice each turn.", []),
+        new(Ability.Venom, "Venom", Timing.Passive, 0, "Destroys any card it damages.", []),
+        new(Ability.Rally, "Rally", Timing.OnPlay, 1, "When played, the cards next to it gain +{0} attack.", []),
+        new(Ability.Insight, "Insight", Timing.OnPlay, 1, "When played, draw {0} card(s).", []),
+        new(Ability.Inferno, "Inferno", Timing.OnPlay, 1, "When played, deals {0} damage to every enemy card.", []),
+        new(Ability.Regenerate, "Regenerate", Timing.TurnStart, 2, "At the start of your turn, restores {0} health to itself.", []),
+        new(Ability.Grow, "Grow", Timing.TurnStart, 1, "At the start of your turn, gains +{0} attack and +{0} health.", []),
+        new(Ability.Drain, "Drain", Timing.Activated, 2, "Deals {0} damage to an enemy card or hero and restores {0} health to your hero.", EnemyTargets),
+        new(Ability.Brood, "Brood", Timing.OnDeath, 1, "When it dies, summons {0} 1/1 Lost Soul(s) in its place.", []),
+    }.ToDictionary(a => a.Id);
+
+    /// <summary>The value an ability works with on a card (the card's own, or the ability's default).</summary>
+    public static int AbilityValue(int abilityId, int? value) =>
+        value ?? (Abilities.TryGetValue(abilityId, out var a) ? a.DefaultValue : 0);
+
+    /// <summary>The ability as printed on the card face: "Burn 3", "Rally +1", "Taunt".</summary>
+    public static string AbilityLabel(int abilityId, int? value)
+    {
+        if (!Abilities.TryGetValue(abilityId, out var a))
+        {
+            return "?";
+        }
+
+        var v = AbilityValue(abilityId, value);
+        return abilityId switch
+        {
+            Ability.Rally or Ability.Grow => $"{a.Name} +{v}",
+            Ability.Summon or Ability.Insight or Ability.Brood => v > 1 ? $"{a.Name} {v}" : a.Name,
+            _ when a.Template.Contains("{0}", StringComparison.Ordinal) => $"{a.Name} {v}",
+            _ => a.Name,
+        };
+    }
+
+    /// <summary>The rules text of a card's ability with its numbers filled in (Lightbringer heals restore 2 more).</summary>
+    public static string AbilityText(int abilityId, int? value, int? raceId = null)
+    {
+        if (!Abilities.TryGetValue(abilityId, out var a))
+        {
+            return "";
+        }
+
+        var v = AbilityValue(abilityId, value) + (abilityId == Ability.Heal && raceId == Races.Lightbringer ? LightbringerHealBonus : 0);
+        var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, a.Template, v);
+        return v == 1 ? text.Replace("(s)", "", StringComparison.Ordinal) : text.Replace("(s)", "s", StringComparison.Ordinal);
+    }
+
+    /// <summary>Generic rules text of every ability (with default values), for tooltips and the rules pages.</summary>
+    public static readonly IReadOnlyDictionary<int, RuleText> AbilityTexts =
+        Abilities.Values.ToDictionary(a => a.Id, a => new RuleText(a.Name, AbilityText(a.Id, null)));
 
     /// <summary>Abilities used like an attack (drag from the card to a target); the others work on their own.</summary>
-    public static bool IsActivated(int? abilityId) => abilityId is Ability.Heal or Ability.Sacrifice or Ability.Paralyze or Ability.Harden or Ability.Burn;
+    public static bool IsActivated(int? abilityId) =>
+        abilityId is { } id && Abilities.TryGetValue(id, out var a) && a.Timing == Timing.Activated;
 
     /// <summary>What an activated ability can target: "friendlyCard", "ownHero", "enemyHero", "enemyCard".</summary>
-    public static IReadOnlyList<string> AbilityTargets(int abilityId) => abilityId switch
-    {
-        Ability.Heal or Ability.Sacrifice or Ability.Harden => ["friendlyCard", "ownHero"],
-        Ability.Paralyze => ["enemyCard"],
-        Ability.Burn => ["enemyCard", "enemyHero"],
-        _ => [],
-    };
+    public static IReadOnlyList<string> AbilityTargets(int abilityId) =>
+        Abilities.TryGetValue(abilityId, out var a) ? a.Targets : [];
 
     /// <summary>What a hero power target kind ("enemy", "friendly", "none") allows.</summary>
     public static IReadOnlyList<string> PowerTargets(string target) => target switch
     {
-        "enemy" => ["enemyCard", "enemyHero"],
-        "friendly" => ["friendlyCard", "ownHero"],
+        "enemy" => EnemyTargets,
+        "friendly" => FriendlyTargets,
         _ => [],
     };
 
@@ -75,7 +153,7 @@ public static class GameRules
     {
         [Races.Darkness] = new("Darkness", $"Death curse: when it dies, deals {DeathCurseDamage} damage to a random enemy."),
         [Races.Vampiric] = new("Vampiric", "Lifesteal: damage it deals heals your hero."),
-        [Races.Lightbringer] = new("Lightbringer", $"Blessing: when played, restores {LightbringerBlessing} health to your hero. Its heals restore 2 more."),
+        [Races.Lightbringer] = new("Lightbringer", $"Blessing: when played, restores {LightbringerBlessing} health to your hero. Its Heal restores {LightbringerHealBonus} more."),
         [Races.Ferocious] = new("Ferocious", "Frenzy: +1 attack when it attacks."),
     };
 
@@ -92,6 +170,7 @@ public static class GameRules
 
     public static class Keywords
     {
+        public const string Ward = "Ward: the next damage this card would take breaks the ward instead.";
         public const string SummoningSick = "Arrives exhausted: cards cannot attack or act the turn they are played (unless they have Charge).";
         public const string Paralyzed = "Paralyzed: cannot attack or act this turn.";
         public const string Armor = "Armor absorbs damage before health does.";

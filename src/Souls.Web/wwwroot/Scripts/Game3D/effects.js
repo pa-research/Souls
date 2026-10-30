@@ -168,6 +168,104 @@ export class Effects {
         this.burst(position, { color, count, speed: 90, size: 34, life: 1300, gravity: 160, up: 1 });
     }
 
+    /** Particles spiralling up around a point (regenerate, insight). */
+    spiral(position, color = 0x7dff7a, { count = 36, radius = 70, height = 220, duration = 900, size = 28 } = {}) {
+        const c = new THREE.Color(color);
+        let emitted = 0;
+        return tweens.run(duration, t => {
+            const target = Math.floor(t * count);
+            for (; emitted < target; emitted++) {
+                const a = emitted * 0.9;
+                const at = position.clone().add(new THREE.Vector3(Math.cos(a) * radius, 10 + t * 30, Math.sin(a) * radius));
+                const v = new THREE.Vector3(-Math.sin(a) * 80, height * 0.9, Math.cos(a) * 80);
+                this.emit(at, v, { color: c, size: size * (0.7 + Math.random() * 0.6), life: 900, gravity: -40 });
+            }
+        }, Ease.linear);
+    }
+
+    /** A ring of runes on the ground that spins and fades: summons, triggers, portals. */
+    sigil(position, color = 0x9b59b6, size = 230, duration = 1200) {
+        if (!Effects.sigilTexture) Effects.sigilTexture = makeSigilTexture();
+        const material = new THREE.MeshBasicMaterial({ map: Effects.sigilTexture, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        material.color.multiplyScalar(1.4);
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.copy(position).setY(5);
+        mesh.renderOrder = 12;
+        this.scene.add(mesh);
+        return tweens.run(duration, t => {
+            const grow = Math.min(1, t / 0.25);
+            mesh.scale.setScalar(size * (0.4 + 0.6 * Ease.backOut(grow)));
+            mesh.rotation.z = t * 2.2;
+            material.opacity = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+        }, Ease.linear).then(() => { mesh.removeFromParent(); mesh.geometry.dispose(); material.dispose(); });
+    }
+
+    /** Two crossing arcs over a point (Fury strikes). */
+    slash(position, color = 0xff5a3a) {
+        if (!Effects.slashTexture) Effects.slashTexture = makeSlashTexture();
+        const sprites = [-1, 1].map(dir => {
+            const material = new THREE.SpriteMaterial({ map: Effects.slashTexture, color, transparent: true, depthTest: false, blending: THREE.AdditiveBlending, rotation: dir * 0.7 });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.copy(position).setY(position.y + 60);
+            sprite.renderOrder = 22;
+            this.scene.add(sprite);
+            return sprite;
+        });
+        return tweens.run(420, t => {
+            sprites.forEach((sp, i) => {
+                const k = Math.max(0, Math.min(1, (t - i * 0.25) / 0.6));
+                sp.scale.set(60 + k * 240, 60 + k * 240, 1);
+                sp.material.opacity = k < 0.4 ? k / 0.4 : 1 - (k - 0.4) / 0.6;
+            });
+        }, Ease.linear).then(() => sprites.forEach(sp => { sp.removeFromParent(); sp.material.dispose(); }));
+    }
+
+    /** A wall of fire rolling over a row of points, one after another (Inferno). */
+    async fireSweep(points, delay = 110) {
+        const hot = new THREE.Color(0xffd27a), fire = new THREE.Color(0xff5a14), smoke = new THREE.Color(0x2a1a14);
+        for (const p of points) {
+            for (let i = 0; i < 46; i++) {
+                const at = p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 170, 5, (Math.random() - 0.5) * 210));
+                const v = new THREE.Vector3((Math.random() - 0.5) * 60, 220 + Math.random() * 380, (Math.random() - 0.5) * 60);
+                this.emit(at, v, { color: i % 4 === 0 ? hot : fire, size: 40 + Math.random() * 40, life: 650 + Math.random() * 450, gravity: -120 });
+                if (i % 6 === 0) this.emit(at.setY(60), v.multiplyScalar(0.4), { color: smoke, size: 70, life: 1400, gravity: 40 });
+            }
+            this.shockwave(p, 0xff7a1a, 180);
+            await tweens.wait(delay);
+        }
+    }
+
+    /** A plume of green bubbles and drips (Venom). */
+    venom(position) {
+        const green = new THREE.Color(0x7dff4a), dark = new THREE.Color(0x2f8a1a);
+        for (let i = 0; i < 40; i++) {
+            const at = position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 120, Math.random() * 40, (Math.random() - 0.5) * 120));
+            this.emit(at, new THREE.Vector3((Math.random() - 0.5) * 80, 60 + Math.random() * 160, (Math.random() - 0.5) * 80),
+                { color: i % 3 ? green : dark, size: 20 + Math.random() * 30, life: 900 + Math.random() * 600, gravity: -260 });
+        }
+    }
+
+    /** Golden shards bursting outwards (a ward breaking). */
+    shards(position, color = 0xffd36b) {
+        this.burst(position, { color, count: 60, speed: 420, size: 26, life: 700, gravity: -500, up: 0.4, intensity: 1.3 });
+        this.burst(position, { color: 0xffffff, count: 16, speed: 240, size: 40, life: 300, intensity: 1.4 });
+    }
+
+    /** A soul rising from a point and drifting up out of the arena (deaths). */
+    soul(position, color = 0xb9a8ff) {
+        const at = position.clone();
+        const drift = new THREE.Vector3((Math.random() - 0.5) * 120, 0, (Math.random() - 0.5) * 120);
+        const c = new THREE.Color(color);
+        return tweens.run(1300, t => {
+            at.y = position.y + t * 520;
+            at.x = position.x + drift.x * t + Math.sin(t * 9) * 26;
+            at.z = position.z + drift.z * t;
+            this.emit(at, new THREE.Vector3((Math.random() - 0.5) * 30, -20, (Math.random() - 0.5) * 30), { color: c, size: 46 * (1 - t * 0.6), life: 500 });
+            this.emit(at, new THREE.Vector3(0, 0, 0), { color: 0xffffff, size: 20, life: 90 });
+        }, Ease.quadIn);
+    }
+
     updateParticles(dt) {
         if (!this.points) return;
         const s = dt / 1000;
@@ -342,4 +440,58 @@ export class Effects {
         this.updateParticles(dt);
         if (this.arrow && this.arrow.visible) this.reticle.rotateZ(dt * 0.002);
     }
+}
+
+/** A white rune circle (tinted by the material): two rings, runes between them and a star in the middle. */
+function makeSigilTexture() {
+    const size = 256, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const g = canvas.getContext('2d');
+    g.translate(size / 2, size / 2);
+    g.strokeStyle = '#fff';
+    g.fillStyle = '#fff';
+    g.shadowColor = '#fff';
+    g.shadowBlur = 6;
+    for (const [r, w] of [[120, 4], [98, 2.5], [60, 2]]) { g.lineWidth = w; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke(); }
+    g.lineWidth = 2;
+    g.beginPath();
+    for (let i = 0; i <= 5; i++) {
+        const a = -Math.PI / 2 + i * (Math.PI * 4 / 5);
+        g.lineTo(Math.cos(a) * 96, Math.sin(a) * 96);
+    }
+    g.stroke();
+    g.font = '18px Georgia, serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const runes = '\u16A0\u16A2\u16A6\u16A8\u16B1\u16B2\u16B7\u16B9\u16BA\u16BE\u16C1\u16C3\u16C7\u16C8\u16C9\u16CA';
+    for (let i = 0; i < runes.length; i++) {
+        const a = i / runes.length * Math.PI * 2;
+        g.save();
+        g.rotate(a);
+        g.fillText(runes[i], 0, -109);
+        g.restore();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
+
+/** A crescent stroke for slashes. */
+function makeSlashTexture() {
+    const size = 256, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const g = canvas.getContext('2d');
+    const gradient = g.createLinearGradient(30, 0, 226, 0);
+    gradient.addColorStop(0, 'rgba(255,255,255,0)');
+    gradient.addColorStop(0.5, 'rgba(255,255,255,1)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gradient;
+    g.beginPath();
+    g.moveTo(20, 150);
+    g.quadraticCurveTo(128, 40, 236, 150);
+    g.quadraticCurveTo(128, 80, 20, 150);
+    g.fill();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
 }

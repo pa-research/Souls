@@ -1,5 +1,6 @@
 // Tooltips (.sg-tip.s-tip in the HUD overlay) for cards in the hand and on the board, heroes and hero powers: name
-// and level, race and class, stats, ability, race passive, statuses and notes. Rules texts come from the page config
+// and level, rarity (also as data-rarity on the box), race and class, stats, ability, race passive, statuses, notes
+// and the card's flavor text. Rules texts come from the card JSON and the page config
 // (Client/Rules.js). All text is set as text (server strings are never treated as HTML). Touch devices get the same
 // box when a card, hero or hero power is tapped (Pin); a tap on empty board closes it.
 define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
@@ -103,11 +104,14 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         var el = this.el;
         var engine = this.engine;
         var level = Num(card.level) || 1;
+        var rarity = card.token ? null : Rules.Rarity(card.rarity);
+        if (rarity) el.setAttribute('data-rarity', rarity);
         Hud.El('div', 's-tip-title', el, String(card.name || '') + Stars(level));
 
         var race = card.race ? Rules.Race(card.race) : null;
         var raceName = race ? race.name : (card.raceName || null);
         var sub = [];
+        if (rarity) sub.push(rarity.charAt(0).toUpperCase() + rarity.slice(1));
         if (raceName) sub.push(raceName);
         if (card.token) sub.push('Token');
         sub.push('Level ' + level);
@@ -116,13 +120,18 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         Stats(el, card);
 
         if (card.abilityId) {
+            // The card's own label and rules text ("Burn 3": "Deals 3 damage ..."), else the generic rules text.
             var ability = Rules.Ability(card.abilityId);
-            var abilityText = ability ? ability.text : '';
-            if (ability && ability.activated) abilityText += ' (right-drag, or hold and drag on touch)';
-            Block(el, '', ability ? ability.name : (card.abilityName || 'Ability'), abilityText);
+            var abilityText = card.abilityText || (ability ? ability.text : '');
+            if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' (right-drag, or hold and drag on touch)';
+            Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || 'Ability')), abilityText);
         }
         if (race) Block(el, 'race', race.name, race.text);
         else if (card.raceName) Block(el, 'race', String(card.raceName), '');
+
+        // The ward (as in the 3D client): unbroken, or broken on a Ward card.
+        if (card.ward) Block(el, 'info', '', Rules.Keyword('ward') || 'Ward: the next damage this card would take breaks the ward instead.');
+        else if (card.inSlot && Number(card.abilityId) === 10) Block(el, 'info', '', 'Its ward is broken.');
 
         // Statuses of cards on the board
         if (card.inSlot) {
@@ -148,6 +157,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         if (card.token) Block(el, 'info', '', 'Token: summoned, not from a deck.');
         if (card.armor > 0 && Rules.Keyword('armor')) Block(el, 'info', '', Rules.Keyword('armor'));
         if (level >= 2) Block(el, 'info', '', 'Level ' + level + ': +' + (level - 1) + ' attack and health.');
+        if (card.flavor) Block(el, 'flavor', '', String(card.flavor));
     }
 
     Tooltip.prototype.BuildHero = function (hero) {
@@ -296,6 +306,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
             this.current = target;
             this.builtAt = now;
             Hud.Clear(this.el);
+            this.el.removeAttribute('data-rarity');
             if (target.isPlayer !== undefined) this.BuildHero(target);
             else if (IsPower(target)) this.BuildPower(target);
             else this.BuildCard(target);

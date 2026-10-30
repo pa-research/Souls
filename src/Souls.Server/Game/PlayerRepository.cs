@@ -41,11 +41,11 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             Rating = player.Rating,
             PlayerType = ToInfo(player.PlayerType),
             OwningCards = cards,
-            Deck = Decks.Build(cards, c => c.Id, deck.Select(d => (d.CardId, d.Count))),
+            Deck = Decks.Build(cards, c => c.Id, c => c.Rarity, deck.Select(d => (d.CardId, d.Count))),
         };
     }
 
-    /// <summary>Creates the practice bot. It plays with every card in the game; on Hard its cards are upgraded.</summary>
+    /// <summary>Creates the practice bot. It plays a deck of one or two races from every card in the game; on Hard its cards are upgraded.</summary>
     public async Task<Objects.Player> CreateBotAsync(string displayName, int difficulty = 1, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
@@ -62,7 +62,7 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             Rank = 1,
             PlayerType = type,
             OwningCards = cards,
-            Deck = Decks.Build(cards, c => c.Id, []),
+            Deck = Decks.Themed(cards, c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, Random.Shared),
             IsBot = true,
             Difficulty = difficulty,
         };
