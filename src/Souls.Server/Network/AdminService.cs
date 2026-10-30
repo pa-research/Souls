@@ -126,7 +126,7 @@ public sealed class AdminService(ServerState state, GameEngine engine, IServiceS
         player.Money = 0;
         player.Rank = 1;
         await db.PlayerCards.Where(pc => pc.PlayerId == playerId).ExecuteDeleteAsync();
-        var starters = await db.Cards.Where(c => c.Level == 1).OrderBy(c => c.Id).Take(5).Select(c => c.Id).ToListAsync();
+        var starters = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == player.PlayerTypeId)).OrderBy(c => c.Id).Take(5).Select(c => c.Id).ToListAsync();
         db.PlayerCards.AddRange(starters.Select(id => new PlayerCard { PlayerId = playerId, CardId = id, ObtainedAt = time.GetUtcNow() }));
         await db.SaveChangesAsync();
         logger.LogInformation("Reset player {PlayerId}", playerId);

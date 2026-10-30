@@ -133,8 +133,8 @@
         }
 
         if (this.heroPower && this.heroPower.aiming) {
-            var power = Rules.HeroPower(this.type);
-            var powerKinds = Rules.PowerTargets(this.type);
+            var power = Rules.HeroPower(this.power);
+            var powerKinds = Rules.PowerTargets(this.power);
             found = this.arrow.Aim(this.heroPower, powerKinds, 'power',
                 (power ? power.name + ": pick " : "Pick ") + Rules.DescribeTargets(powerKinds));
             this.heroPower.target = found;

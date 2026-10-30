@@ -5,16 +5,17 @@
 }
 <div class="s-admin">
 <section class="s-panel">
-<div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2></div>
-<div class="row">
-    <div class="col-lg-3">
-                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, card.AbilityId is { } abilityId ? Souls.Model.GameRules.AbilityLabel(abilityId, card.AbilityValue) : null, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false) { Armor = card.Armor, Rarity = card.Rarity, Flavor = card.Flavor, AbilityText = card.AbilityId is { } a ? Souls.Model.GameRules.AbilityText(a, card.AbilityValue) : null, Spell = card.Kind == Souls.Model.Entities.CardKind.Spell }" />
+<div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2><a class="s-btn s-btn-ghost s-btn-sm" asp-action="CardEditor" asp-route-id=""><s-icon name="plus" />New card</a></div>
+<div class="row g-4">
+    <div class="col-lg-3 d-flex justify-content-center align-items-start">
+        @* A form sent back with errors can have an empty name. *@
+        <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name ?? string.Empty, card.Cost, card.Attack, card.Health, card.AbilityId is { } abilityId ? Souls.Model.GameRules.AbilityLabel(abilityId, card.AbilityValue) : null, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false) { Armor = card.Armor, Rarity = card.Rarity, Flavor = card.Flavor, AbilityText = card.AbilityId is { } a ? Souls.Model.GameRules.AbilityText(a, card.AbilityValue) : null, Spell = card.Kind == Souls.Model.Entities.CardKind.Spell }" />
     </div>
 
     <div class="col-lg-9">
-        <h2>@(card.Id is null ? "Create" : "Update") card</h2>
+        <h3 class="s-h3">@(card.Id is null ? "Create a card" : $"Update {card.Name}")</h3>
         <form asp-action="CardEditor" method="post" id="card-form">
-            <div asp-validation-summary="All" class="text-danger"></div>
+            <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
             <input type="hidden" asp-for="Card.Id" />
             <div class="row g-3">
                 <div class="col-md-4">
@@ -26,9 +27,9 @@
                 </div>
                 <div class="col-md-4">
                     <label asp-for="Card.Name" class="form-label">Name</label>
-                    <input asp-for="Card.Name" class="form-control" data-preview=".card-name" />
+                    <input asp-for="Card.Name" class="form-control" data-preview=".s-card-title" />
                     <label asp-for="Card.AbilityId" class="form-label mt-2">Ability</label>
-                    <select asp-for="Card.AbilityId" class="form-select" data-preview=".card-ability">
+                    <select asp-for="Card.AbilityId" class="form-select" data-preview=".s-card-ability">
                         <option value="">(none)</option>
                         @foreach (var ability in Model.Abilities)
                         {
@@ -45,13 +46,21 @@
                             <option value="@race.Id" data-texture="@race.CardUrl">@race.Name</option>
                         }
                     </select>
+                    <label asp-for="Card.ClassId" class="form-label mt-2">Class</label>
+                    <select asp-for="Card.ClassId" class="form-select">
+                        <option value="">Every class</option>
+                        @foreach (var type in Model.Classes)
+                        {
+                            <option value="@type.Id">@type.Name only</option>
+                        }
+                    </select>
                 </div>
                 <div class="col-md-4">
                     <div class="row g-2">
-                        <div class="col-6"><label asp-for="Card.Cost" class="form-label">Cost</label><input asp-for="Card.Cost" class="form-control" data-preview=".card-cost" /></div>
+                        <div class="col-6"><label asp-for="Card.Cost" class="form-label">Cost</label><input asp-for="Card.Cost" class="form-control" data-preview=".s-card-cost" /></div>
                         <div class="col-6"><label asp-for="Card.Level" class="form-label">Level</label><input asp-for="Card.Level" class="form-control" /></div>
-                        <div class="col-6"><label asp-for="Card.Attack" class="form-label">Attack</label><input asp-for="Card.Attack" class="form-control" data-preview=".card-attack" /></div>
-                        <div class="col-6"><label asp-for="Card.Health" class="form-label">Health</label><input asp-for="Card.Health" class="form-control" data-preview=".card-health" /></div>
+                        <div class="col-6"><label asp-for="Card.Attack" class="form-label">Attack</label><input asp-for="Card.Attack" class="form-control" data-preview=".s-card-attack" /></div>
+                        <div class="col-6"><label asp-for="Card.Health" class="form-label">Health</label><input asp-for="Card.Health" class="form-control" data-preview=".s-card-health" /></div>
                         <div class="col-6"><label asp-for="Card.Armor" class="form-label">Armor</label><input asp-for="Card.Armor" class="form-control" /></div>
                         <div class="col-6"><label asp-for="Card.VendorPrice" class="form-label">Price</label><input asp-for="Card.VendorPrice" class="form-control" /></div>
                         <div class="col-6"><label asp-for="Card.AbilityValue" class="form-label">Ability value</label><input asp-for="Card.AbilityValue" class="form-control" placeholder="default" /></div>
@@ -67,26 +76,27 @@
                     </div>
                 </div>
             </div>
-            <label asp-for="Card.Flavor" class="form-label mt-2">Flavor text</label>
+            <label asp-for="Card.Flavor" class="form-label mt-3">Flavor text</label>
             <input asp-for="Card.Flavor" class="form-control" />
-            <button type="submit" class="btn btn-primary mt-3">@(card.Id is null ? "Create" : "Update")</button>
+            <button type="submit" class="s-btn s-btn-primary mt-3"><s-icon name="save" />@(card.Id is null ? "Create" : "Update")</button>
         </form>
     </div>
 </div>
 
-<table class="table table-sm mt-4">
-    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th></tr></thead>
-    <tbody>
-        @foreach (var c in Model.Cards)
-        {
-            <tr>
-                <td><a asp-action="CardEditor" asp-route-id="@c.Id">@c.Name</a></td>
-                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td><td>@c.Kind</td>
-            </tr>
-        }
-        <tr><td colspan="9"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
-    </tbody>
-</table>
+<div class="table-responsive mt-4">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th><th>Class</th></tr></thead>
+        <tbody>
+            @foreach (var c in Model.Cards)
+            {
+                <tr>
+                    <td><a asp-action="CardEditor" asp-route-id="@c.Id">@c.Name</a></td>
+                    <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td><td>@c.Kind</td><td>@c.Class?.Name</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
 </section>
 </div>
 

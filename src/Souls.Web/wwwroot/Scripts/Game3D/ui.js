@@ -31,7 +31,7 @@ export function tierOf(rating) {
     return { name: `${name} ${DIVISIONS[index % 3]}`, css: `tier-${name.toLowerCase()}` };
 }
 
-const POWER_ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus' };
+const POWER_ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus', 5: 'skull', 6: 'heart-pulse', 7: 'shield', 8: 'castle' }; // by hero power id
 
 function el(tag, className, parent, text) {
     const e = document.createElement(tag);
@@ -143,6 +143,15 @@ function classify(line) {
     if (/ uses | paralyzes | hardens /.test(line)) return ['wand', ''];
     return ['flag', ''];
 }
+
+/** How long the VS splash stays up (it fades out over its last 700 ms); the mulligan opens after it. */
+export const VERSUS_MS = 4100;
+/** A full-screen layer (queue, mulligan) fading out: .sg-fade-out in game-hud.css. Centre texts wait for it. */
+const FADE_MS = 900;
+/** How long the turn banner and the legendary name stay (their animations in game-hud.css), and a toast. */
+const BANNER_MS = 2200;
+const LEGEND_MS = 2600;
+const TOAST_MS = 2450;
 
 export class UI {
     constructor(root, config = {}) {
@@ -349,18 +358,29 @@ export class UI {
         else this.status.textContent = text;
     }
 
-    /** "Prepare!" then fade the overlay out. */
-    hideQueue() {
+    /** "Prepare!" then fade the overlay out (`fade` false: at once, when the VS splash takes its place). */
+    hideQueue(fade = true) {
         clearInterval(this.queueTimer);
         if (this.queueTitle) this.queueTitle.textContent = 'Prepare!';
-        this.overlay.classList.add('sg-fade-out');
-        setTimeout(() => {
+        if (this.challengeForm) {
+            // A challenge was accepted: no more challenging.
+            this.challengeForm.form.hidden = this.challengeForm.withdraw.hidden = true;
+            this.queueText.textContent = '';
+        }
+        const done = () => {
             this.overlay.hidden = true;
             this.overlay.classList.remove('sg-fade-out');
             this.overlay.replaceChildren();
             this.queueBox = null;
             this.challengeForm = null;
-        }, 950);
+        };
+        if (!fade) {
+            done();
+            return;
+        }
+        this.overlay.classList.add('sg-fade-out');
+        this.fadingUntil = performance.now() + FADE_MS;
+        setTimeout(done, FADE_MS);
     }
 
     // ---- Friendly challenges -------------------------------------------------------------------------------------
@@ -513,8 +533,18 @@ export class UI {
     }
 
     placeStatus(side, x, y) {
-        const box = side === 'player' ? this.playerStatus : this.opponentStatus;
-        box.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
+        this.follow(side === 'player' ? this.playerStatus : this.opponentStatus, x, y);
+    }
+
+    /**
+     * Moves an element that follows the 3D scene so that its anchor point (`ax`, `ay`: fractions of its size) is at
+     * (x, y), but never past the edges of the screen (narrow phones).
+     */
+    follow(box, x, y, ax = 0.5, ay = 0.5) {
+        const w = box.offsetWidth, h = box.offsetHeight;
+        const left = Math.max(8, Math.min(this.root.clientWidth - w - 8, x - w * ax));
+        const top = Math.max(8, Math.min(this.root.clientHeight - h - 8, y - h * ay));
+        box.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
     }
 
     /** {name, text, cost, canUse, used, type} or null to hide. */
@@ -542,7 +572,7 @@ export class UI {
     }
 
     placePower(x, y) {
-        this.power.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
+        this.follow(this.power, x, y);
     }
 
     setPowerArmed(on) {
@@ -574,7 +604,7 @@ export class UI {
             this.timerText.textContent = text;
         }
         this.timer.classList.toggle('urgent', left < 15000 && this.timerMine);
-        if (x !== undefined) this.timer.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, 0)`;
+        if (x !== undefined) this.follow(this.timer, x, y, 0.5, 0);
     }
 
     /** The seconds left on the fuse (test hook). */
@@ -590,30 +620,54 @@ export class UI {
 
     /** The big centre banner when the turn changes. */
     banner(text, { enemy = false, sub = null } = {}) {
-        if (this.currentBanner) this.currentBanner.remove();
-        const b = el('div', `sg-banner${enemy ? ' enemy' : ''}`, this.root);
-        b.setAttribute('aria-hidden', 'true');
+        const b = el('div', `sg-banner${enemy ? ' enemy' : ''}`);
         if (sub) el('small', '', b, sub);
         el('b', '', b, text);
-        this.currentBanner = b;
-        setTimeout(() => { if (b.isConnected) b.remove(); }, 2200);
+        this.centre(b, BANNER_MS);
     }
 
     /** A legendary card enters the arena: its name in gold across the screen. */
     legendary(name, enemy = null) {
-        const b = el('div', `sg-legend${enemy ? ' enemy' : ''}`, this.root);
-        b.setAttribute('aria-hidden', 'true');
+        const b = el('div', `sg-legend${enemy ? ' enemy' : ''}`);
         el('small', '', b, 'Legendary');
         el('b', '', b, name);
-        setTimeout(() => { if (b.isConnected) b.remove(); }, 2600);
+        this.centre(b, LEGEND_MS);
     }
 
-    /** Short messages ("Not enough mana!"). */
+    /**
+     * The turn banner and the legendary name share the centre of the screen: the newest replaces the one showing. They
+     * wait for a full-screen layer that is fading out (the mulligan), and never show over the end screen.
+     */
+    centre(b, ms) {
+        if (this.endLayer) return;
+        const wait = (this.fadingUntil || 0) - performance.now();
+        if (wait > 0) {
+            setTimeout(() => this.centre(b, ms), wait);
+            return;
+        }
+        if (this.currentBanner) this.currentBanner.remove();
+        b.setAttribute('aria-hidden', 'true');
+        this.root.appendChild(b);
+        this.currentBanner = b;
+        setTimeout(() => b.remove(), ms);
+    }
+
+    /** Short messages ("Not enough mana!"), at most three. */
     screenMessage(text, warn = true) {
-        if (this.toasts.childElementCount >= 3) this.toasts.firstElementChild.remove();
+        const toasts = this.toasts.querySelectorAll('.sg-toast:not(.sg-hint)');
+        if (toasts.length >= 3) toasts[0].remove();
         const toast = el('div', `sg-toast${warn ? ' warn' : ''}`, this.toasts);
         toast.append(icon(warn ? 'info' : 'sparkles'), String(text));
-        setTimeout(() => toast.remove(), 2450);
+        setTimeout(() => toast.remove(), TOAST_MS);
+    }
+
+    /** A hint that stays while it applies ("Rabid Bite: pick a target"); null takes it away. */
+    hint(text) {
+        if (this.hintToast) this.hintToast.remove();
+        this.hintToast = null;
+        if (!text) return;
+        this.hintToast = el('div', 'sg-toast sg-hint', this.toasts);
+        this.hintToast.append(icon('sparkles'), String(text));
     }
 
     /** The pre-fight splash: both heroes slide in, a flaming VS between them. */
@@ -635,8 +689,13 @@ export class UI {
         side(player, 'left');
         el('div', 'souls3d-versus-mark', splash, 'VS');
         side(opponent, 'right');
-        setTimeout(() => splash.classList.add('leaving'), 3400);
-        setTimeout(() => splash.remove(), 4100);
+        // The in-game controls come in as the splash leaves (game3d.css).
+        this.root.classList.add('intro');
+        setTimeout(() => {
+            splash.classList.add('leaving');
+            this.root.classList.remove('intro');
+        }, VERSUS_MS - 700);
+        setTimeout(() => splash.remove(), VERSUS_MS);
     }
 
     // ---- Mulligan ------------------------------------------------------------------------------------------------
@@ -731,7 +790,8 @@ export class UI {
             return;
         }
         m.layer.classList.add('sg-fade-out');
-        setTimeout(() => m.layer.remove(), 950);
+        this.fadingUntil = performance.now() + FADE_MS;
+        setTimeout(() => m.layer.remove(), FADE_MS);
     }
 
     // ---- Tooltips ------------------------------------------------------------------------------------------------
@@ -993,7 +1053,7 @@ export class UI {
     /** The player's bubble stands above (x, y), the opponent's hangs below it. */
     placeEmote(side, x, y) {
         const bubble = this.bubbles[side];
-        if (bubble) bubble.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, ${side === 'player' ? '-100%' : '0'})`;
+        if (bubble) this.follow(bubble, x, y, 0.5, side === 'player' ? 1 : 0);
     }
 
     updateSound() {
@@ -1031,11 +1091,16 @@ export class UI {
         this.setStatus3d('player', null);
         this.setStatus3d('opponent', null);
         this.toggleSettings(false);
+        this.toggleEmotes(false);
+        this.hint(null);
+        if (this.currentBanner) this.currentBanner.remove();
         const kind = /^Victory/.test(text) ? 'victory' : /^Draw/.test(text) ? 'draw' : /wins!$/.test(text) ? 'victory' : 'defeat';
         const layer = el('div', 'sg-layer sg-shade souls3d-end', this.root);
         layer.style.animation = 's-fade-in 1.2s ease-out both';
         const end = el('div', `sg-end ${kind}`, layer);
-        el('h1', 'sg-end-title', end, text.replace(/!$/, ''));
+        const title = text.replace(/!$/, '');
+        // Longer than "Victory" ("<name> wins" for spectators): smaller, so a long name fits a phone.
+        el('h1', `sg-end-title${title.length > 7 ? ' long' : ''}`, end, title);
         if (result.text || detail) el('div', 'sg-end-sub', end, detail || result.text);
 
         const rewards = el('div', 'sg-rewards', end);
@@ -1221,9 +1286,9 @@ export class UI {
             if (!chat.classList.contains('collapsed')) this.chatInput.focus();
         });
         const body = el('div', 'souls3d-chat-body', chat);
-        this.chatLog = el('div', 'souls3d-chat-log chat-messages', body);
-        this.chatMembers = el('div', 'souls3d-chat-members chat-clients', body);
-        this.chatInput = el('textarea', 'souls3d-chat-input chat-input', chat);
+        this.chatLog = el('div', 'souls3d-chat-log', body);
+        this.chatMembers = el('div', 'souls3d-chat-members', body);
+        this.chatInput = el('textarea', 'souls3d-chat-input', chat);
         this.chatInput.placeholder = 'Say something...';
         this.chatInput.rows = 1;
         this.chatInput.maxLength = 500;

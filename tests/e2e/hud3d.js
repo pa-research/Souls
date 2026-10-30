@@ -47,7 +47,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.evaluate(() => window.__souls3d.ui.banner('Your turn', { sub: 'Turn 3' }));
   await sleep(500);
   await shot('banner');
-  await page.evaluate(() => { window.__souls3d.ui.screenMessage('Not enough mana!'); window.__souls3d.ui.screenMessage('Rabid Bite: pick a target', false); });
+  await page.evaluate(() => { window.__souls3d.ui.screenMessage('Not enough mana!'); window.__souls3d.ui.hint('Rabid Bite: pick a target'); });
   await sleep(300);
   await shot('toasts');
   await page.click('.souls3d-views .sg-icon-btn');

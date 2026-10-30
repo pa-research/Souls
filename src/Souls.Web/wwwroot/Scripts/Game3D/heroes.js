@@ -97,7 +97,7 @@ export class Hero3D extends THREE.Group {
     /** Applies the server's hero info (strings: health, attack, mana, name, type; numbers: armor, maxHealth, maxMana). */
     setInfo(info) {
         if (!info) return;
-        for (const key of ['name', 'attack', 'health', 'type', 'armor', 'maxHealth', 'maxMana', 'ident', 'rating']) {
+        for (const key of ['name', 'attack', 'health', 'type', 'power', 'armor', 'maxHealth', 'maxMana', 'ident', 'rating']) {
             if (info[key] !== undefined && info[key] !== null && info[key] !== '') this.info[key] = info[key];
         }
         if (info.mana !== undefined && info.mana !== null) this.info.mana = Number(info.mana) || 0;

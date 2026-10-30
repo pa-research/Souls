@@ -5,6 +5,9 @@ public class Player
     public int Id { get; set; }
     public int PlayerTypeId { get; set; }
     public PlayerType? PlayerType { get; set; }
+
+    /// <summary>The hero power the player picked (see <see cref="GameRules.HeroPowers"/>); <c>null</c>: the class's default.</summary>
+    public int? HeroPowerId { get; set; }
     public required string Name { get; set; }
 
     /// <summary>Upper-cased name used to enforce case-insensitive uniqueness.</summary>

@@ -101,7 +101,7 @@ public static class DatabaseSetup
             db.Players.Add(admin);
             await db.SaveChangesAsync(ct);
 
-            var starterCards = await db.Cards.Where(c => c.Level == 1).Select(c => c.Id).ToListAsync(ct);
+            var starterCards = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == admin.PlayerTypeId)).Select(c => c.Id).ToListAsync(ct);
             db.PlayerCards.AddRange(starterCards.Select(id => new PlayerCard { PlayerId = admin.Id, CardId = id, ObtainedAt = time.GetUtcNow() }));
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Created bootstrap administrator {Username}", username);

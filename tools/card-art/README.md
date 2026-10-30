@@ -1,8 +1,8 @@
 # Card portrait generator
 
-Generates the "painted emblem" portraits for the expansion cards (ids 20-56), the spells (60-69) and the Lost Soul token in
-`src/Souls.Web/wwwroot/Content/Images/Card/Portraits/` (`{id}.jpg`, `lost-soul.jpg`, 708x501 = the 236x167
-portrait window at 3x, sRGB JPEG q86) and writes `CREDITS.md` next to them. The game's original art in that folder
+Generates the "painted emblem" portraits for the expansion cards (ids 20-56), the spells (60-69), the class cards
+(70-77) and the Lost Soul token in `src/Souls.Web/wwwroot/Content/Images/Card/Portraits/` (`{id}.jpg`,
+`lost-soul.jpg`, 708x501 = the 236x167 portrait window at 3x, sRGB JPEG q86) and writes `CREDITS.md` next to them. The game's original art in that folder
 (0-6, 15, 16, 18) is never touched; `generate.js` refuses to write those names.
 
 ## Run

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Souls.Model;
 using Souls.Model.Entities;
 
@@ -133,6 +134,93 @@ public class WebAppTests(SoulsAppFixture app)
     }
 
     [Fact]
+    public async Task HeroPowerPickAndClassCardsOnlyForTheirClass()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password, playerType: 3); // Harrison
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+        Task<int?> PickedPower() => app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).Select(p => p.HeroPowerId).SingleAsync());
+
+        // The deck page offers Harrison's two powers with the old one picked; nothing is stored until the player picks.
+        using (var deck = await browser.GetAsync("/Deck"))
+        {
+            var html = await deck.Content.ReadAsStringAsync();
+            Assert.Matches("id=\"power-3\" value=\"3\" checked", html);
+            Assert.Contains("Aegis", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Blood Gift", html, StringComparison.Ordinal);
+        }
+
+        Assert.Null(await PickedPower());
+        using (await browser.PostFormAsync("/Deck", "/Deck/HeroPower", [new("power", GameRules.Powers.BloodGift.ToString(System.Globalization.CultureInfo.InvariantCulture))]))
+        {
+        }
+
+        Assert.Null(await PickedPower());
+        using (await browser.PostFormAsync("/Deck", "/Deck/HeroPower", [new("power", GameRules.Powers.Aegis.ToString(System.Globalization.CultureInfo.InvariantCulture))]))
+        {
+        }
+
+        Assert.Equal(GameRules.Powers.Aegis, await PickedPower());
+
+        // The shop shows and sells Harrison's cards (Sunlance, 74) but not another class's (Rabid Ghoul, 70).
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 20)));
+        using (var shop = await browser.GetAsync("/Shop"))
+        {
+            var html = await shop.Content.ReadAsStringAsync();
+            Assert.Contains("id=\"card_74\"", html, StringComparison.Ordinal);
+            Assert.Contains("Harrison only", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"card_70\"", html, StringComparison.Ordinal);
+        }
+
+        foreach (var cardId in new[] { "70", "74" })
+        {
+            using var _ = await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", cardId)]);
+        }
+
+        Assert.Equal([74], await app.WithDbAsync(db => db.PlayerCards.Where(pc => pc.PlayerId == playerId && pc.Card!.ClassId != null).Select(pc => pc.CardId).ToListAsync()));
+        Assert.Equal(18, await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync()));
+
+        // Even owned (an admin gave it), another class's card is refused in a deck and never reaches a game.
+        await app.WithDbAsync(db =>
+        {
+            db.PlayerCards.Add(new PlayerCard { PlayerId = playerId, CardId = 70, ObtainedAt = DateTimeOffset.UtcNow });
+            return db.SaveChangesAsync();
+        });
+        using (await browser.PostFormAsync("/Deck", "/Deck/Save", Counts("5:4,6:4,20:4,23:4,70:4")))
+        {
+        }
+
+        Assert.Equal(0, await app.WithDbAsync(db => db.DeckCards.CountAsync(d => d.PlayerId == playerId)));
+        using (await browser.PostFormAsync("/Deck", "/Deck/Save", Counts("5:4,6:4,20:4,23:4,74:4")))
+        {
+        }
+
+        Assert.Equal(4, await app.WithDbAsync(db => db.DeckCards.Where(d => d.PlayerId == playerId && d.CardId == 74).Select(d => d.Count).SingleAsync()));
+        await app.WithDbAsync(async db =>
+        {
+            await db.DeckCards.Where(d => d.PlayerId == playerId).ExecuteDeleteAsync();
+            db.DeckCards.AddRange(new DeckCard { PlayerId = playerId, CardId = 70, Count = 4 }, new DeckCard { PlayerId = playerId, CardId = 5, Count = 4 },
+                new DeckCard { PlayerId = playerId, CardId = 6, Count = 4 }, new DeckCard { PlayerId = playerId, CardId = 20, Count = 4 }, new DeckCard { PlayerId = playerId, CardId = 23, Count = 4 });
+            return await db.SaveChangesAsync();
+        });
+        var loaded = await app.Server.Services.GetRequiredService<Souls.Server.Game.PlayerRepository>().LoadPlayerAsync(playerId);
+        Assert.NotNull(loaded);
+        Assert.Equal(GameRules.Powers.Aegis, loaded.HeroPower);
+        Assert.DoesNotContain(loaded.OwningCards, c => c.Id == 70);
+        Assert.DoesNotContain(loaded.Deck, c => c.Id == 70);
+        Assert.Equal(GameRules.DeckSize, loaded.Deck.Count);
+        using (var deck = await browser.GetAsync("/Deck"))
+        {
+            Assert.DoesNotContain("id=\"card_70\"", await deck.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task CardEditorMakesSpellsWithAnAbilityTheyCanCast()
     {
         using var admin = app.CreateBrowser();
@@ -218,11 +306,12 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Contains("Daily Quests", homeHtml, StringComparison.Ordinal);
         Assert.Equal(3, await app.WithDbAsync(db => db.PlayerQuests.CountAsync(q => q.PlayerId == playerId)));
         Assert.Contains("Top Players", homeHtml, StringComparison.Ordinal);
-
-        static IEnumerable<KeyValuePair<string, string>> Counts(string spec) => spec.Split(',')
-            .Select(pair => pair.Split(':'))
-            .Select(p => new KeyValuePair<string, string>($"count[{p[0]}]", p[1]));
     }
+
+    /// <summary>Deck form fields from "cardId:count,...".</summary>
+    private static IEnumerable<KeyValuePair<string, string>> Counts(string spec) => spec.Split(',')
+        .Select(pair => pair.Split(':'))
+        .Select(p => new KeyValuePair<string, string>($"count[{p[0]}]", p[1]));
 
     [Fact]
     public async Task CardPacksChargeOnceAndHoldARareOrBetter()
@@ -301,6 +390,23 @@ public class WebAppTests(SoulsAppFixture app)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(WebUtility.HtmlEncode(error), await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EmptyFormsShowTheirErrors()
+    {
+        using var browser = app.CreateBrowser();
+        using var register = await browser.PostFormAsync("/Player/Register", "/Player/Register", []);
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+        var html = await register.Content.ReadAsStringAsync();
+        Assert.Contains("You must input a username", html, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(html, "You must input a password<"));
+
+        using var admin = app.CreateBrowser();
+        using var _ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        using var card = await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", []);
+        Assert.Equal(HttpStatusCode.OK, card.StatusCode);
+        Assert.Contains("The Name field is required.", await card.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

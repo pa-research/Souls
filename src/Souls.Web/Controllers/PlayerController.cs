@@ -95,7 +95,8 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         ViewData["Title"] = "Registration";
         var key = nameof(RegisterPageModel.Form) + ".";
 
-        if (PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
+        // Required already reports an empty password.
+        if (!string.IsNullOrEmpty(form.Password) && PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
         {
             ModelState.AddModelError(key + nameof(form.Password), passwordProblem);
         }
@@ -106,7 +107,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         }
 
         var cards = form.Cards.Distinct().ToList();
-        var starterIds = await db.Cards.Where(c => c.Level == 1).Select(c => c.Id).ToListAsync(ct);
+        var starterIds = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == form.PlayerType)).Select(c => c.Id).ToListAsync(ct);
         if (cards.Count != 5 || cards.Except(starterIds).Any())
         {
             ModelState.AddModelError(key + nameof(form.Cards), "You must select 5 starter cards!");
@@ -117,7 +118,8 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
             ModelState.AddModelError(key + nameof(form.PlayerType), "You must select a class");
         }
 
-        var normalized = Player.Normalize(form.Username);
+        // An empty username binds as null; its Required error is already in the model state.
+        var normalized = ModelState.IsValid ? Player.Normalize(form.Username) : string.Empty;
         if (ModelState.IsValid && await db.Players.AnyAsync(p => p.NormalizedName == normalized, ct))
         {
             ModelState.AddModelError(key + nameof(form.Username), "The username already exists");
@@ -192,7 +194,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         var races = await db.Races.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct);
         var types = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
         var starters = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race)
-            .Where(c => c.Level == 1).OrderBy(c => c.Id).ToListAsync(ct);
+            .Where(c => c.Level == 1 && c.ClassId == null).OrderBy(c => c.Id).ToListAsync(ct);
 
         return new RegisterPageModel
         {

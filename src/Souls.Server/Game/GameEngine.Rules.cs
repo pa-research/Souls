@@ -666,59 +666,85 @@ public sealed partial class GameEngine
         ResolveDeaths(room);
     }
 
-    /// <summary>The hero power of the player's class. Returns <c>false</c> (and tells the player why) if it cannot be used.</summary>
+    /// <summary>The hero's power (<see cref="GamePlayer.Power"/>). Returns <c>false</c> (and tells the player why) if it cannot be used.</summary>
     private bool UseHeroPower(GameRoom room, Player player, GamePlayer gp, TargetType type, int targetCid)
     {
-        if (!GameRules.HeroPowers.TryGetValue(gp.Type, out var power))
+        if (!GameRules.HeroPowers.TryGetValue(gp.Power, out var power))
         {
             Tell(player, "Your hero has no power!");
             return false;
         }
 
         var enemy = room.Other(gp);
-        object? target = power.Target switch
+        var kinds = GameRules.PowerTargets(power.Target);
+        object? target = kinds.Count == 0 ? gp : type switch
         {
-            "none" => gp,
-            "enemy" => type switch
-            {
-                TargetType.EnemyHero => enemy,
-                TargetType.EnemyCard => enemy.FindBoardCard(targetCid),
-                _ => null,
-            },
-            _ => type switch
-            {
-                TargetType.OwnHero => gp,
-                TargetType.FriendlyCard => gp.FindBoardCard(targetCid),
-                _ => null,
-            },
+            TargetType.FriendlyCard when kinds.Contains("friendlyCard") => gp.FindBoardCard(targetCid),
+            TargetType.OwnHero when kinds.Contains("ownHero") => gp,
+            TargetType.EnemyHero when kinds.Contains("enemyHero") => enemy,
+            TargetType.EnemyCard when kinds.Contains("enemyCard") => enemy.FindBoardCard(targetCid),
+            _ => null,
         };
         if (target is null)
         {
-            Tell(player, power.Target == "enemy" ? $"{power.Name} targets an enemy!" : $"{power.Name} targets a friendly card or your hero!");
+            Tell(player, power.Target switch
+            {
+                "enemy" => $"{power.Name} targets an enemy!",
+                "enemyCard" => $"{power.Name} targets an enemy card!",
+                "friendlyCard" => $"{power.Name} targets a friendly card!",
+                _ => $"{power.Name} targets a friendly card or your hero!",
+            });
+            return false;
+        }
+
+        if (gp.Power == GameRules.Powers.Aegis && target is Card { Ward: true })
+        {
+            Tell(player, "That card already has a ward!");
             return false;
         }
 
         gp.Mana -= GameRules.HeroPowerCost;
         gp.HeroPowerUsed = true;
         gp.AbilitiesUsed++;
-        room.Event("heroPower", new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Type, ["name"] = power.Name, ["dst"] = Ref(target) });
+        room.Event("heroPower", new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Power, ["name"] = power.Name, ["dst"] = Ref(target) });
         var text = $"{gp.Name} uses {power.Name} on {NameOf(target)}.";
         room.Logger.Add(GameLogKind.HeroPower, player.Id, target is Card c ? c.Id : room.PlayerOf(((GamePlayer)target).Ident).Id, "Player", target is Card ? "Card" : "Player", text);
         room.LogLine(text);
-        switch (gp.Type)
+        switch (gp.Power)
         {
-            case 1:
+            case GameRules.Powers.RabidBite:
                 Damage(room, target, 1, gp, null);
                 break;
-            case 2:
+            case GameRules.Powers.Drain:
                 Damage(room, target, 1, gp, null);
                 Heal(room, gp, 1);
                 break;
-            case 3:
+            case GameRules.Powers.HolyLight:
                 Heal(room, target, 2);
                 break;
-            case 4:
+            case GameRules.Powers.Fade:
                 GainArmor(room, gp, 2);
+                break;
+            case GameRules.Powers.Ravage:
+                Damage(room, target, GameRules.RavageDamage, gp, null);
+                Damage(room, gp, GameRules.RavageSelfDamage, null, null);
+                break;
+            case GameRules.Powers.BloodGift:
+            {
+                var t = (Card)target;
+                t.Attack += GameRules.BloodGiftAttack;
+                t.Health += GameRules.BloodGiftHealth;
+                t.MaxHealth += GameRules.BloodGiftHealth;
+                room.Event("buff", new JsonObject { ["to"] = Ref(t), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                break;
+            }
+
+            case GameRules.Powers.Aegis:
+                ((Card)target).Ward = true;
+                room.Event("ward", new JsonObject { ["to"] = Ref(target), ["on"] = true });
+                break;
+            case GameRules.Powers.ThickHide:
+                GainArmor(room, target, GameRules.ThickHideArmor);
                 break;
         }
 

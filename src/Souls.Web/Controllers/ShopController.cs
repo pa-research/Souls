@@ -15,7 +15,9 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
         ViewData["Title"] = "Shop";
         var playerId = User.RequirePlayerId();
         var owned = await db.PlayerCards.Where(pc => pc.PlayerId == playerId).ToDictionaryAsync(pc => pc.CardId, pc => pc.Level, ct);
-        var cards = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).OrderBy(c => c.Id).ToListAsync(ct);
+        var classId = await ClassOf(playerId, ct);
+        var cards = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).Include(c => c.Class)
+            .Where(c => c.ClassId == null || c.ClassId == classId).OrderBy(c => c.Id).ToListAsync(ct);
         var player = await Summary(db, playerId, ct);
 
         return View(new ShopViewModel
@@ -24,6 +26,8 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
             Player = player,
         });
     }
+
+    private Task<int> ClassOf(int playerId, CancellationToken ct) => db.Players.Where(p => p.Id == playerId).Select(p => p.PlayerTypeId).SingleAsync(ct);
 
     internal static Task<PlayerSummary> Summary(SoulsDbContext db, int playerId, CancellationToken ct) => db.Players.AsNoTracking()
         .Where(p => p.Id == playerId)
@@ -90,6 +94,12 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
             return NotFound();
         }
 
+        if (!GameRules.CanUse(card.ClassId, await ClassOf(playerId, ct)))
+        {
+            TempData["Error"] = $"{card.Name} is a card of another class.";
+            return RedirectToAction(nameof(Index));
+        }
+
         // Charge and grant atomically; the conditional update and the unique (player, card) index make
         // double purchases and overspending impossible even with concurrent requests.
         var strategy = db.Database.CreateExecutionStrategy();
@@ -137,7 +147,8 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
     public async Task<IActionResult> BuyPack(int money, CancellationToken ct)
     {
         var playerId = User.RequirePlayerId();
-        var pool = await db.Cards.AsNoTracking().ToListAsync(ct);
+        var classId = await ClassOf(playerId, ct);
+        var pool = await db.Cards.AsNoTracking().Where(c => c.ClassId == null || c.ClassId == classId).ToListAsync(ct);
         int[]? opened = null;
         var strategy = db.Database.CreateExecutionStrategy();
         var error = await strategy.ExecuteAsync(async () =>
@@ -214,7 +225,7 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
         ViewData["Title"] = "Card Pack";
         var results = opened.Chunk(3).ToList();
         var ids = results.Select(r => r[0]).ToList();
-        var cards = await db.Cards.AsNoTracking().Include(c => c.Race).Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        var cards = await db.Cards.AsNoTracking().Include(c => c.Race).Include(c => c.Class).Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
         return View(results.Select(r => new PackCard(CardTile.From(cards[r[0]], owned: true, level: r[1]), r[2])).ToList());
     }
 }
