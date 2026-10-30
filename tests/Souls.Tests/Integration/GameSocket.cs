@@ -95,7 +95,7 @@ public sealed class GameSocket : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        if (_socket.State == WebSocketState.Open)
         {
             try
             {

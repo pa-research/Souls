@@ -29,12 +29,26 @@ public sealed class GameStore(ServerState state, IServiceScopeFactory scopes, Ti
 
         foreach (var room in state.Rooms.Values.Where(r => !r.IsEnded && (all || r.Dirty)).ToList())
         {
+            string snapshot;
             try
             {
-                await SaveAsync(room);
+                snapshot = room.Snapshot();
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // A bug in one game must not keep the others from being saved.
+                logger.LogError(e, "Running game {GameId} cannot be saved", room.GameId);
+                metrics.Error("snapshot");
+                continue;
+            }
+
+            try
+            {
+                await SaveAsync(room, snapshot);
             }
             catch (Exception e)
             {
+                // The database is unavailable or too slow (including the timeout): try again later.
                 logger.LogError(e, "Failed to save running game {GameId}", room.GameId);
                 metrics.Error("snapshot");
                 _retryAt = time.GetUtcNow() + RetryDelay;
@@ -44,7 +58,7 @@ public sealed class GameStore(ServerState state, IServiceScopeFactory scopes, Ti
     }
 
     /// <summary>Upserts the game row and appends the new replay messages in one statement (atomic, safe to repeat).</summary>
-    private async Task SaveAsync(GameRoom room)
+    private async Task SaveAsync(GameRoom room, string snapshot)
     {
         using var timeout = new CancellationTokenSource(SaveTimeout);
         await using var scope = scopes.CreateAsyncScope();
@@ -54,7 +68,7 @@ public sealed class GameStore(ServerState state, IServiceScopeFactory scopes, Ti
         var entries = "[" + string.Join(',', replay.Skip(room.SavedReplay).Select(r => r.ToJsonString())) + "]";
         await db.Database.ExecuteSqlAsync($"""
             WITH game AS (
-                INSERT INTO running_game (game_id, state, updated_at) VALUES ({room.GameId}, {room.Snapshot()}::jsonb, {time.GetUtcNow()})
+                INSERT INTO running_game (game_id, state, updated_at) VALUES ({room.GameId}, {snapshot}::jsonb, {time.GetUtcNow()})
                 ON CONFLICT (game_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at)
             INSERT INTO running_game_replay (fk_running_game, seq, entry)
             SELECT {room.GameId}, {room.SavedReplay} + e.n - 1, e.entry FROM jsonb_array_elements({entries}::jsonb) WITH ORDINALITY AS e(entry, n)

@@ -16,6 +16,7 @@ npm install
 | `social.js <base> <out>` | Friendly challenges (accept, decline, challenge link) and emotes (mute) between a 3D and a classic player; no rating change |
 | `spells.js <base> <out>` | Spells: the admin makes four spells starter cards (and puts them back), shop and deck tiles, casting from the hand in 3D (an arrow from the hand onto a target, a spell without one dropped on the board) with a spectator, in the classic client, and tap-tap on a phone |
 | `hero_choice.js <base> <out>` | Hero powers and class cards: a Lurker picks Blood Gift on the Deck page, the shop shows each class only its own class cards, Blood Gift used on an own card in 3D (with a spectator) and in the classic client |
+| `restart.js <base> <out> [restart] [redeploy]` | Running games survive a restart of the game server: a 3D practice game restarted during the mulligan and during the bot's turn, a ranked 3D vs classic game with a spectator restarted mid-turn and redeployed (stop and start) during the classic turn; everyone reconnects, the games finish, ratings change once, replays are complete. The commands default to `$SOULS_RESTART_CMD` / `$SOULS_REDEPLOY_CMD`, else `docker compose restart server` |
 | `vfx3d.js <base> <out>` | Replays the new card set's effects in the 3D client (legendary entrance, inferno, ward, venom, ice, grow, rally, drain, shatter) |
 | `hud3d.js <base> <out> [width height]` | Screenshots of the 3D client's interface states |
 | `ui_capture.js <base> <out>` | Every website page on desktop and phone, including the admin pages |
