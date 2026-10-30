@@ -4,6 +4,7 @@
 
     // Where a spell is cast: beside the board, left of the slots, ours a little lower than the opponent's.
     var SPELL_X = 280, SPELL_Y = { player: 610, opponent: 510 };
+    var MULLIGAN_FADE = 900; // the mulligan layer fades out (sg-fade-out) before the first turn banner
     GameService = function (engine, socket) {
 
         that = this;
@@ -457,8 +458,14 @@
         if (typeof engine.turnNumber === 'number' && !firstTurn) engine.turnNumber++;
         engine.RefreshAll();
         var sub = typeof engine.turnNumber === 'number' ? "Turn " + (engine.turnNumber + 1) : null;
-        if (engine.myTurn) engine.hud.Banner("Your turn", sub, false);
-        else engine.hud.Banner("Enemy turn", sub, true);
+        var mine = engine.myTurn;
+        var banner = function () { if (!engine.ended) engine.hud.Banner(mine ? "Your turn" : "Enemy turn", sub, !mine); };
+        // The first turn: once the mulligan screen has faded out (0.9 s), not over its cards.
+        if (firstTurn && !engine.hud.ReducedMotion()) {
+            setTimeout(banner, MULLIGAN_FADE);
+            return MULLIGAN_FADE + 750;
+        }
+        banner();
         return 750;
     }
 

@@ -257,7 +257,8 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
             Fx.Float(this.engine, target, "-" + amount, "#ff3b30", 58);
             if (armorLost > 0) {
-                Fx.Float(this.engine, target, "-" + armorLost + " armor", "#c3ccd5", 30, 48);
+                // Under the damage number (a second float on a target is stacked 44 higher).
+                Fx.Float(this.engine, target, "-" + armorLost + " armor", "#c3ccd5", 30, 120);
             }
             return 430;
         },

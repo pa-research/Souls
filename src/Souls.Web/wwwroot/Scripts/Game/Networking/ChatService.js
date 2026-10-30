@@ -1,4 +1,4 @@
-define('chatService', ['jquery', 'jqueryUI', 'jquery.dialogExtend', "messages", "asset"], function ($, jQueryUI, dialogExtend, Message, Asset) {
+define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hud) {
 
     var that;
     ChatService = function (engine) {
@@ -6,9 +6,6 @@ define('chatService', ['jquery', 'jqueryUI', 'jquery.dialogExtend', "messages", 
         that = this;
         this.engine = engine;
         this.socket = this.engine.chatSocket;
-
-        // Chat window elements
-        this.chatWindow = ChatService.prototype.chatWindow = $("#chat");
 
         // Create what is needed for the network to work
         this.responseAction = new Object();
@@ -37,15 +34,22 @@ define('chatService', ['jquery', 'jqueryUI', 'jquery.dialogExtend', "messages", 
     //////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////
     // Chat text comes from other players: always insert it as text, never as HTML.
-    function AppendLine(text) {
-        $(".chat-messages").append($("<div>").text(text));
+    function AppendLine(text, server) {
+        if (!that.list) return;
+        var item = Hud.El('li', server ? 'turn' : '', that.list);
+        item.appendChild(Hud.Icon(server ? 'info' : 'chat'));
+        Hud.El('span', '', item, text);
+        while (that.list.childNodes.length > 200) that.list.removeChild(that.list.firstChild);
+        that.list.scrollTop = that.list.scrollHeight;
+        if (that.panel.classList.contains('collapsed')) {
+            that.unread++;
+            that.badge.textContent = String(that.unread);
+        }
     }
 
     function Response_NewGameRoom(json) {
         AppendLine("[" + json.Payload.name + "]: " + json.Payload.message);
-
-        $(".chat-input").attr("chRoomId", json.Payload.chRoomId);
-
+        that.room = json.Payload.chRoomId;
     }
 
     function Response_Message(json) {
@@ -55,25 +59,21 @@ define('chatService', ['jquery', 'jqueryUI', 'jquery.dialogExtend', "messages", 
 
     function Response_ClientDisconnected(json) // 1095
     {
-        AppendLine("[SERVER]: " + json.Payload);
+        AppendLine(String(json.Payload), true);
     }
 
     function Response_ClientConnected(json) // 1094
     {
-        AppendLine("[SERVER]: Player " + json.Payload.name + " connected!");
-        $(".chat-input").attr("chRoomId", json.Payload.room);
-
+        AppendLine("Player " + json.Payload.name + " connected!", true);
+        that.room = json.Payload.room;
         that.GetAttendees(json.Payload.room);
-
     }
 
     function Response_GetAttendees(json) // 1093
     {
-        $(".chat-clients").html("");
-
-        $.each(json.Payload, function (key, value) {
-            $(".chat-clients").append($("<div>").text(value));
-        });
+        var names = [];
+        for (var key in json.Payload) names.push(String(json.Payload[key]));
+        if (that.members) that.members.textContent = names.length ? 'In the room: ' + names.join(' · ') : '';
     }
 
 
@@ -122,93 +122,46 @@ define('chatService', ['jquery', 'jqueryUI', 'jquery.dialogExtend', "messages", 
 
 
 
+    /// The chat: a collapsed panel in the bottom right corner of the board, built like the battle log
+    /// (css/game-hud.css) with an unread count. Enter sends, Shift+Enter starts a new line.
     ChatService.prototype.OpenChatWindow = function () {
         var that = this;
+        var panel = this.panel = Hud.El('section', 'sg-log souls-classic-chat collapsed', Hud.Root());
+        panel.setAttribute('aria-label', 'Chat');
+        var head = Hud.El('button', 'sg-log-head', panel);
+        head.type = 'button';
+        head.setAttribute('aria-expanded', 'false');
+        head.appendChild(Hud.Icon('chat'));
+        Hud.Text(head, 'Chat');
+        this.badge = Hud.El('span', 'sg-log-badge', head);
+        head.appendChild(Hud.Icon('chevron-down', 's-icon sg-chevron'));
+        this.list = Hud.El('ol', 'sg-log-list', panel);
+        this.list.setAttribute('aria-live', 'polite');
+        this.members = Hud.El('div', 'souls-classic-chat-members', panel);
+        var input = Hud.El('textarea', 'souls-classic-chat-input', panel);
+        input.rows = 1;
+        input.maxLength = 500;
+        input.placeholder = 'Say something...';
+        input.setAttribute('aria-label', 'Chat message');
+        this.unread = 0;
 
-        $("#game-window").append("" +
-                "<div class='chat-window'>" +
-                    "<div class='chat-content-wrapper col-lg-12'>" +
-
-                        "<div class='chat-messages col-lg-9 col-md-9 col-sm-9'>" +
-                        "</div>" +
-
-                        "<div class='chat-clients col-lg-3 col-md-3 col-sm-3'>" +
-                        "</div>" +
-
-                        "<div class='chat-input-div col-lg-12'>" +
-                            "<textarea class='chat-input form-control' placeholder='Write here...'></textarea>" +
-                        "</div>" +
-                    "</div>" +
-                "</div>"
-            );
-
-        $(".chat-window").tabs();
-        $(".chat-window").dialog({
-            height: 325,
-            width: 500,
-            "title": "Chat"
-
-        })
-            .dialogExtend({
-                "closable": false,
-                "maximizable": true,
-                "minimizable": true,
-                "collapsable": true,
-                "dblclick": "minimize",
-                "titlebar": "transparent",
-                "minimizeLocation": "right",
-                "icons": {
-                    "close": "ui-icon-circle-close",
-                    "maximize": "ui-icon-circle-plus",
-                    "minimize": "ui-icon-circle-minus",
-                    "collapse": "ui-icon-triangle-1-s",
-                    "restore": "ui-icon-bullet"
-                },
-                "load": function (evt, dlg) {
-                    $(".chat-window").dialogExtend("minimize");
-                },
-                "beforeCollapse": function (evt, dlg) { },
-                "beforeMaximize": function (evt, dlg) { },
-                "beforeMinimize": function (evt, dlg) { },
-                "beforeRestore": function (evt, dlg) { },
-                "collapse": function (evt, dlg) { },
-                "maximize": function (evt, dlg) { },
-                "minimize": function (evt, dlg) { },
-                "restore": function (evt, dlg) { }
-            });
-        $(".chat-window").parent().css("opacity", 0.2);
-
-        $(".chat-window").parent().mouseenter(function () {
-            $(this).fadeTo("fast", 1);
-
-        });
-        $(".chat-window").parent().mouseleave(function () {
-            $(this).fadeTo("fast", 0.2);
-        });
-
-        $('textarea.chat-input').keydown(function (e) {
-            if (e.keyCode === 13 && e.ctrlKey) {
-                $(this).val(function (i, val) {
-                    return val + "\n";
-                });
-            }
-        }).keypress(function (e) {
-            if (e.keyCode === 13 && !e.ctrlKey) {
-
-                // Send message!
-                that.Message($(this).attr("chroomid"), $(this).val());
-
-                $(this).val(undefined);
-
-                return false;
-            }
-        }).keyup(function (e) {
-            if (e.keyCode === 17) {
-                ctrlKeyDown = false;
+        head.addEventListener('click', function () {
+            var open = !panel.classList.toggle('collapsed');
+            head.setAttribute('aria-expanded', String(open));
+            that.unread = 0;
+            that.badge.textContent = '';
+            if (open) {
+                that.list.scrollTop = that.list.scrollHeight;
+                input.focus({ preventScroll: true });
             }
         });
-
-
+        input.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' || e.shiftKey) return;
+            e.preventDefault();
+            var text = input.value.trim();
+            if (text && that.room !== undefined) that.Message(that.room, text);
+            input.value = '';
+        });
     };
 
 

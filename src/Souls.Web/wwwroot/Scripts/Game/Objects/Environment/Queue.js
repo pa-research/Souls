@@ -272,7 +272,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             rating.appendChild(Hud.Icon('crown'));
             var ratingValue = Hud.El('b', '', rating, up ? '+0' : '-0');
             var now = typeof payload.rating === 'number' ? payload.rating : null;
-            Hud.El('span', '', rating, now !== null ? 'Rating ' + now : 'Rating');
+            Hud.El('span', '', rating, now !== null ? Hud.TierOf(now).name + ' · ' + now : 'Rating');
             if (now !== null) {
                 var bar = Hud.Progress(rating, 0, '', 'Progress to the next rank');
                 Hud.Later(bar, Hud.RankProgress(now), 1100);
