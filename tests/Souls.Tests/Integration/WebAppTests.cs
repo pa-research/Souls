@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Souls.Model;
 using Souls.Model.Entities;
 
 namespace Souls.Tests.Integration;
@@ -155,6 +156,68 @@ public class WebAppTests(SoulsAppFixture app)
         static IEnumerable<KeyValuePair<string, string>> Counts(string spec) => spec.Split(',')
             .Select(pair => pair.Split(':'))
             .Select(p => new KeyValuePair<string, string>($"count[{p[0]}]", p[1]));
+    }
+
+    [Fact]
+    public async Task CardPacksChargeOnceAndHoldARareOrBetter()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+        var state = () => app.WithDbAsync(async db => (
+            Money: await db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync(),
+            Levels: await db.PlayerCards.Where(pc => pc.PlayerId == playerId).SumAsync(pc => pc.Level),
+            RareOrBetter: await db.PlayerCards.CountAsync(pc => pc.PlayerId == playerId && pc.Card!.Rarity >= Rarity.Rare)));
+
+        // Too few coins: refused, nothing charged or granted.
+        var poor = (Packs.Price - 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, Packs.Price - 1)));
+        using (var refused = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", poor)]))
+        {
+            Assert.EndsWith("/Shop", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var shop = await browser.GetAsync("/Shop"))
+        {
+            Assert.Contains("You cannot afford a card pack!", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        Assert.Equal((Packs.Price - 1, 5, 0), await state());
+
+        // Bought: charged, five cards (new ones or levels for the starters), one of them rare or better.
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 100)));
+        using (var buy = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", "100")]))
+        {
+            Assert.EndsWith("/Shop/Pack", buy.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        using var pack = await browser.GetAsync("/Shop/Pack");
+        var html = await pack.Content.ReadAsStringAsync();
+        var labels = Regex.Matches(html, "data-label=\"([^\"]+)\"").Select(m => m.Groups[1].Value).ToList();
+        Assert.Equal(5, labels.Count);
+        Assert.Matches(", (Rare|Epic|Legendary): ", labels[^1]);
+
+        // Only a third copy of a starter in one pack pays back coins instead of a level.
+        var refunds = labels.Count(l => l.Contains(" soul coin", StringComparison.Ordinal));
+        var (money, levels, rareOrBetter) = await state();
+        Assert.Equal(5 + 5 - refunds, levels);
+        Assert.InRange(money, 100 - Packs.Price, 100 - Packs.Price + 5 * refunds);
+        Assert.InRange(rareOrBetter, 1, 5);
+
+        // The same form again (a double submit) buys nothing, and the reveal is shown once.
+        using (var again = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", "100")]))
+        {
+            Assert.EndsWith("/Shop", again.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        Assert.Equal((money, levels, rareOrBetter), await state());
+        using var reload = await browser.GetAsync("/Shop/Pack");
+        Assert.EndsWith("/Shop", reload.Headers.Location!.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]

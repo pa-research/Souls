@@ -560,6 +560,103 @@ a:hover { color: #fff0c2; }
     .s-shop-layout { grid-template-columns: 1fr; }
 }
 
+/* ---- Card packs: a fan of card backs in the shop, then five cards turned over one by one ------------------ */
+
+.s-pack-art { position: relative; width: 74px; aspect-ratio: 416 / 546; margin: 6px auto 16px; }
+.s-pack-art span,
+.s-pack-back { background: url("/Content/Images/Card/cardback.png") center / 100% 100% no-repeat; }
+.s-pack-art span { position: absolute; inset: 0; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6)); }
+.s-pack-art span:first-child { transform: translateX(-26px) rotate(-14deg); }
+.s-pack-art span:last-child { transform: translateX(26px) rotate(14deg); }
+
+.s-pack { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(12px, 2vw, 28px); margin: 0 0 28px; padding: 18px 0 0; list-style: none; }
+
+.s-pack-slot {
+    position: relative;
+    isolation: isolate;
+    flex: 0 0 clamp(100px, 28vw, 200px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: start;
+    gap: 10px;
+    animation-delay: calc(var(--i) * 90ms);
+}
+
+.s-pack-card {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: inherit;
+    perspective: 1100px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.s-pack-inner { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); transform-style: preserve-3d; transition: transform 0.8s var(--s-ease); }
+.s-pack-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+/* The back art has no frame, so it covers only the body of the card face. */
+.s-pack-back { position: absolute; inset: 5.6% 6.8% 5.6% 7.4%; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.65)); transition: filter 0.2s; }
+/* Hidden until turned, so its tooltip and text do not give the card away. */
+.s-pack-front { transform: rotateY(180deg); visibility: hidden; }
+.revealed .s-pack-front { visibility: visible; }
+.s-pack-front .s-card.card-container { --w: 100%; }
+.s-pack-card:hover .s-pack-back,
+.s-pack-card:focus-visible .s-pack-back { filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 12px rgba(226, 184, 90, 0.55)) brightness(1.12); }
+.revealed .s-pack-card { cursor: default; }
+.revealed .s-pack-inner { transform: rotateY(180deg); }
+
+.s-pack-result { display: grid; justify-items: center; gap: 6px; margin: 0; text-align: center; visibility: hidden; }
+.s-pack-result .s-card-name { font-size: 0.9rem; }
+.revealed .s-pack-result { visibility: visible; animation: s-rise-in 0.5s 0.5s var(--s-ease) both; }
+.s-pack-slot.rarity-rare .s-rarity { color: #8cc8ff; }
+.s-pack-slot.rarity-epic .s-rarity { color: #d9a8ff; }
+.s-pack-slot.rarity-legendary .s-rarity { color: #ffc65a; }
+
+/* Rarity glow behind a turned card; legendaries add turning light rays and a pop. */
+.s-pack-slot::before,
+.s-pack-slot::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+}
+.s-pack-slot::before { inset: -12% -16% 22%; background: radial-gradient(closest-side, var(--glow, transparent), transparent); }
+.s-pack-slot.rarity-rare { --glow: rgba(76, 155, 255, 0.55); }
+.s-pack-slot.rarity-epic { --glow: rgba(178, 107, 255, 0.65); }
+.s-pack-slot.rarity-legendary { --glow: rgba(255, 176, 46, 0.8); }
+.s-pack-slot.revealed::before { opacity: 1; transition: opacity 0.6s 0.45s; }
+.s-pack-slot.rarity-legendary::after {
+    inset: -30% -40% 10%;
+    background: repeating-conic-gradient(rgba(255, 214, 120, 0.4) 0 5deg, transparent 5deg 22deg);
+    -webkit-mask: radial-gradient(closest-side, #000 25%, transparent);
+    mask: radial-gradient(closest-side, #000 25%, transparent);
+}
+.s-pack-slot.rarity-legendary.revealed::after { opacity: 1; transition: opacity 0.8s 0.5s; animation: s-pack-rays 16s linear infinite; }
+.rarity-legendary.revealed .s-pack-card { animation: s-pack-pop 0.7s 0.55s var(--s-ease) both; }
+
+@keyframes s-pack-rays { to { transform: rotate(1turn); } }
+@keyframes s-pack-pop {
+    40% { transform: scale(1.12); filter: brightness(1.4); }
+    to { transform: none; filter: none; }
+}
+
+.s-pack-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .s-pack-inner,
+    .s-pack-slot.revealed::before,
+    .s-pack-slot.revealed::after { transition: none; }
+    .revealed .s-pack-result,
+    .s-pack-slot.revealed::after,
+    .revealed .s-pack-card { animation: none; }
+}
+
 /* ---- Deck --------------------------------------------------------------------------------------------------- */
 
 .s-deck-layout { grid-template-columns: 1fr 340px; align-items: start; }
