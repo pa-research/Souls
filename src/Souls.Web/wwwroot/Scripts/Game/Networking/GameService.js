@@ -1,6 +1,9 @@
-﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower"], function (Message, Asset, EventPlayer, Animation, HeroPower) {
+﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower", "mulligan", "card"], function (Message, Asset, EventPlayer, Animation, HeroPower, Mulligan, Card) {
 
     var that;
+
+    // Where a spell is cast: beside the board, left of the slots, ours a little lower than the opponent's.
+    var SPELL_X = 280, SPELL_Y = { player: 610, opponent: 510 };
     GameService = function (engine, socket) {
 
         that = this;
@@ -28,10 +31,12 @@
         this.RegisterResponseAction(["209"], Response_GameOpponentMove);
         this.RegisterResponseAction(["210", "212"], Response_GameRelease);
         this.RegisterResponseAction(["207", "211"], Response_UseCard);
+        this.RegisterResponseAction(["224", "225"], Response_UseSpell);
         this.RegisterResponseAction(["202"], Repsonse_NotYourTurn);
         this.RegisterResponseAction(["213"], Response_SlotOccupied);
         this.RegisterResponseAction(["226"], Response_NextTurn);
         this.RegisterResponseAction(["222", "223"], Response_NewCard);
+        this.RegisterResponseAction(["227", "228"], Response_Mulligan);
         this.RegisterResponseAction(["208"], Response_UseCard_OOM);
         this.RegisterResponseAction(["230", "231", "233"], Response_VictoryDefeat);
         this.RegisterResponseAction(["232"], Response_GeneralMessage);
@@ -39,10 +44,12 @@
         this.RegisterResponseAction(["236"], Response_GameSync);
         this.RegisterResponseAction(["240", "241", "242"], Response_Spectate);
         this.RegisterResponseAction(["243"], Response_SpectateError);
+        this.RegisterResponseAction(["197", "198", "199"], Response_Challenge);
+        this.RegisterResponseAction(["299"], Response_Emote);
 
-        // Feedback on the player's own requests and the opponent's card dragging are shown at once instead of
-        // waiting behind the animations.
-        this.immediate = { 202: true, 208: true, 209: true, 213: true, 232: true, 243: true };
+        // Feedback on the player's own requests, the opponent's card dragging, challenges and emotes are shown at
+        // once instead of waiting behind the animations.
+        this.immediate = { 197: true, 198: true, 199: true, 202: true, 208: true, 209: true, 213: true, 232: true, 243: true, 299: true };
     }
     // Constructor
     GameService.prototype.constructor = GameService;
@@ -96,6 +103,28 @@
         return 0;
     }
 
+    /// 199 ChallengeInvite {name, type, rating, expiresIn}, 198 ChallengeSent {name}, 197 ChallengeClosed (string).
+    function Response_Challenge(json) {
+        var queue = that.engine.queue;
+        if (json.Type == 199) {
+            queue.ShowInvite(json.Payload || {});
+        }
+        else if (json.Type == 198) {
+            queue.ChallengeWaiting(json.Payload && json.Payload.name);
+        }
+        else {
+            queue.HideInvite();
+            queue.ChallengeIdle(Text(json.Payload, ""));
+        }
+        return 0;
+    }
+
+    /// 299 Emote {ident, emote, text}
+    function Response_Emote(json) {
+        that.engine.emotes.Say(json.Payload || {});
+        return 0;
+    }
+
     /// 222 NewCard (ours) / 223 OpponentNewCard: cards drawn, or a Haunt card returned (returned: true).
     function Response_NewCard(json) {
         var engine = that.engine;
@@ -112,6 +141,27 @@
         return 420 + 160 * (created.length - 1);
     }
 
+    /// 227 Mulligan (our starting hand) / 228 OpponentMulligan: the whole hand is new (every card has a new cid).
+    function Response_Mulligan(json) {
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var hero = (json.Type == 227) ? engine.player : engine.opponent;
+        hero.cardManager.ReplaceHand(payload.hand || []);
+        hero.handCount = hero.cardManager.HandCount();
+        hero.RefreshHud();
+        if (engine.mulligan) engine.mulligan.Chosen(hero === engine.player, payload.hand || [], Number(payload.replaced) || 0);
+        // A moment to see the new cards before the first turn closes the mulligan screen.
+        return hero === engine.player ? 1200 : 300;
+    }
+
+    function CloseMulligan(engine) {
+        if (!engine.mulligan) return false;
+        engine.mulligan.Close();
+        engine.mulligan = null;
+        return true;
+    }
+
     /// 230 Victory / 231 Defeat / 233 Draw: {statistics, text, coins, rating, ratingChange, quests}
     function Response_VictoryDefeat(json)
     {
@@ -119,6 +169,7 @@
         var payload = json.Payload || {};
         var engine = that.engine;
 
+        CloseMulligan(engine);
         engine.OnEnd();
         if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
 
@@ -210,6 +261,40 @@
     }
 
     /// <summary>
+    /// 224 UseCardSpell (ours) / 225 OpponentUseCardSpell: {card, pInfo, target}. The spell leaves the hand (the
+    /// opponent's is revealed) and is cast beside the board. The events that follow come from it (EventPlayer finds
+    /// it by cid in engine.castSpells); the next GameSync uses it up.
+    /// </summary>
+    function Response_UseSpell(json) {
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var cardData = payload.card;
+        if (!cardData) return 0;
+
+        var hero = (json.Type == 225) ? engine.opponent : engine.player;
+        var manager = hero.cardManager;
+        hero.SetText(payload.pInfo);
+        var card = manager.TakeHandCard(cardData.cid)
+            || manager.CreateCard(cardData, { x: SPELL_X, y: hero === engine.player ? 980 : 200, rotation: 0 });
+        manager.SortHand();
+        hero.handCount = manager.HandCount();
+        hero.RefreshHud();
+
+        if (card._armed) card.Disarm(false);
+        if (hero === engine.player && hero.holdingCard === card) hero.holdingCard = undefined;
+        card.interactive = false;
+        card._awaitRequest = false;
+        card.pickedUp = card.dragging = false;
+        card.UpdateFromJson(cardData);
+        if (card.cardFlipped) card.FlipCard();
+        engine.SwapFromToGroup(card, null, "Card-Focus");
+        engine.castSpells[card.cid] = card;
+        var y = hero === engine.player ? SPELL_Y.player : SPELL_Y.opponent;
+        return Animation.Fx.CastSpell(engine, card, SPELL_X, y, Card.ABILITY_COLOR[card.abilityId]);
+    }
+
+    /// <summary>
     /// Epic and legendary cards make an entrance when they land (after landAfter ms): legendary cards with a golden
     /// flash and their name in a "Legendary" banner, epic cards with a smaller violet flash. Returns the extra time
     /// the next message waits.
@@ -240,6 +325,7 @@
         var engine = that.engine;
         var payload = data.Payload || {};
         ResetGame(engine);
+        CloseMulligan(engine);
 
         if (!engine.musicStarted) {
             engine.musicStarted = true;
@@ -297,10 +383,19 @@
             engine.battleLog.Show();
         }
         if (engine.settings) engine.settings.Show();
+        engine.emotes.Show();
         engine.RefreshAll();
 
         // Fade out the Queue overlay
         engine.queue.FadeOut();
+
+        // Before the first turn: pick the starting cards to replace (once).
+        if (payload.mulligan) {
+            engine.mulligan = new Mulligan(payload.player && payload.player.hand ? Object.values(payload.player.hand) : [], payload.mulligan,
+                engine.opponent.name, function (replace) {
+                    that.socket.send({ "Type": Message.Type.Game.MULLIGAN, "Payload": { "replace": replace } });
+                });
+        }
 
         // Lets the page resume this game after switching to the 3D client.
         if (window.SoulsGameMode) window.SoulsGameMode.markInGame(engine.normalGame);
@@ -343,6 +438,8 @@
         if (!engine.player) return 0;
         var payload = json.Payload || {};
         engine.myTurn = !!payload.yourTurn;
+        // The first turn starts after the mulligan (its turn number is already right).
+        var firstTurn = CloseMulligan(engine);
 
         var button = engine.background.endTurnButton;
         if (button.spinning || button.active !== engine.myTurn) button.Spin(engine.myTurn);
@@ -357,7 +454,7 @@
         }
 
         // The turn number: GameSync sends it (0 for the first turn); the next sync confirms it.
-        if (typeof engine.turnNumber === 'number') engine.turnNumber++;
+        if (typeof engine.turnNumber === 'number' && !firstTurn) engine.turnNumber++;
         engine.RefreshAll();
         var sub = typeof engine.turnNumber === 'number' ? "Turn " + (engine.turnNumber + 1) : null;
         if (engine.myTurn) engine.hud.Banner("Your turn", sub, false);
@@ -378,6 +475,13 @@
         var engine = that.engine;
         var state = json.Payload;
         if (!state || !engine.player) return 0;
+
+        // The spells cast in this action are used up (their events have played).
+        for (var cid in engine.castSpells) {
+            var spell = engine.castSpells[cid];
+            Animation.Card.Spend(spell, Card.ABILITY_COLOR[spell.abilityId]);
+        }
+        engine.castSpells = {};
 
         engine.myTurn = Number(state.current) === Number(engine.myIdent);
         if (typeof state.turn === 'number') engine.turnNumber = state.turn;
@@ -403,7 +507,10 @@
             if (owner) ApplyBoard(owner, board[side] || []);
         }
 
-        if (state.turnEndsIn !== undefined && state.turnEndsIn !== null) {
+        if (Number(state.current) === 0) {
+            engine.turnTimer.Stop(); // the mulligan has its own countdown
+        }
+        else if (state.turnEndsIn !== undefined && state.turnEndsIn !== null) {
             engine.turnTimer.Set(state.turnEndsIn - Age(json), state.turnTime, engine.myTurn);
         }
 
@@ -465,6 +572,12 @@
     GameService.prototype.Login = function () {
         this.socket.send(this.message.GENERAL.LOGIN);
 
+        // Friendly: wait to be challenged, or challenge the player named in the link
+        if (this.engine.friendly) {
+            if (this.engine.friendly.challenge) this.Challenge(this.engine.friendly.challenge);
+            return;
+        }
+
         // Normal (ranked) game, or practice against the bot with the chosen difficulty
         if (this.engine.normalGame) {
             this.socket.send({ "Type": Message.Type.Game.NORMAL_QUEUE, "Payload": {} });
@@ -474,6 +587,20 @@
             if (!(difficulty >= 0 && difficulty <= 2)) difficulty = 1;
             this.socket.send({ "Type": Message.Type.Game.PRACTICE_QUEUE, "Payload": { "difficulty": difficulty } });
         }
+    }
+
+    /// Friendly challenges: invite a player by name, withdraw the invitation, answer one.
+    GameService.prototype.Challenge = function (name) {
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE, "Payload": { "name": String(name) } });
+    }
+
+    GameService.prototype.CancelChallenge = function () {
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE_CANCEL, "Payload": {} });
+    }
+
+    GameService.prototype.AnswerChallenge = function (accept) {
+        if (accept) this.engine.friendlyGame = true;
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE_ANSWER, "Payload": { "accept": !!accept } });
     }
 
     /// <summary>
@@ -523,6 +650,25 @@
                 if (card._awaitRequest && !card.inSlot && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
             }, 5000);
         }
+    }
+
+    /// <summary>
+    /// Casts a spell from the hand (UseCard): on a target (type as Request_Ability) or, without a type, on nothing.
+    /// The card waits for the cast (224) or the Release (212) when the server refuses it.
+    /// </summary>
+    GameService.prototype.Request_Spell = function (card, type, targetCid) {
+        var payload = { "cid": card.cid };
+        if (type !== undefined) {
+            payload.type = type;
+            payload.target = targetCid;
+        }
+        card._awaitRequest = true;
+        this.socket.send({ "Type": Message.Type.Game.USECARD, "Payload": payload });
+
+        // Guard: never leave the card stuck if no answer comes (the cast clears _awaitRequest).
+        setTimeout(function () {
+            if (card._awaitRequest && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
+        }, 5000);
     }
 
     /// <summary>

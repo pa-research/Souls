@@ -1,0 +1,40 @@
+@using Souls.Model
+@model IReadOnlyList<PackCard>
+<section class="s-page-head">
+    <div>
+        <div class="s-eyebrow">Hansel's Card Shop</div>
+        <h1 class="s-h1 s-gold-text">Your Card Pack</h1>
+        <p>Tap a card to turn it over. A card you already owned levels up; at level @GameRules.MaxCardLevel it pays back half its price.</p>
+    </div>
+    <button type="button" class="s-btn s-btn-primary s-btn-lg" id="pack-reveal-all"><s-icon name="sparkles" />Reveal all</button>
+</section>
+
+<ol class="s-pack" aria-label="The cards in your pack">
+    @for (var i = 0; i < Model.Count; i++)
+    {
+        var item = Model[i];
+        <li class="s-pack-slot s-rise rarity-@item.Card.RarityCss" style="--i: @i">
+            <button type="button" class="s-pack-card" aria-label="Card @(i + 1), face down. Turn it over." data-label="@item.Card.Name, @item.Card.RarityName: @item.Result">
+                <span class="s-pack-inner">
+                    <span class="s-pack-face s-pack-back"></span>
+                    <span class="s-pack-face s-pack-front"><partial name="_CardTile" model="item.Card" /></span>
+                </span>
+            </button>
+            <p class="s-pack-result">
+                <span class="s-card-name">@item.Card.Name</span>
+                <span class="s-rarity">@item.Card.RarityName</span>
+                <span class="s-chip @(item.Coins > 0 ? "s-chip-coin" : "s-chip-up")">@item.Result</span>
+            </p>
+        </li>
+    }
+</ol>
+<p class="s-sr-only" id="pack-status" aria-live="polite"></p>
+
+<div class="s-pack-actions">
+    <a class="s-btn s-btn-gold" asp-action="Index"><s-icon name="shop" />Back to the shop</a>
+    <a class="s-btn s-btn-ghost" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />Build your deck</a>
+</div>
+
+@section scripts {
+    <script src="~/js/shop.js" asp-append-version="true"></script>
+}

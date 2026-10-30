@@ -195,6 +195,22 @@ div.chat-content-wrapper
     left: max(10px, env(safe-area-inset-left));
 }
 
+/* Emotes: the button right of the settings button, the panel where the settings open. */
+.souls-classic-hud .souls-classic-emotes-btn {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: calc(max(10px, env(safe-area-inset-left)) + 52px);
+}
+
+.souls-classic-hud .souls-classic-emotes {
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    left: max(10px, env(safe-area-inset-left));
+}
+
+.souls-classic-hud .sg-bubble {
+    z-index: 22;
+}
+
 .souls-classic-hud .souls-classic-settings-close {
     width: 32px;
     height: 32px;

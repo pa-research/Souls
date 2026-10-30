@@ -22,7 +22,7 @@ x-app: &app
   environment: &app-env
     ASPNETCORE_ENVIRONMENT: Production
     # Only Caddy (on the frontend network) may set X-Forwarded-* headers.
-    Souls__TrustedProxyNetworks: 172.28.10.0/24
+    Souls__TrustedProxyNetworks: ${SOULS_FRONTEND_SUBNET:-172.28.10.0/24}
     Logging__Console__FormatterName: json
 
 services:
@@ -65,6 +65,8 @@ services:
         target: /run/secrets/souls/ConnectionStrings__Souls
       - source: admin-password
         target: /run/secrets/souls/Souls__Admin__Password
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [backend]
     depends_on:
       db: { condition: service_healthy }
@@ -81,6 +83,8 @@ services:
     secrets:
       - source: connection-string
         target: /run/secrets/souls/ConnectionStrings__Souls
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [frontend, backend]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -96,7 +100,32 @@ services:
     secrets:
       - source: connection-string
         target: /run/secrets/souls/ConnectionStrings__Souls
+      - source: dataprotection-certificate
+        target: /run/secrets/souls/Souls__DataProtection__Certificate
     networks: [frontend, backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Dumps the database (pg_dump custom format) to the backups volume once a day and keeps the newest seven.
+  # Restore with ./deploy/compose/restore.sh; see the README.
+  backup:
+    <<: *hardening
+    image: postgres:18-alpine
+    restart: unless-stopped
+    init: true
+    entrypoint: ["souls-backup", "loop"]
+    environment:
+      PGHOST: db
+      PGUSER: souls
+      PGDATABASE: souls
+      SOULS_BACKUP_HOURS: ${SOULS_BACKUP_HOURS:-24}
+      SOULS_BACKUP_KEEP: ${SOULS_BACKUP_KEEP:-7}
+    secrets: [postgres-password]
+    volumes:
+      - ./deploy/compose/backup.sh:/usr/local/bin/souls-backup:ro
+      - backups:/backups
+    networks: [backend]
+    mem_limit: 256m
     depends_on:
       migrate: { condition: service_completed_successfully }
 
@@ -132,9 +161,13 @@ secrets:
     file: ./deploy/compose/secrets/ConnectionStrings__Souls
   admin-password:
     file: ./deploy/compose/secrets/Souls__Admin__Password
+  # Encrypts the Data Protection keys (login cookies) in the database; created by init-secrets.sh.
+  dataprotection-certificate:
+    file: ./deploy/compose/secrets/Souls__DataProtection__Certificate
 
 volumes:
   pgdata:
+  backups:
   caddy_data:
   caddy_config:
 
@@ -146,7 +179,7 @@ networks:
     internal: true
     ipam:
       config:
-        - subnet: 172.28.10.0/24
+        - subnet: ${SOULS_FRONTEND_SUBNET:-172.28.10.0/24}
   # Apps -> PostgreSQL.
   backend:
     internal: true

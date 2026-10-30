@@ -75,6 +75,16 @@
     animation: s-rise-in 0.25s var(--s-ease) both;
 }
 
+.souls3d-emotes {
+    top: 66px;
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 25;
+    animation: s-rise-in 0.25s var(--s-ease) both;
+}
+
+/* Emote bubbles follow the heroes (placed every frame), over the status pills. */
+.souls3d-ui .sg-bubble { z-index: 13; }
+
 /* Battle log: on the left between the two hands. */
 .souls3d-log {
     left: max(12px, env(safe-area-inset-left));

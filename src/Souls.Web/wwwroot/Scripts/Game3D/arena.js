@@ -492,7 +492,7 @@ function floodlight(angle, lampTexture) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(520, length, 32, 1, true), new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
         vertexShader: 'varying float vY; void main() { vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying float vY; void main() { gl_FragColor = vec4(vec3(1.0, 0.95, 0.8), 0.07 * pow(vY, 2.0)); }',
+        fragmentShader: 'varying float vY; void main() { gl_FragColor = vec4(vec3(1.0, 0.95, 0.8), 0.07 * vY * vY); }',
     }));
     const dir = new THREE.Vector3(-x, -1270, -z).normalize();
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);

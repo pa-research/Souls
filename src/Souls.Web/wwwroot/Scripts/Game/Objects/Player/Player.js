@@ -109,6 +109,22 @@
             return;
         }
 
+        // A spell dragged out of the hand, or clicked and waiting for its target: it aims like an ability.
+        var spell = card && card.spell && !card.inSlot && card.pickedUp ? card : this.armedSpell;
+        if (spell && !spell.isDead) {
+            found = null;
+            if (spell.TargetedSpell()) {
+                var spellKinds = Rules.AbilityTargets(spell.abilityId);
+                found = this.arrow.Aim(spell, spellKinds, 'ability', spell.name + ": pick " + Rules.DescribeTargets(spellKinds));
+            }
+            else {
+                this.arrow.Reset();
+            }
+            spell.target = found ? found.obj : undefined;
+            spell.targetKind = found ? found.kind : undefined;
+            return;
+        }
+
         if (this.isClicked) {
             found = this.arrow.Aim(this, ATTACK_TARGETS, 'attack');
             this.target = found ? found.obj : undefined;

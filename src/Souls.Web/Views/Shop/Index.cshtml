@@ -4,7 +4,7 @@
     <div>
         <div class="s-eyebrow">Hansel's Card Shop</div>
         <h1 class="s-h1 s-gold-text">Cards and Upgrades</h1>
-        <p class="s-muted mb-0">Hansel was once the champion of souls. Now he sells cards to feed himself and his wife.<br />Buying a card you already own levels it up: +1 attack and +1 health per level, up to level @GameRules.MaxCardLevel.</p>
+        <p class="s-muted mb-0">Hansel was once the champion of souls. Now he sells cards to feed himself and his wife.<br />Buying a card you already own levels it up: +1 attack and +1 health per level (spells: +1 to their effect), up to level @GameRules.MaxCardLevel.</p>
     </div>
     <img class="hansel-art d-none d-sm-block" src="~/Content/Images/Page/hansel.png" alt="" />
 </section>
@@ -12,6 +12,20 @@
 <div class="s-grid s-shop-layout">
     <aside class="s-grid" style="align-content: start">
         <partial name="_PlayerInfo" model="Model.Player" />
+        <section class="s-panel s-pack-offer" aria-labelledby="pack-title">
+            <div class="s-panel-head"><s-icon name="sparkles" /><h2 id="pack-title">Card Pack</h2></div>
+            <div class="s-pack-art" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p class="s-small">Five random cards, the last one rare or better. A card you own levels up instead; at level @GameRules.MaxCardLevel it pays back half its price.</p>
+            <details class="s-small s-muted mb-3">
+                <summary>Drop rates</summary>
+                Cards 1-4: @string.Join(", ", Packs.DropRates[0].Select(r => $"{Rarity.Name(r.Key)} {r.Value}%")).<br />
+                Card 5: @string.Join(", ", Packs.DropRates[^1].Select(r => $"{Rarity.Name(r.Key)} {r.Value}%")).
+            </details>
+            <form asp-controller="Shop" asp-action="BuyPack" method="post" class="buy-form" data-card-name="a card pack" data-price="@Packs.Price">
+                <input type="hidden" name="money" value="@Model.Player.Money" />
+                <button type="submit" class="s-btn s-btn-primary s-btn-block"><s-icon name="sparkles" />Open a pack &middot; <s-icon name="coin" />@Packs.Price</button>
+            </form>
+        </section>
         <a class="s-btn s-btn-gold s-btn-block" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />Build your deck</a>
         <p class="s-small s-muted mb-0">Win games and finish daily quests to earn soul coins.</p>
     </aside>

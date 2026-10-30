@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,11 +20,15 @@ using Player = Souls.Server.Objects.Player;
 // card set in SeedData, then reports win rates per card, class and race.
 //
 //   dotnet run --project tools/Souls.Sim -c Release -- --games 4000 --out docs/balance.md
+//
+// --vs-legacy instead pits the Hard bot against the Hard bot without its lookahead, seats swapped every other game
+// (same classes and decks), and reports the head-to-head result.
 
 var games = Arg("--games", 2000);
 var parallel = Arg("--parallel", Environment.ProcessorCount);
 var output = ArgString("--out");
 var tune = Arg("--tune", 0);
+var vsLegacy = args.Contains("--vs-legacy");
 const int MaxTurns = 80;
 
 // --class id:attack,health,armor,mana overrides a hero class (repeatable).
@@ -63,7 +68,13 @@ for (var round = 0; round < tune; round++)
 }
 
 var results = await RunAsync(games, 0);
-var report = Report(results, pool, classes);
+var plans = results.SelectMany(r => r.PlanTimes).ToList();
+if (plans.Count > 0)
+{
+    Console.Error.WriteLine($"Lookahead: {plans.Count} decisions, average {plans.Average():0.0} ms, 95th percentile {plans.Order().ElementAt(plans.Count * 95 / 100):0.0} ms, max {plans.Max():0.0} ms");
+}
+
+var report = vsLegacy ? HeadToHead(results) : Report(results, pool, classes);
 Console.WriteLine(report);
 if (output is not null)
 {
@@ -80,8 +91,9 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
     var done = 0;
     await Parallel.ForEachAsync(Enumerable.Range(0, count), new ParallelOptions { MaxDegreeOfParallelism = parallel }, async (i, ct) =>
     {
-        var random = new Random(seed + i * 7919 + 17);
-        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random));
+        // Against the legacy bot, games 2n and 2n+1 share classes and decks and swap the seats.
+        var random = new Random(seed + (vsLegacy ? i / 2 : i) * 7919 + 17);
+        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0));
         var n = Interlocked.Increment(ref done);
         if (n % 1000 == 0)
         {
@@ -91,17 +103,20 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
     return [.. bag];
 }
 
-static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random)
+// legacySeat: the player (1 or 2) whose Hard bot plays without the lookahead, 0 for none.
+static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random, int legacySeat)
 {
     var state = new ServerState();
-    var scopes = new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
+    var scopes = services.GetRequiredService<IServiceScopeFactory>();
     var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System,
-        Options.Create(new GameOptions { TurnTime = TimeSpan.FromHours(1) }), NullLogger<GameEngine>.Instance);
+        Options.Create(new GameOptions { TurnTime = TimeSpan.FromHours(1) }),
+        new GameMetrics(services.GetRequiredService<IMeterFactory>(), state), NullLogger<GameEngine>.Instance);
     var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
     var aiOptions = new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero };
-    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
-    (Player Player, Task Ai, List<Souls.Model.Entities.Card> Deck) Bot(int id, PlayerType type)
+    (Player Player, Task Ai, List<Souls.Model.Entities.Card> Deck, AiPlayer Bot) Bot(int id, PlayerType type)
     {
         var deck = Decks.Themed(pool, c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, random);
         var cards = deck.Select(c => Card.FromEntity(c)).ToList();
@@ -118,23 +133,22 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
             GameContext = connection,
         };
         state.GameClients[connection] = player;
-        var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance);
-        return (player, Task.Run(() => ai.RunAsync(cts.Token)), deck);
+        var ai = id == legacySeat
+            ? new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance)
+            : new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance,
+                engine, () => state.RunExclusiveAsync(() => player.GPlayer?.GameRoom?.Copy()));
+        return (player, Task.Run(() => ai.RunAsync(cts.Token)), deck, ai);
     }
 
     var started = Stopwatch.StartNew();
     var one = Bot(1, class1);
     var two = Bot(2, class2);
     GameRoom room = null!;
+    // Drawn cards come from the log: the starting hands are logged once the bots' mulligans are done.
     var drawn = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
     await state.RunExclusiveAsync(() =>
     {
         room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true);
-        foreach (var (ident, gp) in new[] { (1, one.Player.GPlayer!), (2, two.Player.GPlayer!) })
-        {
-            drawn[ident].UnionWith(gp.HandCards.Values.Select(c => c.Id));
-        }
-
         return Task.CompletedTask;
     });
 
@@ -156,17 +170,19 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
 
     await cts.CancelAsync();
     await Task.WhenAll(one.Ai, two.Ai);
-    if (started.Elapsed.TotalSeconds > 3)
+    if (started.Elapsed.TotalSeconds > 30)
     {
         Console.Error.WriteLine($"SLOW game: {played.TotalSeconds:0.0}s to finish, {started.Elapsed.TotalSeconds:0.0}s with the bots, {room.Turn} turns, ended {room.IsEnded}");
     }
 
     var playedCards = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
+    var spells = 0;
     foreach (var log in room.Logger.Records)
     {
         if (log.GameLogTypeId == (int)GameLogKind.UseCard)
         {
             playedCards[log.Obj1Id].Add(log.Obj2Id);
+            spells += pool.Any(c => c.Id == log.Obj2Id && c.Kind == CardKind.Spell) ? 1 : 0;
         }
         else if (log.GameLogTypeId == (int)GameLogKind.NewCard)
         {
@@ -176,7 +192,7 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
 
     var winner = room.Winner is null || !room.IsEnded ? 0 : room.Winner.Id;
     return new GameResult(class1.Id, class2.Id, winner, room.Turn + 1,
-        [Side(1, one.Deck), Side(2, two.Deck)]);
+        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells);
 
     SideResult Side(int ident, List<Souls.Model.Entities.Card> deck) =>
         new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()]);
@@ -192,11 +208,12 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
 
     sb.AppendLine("# Balance report");
     sb.AppendLine();
-    sb.AppendLine($"{n} games of the Hard bot against itself: random hero classes, random one- or two-race decks from the full card set, cards at level 1. Generated by `tools/Souls.Sim`.");
+    sb.AppendLine($"{n} games of the Hard bot (one-turn lookahead) against itself: random hero classes, random one- or two-race decks from the full card set, cards at level 1. Generated by `tools/Souls.Sim`.");
     sb.AppendLine();
     sb.AppendLine($"- Player one (goes first) wins {Pct(decided.Count(r => r.Winner == 1) / (double)Math.Max(1, decided.Count))} of decided games.");
     sb.AppendLine($"- Draws (both heroes fall, or {MaxTurns} turns): {Pct(draws / (double)n)}.");
     sb.AppendLine($"- Average game length: {results.Average(r => r.Turns).ToString("0.0", CultureInfo.InvariantCulture)} turns (median {results.Select(r => r.Turns).Order().ElementAt(n / 2)}).");
+    sb.AppendLine($"- Spells cast: {results.Average(r => r.Spells).ToString("0.0", CultureInfo.InvariantCulture)} per game (both players), at least one in {Pct(results.Count(r => r.Spells > 0) / (double)n)} of games.");
     sb.AppendLine();
 
     sb.AppendLine("## Hero classes");
@@ -255,13 +272,32 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
         var flag = drawnCount < 100 ? "few games" : gih > mean + 0.05 ? "strong" : gih < mean - 0.05 ? "weak" : "";
         var ability = card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValue) : "-";
         var race = SeedData.Races.Single(r => r.Id == card.RaceId).Name;
-        sb.AppendLine($"| {card.Name} | {race} | {Rarity.Name(card.Rarity)} | {card.Cost} | {card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")} | {ability} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
+        sb.AppendLine($"| {card.Name} | {race} | {Rarity.Name(card.Rarity)} | {card.Cost} | {(card.Kind == CardKind.Spell ? "spell" : $"{card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")}")} | {ability} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
     }
 
     return sb.ToString();
 
     static IEnumerable<(SideResult side, bool won, bool decided)> Sides(List<GameResult> results) =>
         results.SelectMany(r => new[] { (r.Sides[0], r.Winner == 1, r.Winner != 0), (r.Sides[1], r.Winner == 2, r.Winner != 0) });
+}
+
+static string HeadToHead(List<GameResult> results)
+{
+    var decided = results.Where(r => r.Winner != 0).ToList();
+    var wins = decided.Count(r => r.Winner != r.LegacySeat);
+    var rate = wins / (double)Math.Max(1, decided.Count);
+    var margin = 1.96 * Math.Sqrt(rate * (1 - rate) / Math.Max(1, decided.Count));
+    string Seat(int newSeat)
+    {
+        var games = decided.Where(r => r.LegacySeat != newSeat).ToList();
+        return $"{games.Count(r => r.Winner == newSeat) / (double)Math.Max(1, games.Count):P1}";
+    }
+
+    return string.Create(CultureInfo.InvariantCulture, $"""
+        Hard bot with lookahead against the legacy Hard bot: {results.Count} games, seats swapped every other game.
+        Lookahead wins {wins} of {decided.Count} decided games: {rate:P1} (95% CI {rate - margin:P1} to {rate + margin:P1}); {results.Count - decided.Count} draws.
+        As player one: {Seat(1)}; as player two: {Seat(2)}.
+        """);
 }
 
 int Arg(string name, int fallback)
@@ -278,4 +314,4 @@ string? ArgString(string name)
 
 internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races);
 
-internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides);
+internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells);

@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Souls.Model;
 using Souls.Model.Entities;
 
 namespace Souls.Tests.Integration;
@@ -91,6 +93,72 @@ public class WebAppTests(SoulsAppFixture app)
     }
 
     [Fact]
+    public async Task PlayersBuySpellsAndPutThemInTheirDeck()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        // Nobody starts with spells; they are in the shop like any card (Blood Lance: a common, 2 coins).
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+        Assert.False(await app.WithDbAsync(db => db.PlayerCards.AnyAsync(pc => pc.PlayerId == playerId && pc.Card!.Kind == CardKind.Spell)));
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 6)));
+        using (await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", "63")]))
+        {
+        }
+
+        Assert.True(await app.WithDbAsync(db => db.PlayerCards.AnyAsync(pc => pc.PlayerId == playerId && pc.CardId == 63)));
+        using var shop = await browser.GetAsync("/Shop");
+        var shopHtml = await shop.Content.ReadAsStringAsync();
+        Assert.Contains("owned spell\" id=\"card_63\"", shopHtml, StringComparison.Ordinal);
+        Assert.Contains("class=\"s-card-spell\"", shopHtml, StringComparison.Ordinal);
+
+        // A deck with four of them; an upgrade makes the spell stronger instead of giving it stats (Burn 3 -> Burn 4).
+        using (await browser.PostFormAsync("/Deck", "/Deck/Save", [new("count[5]", "4"), new("count[6]", "4"), new("count[20]", "4"), new("count[23]", "4"), new("count[63]", "4")]))
+        {
+        }
+
+        Assert.Equal(4, await app.WithDbAsync(db => db.DeckCards.Where(d => d.PlayerId == playerId && d.CardId == 63).Select(d => d.Count).SingleAsync()));
+        using (await browser.PostFormAsync("/Shop", "/Shop/Upgrade", [new("cardId", "63")]))
+        {
+        }
+
+        using var deck = await browser.GetAsync("/Deck");
+        var deckHtml = await deck.Content.ReadAsStringAsync();
+        Assert.Contains("You play with your own deck.", deckHtml, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"s-card-ability\">Burn 4</div>", deckHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CardEditorMakesSpellsWithAnAbilityTheyCanCast()
+    {
+        using var admin = app.CreateBrowser();
+        using var _ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        KeyValuePair<string, string>[] Spell(string name, int ability) =>
+        [
+            new("Card.Name", name), new("Card.Kind", "1"), new("Card.Cost", "1"), new("Card.Attack", "0"), new("Card.Health", "0"), new("Card.Armor", "0"),
+            new("Card.Level", "2"), new("Card.VendorPrice", "2"), new("Card.RaceId", "1"), new("Card.AbilityId", ability.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ];
+
+        using (var refused = await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", Spell("Taunting Spell", Ability.Taunt)))
+        {
+            Assert.Contains("A spell needs an ability it can cast", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        using (await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", Spell("Test Bolt", Ability.Burn)))
+        {
+        }
+
+        var card = await app.WithDbAsync(db => db.Cards.SingleAsync(c => c.Name == "Test Bolt"));
+        Assert.Equal((CardKind.Spell, 0), (card.Kind, card.Health));
+        Assert.False(await app.WithDbAsync(db => db.Cards.AnyAsync(c => c.Name == "Taunting Spell")));
+        await app.WithDbAsync(db => db.Cards.Where(c => c.Id == card.Id).ExecuteDeleteAsync());
+    }
+
+    [Fact]
     public async Task DeckBuilderUpgradesAndQuests()
     {
         var name = NewName();
@@ -154,6 +222,68 @@ public class WebAppTests(SoulsAppFixture app)
         static IEnumerable<KeyValuePair<string, string>> Counts(string spec) => spec.Split(',')
             .Select(pair => pair.Split(':'))
             .Select(p => new KeyValuePair<string, string>($"count[{p[0]}]", p[1]));
+    }
+
+    [Fact]
+    public async Task CardPacksChargeOnceAndHoldARareOrBetter()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+        var state = () => app.WithDbAsync(async db => (
+            Money: await db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync(),
+            Levels: await db.PlayerCards.Where(pc => pc.PlayerId == playerId).SumAsync(pc => pc.Level),
+            RareOrBetter: await db.PlayerCards.CountAsync(pc => pc.PlayerId == playerId && pc.Card!.Rarity >= Rarity.Rare)));
+
+        // Too few coins: refused, nothing charged or granted.
+        var poor = (Packs.Price - 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, Packs.Price - 1)));
+        using (var refused = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", poor)]))
+        {
+            Assert.EndsWith("/Shop", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var shop = await browser.GetAsync("/Shop"))
+        {
+            Assert.Contains("You cannot afford a card pack!", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        Assert.Equal((Packs.Price - 1, 5, 0), await state());
+
+        // Bought: charged, five cards (new ones or levels for the starters), one of them rare or better.
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 100)));
+        using (var buy = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", "100")]))
+        {
+            Assert.EndsWith("/Shop/Pack", buy.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        using var pack = await browser.GetAsync("/Shop/Pack");
+        var html = await pack.Content.ReadAsStringAsync();
+        var labels = Regex.Matches(html, "data-label=\"([^\"]+)\"").Select(m => m.Groups[1].Value).ToList();
+        Assert.Equal(5, labels.Count);
+        Assert.Matches(", (Rare|Epic|Legendary): ", labels[^1]);
+
+        // Only a third copy of a starter in one pack pays back coins instead of a level.
+        var refunds = labels.Count(l => l.Contains(" soul coin", StringComparison.Ordinal));
+        var (money, levels, rareOrBetter) = await state();
+        Assert.Equal(5 + 5 - refunds, levels);
+        Assert.InRange(money, 100 - Packs.Price, 100 - Packs.Price + 5 * refunds);
+        Assert.InRange(rareOrBetter, 1, 5);
+
+        // The same form again (a double submit) buys nothing, and the reveal is shown once.
+        using (var again = await browser.PostFormAsync("/Shop", "/Shop/BuyPack", [new("money", "100")]))
+        {
+            Assert.EndsWith("/Shop", again.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        Assert.Equal((money, levels, rareOrBetter), await state());
+        using var reload = await browser.GetAsync("/Shop/Pack");
+        Assert.EndsWith("/Shop", reload.Headers.Location!.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -263,6 +393,53 @@ public class WebAppTests(SoulsAppFixture app)
         using var allowed = await admin.GetAsync("/Admin/Players");
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
         Assert.Contains(name, await allowed.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CardStatisticsCountDecidedGamesBetweenPlayers()
+    {
+        // The Pale Reaper: a legendary that no other test's player owns, so only these games count for it.
+        const int card = 28;
+        var (one, two) = (NewName(), NewName());
+        using var player = app.CreateBrowser();
+        await player.RegisterAsync(one, Password, playerType: 1);
+        await player.RegisterAsync(two, Password, playerType: 2);
+        await app.WithDbAsync(async db =>
+        {
+            var ids = await db.Players.Where(p => p.Name == one || p.Name == two).ToDictionaryAsync(p => p.Name, p => p.Id);
+            var (a, b) = (ids[one], ids[two]);
+            void Store(int? winner, bool practice, params int[] playedBy)
+            {
+                var game = new Game { Player1Id = a, Player2Id = b, WinnerId = winner, IsPractice = practice };
+                db.Games.Add(game);
+                db.GameLogs.AddRange(playedBy.Select(id => new GameLog
+                {
+                    Game = game, GameLogTypeId = (int)GameLogKind.UseCard, Obj1Id = id, Obj2Id = card, Obj1Type = "Player", Obj2Type = "Card",
+                }));
+            }
+
+            Store(winner: a, practice: false, a, a, b); // played twice by the winner: one game
+            Store(winner: b, practice: false, a);
+            Store(winner: null, practice: false, a); // draws are left out
+            Store(winner: a, practice: true, a); // and practice games
+            return await db.SaveChangesAsync();
+        });
+
+        using var _ = await player.LoginAsync(one, Password);
+        using var forbidden = await player.GetAsync("/Admin/CardStatistics");
+        Assert.Equal(HttpStatusCode.Redirect, forbidden.StatusCode);
+        Assert.Contains("/Home/AccessDenied", forbidden.Headers.Location!.ToString(), StringComparison.Ordinal);
+
+        using var admin = app.CreateBrowser();
+        using var __ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        using var page = await admin.GetAsync("/Admin/CardStatistics");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var row = Regex.Match(await page.Content.ReadAsStringAsync(), $"<tr data-card-id=\"{card}\">(.*?)</tr>", RegexOptions.Singleline).Groups[1].Value;
+        var cells = Regex.Matches(row, "<td[^>]*>(.*?)</td>", RegexOptions.Singleline)
+            .Select(m => Regex.Replace(m.Groups[1].Value, "<[^>]+>", string.Empty).Trim());
+
+        // Card, race, rarity, games, wins, win rate, then win rate (games) for Rabid Soul, Lurker, Harrison and Fader.
+        Assert.Equal(["The Pale Reaper", "Darkness", "Legendary", "3", "1", "33.3%", "50.0% (2)", "0.0% (1)", "- (0)", "- (0)"], cells);
     }
 
     [Fact]

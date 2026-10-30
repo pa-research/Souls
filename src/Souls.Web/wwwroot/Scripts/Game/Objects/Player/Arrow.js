@@ -131,7 +131,7 @@
     Arrow.prototype.Aim = function (source, kinds, mode, hint) {
         var mouse = this.engine.conf.mouse;
         var origin = source.GetHome ? source.GetHome() : { x: source.x, y: source.y };
-        if (source.inSlot) origin = { x: source.x, y: source.y };
+        if (source.inSlot || source.spell) origin = { x: source.x, y: source.y }; // a spell aims from where it is lifted
         this.mode = mode;
 
         var color = MODE_COLOR[mode] || MODE_COLOR.attack;

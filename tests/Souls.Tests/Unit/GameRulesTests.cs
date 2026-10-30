@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,6 +9,7 @@ using Souls.Server.Game;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 using AbilityIds = Souls.Model.Entities.Ability;
+using CardKind = Souls.Model.Entities.CardKind;
 using Races = Souls.Model.GameRules.Races;
 
 namespace Souls.Tests.Unit;
@@ -47,15 +49,23 @@ public class GameRulesTests
         public GamePlayer G2 => P2.GPlayer!;
         private GameRoom? _room;
 
-        public static TestGame Start(IReadOnlyList<Card>? deck1 = null, IReadOnlyList<Card>? deck2 = null, PlayerTypeInfo? type1 = null, PlayerTypeInfo? type2 = null, TimeSpan? turnTime = null)
+        /// <summary>A game whose first turn has started (both players kept their starting hand), or with <paramref name="mulligan"/> one that waits for the mulligan.</summary>
+        public static TestGame Start(IReadOnlyList<Card>? deck1 = null, IReadOnlyList<Card>? deck2 = null, PlayerTypeInfo? type1 = null, PlayerTypeInfo? type2 = null, TimeSpan? turnTime = null, bool mulligan = false)
         {
             var clock = new ManualTime();
             var state = new ServerState();
-            var services = new ServiceCollection().BuildServiceProvider();
+            var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
             var options = Options.Create(new GameOptions { TurnTime = turnTime ?? TimeSpan.FromSeconds(75) });
-            var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), services.GetRequiredService<IServiceScopeFactory>(), clock, options, NullLogger<GameEngine>.Instance);
+            var metrics = new GameMetrics(services.GetRequiredService<IMeterFactory>(), state);
+            var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), services.GetRequiredService<IServiceScopeFactory>(), clock, options, metrics, NullLogger<GameEngine>.Instance);
             var game = new TestGame(clock, engine, NewPlayer(1, deck1 ?? Filler(), type1), NewPlayer(2, deck2 ?? Filler(), type2));
             game._room = engine.CreateGame(new Pair<Player>(game.P1, game.P2));
+            if (!mulligan)
+            {
+                game.Mulligan(game.P1).GetAwaiter().GetResult();
+                game.Mulligan(game.P2).GetAwaiter().GetResult();
+            }
+
             return game;
         }
 
@@ -108,8 +118,28 @@ public class GameRulesTests
         public Task Play(Player p, Card card, int slot) =>
             Engine.RequestUseCardAsync(p, Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = slot }));
 
+        /// <summary>Casts a spell from the hand on a target (or, without a type, on nothing).</summary>
+        public Task Cast(Player p, Card spell, TargetType? type = null, int target = -1) =>
+            Engine.RequestUseCardAsync(p, Message.Create(GameRequest.UseCard, type is { } t
+                ? new JsonObject { ["cid"] = spell.Cid, ["target"] = target, ["type"] = (int)t }
+                : new JsonObject { ["cid"] = spell.Cid }));
+
         public Task EndTurn(Player p) => Engine.RequestNextTurnAsync(p);
+
+        public Task Mulligan(Player p, params int[] replace) =>
+            Engine.RequestMulliganAsync(p, Message.Create(GameRequest.Mulligan, new JsonObject { ["replace"] = new JsonArray([.. replace.Select(cid => (JsonNode)cid)]) }));
     }
+
+    /// <summary>A spell in the player's hand.</summary>
+    private static Card GiveSpell(GamePlayer gp, int ability, int? value = null, int cost = 1, int? race = null)
+    {
+        var spell = new Card { Id = 60, Name = "Spell", Kind = CardKind.Spell, AbilityId = ability, AbilityValueOverride = value, Cost = cost, RaceId = race }.NewInstance();
+        gp.HandCards[spell.Cid] = spell;
+        return spell;
+    }
+
+    /// <summary>A deck of 20 different cards ("c0" to "c19").</summary>
+    private static IReadOnlyList<Card> Named() => [.. Enumerable.Range(0, GameRules.DeckSize).Select(i => Definition(1, 1, name: "c" + i))];
 
     [Fact]
     public void NewInstancesGetUniqueIdsAndPrintedStats()
@@ -673,6 +703,126 @@ public class GameRulesTests
     }
 
     [Fact]
+    public async Task MulliganReplacesTheChosenCardsOnceThenTheGameStarts()
+    {
+        var game = TestGame.Start(deck1: Named(), deck2: Named(), mulligan: true);
+        var before = game.G1.HandCards.Values.ToList();
+        Assert.Equal(GameRules.StartingHand, before.Count);
+        Assert.Equal(GameRules.StartingHand, game.G2.HandCards.Count); // the extra card comes after the mulligan
+        Assert.Equal(0, (int?)game.Room.SyncPayload()["current"]); // nobody's turn
+        var create = GameData.Get(game.Room, playerOne: true)["mulligan"]!;
+        Assert.Equal((30000L, false), ((long)create["endsIn"]!, (bool)create["done"]!));
+
+        await game.Mulligan(game.P1, before[0].Cid, before[2].Cid);
+
+        var after = game.G1.HandCards.Values.ToList();
+        Assert.Equal(before[1].Name, after[1].Name); // kept in its place
+        Assert.DoesNotContain(after[0].Name, before.Select(c => c.Name)); // new cards, not the replaced ones
+        Assert.DoesNotContain(after[2].Name, before.Select(c => c.Name));
+        Assert.Equal(Named().Select(c => c.Name).Order(), after.Concat(game.G1.Deck).Select(c => c.Name).Order()); // nothing lost
+        var sent = Assert.Single(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameMulligan)["Payload"]!;
+        Assert.Equal(2, (int?)sent["replaced"]);
+        Assert.Equal(after.Select(c => c.Name), sent["hand"]!.AsArray().Select(c => (string?)c!["name"]));
+        Assert.True((bool?)GameData.Get(game.Room, playerOne: true)["mulligan"]!["done"]); // what a reconnect gets
+
+        // A second mulligan is ignored, and nobody may act yet.
+        await game.Mulligan(game.P1, after[1].Cid);
+        await game.Play(game.P1, after[1], 0);
+        await game.EndTurn(game.P1);
+        Assert.Equal(after.Select(c => c.Cid), game.G1.HandCards.Keys);
+        Assert.Empty(game.G1.BoardCards);
+        Assert.True(game.Room.InMulligan);
+
+        await game.Mulligan(game.P2);
+
+        Assert.False(game.Room.InMulligan);
+        Assert.True(game.G1.IsPlayerTurn());
+        Assert.Equal(2, game.G1.Mana);
+        Assert.Equal(GameRules.StartingHand + GameRules.SecondPlayerExtraCards, game.G2.HandCards.Count);
+        Assert.Equal(GameRules.DeckSize, game.G2.HandCards.Count + game.G2.Deck.Count);
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameNextTurn && (bool?)m["Payload"]!["yourTurn"] == true);
+    }
+
+    [Fact]
+    public async Task MulliganRefusesCardsOutsideTheStartingHand()
+    {
+        var game = TestGame.Start(mulligan: true);
+        var hand = game.G1.HandCards.Keys.ToList();
+        game.Messages(game.P1);
+
+        await game.Mulligan(game.P1, hand[0], game.G2.HandCards.Keys.First());
+        await game.Mulligan(game.P1, game.G1.Deck[0].Cid);
+        await Assert.ThrowsAsync<ProtocolException>(() => game.Engine.RequestMulliganAsync(game.P1, Message.Create(GameRequest.Mulligan, new JsonObject { ["replace"] = "all" })));
+
+        Assert.Equal(hand, game.G1.HandCards.Keys);
+        Assert.False(game.G1.MulliganDone);
+        Assert.Equal(2, game.Messages(game.P1).Count(m => (int?)m["Type"] == (int)GameResponse.GameGeneralMessage));
+
+        await game.Mulligan(game.P1, hand[0]); // a valid choice still counts
+        Assert.True(game.G1.MulliganDone);
+        Assert.DoesNotContain(hand[0], game.G1.HandCards.Keys);
+    }
+
+    [Fact]
+    public async Task UndecidedPlayersKeepTheirHandWhenTheMulliganRunsOut()
+    {
+        var game = TestGame.Start(deck2: Named(), mulligan: true);
+        var kept = game.G2.HandCards.Values.Select(c => c.Name).ToList();
+        await game.Mulligan(game.P1, game.G1.HandCards.Keys.First());
+
+        game.Clock.Now += TimeSpan.FromSeconds(29);
+        await game.Engine.CheckTurnTimersAsync();
+        Assert.True(game.Room.InMulligan);
+
+        game.Clock.Now += TimeSpan.FromSeconds(2);
+        await game.Engine.CheckTurnTimersAsync();
+
+        Assert.False(game.Room.InMulligan);
+        Assert.True(game.G1.IsPlayerTurn());
+        Assert.Equal(game.Clock.Now + game.Room.TurnTime, game.Room.TurnDeadline); // a full first turn
+        Assert.Equal(kept, game.G2.HandCards.Values.Take(GameRules.StartingHand).Select(c => c.Name));
+        Assert.Equal(GameRules.StartingHand + GameRules.SecondPlayerExtraCards, game.G2.HandCards.Count);
+        Assert.Equal(0, game.G2.TimeoutsInARow); // not a turn timeout
+        Assert.DoesNotContain(game.Events(game.P1), e => (string?)e["t"] == "timeout");
+    }
+
+    [Fact]
+    public async Task LeavingDuringTheMulliganForfeits()
+    {
+        var game = TestGame.Start(mulligan: true);
+
+        await game.Engine.ForfeitAsync(game.P2);
+
+        Assert.True(game.Room.IsEnded);
+        Assert.Same(game.P1, game.Room.Winner);
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameVictory);
+    }
+
+    [Fact]
+    public async Task OpponentsAndSpectatorsOnlyLearnHowManyCardsWereReplaced()
+    {
+        var game = TestGame.Start(mulligan: true);
+        var before = game.G1.HandCards.Keys.ToList();
+        game.Messages(game.P2);
+
+        await game.Mulligan(game.P1, before[1]);
+
+        var seen = Assert.Single(game.Messages(game.P2), m => (int?)m["Type"] == (int)GameResponse.GameOpponentMulligan)["Payload"]!;
+        Assert.Equal(1, (int?)seen["replaced"]);
+        Assert.All(seen["hand"]!.AsArray(), c => Assert.Single(c!.AsObject())); // instance ids only
+        var cids = seen["hand"]!.AsArray().Select(c => (int)c!["cid"]!).ToList();
+        Assert.Equal(game.G1.HandCards.Keys, cids);
+        Assert.Empty(cids.Intersect(before)); // all new, so the kept cards cannot be told apart
+        Assert.Empty(game.G1.Deck.Select(c => c.Cid).Intersect(before)); // nor can the replaced ones when drawn again
+
+        // Spectators and the replay get player one's new hand without the cards.
+        var replayed = game.Room.Replay.Select(r => r["m"]!).Last(m => (int?)m["Type"] == (int)GameResponse.GameMulligan)["Payload"]!;
+        Assert.True((bool?)replayed["hidden"]);
+        Assert.Equal(cids, replayed["hand"]!.AsArray().Select(c => (int)c!["cid"]!));
+        Assert.All(replayed["hand"]!.AsArray(), c => Assert.Single(c!.AsObject()));
+    }
+
+    [Fact]
     public void SpectatorsSeePlayerOnesViewWithoutTheHand()
     {
         var game = TestGame.Start();
@@ -760,9 +910,21 @@ public class GameRulesTests
         }
 
         Assert.Equal(SeedData.Cards.Length, SeedData.Cards.Select(c => c.Id).Distinct().Count());
-        Assert.All(new[] { Races.Darkness, Races.Vampiric, Races.Lightbringer, Races.Ferocious },
-            race => Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race), 10, 11));
+        Assert.All(new[] { Races.Darkness, Races.Vampiric, Races.Lightbringer, Races.Ferocious }, race =>
+        {
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Minion), 10, 11);
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Spell), 2, 3);
+        });
         Assert.All(SeedData.Abilities, a => Assert.Contains(SeedData.Cards, c => c.AbilityId == a.Id));
+
+        // Spells: no attack or health, an ability a spell can cast, never a starter card or a legendary.
+        Assert.All(SeedData.Cards.Where(c => c.Kind == CardKind.Spell), spell =>
+        {
+            Assert.Equal((0, 0, 0), (spell.Attack, spell.Health, spell.Armor));
+            Assert.True(GameRules.IsSpellAbility(spell.AbilityId), $"{spell.Name} cannot be cast");
+            Assert.NotEqual(1, spell.Level);
+            Assert.NotEqual(Rarity.Legendary, spell.Rarity);
+        });
     }
 
     [Fact]
@@ -781,6 +943,198 @@ public class GameRulesTests
     }
 
     [Fact]
+    public async Task ACopyOfTheGameIsIndependentAndSilent()
+    {
+        var game = TestGame.Start();
+        var mine = game.Put(game.P1, NewCard(3, 3), 0);
+        var theirs = game.Put(game.P2, NewCard(2, 2, race: Races.Darkness), 0);
+        game.Messages(game.P1);
+        game.Messages(game.P2);
+        var (logs, replay) = (game.Room.Logger.Records.Count, game.Room.Replay.Count);
+
+        var copy = game.Room.Copy();
+        Assert.Equal(game.Room.SyncPayload().ToJsonString(), copy.SyncPayload().ToJsonString());
+        Assert.Equal(game.G1.Deck.Select(c => c.Cid).Order(), copy.Players.First.GPlayer!.Deck.Select(c => c.Cid).Order());
+        Assert.NotSame(game.Room.Random, copy.Random);
+        Assert.Null(copy.Players.First.GameContext);
+
+        // Kill the enemy card (its death curse draws from the copy's random numbers), then the enemy hero.
+        var p1 = copy.Players.First;
+        await game.Engine.RequestAttackAsync(p1, Message.Create(GameRequest.Attack, new JsonObject { ["source"] = mine.Cid, ["target"] = theirs.Cid, ["type"] = 0 }));
+        copy.Players.Second.GPlayer!.Health = 1;
+        await game.Engine.RequestAttackAsync(p1, Message.Create(GameRequest.Attack, new JsonObject { ["source"] = -1, ["target"] = -1, ["type"] = 3 }));
+
+        Assert.True(copy.IsEnded);
+        Assert.Empty(copy.Players.Second.GPlayer!.BoardCards);
+        Assert.False(game.Room.IsEnded);
+        Assert.Same(theirs, game.G2.BoardCards[0]);
+        Assert.Equal((3, 2, 20), (mine.Health, theirs.Health, game.G2.Health));
+        Assert.False(game.G1.HasAttacked);
+        Assert.Empty(game.Messages(game.P1));
+        Assert.Empty(game.Messages(game.P2));
+        Assert.Equal((logs, replay), (game.Room.Logger.Records.Count, game.Room.Replay.Count));
+    }
+
+    [Fact]
+    public async Task SpellsAreCastOnTheirTargetAndNeverTakeASlot()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 5;
+        var victim = game.Put(game.P2, NewCard(2, 3), 0);
+        var spell = GiveSpell(game.G1, AbilityIds.Burn, value: 3, cost: 2);
+        game.Messages(game.P1);
+        game.Messages(game.P2);
+
+        await game.Cast(game.P1, spell, TargetType.EnemyCard, victim.Cid);
+
+        Assert.True(victim.IsDead);
+        Assert.DoesNotContain(spell.Cid, game.G1.HandCards.Keys);
+        Assert.Same(spell, Assert.Single(game.G1.Used));
+        Assert.Empty(game.G1.BoardCards);
+        Assert.Equal((3, 1), (game.G1.Mana, game.G1.CardsPlayed));
+        Assert.Equal(0, game.G1.AbilitiesUsed);
+
+        var mine = game.Messages(game.P1);
+        var cast = mine.Single(m => (int?)m["Type"] == (int)GameResponse.GameUseCardSpell)["Payload"]!;
+        Assert.Equal(("spell", spell.Cid, victim.Cid), ((string?)cast["card"]!["kind"], (int)cast["card"]!["cid"]!, (int)cast["target"]!["cid"]!));
+        Assert.DoesNotContain(mine, m => (int?)m["Type"] == (int)GameResponse.GameUseCardOk);
+        var theirs = game.Messages(game.P2);
+        Assert.Contains(theirs, m => (int?)m["Type"] == (int)GameResponse.GameOpponentUseCardSpell);
+        var ability = theirs.Where(m => (int?)m["Type"] == (int)GameResponse.GameEvents).SelectMany(m => m["Payload"]!["events"]!.AsArray()).First(e => (string?)e!["t"] == "ability")!;
+        Assert.Equal((AbilityIds.Burn, spell.Cid), ((int)ability["abilityId"]!, (int)ability["src"]!["cid"]!));
+
+        // Logged as a card played, with the target in the battle log line.
+        var log = game.Room.Logger.Records.Last(r => r.GameLogTypeId == (int)Model.Entities.GameLogKind.UseCard);
+        Assert.Equal((game.P1.Id, spell.Id), (log.Obj1Id, log.Obj2Id));
+        Assert.Equal("p1 casts Spell on Test.", log.Text);
+
+        // A full board does not stop a spell, and it can hit the enemy hero.
+        for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
+        {
+            game.Put(game.P1, NewCard(1, 1), slot);
+        }
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Burn, value: 3, cost: 2), TargetType.EnemyHero);
+        Assert.Equal(17, game.G2.Health);
+        Assert.Equal(GamePlayer.BoardSlots, game.G1.BoardCards.Count);
+    }
+
+    [Theory]
+    [InlineData(AbilityIds.Empower, TargetType.FriendlyCard, true)]
+    [InlineData(AbilityIds.Empower, TargetType.OwnHero, false)]
+    [InlineData(AbilityIds.Empower, TargetType.EnemyCard, false)]
+    [InlineData(AbilityIds.Heal, TargetType.OwnHero, true)]
+    [InlineData(AbilityIds.Heal, TargetType.FriendlyCard, true)]
+    [InlineData(AbilityIds.Heal, TargetType.EnemyHero, false)]
+    [InlineData(AbilityIds.Paralyze, TargetType.EnemyCard, true)]
+    [InlineData(AbilityIds.Paralyze, TargetType.EnemyHero, false)]
+    [InlineData(AbilityIds.Drain, TargetType.EnemyHero, true)]
+    [InlineData(AbilityIds.Drain, TargetType.EnemyCard, true)]
+    [InlineData(AbilityIds.Burn, TargetType.FriendlyCard, false)]
+    [InlineData(AbilityIds.Burn, null, false)]
+    public async Task SpellTargetsAreCheckedLikeAbilityTargets(int ability, TargetType? type, bool allowed)
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 5;
+        game.G1.Health = 10;
+        var friend = game.Put(game.P1, NewCard(2, 3), 0);
+        var enemy = game.Put(game.P2, NewCard(4, 5), 0);
+        var spell = GiveSpell(game.G1, ability, value: 2);
+        game.Messages(game.P1);
+
+        await game.Cast(game.P1, spell, type, type == TargetType.FriendlyCard ? friend.Cid : type == TargetType.EnemyCard ? enemy.Cid : -1);
+
+        Assert.Equal(allowed, !game.G1.HandCards.ContainsKey(spell.Cid));
+        Assert.Equal(allowed ? 4 : 5, game.G1.Mana);
+        var messages = game.Messages(game.P1);
+        Assert.Equal(!allowed, messages.Any(m => (int?)m["Type"] == (int)GameResponse.GameGeneralMessage));
+        Assert.Equal(!allowed, messages.Any(m => (int?)m["Type"] == (int)GameResponse.GameRelease));
+        if (allowed && ability == AbilityIds.Empower)
+        {
+            Assert.Equal((4, 5, 5), (friend.Attack, friend.Health, friend.MaxHealth));
+        }
+
+        if (allowed && ability == AbilityIds.Paralyze)
+        {
+            Assert.True(enemy.Paralyzed);
+        }
+    }
+
+    [Fact]
+    public async Task UntargetedSpellsDrawOrBurnTheEnemyLine()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 10;
+        var a = game.Put(game.P2, NewCard(1, 2), 0);
+        var b = game.Put(game.P2, NewCard(1, 5), 3);
+        var hand = game.G1.HandCards.Count;
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Inferno, value: 2));
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Insight, value: 2));
+
+        Assert.True(a.IsDead);
+        Assert.Equal(3, b.Health);
+        Assert.Equal(hand + 2, game.G1.HandCards.Count);
+        Assert.Equal(2, game.G1.Used.Count);
+        Assert.Empty(game.G1.BoardCards);
+    }
+
+    [Fact]
+    public async Task SpellsNeedManaAndTheirOwnersTurn()
+    {
+        var game = TestGame.Start(mulligan: true);
+        var spell = GiveSpell(game.G1, AbilityIds.Burn, cost: 3);
+        game.G1.Mana = 10;
+
+        await game.Cast(game.P1, spell, TargetType.EnemyHero); // during the mulligan
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameNotYourTurn);
+
+        await game.Mulligan(game.P1);
+        await game.Mulligan(game.P2);
+        spell = game.G1.HandCards.Values.Single(c => c.IsSpell); // a kept card gets a new cid
+        game.G1.Mana = 2;
+        game.Messages(game.P1);
+        await game.Cast(game.P1, spell, TargetType.EnemyHero);
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameUseCardOom);
+
+        var theirs = GiveSpell(game.G2, AbilityIds.Burn);
+        await game.Cast(game.P2, theirs, TargetType.EnemyHero);
+        Assert.Contains(game.Messages(game.P2), m => (int?)m["Type"] == (int)GameResponse.GameNotYourTurn);
+
+        Assert.Equal((20, 20), (game.G1.Health, game.G2.Health));
+        Assert.Contains(spell.Cid, game.G1.HandCards.Keys);
+        Assert.Contains(theirs.Cid, game.G2.HandCards.Keys);
+    }
+
+    [Fact]
+    public async Task SpellsKeepTheirRacePassives()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 10;
+        game.G1.Health = 10;
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Burn, value: 2, race: Races.Vampiric), TargetType.EnemyHero);
+        Assert.Equal((12, 18), (game.G1.Health, game.G2.Health)); // lifesteal
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Harden, value: 4, race: Races.Lightbringer), TargetType.OwnHero);
+        Assert.Equal((14, 4), (game.G1.Health, game.G1.Armor)); // blessing
+    }
+
+    [Fact]
+    public void UpgradedSpellsGetAStrongerEffectInsteadOfStats()
+    {
+        var entity = SeedData.Cards.Single(c => c.Name == "Soul Rend");
+        var card = Card.FromEntity(entity, level: 3).NewInstance();
+        var json = card.ToJson();
+
+        var upgraded = entity.AbilityValue!.Value + 2;
+        Assert.True(card.IsSpell);
+        Assert.Equal((0, 0, upgraded), (card.Attack, card.Health, card.AbilityValue));
+        Assert.Equal(("spell", $"Burn {upgraded}"), ((string?)json["kind"], (string?)json["ability"]!["label"]));
+        Assert.Equal(GameRules.AbilityValue(AbilityIds.Paralyze, null), Card.FromEntity(SeedData.Cards.Single(c => c.Name == "Frostbite"), level: 2).AbilityValue);
+    }
+
+    [Fact]
     public void RatingsMoveTowardsTheResult()
     {
         Assert.Equal(16, Ratings.Change(1000, 1000, 1));
@@ -789,6 +1143,23 @@ public class GameRulesTests
         Assert.Equal(1, Ratings.RankOf(900));
         Assert.Equal(1, Ratings.RankOf(1000));
         Assert.Equal(3, Ratings.RankOf(1100));
+    }
+
+    [Fact]
+    public void SeasonsResetRatingsHalfwayAndRewardTheFinalTier()
+    {
+        Assert.Equal(1200, Seasons.ResetRating(1400));
+        Assert.Equal(950, Seasons.ResetRating(900));
+        Assert.Equal(1000, Seasons.ResetRating(1000));
+        Assert.Equal(1000, Seasons.ResetRating(1001)); // rounds towards the initial rating
+        Assert.Equal(999, Seasons.ResetRating(997));
+
+        Assert.Equal((5, false), Seasons.Reward(Ratings.RankOf(900))); // Bronze
+        Assert.Equal((10, false), Seasons.Reward(Ratings.RankOf(1150))); // Silver III
+        Assert.Equal((20, false), Seasons.Reward(Ratings.RankOf(1449))); // Gold I
+        Assert.Equal((30, false), Seasons.Reward(Ratings.RankOf(1450))); // Platinum III
+        Assert.Equal((40, true), Seasons.Reward(Ratings.RankOf(1600))); // Diamond III
+        Assert.Equal((50, true), Seasons.Reward(Ratings.RankOf(2400))); // Champion
     }
 
     [Theory]

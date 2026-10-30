@@ -78,29 +78,34 @@ async function main() {
         crowd.presence = stage.viewInfo.stadium ? (stage.view === 'field' ? 1 : 0.7) : 0.25;
         crowd.update();
         if (game) game.update(now, dt);
-        stage.render();
+        stage.render(now);
         requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
 
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
+    stage.watchFrameRate();
 
-    // Replays and watch links start right away; after switching clients mid-game, go straight back into the game.
+    // Replays, watch and challenge links start right away; after switching clients mid-game, go straight back into
+    // the game.
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
+    const query = new URLSearchParams(location.search);
     let choice;
     if (config.replayUrl) {
         choice = { mode: 'replay' };
-    } else if (config.watch || new URLSearchParams(location.search).get('live')) {
+    } else if (config.watch || query.get('live')) {
         choice = { mode: 'watch' };
     } else if (resume) {
         choice = { mode: resume.normal ? 'normal' : 'practice', difficulty: ui.difficulty };
+    } else if (query.get('challenge')) {
+        choice = { mode: 'friendly', challenge: query.get('challenge') };
     } else {
         sound.playMusic('MENU', 0.1);
         choice = await ui.showMenu();
     }
     sound.stopMusic();
 
-    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1 });
+    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge });
     new Interaction(stage, game, effects);
     ui.setView(stage.view);
     ui.showViews(true, { chat: !game.spectator });
@@ -134,7 +139,7 @@ function exposeTestHooks(stage, game, ui) {
             mana: Number(game.player.hero.info.mana) || 0,
             playerHealth: game.player.hero.info.health,
             opponentHealth: game.opponent.hero.info.health,
-            hand: [...game.player.hand.values()].map(c => ({ cid: c.cid, cost: Number(c.data.cost), pending: !!c.pending })),
+            hand: [...game.player.hand.values()].map(c => ({ cid: c.cid, cost: Number(c.data.cost), pending: !!c.pending, spell: c.spell, name: c.data.name, ability: c.abilityId ?? null })),
             board: [...game.player.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, ability: c.abilityId ?? null })),
             opponentHand: game.opponent.hand.size,
             opponentBoard: [...game.opponent.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, taunt: !!c.data.taunt })),

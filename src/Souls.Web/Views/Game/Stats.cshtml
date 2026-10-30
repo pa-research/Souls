@@ -16,7 +16,8 @@
 }
 <div class="s-page-head">
     <div>
-        <div class="s-eyebrow">@(Model.IsPractice ? "Practice game" : "Ranked game")@(Model.Turns > 0 ? $" · {Model.Turns} turns" : "")</div>
+        @* Friendly games are stored as practice games between two people. *@
+        <div class="s-eyebrow">@(!Model.IsPractice ? "Ranked game" : Model.Players.Any(p => p.IsSystem) ? "Practice game" : "Friendly game")@(Model.Turns > 0 ? $" · {Model.Turns} turns" : "")</div>
         <h1 class="s-h1 s-gold-text">Game Summary for #@Model.GameId</h1>
     </div>
     @if (Model.HasReplay)
@@ -56,6 +57,10 @@
                     <span class="s-chip" title="Attack"><s-icon name="sword" />@player.PlayerType?.Attack</span>
                     <span class="s-chip" title="Health"><s-icon name="heart" />@player.PlayerType?.Health</span>
                 </div>
+                @if (!player.IsSystem && User.GetPlayerId() is { } me && me != player.Id)
+                {
+                    <a class="s-btn s-btn-ghost s-btn-sm mt-2" asp-controller="Game" asp-action="Index" asp-route-challenge="@player.Name"><s-icon name="swords" />Challenge</a>
+                }
             </div>
         }
     </div>

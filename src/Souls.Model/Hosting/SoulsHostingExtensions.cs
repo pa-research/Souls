@@ -1,7 +1,9 @@
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -10,7 +12,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Npgsql;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Souls.Model.Security;
 
 namespace Souls.Model.Hosting;
@@ -31,7 +36,7 @@ public static class SoulsHostingExtensions
         return Directory.Exists(path) ? configuration.AddKeyPerFile(path, optional: true) : configuration;
     }
 
-    /// <summary>Registers the PostgreSQL database, session/password services and a readiness health check.</summary>
+    /// <summary>Registers the PostgreSQL database, session/password services, season options and a readiness health check.</summary>
     public static IServiceCollection AddSoulsDatabase(this IServiceCollection services)
     {
         services.AddDbContext<SoulsDbContext>((provider, options) =>
@@ -53,6 +58,7 @@ public static class SoulsHostingExtensions
         });
 
         services.AddSingleton(TimeProvider.System);
+        services.AddOptions<SeasonOptions>().BindConfiguration("Souls:Seasons");
         services.AddSingleton<PasswordService>();
         services.AddScoped<SessionService>();
         services.AddHealthChecks().AddDbContextCheck<SoulsDbContext>("database", tags: ["ready"]);
@@ -63,12 +69,35 @@ public static class SoulsHostingExtensions
     /// Cookie authentication with the Data Protection key ring stored in the database, so every replica of the
     /// web app and the game server can issue and validate the same cookie. Each request re-validates the
     /// server-side session, so logouts and bans take effect immediately.
+    /// The keys are encrypted at rest with the certificate in <c>Souls:DataProtection:Certificate</c> (a base64 PFX,
+    /// mounted as a secret file); <c>Souls:DataProtection:PreviousCertificate</c> keeps keys written with an older
+    /// certificate readable.
     /// </summary>
-    public static AuthenticationBuilder AddSoulsAuthentication(this IServiceCollection services)
+    public static AuthenticationBuilder AddSoulsAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDataProtection()
+        var dataProtection = services.AddDataProtection()
             .SetApplicationName(ApplicationName)
             .PersistKeysToDbContext<SoulsDbContext>();
+
+        if (LoadCertificate(configuration, "Souls:DataProtection:Certificate") is { } certificate)
+        {
+            dataProtection.ProtectKeysWithCertificate(certificate);
+        }
+
+        if (LoadCertificate(configuration, "Souls:DataProtection:PreviousCertificate") is { } previous)
+        {
+            dataProtection.UnprotectKeysWithAnyCertificate(previous);
+        }
+
+        services.AddOptions<KeyManagementOptions>().PostConfigure<IHostEnvironment, ILoggerFactory>((options, environment, loggers) =>
+        {
+            if (options.XmlEncryptor is null && environment.IsProduction())
+            {
+                loggers.CreateLogger(typeof(SoulsHostingExtensions)).LogWarning(
+                    "Data Protection keys are stored unencrypted in the database: anyone who can read it can forge login cookies. " +
+                    "Set Souls:DataProtection:Certificate to a PFX certificate (base64) shared by the web app and the game server.");
+            }
+        });
 
         services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
             .Configure<IConfiguration, IHostEnvironment>((options, configuration, environment) =>
@@ -104,6 +133,13 @@ public static class SoulsHostingExtensions
             });
     }
 
+    /// <summary>A base64 PFX from configuration, with its optional password in <c>{key}Password</c>.</summary>
+    private static X509Certificate2? LoadCertificate(IConfiguration configuration, string key)
+    {
+        var pfx = configuration[key];
+        return string.IsNullOrWhiteSpace(pfx) ? null : X509CertificateLoader.LoadPkcs12(Convert.FromBase64String(pfx), configuration[key + "Password"]);
+    }
+
     /// <summary>
     /// Cookies are Secure (HTTPS only) unless running in Development or <c>Souls:SecureCookies</c> is false.
     /// </summary>
@@ -132,6 +168,34 @@ public static class SoulsHostingExtensions
                 options.AllowedHosts = hosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             }
         });
+        return services;
+    }
+
+    /// <summary>
+    /// OpenTelemetry traces and metrics, exported with OTLP and configured by the standard <c>OTEL_*</c> environment
+    /// variables (<c>OTEL_EXPORTER_OTLP_ENDPOINT</c>, <c>OTEL_SERVICE_NAME</c>, <c>OTEL_RESOURCE_ATTRIBUTES</c>, ...).
+    /// Nothing is collected unless <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is set.
+    /// </summary>
+    public static IServiceCollection AddSoulsTelemetry(this IServiceCollection services, IConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        {
+            return services;
+        }
+
+        services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                // Health probes would be most of the traces.
+                .AddAspNetCoreInstrumentation(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/healthz"))
+                .AddHttpClientInstrumentation()
+                .AddSource("Npgsql")
+                .AddOtlpExporter())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                // .NET runtime metrics (GC, thread pool, memory) and the apps' own meters (Souls.Server).
+                .AddMeter("System.Runtime", "Souls.*")
+                .AddOtlpExporter());
         return services;
     }
 

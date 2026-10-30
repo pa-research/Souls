@@ -107,11 +107,23 @@ public class GameServerTests(SoulsAppFixture app)
             await game.SendAsync(101);
             await game.ReceiveTypeAsync(100);
             var create = (await game.ReceiveTypeAsync(206))["Payload"]!;
-            Assert.True((bool)create["yourTurn"]!);
+            Assert.False((bool)create["yourTurn"]!); // the mulligan comes first
+            Assert.False((bool)create["mulligan"]!["done"]!);
             Assert.Equal(1, (int)create["ident"]!);
             Assert.StartsWith("[BOT] ", (string)create["opponent"]!["info"]!["name"]!, StringComparison.Ordinal);
             Assert.Equal(3, create["player"]!["hand"]!.AsObject().Count);
-            Assert.Equal(4, create["opponent"]!["hand"]!.AsArray().Count); // the bot goes second: one more card
+            Assert.Equal(3, create["opponent"]!["hand"]!.AsArray().Count);
+
+            // Mulligan: replace the first card. The game starts once the bot has chosen too, and the bot (going second)
+            // gets its extra card.
+            var first = (int)create["player"]!["hand"]!.AsObject().First().Value!["cid"]!;
+            await game.SendAsync(227, new JsonObject { ["replace"] = new JsonArray(first) });
+            var mulligan = (await game.ReceiveTypeAsync(227))["Payload"]!;
+            Assert.Equal(1, (int)mulligan["replaced"]!);
+            Assert.Equal(3, mulligan["hand"]!.AsArray().Count);
+            var start = (await game.ReceiveAsync(m => Type(m) == 226, seconds: 20))["Payload"]!;
+            Assert.True((bool)start["yourTurn"]!);
+            await game.ReceiveTypeAsync(223);
 
             // In-game chat with the bot.
             await chat.SendAsync(1009);
@@ -123,8 +135,8 @@ public class GameServerTests(SoulsAppFixture app)
 
             // Our turn: play the cheapest card, attack the bot's hero with ours and pass, until the game ends (empty decks
             // deal growing fatigue damage, so it always ends).
-            var mana = int.Parse((string)create["player"]!["info"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
-            var hand = create["player"]!["hand"]!.AsObject().Select(c => c.Value!).ToList();
+            var mana = int.Parse((string)start["playerInfo"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
+            var hand = mulligan["hand"]!.AsArray().Select(c => c!).ToList();
             var played = new HashSet<int>();
             JsonNode? result = null;
             for (var turn = 0; turn < 60 && result is null; turn++)
@@ -190,11 +202,75 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(241, (int)records[0]!["m"]!["Type"]!);
             Assert.Equal(242, (int)records[^1]!["m"]!["Type"]!);
             Assert.DoesNotContain(records, r => (int)r!["m"]!["Type"]! == 222 && r["m"]!["Payload"]!["card"]!.AsArray().Any(c => c!["name"] is not null));
+            var replayedMulligan = Assert.Single(records, r => (int)r!["m"]!["Type"]! == 227)!["m"]!["Payload"]!;
+            Assert.All(replayedMulligan["hand"]!.AsArray(), c => Assert.Single(c!.AsObject()));
             using var replayData = await browser.GetAsync($"/Game/ReplayData/{gameId}");
             Assert.Equal(System.Net.HttpStatusCode.OK, replayData.StatusCode);
 
             using var stats = await browser.GetAsync($"/Game/Stats/{gameId}");
             Assert.Contains($"Game Summary for #{gameId}", await stats.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>A challenges B by name; B declines, then accepts; they emote until B mutes A; A leaves and B wins, unrated.</summary>
+    [Fact]
+    public async Task FriendlyChallengeStartsAnUnrankedGameWithEmotes()
+    {
+        var (browserA, nameA) = await LoggedInPlayerAsync();
+        var (browserB, nameB) = await LoggedInPlayerAsync(2);
+        using (browserA)
+        using (browserB)
+        {
+            await using var a = await GameSocket.ConnectAsync(app.Server, "ws/game", browserA.AuthCookie);
+            await using var b = await GameSocket.ConnectAsync(app.Server, "ws/game", browserB.AuthCookie);
+            await a.SendAsync(0);
+            await a.ReceiveTypeAsync(10);
+            await b.SendAsync(0);
+            await b.ReceiveTypeAsync(10);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = "x" + nameB });
+            Assert.Equal($"x{nameB} is not online.", (string)(await a.ReceiveTypeAsync(197))["Payload"]!);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = nameB });
+            await a.ReceiveTypeAsync(198);
+            Assert.Equal(nameA, (string)(await b.ReceiveTypeAsync(199))["Payload"]!["name"]!);
+            await b.SendAsync(198, new JsonObject { ["accept"] = false });
+            Assert.Equal($"{nameB} declined your challenge.", (string)(await a.ReceiveTypeAsync(197))["Payload"]!);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = nameB });
+            await b.ReceiveTypeAsync(199);
+            await b.SendAsync(198, new JsonObject { ["accept"] = true });
+            var identA = (int)(await a.ReceiveTypeAsync(206))["Payload"]!["ident"]!;
+            await b.ReceiveTypeAsync(206);
+
+            await a.SendAsync(299, new JsonObject { ["emote"] = 1 });
+            var emote = (await b.ReceiveTypeAsync(299))["Payload"]!;
+            Assert.Equal(identA, (int)emote["ident"]!);
+            Assert.Equal("Well played!", (string)emote["text"]!);
+
+            // B mutes A (the heartbeat answer confirms the server has read it): A still sees its own emote, B does not.
+            await b.SendAsync(298, new JsonObject { ["muted"] = true });
+            await b.SendAsync(2, new JsonObject { ["heartbeat"] = 1, ["last"] = 1 });
+            await b.ReceiveTypeAsync(5);
+            await a.SendAsync(299, new JsonObject { ["emote"] = 2 });
+            await a.ReceiveAsync(m => Type(m) == 299 && (int)m["Payload"]!["emote"]! == 2);
+            await b.SendAsync(2, new JsonObject { ["heartbeat"] = 2, ["last"] = 2 });
+            await b.ReceiveAsync(m => Type(m) == 5 && (int)m["Payload"]!["last"]! == 2);
+            Assert.DoesNotContain(b.Received, m => Type(m) == 299 && (int)m["Payload"]!["emote"]! == 2);
+
+            // A leaves: B wins, and nobody's rating moves.
+            await a.SendAsync(1);
+            var result = (await b.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
+            Assert.Equal(230, Type(b.Received[^1]));
+            Assert.Null(result["ratingChange"]);
+            var gameId = (int)result["statistics"]!;
+            var (game, ratings) = await app.WithDbAsync(async db => (
+                await db.Games.SingleAsync(g => g.Id == gameId),
+                await db.Players.Where(p => p.Name == nameA || p.Name == nameB).Select(p => p.Rating).ToListAsync()));
+            Assert.True(game.IsPractice);
+            Assert.Equal(0, game.Player1RatingChange);
+            Assert.Equal(0, game.Player2RatingChange);
+            Assert.All(ratings, r => Assert.Equal(Souls.Model.Ratings.Initial, r));
         }
     }
 

@@ -1,6 +1,7 @@
 /*
  * In-game interface shared by the Modern 3D and the Classic client: main menu, loading, matchmaking, turn banner,
- * toasts, mana bar, hero power, turn timer, battle log, tooltips, settings, end screen, spectator and replay bars.
+ * toasts, mana bar, hero power, turn timer, battle log, tooltips, settings, mulligan, end screen, spectator and
+ * replay bars.
  * Built on theme.css. Every element is positioned by its client; these classes only define the look.
  */
 
@@ -730,6 +731,66 @@
     100% { transform: none; }
 }
 
+/* ---- Mulligan: the starting hand as card faces (.s-card from site.css), tap to replace ---------------------- */
+
+.sg-mulligan-box { display: grid; justify-items: center; gap: 14px; width: min(880px, 100%); text-align: center; }
+.sg-mulligan-box h2 { margin: 0; font: 700 clamp(1.3rem, 0.9rem + 1.6vw, 2rem)/1.1 var(--s-font-display); letter-spacing: 0.08em; color: var(--s-gold-1); }
+.sg-mulligan-box p { margin: 0; color: var(--s-text-2); }
+.sg-mulligan-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(8px, 2vw, 24px); }
+
+.sg-mulligan-card {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 6px;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: transform 0.2s var(--s-ease), border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.sg-mulligan-card .s-card.card-container { --w: clamp(92px, min(24vw, 30vh), 190px); transition: filter 0.2s, transform 0.25s var(--s-ease); }
+.sg-mulligan-card:hover:not(:disabled) { transform: translateY(-6px); }
+.sg-mulligan-card:focus-visible { outline: none; box-shadow: var(--s-focus); }
+.sg-mulligan-card:disabled { cursor: default; }
+.sg-mulligan-card[aria-pressed="true"] { border-color: var(--s-ember); }
+.sg-mulligan-card[aria-pressed="true"] .s-card { filter: grayscale(0.75) brightness(0.5) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.65)); transform: rotate(-3deg) scale(0.94); }
+
+.sg-mulligan-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--s-line);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    /* Small enough on phones that the label is not wider than its card (three cards in a row). */
+    font: 700 clamp(0.58rem, 2.3vw, 0.72rem)/1 var(--s-font-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--s-text-2);
+}
+.sg-mulligan-card[aria-pressed="true"] .sg-mulligan-mark { border-color: var(--s-ember); background: rgba(168, 52, 11, 0.6); color: #fff; }
+.sg-mulligan-card.new .sg-mulligan-mark { border-color: rgba(67, 209, 122, 0.6); color: var(--s-life); }
+.sg-mulligan-card.new .s-card { animation: sg-mulligan-new 0.6s var(--s-ease) both; }
+
+.sg-mulligan-timer { display: flex; align-items: center; gap: 10px; width: min(360px, 100%); }
+.sg-mulligan-timer .s-progress { flex: 1; height: 8px; }
+.sg-mulligan-timer .sg-time { font-size: 1.1rem; }
+.sg-mulligan-status { min-height: 1.4em; font-size: 0.9rem; }
+
+@keyframes sg-mulligan-new { from { opacity: 0; transform: rotateY(90deg) scale(0.9); } }
+
+@media (max-height: 560px) {
+    .sg-mulligan-box { gap: 8px; }
+    .sg-mulligan-box p:first-of-type { display: none; }
+}
+
 /* ---- Spectating, replays, live games ------------------------------------------------------------------------ */
 
 .sg-watching {
@@ -776,11 +837,71 @@
 
 .sg-versus-meta { display: flex; justify-content: center; margin-top: 4px; }
 
+/* ---- Emotes and friendly challenges ------------------------------------------------------------------------- */
+
+.sg-emotes { position: absolute; display: grid; gap: 6px; width: min(230px, calc(100vw - 24px)); padding: 10px; }
+.sg-emotes .s-btn { justify-content: flex-start; }
+
+/* A hero's speech bubble: .mine stands above the player's hero, .theirs hangs below the opponent's. */
+.sg-bubble {
+    position: absolute;
+    left: 0;
+    top: 0;
+    max-width: 240px;
+    padding: 9px 16px;
+    border: 2px solid #c9a24a;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff8e6, #ead8ad);
+    box-shadow: var(--s-shadow);
+    color: #2b1d0c;
+    font: 700 1rem/1.25 var(--s-font-body);
+    text-align: center;
+    pointer-events: none;
+    animation: sg-bubble 2.8s var(--s-ease) forwards;
+}
+
+.sg-bubble::after { content: ''; position: absolute; left: 50%; width: 14px; height: 14px; margin-left: -7px; border: 2px solid #c9a24a; transform: rotate(45deg); }
+.sg-bubble.mine { margin-top: -12px; transform-origin: 50% 100%; }
+.sg-bubble.mine::after { bottom: -9px; border-top: 0; border-left: 0; background: #ead8ad; }
+.sg-bubble.theirs { margin-top: 12px; transform-origin: 50% 0; }
+.sg-bubble.theirs::after { top: -9px; border-right: 0; border-bottom: 0; background: #fff8e6; }
+
+@keyframes sg-bubble {
+    0% { opacity: 0; scale: 0.6; }
+    8%, 85% { opacity: 1; scale: 1; }
+    100% { opacity: 0; }
+}
+
+/* An invitation to a friendly game, above everything (also the matchmaking layer). */
+.sg-invite {
+    position: absolute;
+    top: max(70px, 12%);
+    left: 50%;
+    z-index: 45;
+    display: grid;
+    gap: 12px;
+    width: min(380px, calc(100% - 32px));
+    padding: 16px;
+    translate: -50% 0;
+    border-color: var(--s-gold-2);
+    animation: s-rise-in 0.35s var(--s-ease) both;
+}
+
+.sg-invite-head { display: flex; align-items: center; gap: 12px; }
+.sg-invite-head img { width: 56px; height: 56px; border: 2px solid var(--s-gold-2); border-radius: 50%; object-fit: cover; }
+.sg-invite-head b { display: block; font-family: var(--s-font-display); font-size: 1.1rem; color: var(--s-gold-1); overflow-wrap: anywhere; }
+.sg-invite .s-progress { height: 6px; }
+.sg-invite-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.sg-challenge { display: flex; gap: 8px; width: 100%; }
+.sg-challenge .s-input { flex: 1; min-width: 0; min-height: 38px; }
+
 @media (prefers-reduced-motion: reduce) {
     .sg-logo,
     .sg-rings::before,
     .sg-rings::after,
     .sg-power.ready .sg-power-orb,
+    .sg-mulligan-card.new .s-card,
     .sg-fuse-fill::after,
     .sg-live { animation: none; }
     .sg-banner,

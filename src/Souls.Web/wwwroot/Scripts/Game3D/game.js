@@ -5,7 +5,7 @@
 import * as THREE from '/lib/three/three.module.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
-import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY } from './cards.js';
+import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
@@ -29,19 +29,17 @@ const BOARD_HEIGHT = 2;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 
-// Colours of abilities (by ability id) and hero powers (by class).
-export const ABILITY_COLORS = {
-    1: 0xffe08a, 2: 0xc77dff, 3: 0x9aa5b1, 4: 0x9b59b6, 5: 0x7fb8ff, 6: 0xb39ddb, 7: 0xc0c8d0, 8: 0xff7a1a, 9: 0xffd34d,
-    10: 0xffd36b, 11: 0xff5a3a, 12: 0x7dff4a, 13: 0xffc04d, 14: 0x7fd1ff, 15: 0xff6a1a, 16: 0x6dff7a, 17: 0xff8c3a, 18: 0xd0104a, 19: 0x9b59b6,
-};
-const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
+// Colours of abilities (by ability id, see cards.js) and hero powers (by class).
+export { ABILITY_COLORS };
+const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19, EMPOWER: 20 };
 const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1 };
 
 // Messages that change the game: played in order through the queue.
 const QUEUED = new Set([
     Response.GAME_CREATE, Response.RECOVER, Response.SPECTATE_START, Response.USECARD_OK, Response.OPPONENT_USECARD_OK,
+    Response.USECARD_SPELL, Response.OPPONENT_USECARD_SPELL,
     Response.NEWCARD, Response.OPPONENT_NEWCARD, Response.NEXT_TURN, Response.GAME_EVENTS, Response.GAME_SYNC,
-    Response.VICTORY, Response.DEFEAT, Response.DRAW, Response.SPECTATE_END,
+    Response.MULLIGAN, Response.OPPONENT_MULLIGAN, Response.VICTORY, Response.DEFEAT, Response.DRAW, Response.SPECTATE_END,
 ]);
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,8 +89,11 @@ class EndTurnSign extends THREE.Group {
 }
 
 export class Game {
-    /** mode: 'normal' | 'practice' (play), 'watch' (spectate a live game) or 'replay' (play back a recording). */
-    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1 }) {
+    /**
+     * mode: 'normal' | 'practice' (play), 'friendly' (challenge a player by name: `challenge`, or wait for one),
+     * 'watch' (spectate a live game) or 'replay' (play back a recording).
+     */
+    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1, challenge = null }) {
         this.stage = stage;
         this.ui = ui;
         this.effects = effects;
@@ -102,6 +103,10 @@ export class Game {
         this.mode = mode;
         this.difficulty = difficulty;
         this.normalGame = mode === 'normal';
+        this.friendly = mode === 'friendly';
+        this.friendlyGame = this.friendly; // also when accepting a challenge while queued
+        this.challengeName = challenge;
+        this.emotesMuted = false;
         this.spectator = mode === 'watch' || mode === 'replay';
         this.rules = config.rules || { abilities: {}, races: {}, heroPowers: {}, heroTypes: {}, keywords: {} };
         this.tilt = 0;
@@ -116,7 +121,8 @@ export class Game {
         this.hovered = null;
         this.reconnects = 0;
         this.queue = Promise.resolve();
-        this.dying = new Map(); // cid -> Card3D that left the board and is still animating
+        this.dying = new Map(); // cid -> Card3D that left the board (or a spell being cast) and is still animating
+        this.casting = []; // spells cast in this action: shown until the GameSync, then used up
         this.lastSync = null;
         this.interaction = null;
 
@@ -163,6 +169,11 @@ export class Game {
             this.gameSocket = new Socket(`${wsBase}/game`, m => this.onGameMessage(m), e => this.onGameClosed(e));
             this.chatSocket = new Socket(`${wsBase}/chat`, m => this.onChatMessage(m), () => { });
             ui.onChat = text => this.sendChat(text);
+            ui.onEmote = emote => this.gameSocket.send(Request.EMOTE, { emote });
+            ui.onMuteEmotes = muted => {
+                this.emotesMuted = muted;
+                this.gameSocket.send(Request.MUTE_EMOTES, { muted });
+            };
             // Keeps the sliding login cookie alive while playing (classic: /Player/KeepAlive every minute).
             setInterval(() => fetch('/Player/KeepAlive', { credentials: 'same-origin' }).catch(() => { }), 60000);
         }
@@ -173,7 +184,14 @@ export class Game {
             this.playReplay();
             return;
         }
-        this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
+        if (this.friendly) {
+            this.ui.showFriendly({
+                onChallenge: name => this.gameSocket.send(Request.CHALLENGE, { name }),
+                onCancel: () => this.gameSocket.send(Request.CHALLENGE_CANCEL),
+            });
+        } else {
+            this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
+        }
         this.gameSocket.connect();
         if (!this.spectator) this.chatSocket.connect();
         this.login();
@@ -185,6 +203,13 @@ export class Game {
             const id = this.watchId ?? this.config.watch;
             if (id) this.spectate(id);
             else this.gameSocket.send(Request.LIST_LIVE_GAMES);
+            return;
+        }
+        // Friendly mode waits for challenges (a challenge does not survive a reconnect); in a game it rejoins below.
+        if (this.friendly && !this.active) {
+            this.ui.challengeIdle();
+            if (this.challengeName) this.gameSocket.send(Request.CHALLENGE, { name: this.challengeName });
+            this.challengeName = null;
             return;
         }
         if (this.normalGame) this.gameSocket.send(Request.QUEUE_NORMAL);
@@ -293,6 +318,7 @@ export class Game {
         }
         for (const card of this.dying.values()) card.dispose();
         this.dying.clear();
+        this.casting = [];
         this.hovered = null;
     }
 
@@ -374,24 +400,27 @@ export class Game {
         const level = Number(d.level) || 1;
         const rules = d.ability && r.abilities[d.ability.id];
         const ability = d.ability ? { name: d.ability.label || d.ability.name || rules?.name, text: d.ability.text || rules?.text, activated: d.ability.activated ?? rules?.activated } : null;
-        const race = d.race && r.races[d.race.id];
+        const spell = d.kind === 'spell';
+        // Spells never attack or die: only the Vampiric and Lightbringer passives work for them.
+        const race = d.race && (d.kind !== 'spell' || [2, 3].includes(Number(d.race.id))) && r.races[d.race.id];
         const rarity = RARITY[Number(d.rarity)];
         const side = this.sideOf(obj);
         const onBoard = side.board.get(obj.cid) === obj;
         const exhausted = onBoard && side.isPlayer && this.yourTurn && !obj.ready && !d.paralyzed;
         return {
             title: `${d.name}${level > 1 ? ' ' + '\u2605'.repeat(level - 1) : ''}`,
-            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, spell ? 'Spell' : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
             rarity,
-            stats: { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
+            stats: spell ? { cost: d.cost } : { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
             blocks: [
                 ability ? { label: ability.name, text: ability.text } : null,
                 race ? { kind: 'race', label: race.name, text: race.text } : null,
                 d.ward ? { kind: 'info', text: r.keywords.ward || 'Ward: the next damage breaks the ward instead.' } : null,
                 d.paralyzed ? { kind: 'warn', text: r.keywords.paralyzed } : null,
                 exhausted ? { kind: 'warn', text: 'Exhausted: it already acted this turn, or arrived this turn.' } : null,
-                !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
-                level > 1 ? { kind: 'info', text: `Level ${level}: +${level - 1} attack and health.` } : null,
+                spell ? { kind: 'info', text: r.keywords.spell || 'Spell: cast it from your hand, then it is used up.' } : null,
+                !spell && !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
+                level > 1 ? { kind: 'info', text: spell ? `Level ${level}: +${level - 1} to its effect.` : `Level ${level}: +${level - 1} attack and health.` } : null,
                 d.flavor ? { kind: 'flavor', text: d.flavor } : null,
             ],
         };
@@ -411,6 +440,18 @@ export class Game {
             else if (t === 'enemyHero') list.push(this.opponent.hero);
         }
         return list;
+    }
+
+    /** The arena point (live camera) under a hand card on screen: where a spell's arrow starts. */
+    handPoint(card) {
+        const v = card.getWorldPosition(new THREE.Vector3()).project(this.stage.hudCamera);
+        return this.stage.pointerOnPlane(new THREE.Vector2(v.x, v.y), 30);
+    }
+
+    /** What a spell in the hand may be cast on, as game objects; null for a spell cast on nothing (Insight, Inferno). */
+    spellTargets(card) {
+        const ability = this.rules.abilities[card.abilityId];
+        return ability && ability.activated ? this.candidates(ability.targets) : null;
     }
 
     abilityOf(card) {
@@ -437,7 +478,7 @@ export class Game {
         card.dragging = true;
         this.liftOut(card);
         sound.play('CARD_PICKUP', 0.5);
-        this.showSlots(true);
+        this.showSlots(!card.spell);
         this.lastMove = 0;
     }
 
@@ -464,7 +505,25 @@ export class Game {
         } else {
             this.gameSocket.send(Request.RELEASE_CARD, { cid: card.cid, gameId: this.gameId });
         }
-        // Safety net: if the server never answers, put the card back.
+        this.awaitAnswer(card);
+    }
+
+    /**
+     * Casts a spell from the hand (dragged or armed) on its target, or on nothing; the server answers UseCardSpell,
+     * or Release when it is refused.
+     */
+    cast(card, target) {
+        card.dragging = false;
+        card.pending = true;
+        this.showSlots(false);
+        this.gameSocket.send(Request.USECARD, target
+            ? { cid: card.cid, target: target instanceof Card3D ? target.cid : -1, type: this.targetType(target) }
+            : { cid: card.cid });
+        this.awaitAnswer(card);
+    }
+
+    /** Safety net: if the server never answers a hand card, put it back. */
+    awaitAnswer(card) {
         setTimeout(() => {
             if (card.pending && this.player.hand.get(card.cid) === card) { card.pending = false; this.putBack(card); this.layoutHand(this.player); }
         }, 8000);
@@ -537,7 +596,7 @@ export class Game {
             case Response.LOGIN_OK:
                 this.reconnects = 0;
                 if (!this.spectator) this.chatSocket.send(Request.LOGIN);
-                if (!this.active && !this.spectator) this.ui.setStatus('Connection established!');
+                if (!this.active && !this.spectator && !this.friendly) this.ui.setStatus('Connection established!');
                 break;
             case Response.LOGIN_NO_HASH:
             case Response.LOGIN_NOT_LOGGED_IN:
@@ -585,9 +644,39 @@ export class Game {
             case Response.ERROR:
                 if (typeof p === 'string') this.ui.screenMessage(p);
                 break;
+            case Response.CHALLENGE_INVITE:
+                // The live games list is no place to start a game.
+                if (this.spectator) {
+                    this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept: false });
+                    break;
+                }
+                sound.play('CHAT_MESSAGE', 0.6);
+                this.ui.showInvite(p, accept => {
+                    if (accept) this.friendlyGame = true;
+                    this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept });
+                });
+                break;
+            case Response.CHALLENGE_SENT:
+                this.ui.challengeWaiting(String(p.name ?? ''));
+                break;
+            case Response.CHALLENGE_CLOSED:
+                this.ui.hideInvite();
+                this.ui.challengeIdle(String(p));
+                break;
+            case Response.EMOTE:
+                this.showEmote(p);
+                break;
             default:
                 break;
         }
+    }
+
+    /** A hero says something: a speech bubble by the hero (not the opponent's while muted). */
+    showEmote(p) {
+        const side = this.sideByIdent(p.ident);
+        if (!this.active || (side === this.opponent && this.emotesMuted)) return;
+        this.ui.emote(side.isPlayer ? 'player' : 'opponent', String(p.text ?? ''));
+        sound.play('CHAT_MESSAGE', 0.4);
     }
 
     enqueue(m) {
@@ -607,12 +696,19 @@ export class Game {
             case Response.USECARD_OK:
             case Response.OPPONENT_USECARD_OK:
                 return this.onUseCard(m.Type === Response.USECARD_OK ? this.player : this.opponent, p);
+            case Response.USECARD_SPELL:
+            case Response.OPPONENT_USECARD_SPELL:
+                return this.onCastSpell(m.Type === Response.USECARD_SPELL ? this.player : this.opponent, p);
             case Response.NEWCARD:
                 return this.onNewCards(this.player, p);
             case Response.OPPONENT_NEWCARD:
                 return this.onNewCards(this.opponent, p);
             case Response.NEXT_TURN:
                 return this.onNextTurn(p);
+            case Response.MULLIGAN:
+                return this.onMulligan(this.player, p);
+            case Response.OPPONENT_MULLIGAN:
+                return this.onMulligan(this.opponent, p);
             case Response.GAME_EVENTS:
                 return this.playEvents(p.events || []);
             case Response.GAME_SYNC:
@@ -625,6 +721,8 @@ export class Game {
                 return this.onEnd('Draw!', p);
             case Response.SPECTATE_END:
                 return this.onSpectateEnd(p);
+            case Response.EMOTE: // replays (live emotes are shown at once)
+                return this.showEmote(p);
             default:
                 return undefined;
         }
@@ -654,6 +752,7 @@ export class Game {
             this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
         }
         if (p.create) this.kickOff();
+        if (p.mulligan && !spectating) this.showMulligan(p.mulligan, playerHand, p.create);
 
         this.setTurn(!!p.yourTurn && !spectating);
         this.sign.setActive(this.yourTurn);
@@ -670,7 +769,10 @@ export class Game {
 
     setTurn(yourTurn) {
         this.yourTurn = !!yourTurn && !this.spectator;
-        if (this.spectator && this.current) {
+        if (this.current === 0) {
+            // GameSync: nobody's turn during the mulligan.
+            this.ui.setTurn(false, 'Starting hands');
+        } else if (this.spectator && this.current) {
             const name = this.heroOf(this.current).info.name;
             this.ui.setTurn(this.current === 1, `${name}'s turn`);
         } else {
@@ -736,6 +838,53 @@ export class Game {
         });
     }
 
+    /**
+     * A spell was cast: it leaves the hand (the opponent's is revealed) and hangs over the middle of the arena in a ring
+     * of its colour while the events of the cast play (they refer to it by cid); the GameSync uses it up.
+     */
+    onCastSpell(side, p) {
+        const data = p.card;
+        side.hero.setInfo(p.pInfo);
+        const card = side.hand.get(data.cid) || this.createCard(side, data);
+        side.hand.delete(data.cid);
+        card.pending = card.dragging = card.opponentDragging = false;
+        this.liftOut(card);
+        if (this.hovered === card) this.hovered = null;
+        card.setData(data);
+        card.setOpacity(1);
+        this.layoutHand(side);
+        if (side.isPlayer) this.player.hero.previewCost(null);
+        this.dying.set(card.cid, card);
+        this.casting.push(card);
+        const color = ABILITY_COLORS[card.abilityId] ?? 0xb98cff;
+        const below = toWorld(960, 540, 4);
+        const pose = { position: below.clone().setY(150), quaternion: this.stage.camera.quaternion.clone(), scale: 1.1 };
+        this.crowd.spell('insight', 0.7);
+        if (Number(data.rarity) >= 3) this.effects.lightPillar(below, color, 1400);
+        return card.moveTo(pose, side.isPlayer ? 380 : 650, Ease.cubicOut, { arc: 60 }).then(() => {
+            card.setGlow(color, 0.9);
+            this.effects.sigil(below, color, 260, 1100);
+            this.effects.spiral(below.clone().setY(10), color, { count: 30, radius: 90, height: 260, duration: 800 });
+            this.effects.burst(card.center(), { color, count: 40, speed: 240, size: 34, life: 700, gravity: -120 });
+            this.cheer(0.3);
+            return wait(250);
+        });
+    }
+
+    /** The spells of the last action are used up: they flare and fade away. */
+    useUpSpells() {
+        for (const card of this.casting) {
+            card.setGlow(0xffffff, 1);
+            this.effects.burst(card.center(), { color: 0xfff1c0, count: 30, speed: 200, size: 30, life: 600, gravity: -250, up: 1 });
+            const from = card.position.y;
+            tweens.run(550, t => { card.setOpacity(1 - t); card.position.y = from + t * 90; }, Ease.quadIn).then(() => {
+                if (this.dying.get(card.cid) === card) this.dying.delete(card.cid);
+                card.dispose();
+            });
+        }
+        this.casting = [];
+    }
+
     /** Epic and legendary cards arrive with a column of light (and, for legendaries, a fanfare and their name). */
     rareEntrance(card, rarity, side) {
         const pose = this.boardPose(side, card);
@@ -771,7 +920,36 @@ export class Game {
         return wait(150);
     }
 
+    /** The mulligan screen (after the VS splash of a new game): pick starting cards to replace, once. */
+    showMulligan(m, cards, create) {
+        const endsAt = performance.now() + (Number(m.endsIn) || 0);
+        clearTimeout(this.mulliganTimer);
+        this.opponentReplaced = null;
+        this.mulliganTimer = setTimeout(() => {
+            this.ui.showMulligan({
+                cards, endsAt, total: Number(m.time) || 30000, done: !!m.done, opponent: String(this.opponent.hero.info.name ?? ''),
+                onConfirm: replace => this.gameSocket.send(Request.MULLIGAN, { replace }),
+            });
+            // The opponent may have chosen during the VS splash.
+            if (this.opponentReplaced !== null) this.ui.mulliganChosen(false, [], this.opponentReplaced);
+        }, create ? 3000 : 0);
+    }
+
+    /** A starting hand after the mulligan: all cards are new instances (the opponent's and spectators' face down). */
+    onMulligan(side, p) {
+        for (const card of side.hand.values()) card.dispose();
+        side.hand.clear();
+        if (side.isPlayer) this.hovered = null;
+        else this.opponentReplaced = Number(p.replaced) || 0;
+        this.addHandCards(side, p.hand || []);
+        if (!this.spectator) this.ui.mulliganChosen(side.isPlayer, p.hand || [], Number(p.replaced) || 0);
+        // A moment to see the new cards before the first turn closes the mulligan screen.
+        return wait(side.isPlayer && !this.spectator ? 1200 : 300);
+    }
+
     onNextTurn(p) {
+        clearTimeout(this.mulliganTimer);
+        this.ui.hideMulligan();
         this.opponent.hero.setInfo(p.opponentInfo);
         this.player.hero.setInfo(p.playerInfo);
         if (this.spectator) {
@@ -795,6 +973,7 @@ export class Game {
     /** The full public state: numbers, statuses, who may act, and the turn timer. */
     applySync(s) {
         this.lastSync = s;
+        this.useUpSpells();
         this.current = s.current;
         this.setTurn(!this.spectator && s.current === this.ident);
         this.sign.setActive(this.yourTurn);
@@ -1321,6 +1500,8 @@ export class Game {
         this.ui.hideTimer();
         this.ui.setPower(null);
         this.ui.hideTooltip();
+        clearTimeout(this.mulliganTimer);
+        this.ui.hideMulligan();
         for (const side of [this.player, this.opponent]) {
             side.hero.setReady(false);
             for (const card of side.board.values()) card.setReady(false);
@@ -1343,7 +1524,7 @@ export class Game {
         } else {
             this.celebrate(text === 'Draw!' ? 6 : 3, text === 'Draw!' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
-        this.ui.showEnd(text, p || {});
+        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame });
     }
 
     onSpectateEnd(p) {
@@ -1431,6 +1612,13 @@ export class Game {
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
         const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
         return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
+    }
+
+    /** Screen position for a hero's emote bubble: the top edge of the player's hero, the bottom edge of the opponent's. */
+    emoteAnchor(side) {
+        const hero = side.hero;
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+        return this.stage.toScreen(hero.position.clone().addScaledVector(up, (side.isPlayer ? 1 : -1) * 130 * hero.scale.x));
     }
 
     /** Screen position for the hero power button: beside the player's hero. */
@@ -1530,6 +1718,8 @@ export class Game {
             for (const side of [this.player, this.opponent]) {
                 const at = this.statusAnchor(side);
                 this.ui.placeStatus(side.isPlayer ? 'player' : 'opponent', at.x, at.y);
+                const bubble = this.emoteAnchor(side);
+                this.ui.placeEmote(side.isPlayer ? 'player' : 'opponent', bubble.x, bubble.y);
             }
         }
     }

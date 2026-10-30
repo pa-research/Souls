@@ -128,4 +128,93 @@ public sealed class ShopController(SoulsDbContext db, TimeProvider time) : Contr
         TempData[error is null ? "Message" : "Error"] = error ?? $"You bought {card.Name}!";
         return RedirectToAction(nameof(Index));
     }
+
+    /// <summary>
+    /// Buys a random pack (<see cref="Packs"/>): new cards are added, cards the player owns level up, and duplicates of
+    /// cards at the highest level pay back coins. <paramref name="money"/> is the balance the player saw.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> BuyPack(int money, CancellationToken ct)
+    {
+        var playerId = User.RequirePlayerId();
+        var pool = await db.Cards.AsNoTracking().ToListAsync(ct);
+        int[]? opened = null;
+        var strategy = db.Database.CreateExecutionStrategy();
+        var error = await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Only from the balance the player saw, so a double submit cannot buy a second pack. The charge also locks
+            // the player's row, so the player's other purchases wait until this pack is granted.
+            var charged = await db.Players
+                .Where(p => p.Id == playerId && p.Money == money && p.Money >= Packs.Price)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, p => p.Money - Packs.Price), ct);
+            if (charged == 0)
+            {
+                return await db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync(ct) < Packs.Price
+                    ? "You cannot afford a card pack!"
+                    : "Your soul coins changed in the meantime, so no pack was bought. Please try again.";
+            }
+
+            var pack = Packs.Open(pool, Random.Shared);
+            var ids = pack.Select(c => c.Id).ToList();
+            var owned = await db.PlayerCards.Where(pc => pc.PlayerId == playerId && ids.Contains(pc.CardId)).ToDictionaryAsync(pc => pc.CardId, ct);
+            var result = new List<int>();
+            var refund = 0;
+            foreach (var card in pack)
+            {
+                var coins = 0;
+                if (!owned.TryGetValue(card.Id, out var playerCard))
+                {
+                    owned[card.Id] = playerCard = db.PlayerCards.Add(new PlayerCard { PlayerId = playerId, CardId = card.Id, ObtainedAt = time.GetUtcNow() }).Entity;
+                }
+                else if (playerCard.Level < GameRules.MaxCardLevel)
+                {
+                    playerCard.Level++;
+                }
+                else
+                {
+                    coins = Packs.Refund(card.VendorPrice);
+                    refund += coins;
+                }
+
+                result.AddRange([card.Id, playerCard.Level, coins]);
+            }
+
+            if (refund > 0)
+            {
+                await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, p => p.Money + refund), ct);
+            }
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            opened = [.. result];
+            return null;
+        });
+
+        if (error is not null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["Pack"] = opened;
+        return RedirectToAction(nameof(Pack));
+    }
+
+    /// <summary>The pack just bought, face down until the player turns the cards over.</summary>
+    public async Task<IActionResult> Pack(CancellationToken ct)
+    {
+        // Card id, level and coins paid back for each card (see BuyPack).
+        if (TempData["Pack"] is not int[] opened)
+        {
+            return RedirectToAction(nameof(Index));
+        }
+
+        ViewData["Title"] = "Card Pack";
+        var results = opened.Chunk(3).ToList();
+        var ids = results.Select(r => r[0]).ToList();
+        var cards = await db.Cards.AsNoTracking().Include(c => c.Race).Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        return View(results.Select(r => new PackCard(CardTile.From(cards[r[0]], owned: true, level: r[1]), r[2])).ToList());
+    }
 }

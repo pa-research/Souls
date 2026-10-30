@@ -16,13 +16,17 @@ Icons made by the game-icons.net contributors listed below, from https://game-ic
 | `angel-outfit` | Lorc | [svg](https://game-icons.net/1x1/lorc/angel-outfit.html) | 47 Archangel |
 | `barbed-spear` | Lorc | [svg](https://game-icons.net/1x1/lorc/barbed-spear.html) | 41 Shieldmaiden |
 | `bat-wing` | Lorc | [svg](https://game-icons.net/1x1/lorc/bat-wing.html) | 37 Lord Varga |
+| `bleeding-heart` | Lorc | [svg](https://game-icons.net/1x1/lorc/bleeding-heart.html) | 64 Blood Pact |
 | `boar` | Caro Asercion | [svg](https://game-icons.net/1x1/caro-asercion/boar.html) | 51 Raging Boar |
+| `book-aura` | Lorc | [svg](https://game-icons.net/1x1/lorc/book-aura.html) | 67 Revelation |
 | `breaking-chain` | Skoll | [svg](https://game-icons.net/1x1/skoll/breaking-chain.html) | 56 Fenrir |
 | `broadsword` | Lorc | [svg](https://game-icons.net/1x1/lorc/broadsword.html) | 43 Templar, 47 Archangel |
 | `chalice-drops` | Lorc | [svg](https://game-icons.net/1x1/lorc/chalice-drops.html) | 33 Blood Priest |
+| `claw-slashes` | Lorc | [svg](https://game-icons.net/1x1/lorc/claw-slashes.html) | 60 Soul Rend |
 | `closed-barbute` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/closed-barbute.html) | 36 Sanguine Knight |
 | `cowled` | Lorc | [svg](https://game-icons.net/1x1/lorc/cowled.html) | 22 Shade |
 | `crenulated-shield` | Lorc | [svg](https://game-icons.net/1x1/lorc/crenulated-shield.html) | 46 Bastion Guardian |
+| `cross-shield` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/cross-shield.html) | 66 Sacred Shield |
 | `crown` | Lorc | [svg](https://game-icons.net/1x1/lorc/crown.html) | 54 Troll Chieftain |
 | `dread-skull` | Lorc | [svg](https://game-icons.net/1x1/lorc/dread-skull.html) | 26 Bone Colossus |
 | `elf-helmet` | Kier Heyl | [svg](https://game-icons.net/1x1/kier-heyl/elf-helmet.html) | 45 Valkyrie |
@@ -30,25 +34,32 @@ Icons made by the game-icons.net contributors listed below, from https://game-ic
 | `feathered-wing` | Lorc | [svg](https://game-icons.net/1x1/lorc/feathered-wing.html) | 45 Valkyrie |
 | `female-vampire` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/female-vampire.html) | 32 Vampire Bride |
 | `fencer` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/fencer.html) | 34 Crimson Duelist |
+| `floating-ghost` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/floating-ghost.html) | 60 Soul Rend |
 | `goblin` | Caro Asercion | [svg](https://game-icons.net/1x1/caro-asercion/goblin.html) | 38 Nosferatu |
 | `grim-reaper` | Lorc | [svg](https://game-icons.net/1x1/lorc/grim-reaper.html) | 28 The Pale Reaper |
+| `health-potion` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/health-potion.html) | 68 Troll Blood |
 | `horned-helm` | Lorc | [svg](https://game-icons.net/1x1/lorc/horned-helm.html) | 23 Draugr |
 | `ice-golem` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/ice-golem.html) | 55 Frost Jotun |
 | `imp-laugh` | Lorc | [svg](https://game-icons.net/1x1/lorc/imp-laugh.html) | 20 Gloom Imp |
 | `lantern-flame` | Lorc | [svg](https://game-icons.net/1x1/lorc/lantern-flame.html) | 42 Lantern Bearer |
+| `moon-bats` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/moon-bats.html) | 65 Blood Moon |
 | `ogre` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/ogre.html) | 54 Troll Chieftain |
 | `pentagram-rose` | Lorc | [svg](https://game-icons.net/1x1/lorc/pentagram-rose.html) | 35 Blood Ritualist |
+| `poison-gas` | Lorc | [svg](https://game-icons.net/1x1/lorc/poison-gas.html) | 62 Plague Wind |
 | `prayer` | Lorc | [svg](https://game-icons.net/1x1/lorc/prayer.html) | 40 Acolyte of Dawn |
 | `rat` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/rat.html) | 21 Grave Rat |
 | `ribcage` | Lorc | [svg](https://game-icons.net/1x1/lorc/ribcage.html) | 26 Bone Colossus |
 | `robe` | Lorc | [svg](https://game-icons.net/1x1/lorc/robe.html) | 25 Gravecaller |
 | `sacrificial-dagger` | Lorc | [svg](https://game-icons.net/1x1/lorc/sacrificial-dagger.html) | 35 Blood Ritualist |
 | `shambling-zombie` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/shambling-zombie.html) | 31 Blood Thrall |
+| `skeletal-hand` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/skeletal-hand.html) | 61 Death Grip |
 | `skull-staff` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/skull-staff.html) | 25 Gravecaller |
+| `snowflake-1` | Lorc | [svg](https://game-icons.net/1x1/lorc/snowflake-1.html) | 69 Frostbite |
 | `soul` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/soul.html) | lost-soul Lost Soul |
 | `spectre` | Lorc | [svg](https://game-icons.net/1x1/lorc/spectre.html) | 24 Mara |
 | `sun-priest` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/sun-priest.html) | 44 Sun Cleric |
 | `templar-shield` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/templar-shield.html) | 43 Templar |
+| `thrown-spear` | Lorc | [svg](https://game-icons.net/1x1/lorc/thrown-spear.html) | 63 Blood Lance |
 | `troll` | Skoll | [svg](https://game-icons.net/1x1/skoll/troll.html) | 53 Forest Troll |
 | `vampire-dracula` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/vampire-dracula.html) | 37 Lord Varga |
 | `viking-shield` | Delapouite | [svg](https://game-icons.net/1x1/delapouite/viking-shield.html) | 41 Shieldmaiden |

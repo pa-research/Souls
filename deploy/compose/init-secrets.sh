@@ -21,5 +21,13 @@ if [ ! -s Souls__Admin__Password ]; then
     echo "created Souls__Admin__Password (administrator password: $(cat Souls__Admin__Password))"
 fi
 
+if [ ! -s Souls__DataProtection__Certificate ]; then
+    # Self-signed certificate (base64 PFX) that encrypts the Data Protection keys (login cookies) in the database.
+    openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Souls Data Protection" \
+        -keyout /dev/stdout -out /dev/stdout 2>/dev/null \
+        | openssl pkcs12 -export -passout pass: | openssl base64 -A > Souls__DataProtection__Certificate
+    echo "created Souls__DataProtection__Certificate"
+fi
+
 # The containers run as non-root users and need to read the files.
-chmod 644 postgres-password ConnectionStrings__Souls Souls__Admin__Password
+chmod 644 postgres-password ConnectionStrings__Souls Souls__Admin__Password Souls__DataProtection__Certificate

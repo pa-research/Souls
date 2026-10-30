@@ -55,6 +55,7 @@ async function register(s, name, type) {
 }
 const hook = (s, expr) => s.page.evaluate(`window.__souls3d && window.__souls3d.${expr}`);
 async function drag(s, from, to, button = 'left') {
+  if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
   const m = s.page.mouse;
   await m.move(from.x, from.y, { steps: 3 }); await sleep(250);
   await m.down({ button }); await sleep(200);
@@ -181,11 +182,14 @@ async function turnClassic(s, turn) {
   step('ranked game created for both clients', !!createdA && !!createdB, createdA ? `A ident ${createdA.p.ident} vs ${createdA.p.opponent.info.name}` : 'no game');
   if (!createdA || !createdB) { await finish(); return; }
   const identA = createdA.p.ident, identB = createdB.p.ident;
+  // Both keep their starting hand on the mulligan screen.
+  await A.page.click('.sg-mulligan-confirm'); await B.page.click('.sg-mulligan-confirm');
+  step('mulligan confirmed in both clients', !!(await waitFrame(A, f => f.dir === 'in' && f.type === 226, 0, 30000)));
 
   // C watches from the live games list.
   await C.page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
   await C.page.waitForSelector('.sg-menu', { timeout: 120000 });
-  await C.page.click('.sg-menu-btn >> nth=2');
+  await C.page.click('.sg-menu-btn:has-text("Watch live")');
   await C.page.waitForSelector('.sg-game button', { timeout: 60000 });
   const listed = await C.page.textContent('.sg-games');
   step('live games list shows the game', listed.includes(`ann${id}`) && listed.includes(`ben${id}`), listed.replace(/\s+/g, ' ').slice(0, 160));
@@ -216,7 +220,7 @@ async function turnClassic(s, turn) {
   await hook(C, "view('classic')").catch(() => {});
   let result = null;
   const t0 = Date.now();
-  for (let turn = 0; turn < 40 && !result; turn++) {
+  for (let turn = 0; turn < 80 && !result; turn++) {
     if ([A, B].some(x => x.frames.some(f => f.dir === 'in' && RESULT.includes(f.type)))) break;
     const current = (await hook(A, 'sync()').catch(() => null))?.current;
     console.log(`[${Math.round((Date.now() - t0) / 1000)}s] loop ${turn}: current ${current}`);

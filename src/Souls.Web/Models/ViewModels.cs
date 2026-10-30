@@ -75,22 +75,32 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     public string? AbilityText { get; init; }
     public string? Flavor { get; init; }
 
+    /// <summary>A spell: no attack or health; its level raises its value instead.</summary>
+    public bool Spell { get; init; }
+
     public static CardTile From(Card c, bool owned = false, int level = 1)
     {
-        var bonus = GameRules.LevelBonus(level);
+        var spell = c.Kind == CardKind.Spell;
+        var bonus = spell ? 0 : GameRules.LevelBonus(level);
+        var value = spell && c.AbilityId is { } a ? GameRules.SpellValue(a, c.AbilityValue, level) : c.AbilityValue;
         var lines = new List<string>();
-        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, c.AbilityValue, c.RaceId) : null;
-        if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
+        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, value, c.RaceId) : null;
+        if (spell)
         {
-            lines.Add($"{GameRules.AbilityLabel(id, c.AbilityValue)}: {abilityText}");
+            lines.Add(GameRules.Keywords.Spell);
         }
 
-        if (c.RaceId is { } race && GameRules.RaceTexts.TryGetValue(race, out var raceText))
+        if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
+        {
+            lines.Add($"{GameRules.AbilityLabel(id, value)}: {abilityText}");
+        }
+
+        if (c.RaceId is { } race && (!spell || GameRules.RaceWorksForSpells(race)) && GameRules.RaceTexts.TryGetValue(race, out var raceText))
         {
             lines.Add($"{raceText.Name}. {raceText.Text}");
         }
 
-        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } a ? GameRules.AbilityLabel(a, c.AbilityValue) : null,
+        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } l ? GameRules.AbilityLabel(l, value) : null,
             c.Race?.CardUrl, c.Portrait ?? DefaultPortrait, c.VendorPrice, owned)
         {
             Armor = c.Armor,
@@ -101,6 +111,7 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
             RaceName = c.Race?.Name,
             AbilityText = abilityText,
             Flavor = c.Flavor,
+            Spell = spell,
         };
     }
 }
@@ -109,6 +120,12 @@ public sealed class ShopViewModel
 {
     public required IReadOnlyList<CardTile> Cards { get; init; }
     public required PlayerSummary Player { get; init; }
+}
+
+/// <summary>A card from a pack: the player's copy after the pack, and the coins paid back for a duplicate at the highest level.</summary>
+public sealed record PackCard(CardTile Card, int Coins)
+{
+    public string Result => Coins > 0 ? $"+{Coins} soul {(Coins == 1 ? "coin" : "coins")}" : Card.Level == 1 ? "New card" : $"Level {Card.Level}";
 }
 
 public sealed record PlayerSummary(string Name, int Money, int Rank, string Type, int Health, int BonusMana, string? Race)
@@ -127,6 +144,29 @@ public sealed class HomeViewModel
     public HomeProfile? Profile { get; init; }
     public IReadOnlyList<QuestView>? Quests { get; init; }
     public required IReadOnlyList<LeaderboardEntry> TopPlayers { get; init; }
+
+    /// <summary>The signed in player's current season.</summary>
+    public SeasonProfile? Season { get; init; }
+}
+
+/// <summary>A player's normal games and wins in the current season and their best final place in an earlier one.</summary>
+public sealed record SeasonProfile(Season Season, int Games, int Wins, SeasonStanding? BestFinish);
+
+public sealed record SeasonEntry(int Position, string Name, int Rating, int Rank, int Games, int Wins)
+{
+    /// <summary>The reward paid at the end of the season (past seasons only).</summary>
+    public int? RewardCoins { get; init; }
+    public string? RewardCard { get; init; }
+}
+
+public sealed class SeasonViewModel
+{
+    public required Season Season { get; init; }
+    public bool IsCurrent { get; init; }
+
+    /// <summary>Every season, newest first.</summary>
+    public required IReadOnlyList<Season> Seasons { get; init; }
+    public required IReadOnlyList<SeasonEntry> Standings { get; init; }
 }
 
 public sealed record DeckEntry(CardTile Card, int Count);
@@ -177,6 +217,9 @@ public sealed record RulesConfig(
     int DeckSize,
     int MaxHandCards)
 {
+    /// <summary>The emotes players can send in a game, by id.</summary>
+    public IReadOnlyList<string> Emotes => GameRules.Emotes;
+
     public static RulesConfig Create(IEnumerable<PlayerType> heroTypes)
     {
         static string Key(int id) => id.ToString(CultureInfo.InvariantCulture);
@@ -193,6 +236,7 @@ public sealed record RulesConfig(
                 ["fatigue"] = GameRules.Keywords.Fatigue,
                 ["burned"] = GameRules.Keywords.Burned,
                 ["ward"] = GameRules.Keywords.Ward,
+                ["spell"] = GameRules.Keywords.Spell,
             },
             GameRules.DeckSize,
             10);
@@ -220,6 +264,29 @@ public sealed class AdminPlayersViewModel
 {
     public required IReadOnlyList<Player> Players { get; init; }
     public required IReadOnlyList<PlayerPermission> Permissions { get; init; }
+
+    /// <summary>Per player: cards owned and the sum of their levels (packs and upgrades raise it).</summary>
+    public required IReadOnlyDictionary<int, (int Count, int Levels)> Cards { get; init; }
+}
+
+/// <summary>Games in which a card was played and how many of them its player won.</summary>
+public sealed record WinRate(int Games, int Wins)
+{
+    public double? Rate => Games == 0 ? null : Wins / (double)Games;
+
+    public string Percent => Rate is { } rate ? (rate * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%" : "-";
+}
+
+/// <summary>A card's win rate in all games and per hero class (in the order of <see cref="CardStatisticsViewModel.Classes"/>).</summary>
+public sealed record CardStatistics(Card Card, WinRate Total, IReadOnlyList<WinRate> ByClass);
+
+public sealed class CardStatisticsViewModel
+{
+    /// <summary>Win rates from fewer games than this are marked as unreliable.</summary>
+    public const int FewGames = 30;
+
+    public required IReadOnlyList<PlayerType> Classes { get; init; }
+    public required IReadOnlyList<CardStatistics> Cards { get; init; }
 }
 
 public sealed class CardEditorModel
@@ -235,8 +302,11 @@ public sealed class CardEditorModel
     [Range(0, 100)]
     public int Attack { get; set; }
 
-    [Range(1, 100)]
+    /// <summary>At least 1 for a card; spells have none (saved as 0).</summary>
+    [Range(0, 100)]
     public int Health { get; set; } = 1;
+
+    public CardKind Kind { get; set; }
 
     [Range(0, 100)]
     public int Armor { get; set; }
@@ -272,6 +342,23 @@ public sealed class CardEditorViewModel
     public required IReadOnlyList<Ability> Abilities { get; init; }
     public required IReadOnlyList<Race> Races { get; init; }
     public required IReadOnlyList<Card> Cards { get; init; }
+}
+
+public sealed class SeasonEditorModel
+{
+    public int Number { get; set; }
+
+    [Required, StringLength(64)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The end of the season in UTC.</summary>
+    public DateTime EndsAt { get; set; }
+}
+
+public sealed class AdminSeasonViewModel
+{
+    public required Season Current { get; init; }
+    public required SeasonEditorModel Form { get; init; }
 }
 
 public sealed class NewsEditorModel

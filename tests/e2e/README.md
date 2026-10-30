@@ -13,6 +13,8 @@ npm install
 | `rules3d.js <base> <out> [difficulty]` | A full 3D practice game: hero power, cards, attacks, turn timer, tooltips, rewards, stats page, 3D replay |
 | `classic_ui.js <base> <out> [width height]` | A classic practice game with the HUD: menu, queue, cards, hero power, tooltip, settings |
 | `pvp_rules.js <base> <out>` | A ranked game between a 3D and a classic player, watched live by a spectator |
+| `social.js <base> <out>` | Friendly challenges (accept, decline, challenge link) and emotes (mute) between a 3D and a classic player; no rating change |
+| `spells.js <base> <out>` | Spells: the admin makes four spells starter cards (and puts them back), shop and deck tiles, casting from the hand in 3D (an arrow from the hand onto a target, a spell without one dropped on the board) with a spectator, in the classic client, and tap-tap on a phone |
 | `vfx3d.js <base> <out>` | Replays the new card set's effects in the 3D client (legendary entrance, inferno, ward, venom, ice, grow, rally, drain, shatter) |
 | `hud3d.js <base> <out> [width height]` | Screenshots of the 3D client's interface states |
 | `ui_capture.js <base> <out>` | Every website page on desktop and phone, including the admin pages |

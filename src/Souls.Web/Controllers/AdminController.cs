@@ -21,6 +21,9 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         {
             Players = await db.Players.AsNoTracking().Include(p => p.PlayerPermission).Where(p => !p.IsSystem).OrderBy(p => p.Id).ToListAsync(ct),
             Permissions = await db.PlayerPermissions.AsNoTracking().OrderBy(p => p.Id).ToListAsync(ct),
+            Cards = await db.PlayerCards.GroupBy(pc => pc.PlayerId)
+                .Select(g => new { g.Key, Count = g.Count(), Levels = g.Sum(pc => pc.Level) })
+                .ToDictionaryAsync(x => x.Key, x => (x.Count, x.Levels), ct),
         });
     }
 
@@ -56,6 +59,89 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         return View();
     }
 
+    /// <summary>
+    /// Win rate of each card when played, per card and hero class, from stored games between players. Like the
+    /// simulator's report (docs/balance.md) it counts decided games only: draws and practice games are left out.
+    /// </summary>
+    public async Task<IActionResult> CardStatistics(CancellationToken ct)
+    {
+        ViewData["Title"] = "Card Statistics";
+
+        // One row per game, player and card played in it (playing a card twice counts once), grouped in the database.
+        var plays = db.GameLogs
+            .Where(l => l.GameLogTypeId == (int)GameLogKind.UseCard && !l.Game!.IsPractice && l.Game.WinnerId != null)
+            .Select(l => new { l.GameId, PlayerId = l.Obj1Id, CardId = l.Obj2Id, Won = l.Game!.WinnerId == l.Obj1Id })
+            .Distinct();
+        var stats = await plays
+            .Join(db.Players, x => x.PlayerId, p => p.Id, (x, p) => new { x.CardId, p.PlayerTypeId, x.Won })
+            .GroupBy(x => new { x.CardId, x.PlayerTypeId })
+            .Select(g => new { g.Key.CardId, g.Key.PlayerTypeId, Games = g.Count(), Wins = g.Count(x => x.Won) })
+            .ToListAsync(ct);
+
+        var classes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
+        var cards = await db.Cards.AsNoTracking().Include(c => c.Race).ToListAsync(ct);
+        WinRate Rate(int cardId, int? classId)
+        {
+            var rows = stats.Where(s => s.CardId == cardId && (classId is null || s.PlayerTypeId == classId)).ToList();
+            return new WinRate(rows.Sum(s => s.Games), rows.Sum(s => s.Wins));
+        }
+
+        return View(new CardStatisticsViewModel
+        {
+            Classes = classes,
+            Cards = [.. cards
+                .Select(c => new CardStatistics(c, Rate(c.Id, null), [.. classes.Select(t => Rate(c.Id, t.Id))]))
+                .OrderByDescending(r => r.Total.Games >= CardStatisticsViewModel.FewGames)
+                .ThenByDescending(r => r.Total.Rate ?? -1)
+                .ThenByDescending(r => r.Total.Games)
+                .ThenBy(r => r.Card.Name)],
+        });
+    }
+
+    /// <summary>The current season: rename it, move its end or end it now. The game server starts the next one.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Season(CancellationToken ct)
+    {
+        ViewData["Title"] = "Season";
+        var current = await Seasons.CurrentAsync(db, ct);
+        return current is null ? NotFound() : View(new AdminSeasonViewModel
+        {
+            Current = current,
+            Form = new SeasonEditorModel { Number = current.Number, Name = current.Name, EndsAt = current.EndsAt.UtcDateTime },
+        });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Season([Bind(Prefix = "Form")] SeasonEditorModel model, bool endNow, CancellationToken ct)
+    {
+        if (!ModelState.IsValid)
+        {
+            ViewData["Title"] = "Season";
+            var current = await Seasons.CurrentAsync(db, ct);
+            return current is null ? NotFound() : View(new AdminSeasonViewModel { Current = current, Form = model });
+        }
+
+        var endsAt = endNow ? time.GetUtcNow() : new DateTimeOffset(DateTime.SpecifyKind(model.EndsAt, DateTimeKind.Utc));
+        var name = model.Name.Trim();
+
+        // Only while it is still the current season: a form left open over a rollover must not change an ended one.
+        var updated = await db.Seasons.Where(s => s.Number == model.Number && !db.Seasons.Any(next => next.Number > s.Number))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Name, name).SetProperty(x => x.EndsAt, endsAt), ct);
+        if (updated == 0)
+        {
+            TempData["Error"] = "That season has already ended.";
+        }
+        else
+        {
+            logger.LogInformation("Season {Number} now ends {EndsAt}", model.Number, endsAt);
+            TempData["Message"] = endsAt <= time.GetUtcNow()
+                ? $"{name} has ended. The game server stores the standings, pays the rewards and starts the next season within a minute."
+                : $"Saved {name}.";
+        }
+
+        return RedirectToAction(nameof(Season));
+    }
+
     [HttpGet]
     public async Task<IActionResult> CardEditor(int? id, CancellationToken ct)
     {
@@ -85,6 +171,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
                 Flavor = card.Flavor,
                 RaceId = card.RaceId,
                 Portrait = card.Portrait,
+                Kind = card.Kind,
             };
         }
 
@@ -103,6 +190,16 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         if (model.RaceId is { } raceId && !await db.Races.AnyAsync(r => r.Id == raceId, ct))
         {
             ModelState.AddModelError("Card.RaceId", "Unknown race");
+        }
+
+        if (model.Kind == CardKind.Spell && !GameRules.IsSpellAbility(model.AbilityId))
+        {
+            ModelState.AddModelError("Card.AbilityId", "A spell needs an ability it can cast: Burn, Drain, Heal, Harden, Paralyze, Empower, Insight or Inferno.");
+        }
+
+        if (model.Kind == CardKind.Minion && model.Health < 1)
+        {
+            ModelState.AddModelError("Card.Health", "A card needs at least 1 health.");
         }
 
         if (!await IsValidPortraitAsync(model.Portrait, ct))
@@ -126,11 +223,13 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
             db.Cards.Add(card);
         }
 
+        var spell = model.Kind == CardKind.Spell;
         card.Name = model.Name.Trim();
+        card.Kind = model.Kind;
         card.Cost = model.Cost;
-        card.Attack = model.Attack;
-        card.Health = model.Health;
-        card.Armor = model.Armor;
+        card.Attack = spell ? 0 : model.Attack;
+        card.Health = spell ? 0 : model.Health;
+        card.Armor = spell ? 0 : model.Armor;
         card.Level = model.Level;
         card.VendorPrice = model.VendorPrice;
         card.AbilityId = model.AbilityId;

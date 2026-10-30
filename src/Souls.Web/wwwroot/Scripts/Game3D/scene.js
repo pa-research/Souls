@@ -37,22 +37,41 @@ const BOARD_FIT = [
     new THREE.Vector3(0, 300, -585),
 ];
 
+const QUALITIES = ['low', 'medium', 'high'];
+// The level the frame-rate watch stepped down to on this device; cleared by choosing "Auto" in the settings.
+export const QUALITY_KEY = 'souls3d.quality';
+
+/** The `?fx=low|medium|high` override, or null for automatic quality. */
+function forcedQuality() {
+    const forced = new URLSearchParams(window.location.search).get('fx');
+    return QUALITIES.includes(forced) ? forced : null;
+}
+
 /**
  * Graphics quality: "low" for software rendering (no bloom, thinner crowd), "medium" for phones and tablets,
- * "high" otherwise. `?fx=low|medium|high` overrides it.
+ * "high" otherwise, but no higher than the level this device was stepped down to before. `?fx=` overrides it.
  */
 function detectQuality(renderer) {
-    const forced = new URLSearchParams(window.location.search).get('fx');
-    if (forced === 'low' || forced === 'medium' || forced === 'high') return forced;
+    const forced = forcedQuality();
+    if (forced) return forced;
+    let detected = 'high';
     try {
         const gl = renderer.getContext();
         const info = gl.getExtension('WEBGL_debug_renderer_info');
         const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
         if (/swiftshader|llvmpipe|software/i.test(name)) return 'low';
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) detected = 'medium';
     } catch (e) {
-        return 'medium';
+        detected = 'medium';
     }
-    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'medium' : 'high';
+    let stored = null;
+    try { stored = localStorage.getItem(QUALITY_KEY); } catch (e) { /* storage blocked */ }
+    return QUALITIES.indexOf(stored) >= 0 && QUALITIES.indexOf(stored) < QUALITIES.indexOf(detected) ? stored : detected;
+}
+
+/** Device pixel ratio to render at for a quality level. */
+function pixelRatio(quality) {
+    return quality === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, quality === 'medium' ? 1.5 : 2);
 }
 
 export class Stage {
@@ -62,7 +81,9 @@ export class Stage {
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         this.quality = detectQuality(renderer);
         this.lowPower = this.quality !== 'high';
-        renderer.setPixelRatio(this.quality === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, this.quality === 'medium' ? 1.5 : 2));
+        this.autoQuality = !forcedQuality();
+        this.frameWatch = null; // started by watchFrameRate() once the arena is loaded
+        renderer.setPixelRatio(pixelRatio(this.quality));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.toneMapping = THREE.NoToneMapping;
@@ -377,7 +398,40 @@ export class Stage {
         cam.updateMatrixWorld(true);
     }
 
-    render() {
+    /**
+     * Steps the quality down (high, medium, low) while frames stay below 45 per second over five seconds, with
+     * automatic quality only. The new level takes effect at once (pixel ratio, bloom) and is remembered for the next
+     * visit, which also builds a lighter stadium.
+     */
+    watchFrameRate() {
+        if (this.autoQuality) this.frameWatch = { start: performance.now(), frames: 0 };
+    }
+
+    checkFrameRate(now) {
+        const w = this.frameWatch;
+        if (!w || this.quality === 'low') return;
+        // A long gap means the tab was hidden or the page was busy loading: start a new window.
+        if (now - (w.last ?? now) > 1000) { w.start = now; w.frames = 0; }
+        w.last = now;
+        w.frames++;
+        if (now - w.start < 5000) return;
+        const fps = w.frames * 1000 / (now - w.start);
+        w.start = now;
+        w.frames = 0;
+        if (fps >= 45) return;
+        this.quality = QUALITIES[QUALITIES.indexOf(this.quality) - 1];
+        try { localStorage.setItem(QUALITY_KEY, this.quality); } catch (e) { /* storage blocked */ }
+        this.renderer.setPixelRatio(pixelRatio(this.quality));
+        if (this.quality === 'low' && this.composer) {
+            this.composer.dispose();
+            this.composer = null;
+            this.bloom = null;
+        }
+        this.resize();
+    }
+
+    render(now = performance.now()) {
+        this.checkFrameRate(now);
         const r = this.renderer;
         r.clear();
         if (this.composer) this.composer.render();

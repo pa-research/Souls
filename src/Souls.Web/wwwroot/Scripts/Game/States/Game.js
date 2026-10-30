@@ -19,14 +19,18 @@ define("game",
     'turntimer',
     'tooltip',
     'battlelog',
-    'hud'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud) {
+    'hud',
+    'emotes'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud, Emotes) {
 
         var that;
         /// normalGame: ranked match (true) or practice against the bot (false); difficulty: 0 easy, 1 normal, 2 hard;
-        /// resuming: going back into a running game (after switching from the 3D client).
-        Engine = function (normalGame, difficulty, resuming) {
+        /// resuming: going back into a running game (after switching from the 3D client); friendly: {challenge: name
+        /// or undefined} to challenge a player by name or wait to be challenged instead of queueing.
+        Engine = function (normalGame, difficulty, resuming, friendly) {
             this.normalGame = normalGame;
             this.difficulty = (difficulty >= 0 && difficulty <= 2) ? difficulty : 1;
+            this.friendly = friendly || null;
+            this.friendlyGame = !!friendly; // also set when a challenge is accepted while queued
             that = this;
             State.call(this, "0xCAECAE");
             // Variables
@@ -36,6 +40,7 @@ define("game",
             this.myTurn = false;
             this.ended = false;
             this.lastCardPos = {};
+            this.castSpells = {}; // cid -> spell being cast (UseCardSpell) until the GameSync after it
             // Create Groups
             this.addGroup("Background");
             this.addGroup("EndTurn");
@@ -83,6 +88,7 @@ define("game",
             this.battleLog = new BattleLog();
             this.turnTimer = new TurnTimer(this);
             this.settings = new Settings(this);
+            this.emotes = new Emotes(this);
             this.tooltip = new Tooltip(this);
 
             // Connect to the chat service
@@ -119,8 +125,10 @@ define("game",
             this.turnTimer.Stop();
             this.tooltip.Hide();
             this.settings.Hide();
+            this.emotes.Hide();
             this.battleLog.Hide(); // the end screen is a full-screen layer
             if (this.player) {
+                if (this.player.armedSpell) this.player.armedSpell.Disarm(false);
                 this.player.holdingCard = undefined;
                 this.player.isClicked = false;
             }
@@ -160,6 +168,11 @@ define("game",
 
         /// Removes the heroes and cards (the game state is sent again after a reconnect).
         Engine.prototype.ClearBoard = function () {
+            if (this.player && this.player.armedSpell) this.player.armedSpell.Disarm(false);
+            for (var cid in this.castSpells) {
+                if (this.castSpells[cid].parent) this.castSpells[cid].parent.removeChild(this.castSpells[cid]);
+            }
+            this.castSpells = {};
             var sides = [this.player, this.opponent];
             for (var i = 0; i < sides.length; i++) {
                 var side = sides[i];

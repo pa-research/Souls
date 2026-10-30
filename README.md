@@ -13,8 +13,9 @@ container, Docker Compose and Kubernetes (Kustomize) deployments.
                                                                 └──── PostgreSQL ◀─┘
 ```
 
-Both services share the database and the ASP.NET Core Data Protection key ring, so the login cookie issued
-by the web app authenticates the WebSockets on the game server (same origin, no tokens in JavaScript).
+Both services share the database and the ASP.NET Core Data Protection key ring (encrypted with a shared
+certificate), so the login cookie issued by the web app authenticates the WebSockets on the game server (same
+origin, no tokens in JavaScript).
 
 ## What changed
 
@@ -25,8 +26,8 @@ by the web app authenticates the WebSockets on the game server (same origin, no 
 | Game server | console app, websocket-sharp (vendored DLL) | ASP.NET Core WebSockets, same JSON protocol |
 | Data | NHibernate 3.3, MySQL, schema auto-update | EF Core 10, PostgreSQL 18, EF migrations |
 | Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |
-| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 19 abilities, hero powers, Taunt, turn timer (see below) |
-| Cards | 8 cards | 41 cards in four rarities: the 8 originals plus a 33-card expansion, balanced with 10 000 simulated games (see below) |
+| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 20 abilities, spells, hero powers, Taunt, turn timer (see below) |
+| Cards | 8 cards | 51 cards in four rarities: the 8 originals, a 33-card expansion and 10 spells, balanced with 10 000 simulated games (see below) |
 | Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
 | Watching | none | live spectating and 3D replays of every game |
 | Look | 2014 light page, bottom navbar, image buttons | one dark-fantasy design system for the site and both game clients (see below) |
@@ -84,8 +85,9 @@ from phone to desktop, keep WCAG AA text contrast, show focus outlines for keybo
 The full rules and the protocol are in [docs/game-protocol.md](docs/game-protocol.md). In short:
 
 - **Decks**: 20 cards, at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary, built on
-  the **Deck** page from the cards you own (or an automatic deck). Start with 3 cards (4 when going second), draw
-  one each turn; an empty deck deals growing **fatigue** damage and a draw with 10 cards in hand **burns** the card.
+  the **Deck** page from the cards you own (or an automatic deck). Start with 3 cards, replace any of them once
+  (**mulligan**, 30 seconds, both players at once; going second then adds a 4th card), draw one each turn; an empty
+  deck deals growing **fatigue** damage and a draw with 10 cards in hand **burns** the card.
 - **Mana**: the round number plus the class bonus (every turn, at most 10); going second gives 1 extra mana on
   the first turn.
 - **Armor** absorbs damage before health, on cards and heroes. Healing stops at maximum health.
@@ -106,24 +108,35 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 - **Turn timer**: 75 seconds, then the turn ends; three timeouts in a row forfeit.
 - **Rating**: normal games change an Elo rating (rank = one step per 50 points above 1000); matchmaking pairs
   players of similar rating, widening the window while they wait. The home page shows the top players.
+- **Seasons** (8 weeks by default): when one ends, everyone who played a normal game in it gets coins for the
+  tier of their final rating (Bronze 5, Silver 10, Gold 20, Platinum 30, Diamond 40, Champion 50; Diamond and
+  Champion also a legendary card they don't own), the final standings are kept on the season leaderboard
+  (`/Season`), and every rating moves halfway back to 1000. Admins can rename a season, move its end or end it now.
 - **Coins**: 3 per normal win (+1 against a higher rated opponent), 1 per loss or draw, 1-3 per practice win
   (by bot difficulty), plus **daily quests** (three a day, shown on the home page and after each game).
 - **Card upgrades**: buying a card you own levels it up (to level 3), +1 attack and +1 health per level.
-- **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard also trades into
-  valuable cards, pops wards, respects venom, defends when threatened and plays upgraded cards. The bot plays a
-  random deck of one or two races.
+- **Card packs**: 12 coins for five random cards, the last one rare or better, turned over one by one. A card you
+  own levels up instead; at level 3 it pays back half its price. Drop rates are in `src/Souls.Model/Packs.cs`.
+- **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard looks one turn ahead:
+  it tries its options for the turn on a copy of the game, scores where each line ends (card values, hero health)
+  and plays the best one. It also plays upgraded cards. The bot plays a random deck of one or two races.
 
 ### Balance
 
-`tools/Souls.Sim` plays the Hard bot against itself (random classes, random one- or two-race decks, thousands
-of games a minute) and reports win rates per card, race and class; `--tune n` adjusts the classes' health
-towards 50%. The card and class numbers were tuned with it. The current report is
-[docs/balance.md](docs/balance.md): every class wins 48-54%, every race 48-52%, every card's "drawn" win rate is
-within 49-55%, the player going first wins about 52% and a game lasts about 17 turns.
+`tools/Souls.Sim` plays the Hard bot against itself (random classes, random one- or two-race decks, several
+hundred games a minute) and reports win rates per card, race and class; `--tune n` adjusts the classes' health
+towards 50%. The card and class numbers were tuned with it, against the Hard bot before it looked ahead. With the
+lookahead the current report, [docs/balance.md](docs/balance.md), is less even and has not been retuned yet:
+classes win 32-60% (Fader weakest, Lurker strongest), races 46-60% (Ferocious strongest), cards' "drawn" win
+rates spread over 43-67%; the player going first wins 50% and a game lasts about 24 turns.
 
 ```sh
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md
+dotnet run --project tools/Souls.Sim -c Release -- --games 4000 --vs-legacy   # Hard against Hard without lookahead
 ```
+
+The admin page **Admin > Card Statistics** shows the same "played" win rate per card and hero class from real
+games between players (draws and practice games against the bot left out), to compare with the report.
 
 ## Game clients: Classic and Modern 3D
 
@@ -239,6 +252,10 @@ Requires Docker with Compose v2.
 docker compose up -d --build
 ```
 
+`init-secrets.sh` also creates `Souls__DataProtection__Certificate`, the certificate that encrypts the login cookie
+keys in the database (requires `openssl`; run it again after updating from an older version, existing secrets are
+kept).
+
 Open <https://localhost> (Caddy issues a certificate from its local CA, so the browser shows a warning the
 first time). Log in as `admin` with the password printed by `init-secrets.sh`
 (also in `deploy/compose/secrets/Souls__Admin__Password`), or register a player and press **Play Now!**.
@@ -250,9 +267,11 @@ Settings go in a `.env` file next to `compose.yaml`:
 | `SOULS_DOMAIN` | `localhost` | Public host name. A real domain gets a Let's Encrypt certificate. |
 | `CADDY_GLOBAL_OPTIONS` | | e.g. `email you@example.com` for ACME. |
 | `SOULS_HTTP_PORT` / `SOULS_HTTPS_PORT` | `80` / `443` | Published ports. |
+| `SOULS_FRONTEND_SUBNET` | `172.28.10.0/24` | Subnet of the internal Caddy-to-apps network; change it if another Docker network already uses that range. |
 | `SOULS_ADMIN_USERNAME` | `admin` | Bootstrap administrator. |
 | `SOULS_GITHUB_REPOSITORY` | | Show recent commits of `owner/repo` on the home page. |
 | `SOULS_WEB_IMAGE` / `SOULS_SERVER_IMAGE` | `souls-web:latest` / `souls-server:latest` | Use published images instead of building. |
+| `SOULS_BACKUP_HOURS` / `SOULS_BACKUP_KEEP` | `24` / `7` | Database dump interval and how many dumps to keep (see [Backups](#backups-and-restore)). |
 
 Only Caddy publishes ports. The web app and game server sit on internal networks without internet access, and
 PostgreSQL is only reachable from them. A one-shot `migrate` container applies the database migrations before
@@ -265,11 +284,13 @@ deploy/k8s/
 ├── base/                 web + game server Deployments, Services, PDB, NetworkPolicies, config, namespace
 ├── components/
 │   ├── postgres/         single-instance PostgreSQL StatefulSet (dev / small installs)
+│   ├── backup/           nightly pg_dump CronJob to a PersistentVolumeClaim
 │   ├── ingress/          Ingress: /ws → game server, / → web
-│   └── gateway-api/      HTTPRoute for a Gateway API implementation
+│   ├── gateway-api/      HTTPRoute for a Gateway API implementation
+│   └── observability/    OpenTelemetry settings, Grafana dashboard, Prometheus alerts (see Observability)
 └── overlays/
     ├── dev/              in-cluster PostgreSQL + Ingress on http://souls.localtest.me, locally built images
-    └── production/       managed PostgreSQL, Gateway API, HPA, pinned image tags
+    └── production/       managed PostgreSQL with nightly dumps, Gateway API, HPA, pinned image tags (observability opt-in)
 ```
 
 Local cluster (kind, k3d, minikube, Docker Desktop) with an ingress controller in the `ingress-nginx`
@@ -293,9 +314,15 @@ kind load docker-image souls-web:local souls-server:local
 
 Then open <http://souls.localtest.me> (resolves to 127.0.0.1; adjust for your ingress port).
 
-For production, copy `overlays/production`, set the host name, Gateway reference, image tags and the
-ingress/gateway namespace in the NetworkPolicy patch, and create `secrets.env` from `secrets.env.example`
-(it is git-ignored; use your secret manager / Sealed Secrets / External Secrets in real deployments).
+For production, copy `overlays/production`, set the host name, Gateway reference, image tags, the database host
+of the backup job (`PGHOST`) and the ingress/gateway namespace in the NetworkPolicy patch, and create
+`secrets.env` from `secrets.env.example` (it is git-ignored; use your secret manager / Sealed Secrets / External
+Secrets in real deployments). The value
+for `Souls__DataProtection__Certificate` (a self-signed certificate as a base64 PFX) comes from:
+
+```bash
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Souls Data Protection" -keyout /dev/stdout -out /dev/stdout | openssl pkcs12 -export -passout pass: | openssl base64 -A
+```
 
 Notes:
 
@@ -307,6 +334,109 @@ Notes:
   controller lives in another namespace than `ingress-nginx`, patch `allow-http-from-ingress`.
 - Behind a TLS-terminating ingress the apps trust `X-Forwarded-*` from the private address ranges
   (`Souls__TrustedProxyNetworks`); the NetworkPolicy ensures only the ingress controller can reach them.
+
+## Observability
+
+Both apps export OpenTelemetry traces and metrics over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; without
+it nothing is collected. Everything else uses the standard variables (`OTEL_SERVICE_NAME`,
+`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_RESOURCE_ATTRIBUTES`, ...).
+
+- Traces: incoming requests (not `/healthz`), outgoing HttpClient calls and PostgreSQL commands. A WebSocket
+  connection is one long request span.
+- Metrics: ASP.NET Core and Kestrel (`http.server.request.duration`, ...; WebSockets and health probes are not
+  counted), HttpClient, the .NET runtime (`System.Runtime`) and the game server's `Souls.Server` meter:
+
+| Metric | Type | Tags | |
+|---|---|---|---|
+| `souls.games.running` | gauge | | Games in progress. |
+| `souls.queue.players` | gauge | `mode` (normal, practice) | Players waiting for a game. |
+| `souls.queue.wait_time` | histogram (s) | `mode` | Time from joining the queue to the start of the game. |
+| `souls.games.finished` | counter | `mode`, `result` (win, draw, forfeit) | Games ended. |
+| `souls.websocket.connections` | up-down counter | `service` (game, chat, admin) | Open WebSocket connections. |
+| `souls.errors` | counter | `source` (message, matchmaker, store) | Unhandled errors. |
+
+On Kubernetes, the `observability` component (listed but commented out in `overlays/production`; enable it once the
+cluster has the pieces below) sets the variables, allows
+egress to the collector and adds a Grafana dashboard and a `PrometheusRule` (app down, HTTP 5xx ratio, game
+server errors, queue wait p95). It does not install a monitoring stack: it expects an OpenTelemetry Collector at
+`otel-collector.observability:4317`, the Prometheus Operator and Grafana's dashboard sidecar (details in its
+`kustomization.yaml`).
+
+With Compose, the apps only reach the internal networks: run a collector on the `backend` network and set the
+variables in a `compose.override.yaml`:
+
+```yaml
+services:
+  web:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: souls-web
+  server:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: souls-server
+```
+
+## Backups and restore
+
+Backups are `pg_dump` files in PostgreSQL's custom format, named `souls-<UTC time>.dump`. A restore drops the
+database, recreates it from the dump and lets `migrate` bring the schema up to the running version.
+
+### Docker Compose
+
+The `backup` service writes a dump to the `backups` volume whenever the newest one is older than
+`SOULS_BACKUP_HOURS` (24) and keeps the newest `SOULS_BACKUP_KEEP` (7). It checks every five minutes, so
+restarts do not add dumps. `docker compose down -v` deletes the volume together with the database, so copy dumps
+you want to keep off the host:
+
+```bash
+docker compose exec backup souls-backup                                # take a backup now
+docker compose exec backup ls -l /backups                              # list the dumps
+docker compose cp backup:/backups/souls-20261030T031500Z.dump .        # copy one off the host
+```
+
+Restore (stops the web app and game server, replaces the database, runs `migrate` and starts them again):
+
+```bash
+./deploy/compose/restore.sh souls-20261030T031500Z.dump
+```
+
+Without an argument the script lists the dumps. To restore a dump from elsewhere, copy it in first with
+`docker compose cp <file> backup:/backups/`.
+
+### Kubernetes
+
+`components/backup` (enabled in `overlays/production`) adds a CronJob that dumps the database at 03:30 every night
+into the `souls-backup` PersistentVolumeClaim (5 GiB) and keeps the newest 7 dumps (`KEEP` in
+`souls-backup-config`). It runs as the non-root postgres user with a read-only root file system, and a
+NetworkPolicy lets it reach PostgreSQL only. It connects to the in-cluster `souls-postgres` (add the component to
+an overlay with `components/postgres`, such as dev); the production overlay points it at the managed database
+(`PGHOST` and TLS settings patched into `souls-backup-config`) and needs `postgres-password` in `secrets.env`.
+
+```bash
+kubectl -n souls create job souls-backup-now --from=cronjob/souls-backup     # take a backup now
+kubectl -n souls logs job/souls-backup-now                                   # shows the dumps on the volume
+```
+
+Restore: stop the apps, run the backup job with `RESTORE` set to a dump file, then start the apps again (their
+init containers run `migrate`):
+
+```bash
+kubectl -n souls scale deployment souls-web souls-server --replicas=0
+kubectl -n souls create job souls-restore --from=cronjob/souls-backup --dry-run=client -o yaml \
+  | kubectl set env --local -f - RESTORE=souls-20261030T033000Z.dump -o yaml | kubectl apply -f -
+kubectl -n souls wait --for=condition=complete job/souls-restore --timeout=30m && kubectl -n souls logs job/souls-restore
+kubectl -n souls scale deployment souls-server --replicas=1
+kubectl -n souls scale deployment souls-web --replicas=2
+kubectl -n souls delete job souls-restore
+```
+
+The restore drops and recreates the database, so the database user must be allowed to create databases. If a
+managed database does not allow that, restore into the existing database instead
+(`pg_restore --clean --if-exists --dbname souls <dump>`) or use the provider's point-in-time recovery.
+
+The dumps stay on the cluster's storage. To survive the loss of the cluster or its volumes, copy them off the
+cluster (for example to object storage); that is not set up here.
 
 ## Development
 
@@ -377,17 +507,27 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__RateLimits__AuthPerMinute` / `UploadsPerMinute` | web | Per-IP limits (defaults 10 / 20). |
 | `Souls__AllowedOrigins` | server | Extra allowed WebSocket origins. Empty = same origin only. |
 | `Souls__Matchmaker__ReconnectGracePeriod` | server | How long a disconnected player may reconnect before forfeiting (default 1 min). |
+| `Souls__Seasons__Length` | migrate, server | Length of a new season (default 56 days). The game server ends seasons, checking once a minute. |
 | `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
 | `Souls__Game__TurnTime` | server | Length of a turn (default 75 s). |
 | `Souls__Game__MaxTimeoutsInARow` | server | Timed-out turns in a row that forfeit the game (default 3). |
+| `Souls__DataProtection__Certificate` / `CertificatePassword` | both | PFX certificate (RSA, base64) that encrypts the Data Protection keys in the database; the password is optional (**secret**). |
+| `Souls__DataProtection__PreviousCertificate` / `PreviousCertificatePassword` | both | The certificate before a rotation, so keys it encrypted stay readable (**secret**). |
+
+The Data Protection keys (they protect the login cookie) live in the database. With a certificate configured they
+are encrypted at rest; without one they are stored in plain form and the apps log a warning in Production. The
+web app, the game server and `migrate` must use the same certificate. Keys written before the certificate was
+added stay readable and are replaced as they expire (90 days). To rotate the certificate, keep the old one as
+`PreviousCertificate` until the keys it encrypted have expired; without it the apps create a new key and players
+have to log in again.
 
 ## Known limitations
 
 - The game server keeps games in memory: one replica, and a restart ends running games (finished games and
   their replays are stored).
-- The Data Protection key ring is stored unencrypted in the database. Anyone with read access to the database
-  could forge login cookies; protect database access accordingly or add `ProtectKeysWith*`.
 - The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known
   vulnerabilities and run with a strict CSP; the Modern 3D client is the up-to-date alternative.
+- Backups stay on the same host (Compose volume) or cluster (PersistentVolumeClaim); off-site copies are not
+  automated.
 - The legacy MySQL data is not imported automatically. Old accounts can be copied into the `player` table;
   their SHA-256 password hashes are accepted and upgraded on first login.

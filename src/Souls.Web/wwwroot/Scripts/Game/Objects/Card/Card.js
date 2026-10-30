@@ -7,13 +7,41 @@
     'animation',
     'cardtype',
     'iAnimation',
-    'rules'], function (pixi, asset, StopWatch, Message, Conf, Animation, CardType, AnimationInterface, Rules) {
+    'rules',
+    'hud',
+    'heropower'], function (pixi, asset, StopWatch, Message, Conf, Animation, CardType, AnimationInterface, Rules, Hud, HeroPower) {
 
         // Size of the card face on screen (the frame textures are scaled to this).
         var FACE_WIDTH = 150;
         var FACE_HEIGHT = 210;
         var LONG_PRESS_MS = 450;
         var LONG_PRESS_SLOP = 30;
+
+        // Spells: a targeted spell is lifted this far out of the hand while the player aims from it; a spell without a
+        // target is cast by dropping it (or, after a click, clicking) anywhere in this part of the stage, the board.
+        var SPELL_LIFT = 150;
+        var BOARD = { left: 300, right: 1620, top: 260, bottom: 860 };
+
+        // Colours of the abilities (by id): the effects of the events, and the gem of a spell.
+        var ABILITY_COLOR = {
+            1: 0x4cff6a,  // Heal
+            2: 0xa569bd,  // Sacrifice
+            4: 0xb07cff,  // Summon
+            5: 0x5aa9ff,  // Paralyze
+            7: 0xb8c4cf,  // Harden
+            8: 0xff7a1a,  // Burn
+            10: 0xffd36b, // Ward
+            11: 0xff5a3a, // Fury
+            12: 0x7dff4a, // Venom
+            13: 0xffc04d, // Rally
+            14: 0x7fd1ff, // Insight
+            15: 0xff6a1a, // Inferno
+            16: 0x6dff7a, // Regenerate
+            17: 0xff8c3a, // Grow
+            18: 0xd0104a, // Drain
+            19: 0xb07cff, // Brood
+            20: 0xff9f43  // Empower
+        };
 
         // Places on the race frame, in the frame texture's pixels (330 x 450) from its centre: the face's children are
         // laid out in these (the face sprite scales them down with the texture).
@@ -198,6 +226,7 @@
             this.rarity = 0; // 1 common, 2 rare, 3 epic, 4 legendary
             this.flavor = '';
             this.ward = false;
+            this.spell = false; // card JSON "kind": "spell" (cast from the hand, never on the board)
             this.faceKey = null;
 
             // Setup the card layout / graphics
@@ -229,6 +258,7 @@
         Card.prototype = Object.create(pixi.Sprite.prototype);
         Card.prototype.constructor = Card;
         Card.Pointer = Pointer;
+        Card.ABILITY_COLOR = ABILITY_COLOR;
 
         /// <summary>
         /// Sets a text field on the card depending on what the input is. see param
@@ -292,6 +322,7 @@
             if (json.portrait) this.portraitUrl = json.portrait;
             if (json.rarity !== undefined && json.rarity !== null) this.rarity = ToNumber(json.rarity, 0);
             if (json.flavor !== undefined) this.flavor = json.flavor ? String(json.flavor) : '';
+            if (json.kind !== undefined) this.spell = json.kind === 'spell';
             if (json.ward !== undefined) this.ward = !!json.ward;
             if (json.maxHealth !== undefined && json.maxHealth !== null) this.maxHealth = ToNumber(json.maxHealth, this.maxHealth);
             if (json.armor !== undefined && json.armor !== null) this.armor = ToNumber(json.armor, 0);
@@ -312,7 +343,7 @@
             if (this.maxHealth === undefined && typeof this.health === 'number') this.maxHealth = this.health;
 
             // Text box and rarity (only re-rendered when they change).
-            if (json.ability !== undefined || json.flavor !== undefined || json.token !== undefined || json.rarity !== undefined) {
+            if (json.ability !== undefined || json.flavor !== undefined || json.token !== undefined || json.rarity !== undefined || json.kind !== undefined) {
                 this.UpdateFace();
             }
 
@@ -393,7 +424,7 @@
             var label = this.abilityLabel || '';
             var rulesText = this.abilityText || '';
             var flavor = this.flavor || '';
-            var key = [label, rulesText, flavor, this.token, this.rarity].join('|');
+            var key = [label, rulesText, flavor, this.token, this.rarity, this.spell, this.abilityId].join('|');
             if (key === this.faceKey) return;
             this.faceKey = key;
 
@@ -460,6 +491,12 @@
             }
 
             this.DrawRarity();
+
+            // A spell has no attack or health: its frame shows the spell gem instead.
+            this.spellMark.visible = this.spell;
+            this.txtAttack.visible = this.txtHealth.visible = !this.spell;
+            this.spellMark.clear();
+            if (this.spell) DrawSpellMark(this.spellMark, ABILITY_COLOR[this.abilityId] || 0xd9c2ff);
         }
 
         /// The largest font size (from max down to min) at which a one-line text fits the text box.
@@ -514,6 +551,11 @@
             this.portrait.y = -31;
             this.SetPortrait();
             this.frontCard.addChild(this.portrait);
+
+            // Spells: the band with the spell gem over the attack and health gems (drawn in UpdateFace)
+            this.spellMark = new pixi.Graphics();
+            this.spellMark.visible = false;
+            this.frontCard.addChild(this.spellMark);
 
             // CardFactory Health Label
             this.txtHealth = new pixi.Text(String(this.health),
@@ -680,6 +722,32 @@
             g.moveTo(L[0], L[1]); g.lineTo(IL[0], IL[1]); g.lineTo(T[0], T[1]); g.lineTo(IR[0], IR[1]); g.lineTo(R[0], R[1]);
             g.moveTo(IL[0], IL[1]); g.lineTo(IR[0], IR[1]); g.lineTo(BR[0], BR[1]);
             g.moveTo(IL[0], IL[1]); g.lineTo(BL[0], BL[1]);
+        }
+
+        /// The bottom of a spell's frame (in frame texture pixels): a dark band over the attack and health gems of the
+        /// race frame, edged in the ability's colour, with a glowing orb and a star of light in the middle.
+        function DrawSpellMark(g, color) {
+            g.lineStyle(0, 0, 0);
+            g.beginFill(0x15110d, 1);
+            RoundRect(g, -166, 138, 332, 86, 28);
+            g.endFill();
+            g.lineStyle(4, color, 0.9);
+            RoundRect(g, -158, 145, 316, 72, 22);
+            g.lineStyle(0, 0, 0);
+            g.beginFill(color, 0.22);
+            g.drawCircle(0, 181, 48);
+            g.endFill();
+            g.beginFill(color, 0.45);
+            g.drawCircle(0, 181, 37);
+            g.endFill();
+            g.lineStyle(3, 0x1b130b, 1);
+            g.beginFill(color, 1);
+            g.drawCircle(0, 181, 27);
+            g.endFill();
+            g.lineStyle(0, 0, 0);
+            g.beginFill(0xffffff, 0.95);
+            Polygon(g, [0, 159, 6, 175, 22, 181, 6, 187, 0, 203, -6, 187, -22, 181, -6, 175]);
+            g.endFill();
         }
 
         /// The legendary crown (in frame texture pixels) over the top edge, centred.
@@ -946,7 +1014,8 @@
         /// Checks if the card is hovered over a cardslot
         /// </summary>
         Card.prototype.checkHover = function () {
-            if (this.pickedUp && !this.inSlot) {
+            // Spells never go in a slot.
+            if (this.pickedUp && !this.inSlot && !this.spell) {
 
                 // Get cardSlot group
                 var cardSlots = this.engine.player.cardManager.cardSlots;
@@ -1080,7 +1149,8 @@
             if (!this.pickedUp &&
                 !this.inSlot &&
                 !this.engine.player.holdingCard &&
-                !this._awaitRequest) {
+                !this._awaitRequest &&
+                !this._armed) {
 
 
 
@@ -1262,6 +1332,103 @@
             this.targetKind = undefined;
         }
 
+        // ---- Spells ----------------------------------------------------------------------------------------------
+
+        /// A spell cast on a target (its ability is activated); the other spells are cast on nothing.
+        Card.prototype.TargetedSpell = function () {
+            return this.spell && Rules.IsActivated(this.abilityId, this.abilityActivated);
+        }
+
+        function OverBoard(point) {
+            return point.x >= BOARD.left && point.x <= BOARD.right && point.y >= BOARD.top && point.y <= BOARD.bottom;
+        }
+
+        /// <summary>
+        /// A spell is let go: cast on the target under the pointer (a spell without one: over the board); after a
+        /// click / tap the target is picked next (Arm); anywhere else it goes back to the hand.
+        /// </summary>
+        Card.prototype.ReleaseSpell = function (click) {
+            var cast = this.TargetedSpell() ? !!this.target : (!click && OverBoard(this.engine.conf.mouse));
+            if (cast) this.Cast(this.target, this.targetKind);
+            else if (click) this.Arm();
+            else this.engine.gameService.RequestRelease(this);
+            this.target = undefined;
+            this.targetKind = undefined;
+        }
+
+        /// Sends the spell (UseCard); it waits where it is for the cast (224) or Release (212) when it was refused.
+        Card.prototype.Cast = function (target, kind) {
+            this.engine.gameService.Request_Spell(this, kind ? Rules.TargetType[kind] : undefined,
+                (kind === 'friendlyCard' || kind === 'enemyCard') ? target.cid : -1);
+        }
+
+        /// <summary>
+        /// Click-then-pick (a click or tap on a spell in the hand): the spell stays lifted and the next press on the
+        /// board picks its target, or casts it there when it has none. Any other press, Escape or a right click let it
+        /// go back to the hand.
+        /// </summary>
+        Card.prototype.Arm = function () {
+            var that = this;
+            var player = this.engine.player;
+            if (player.armedSpell) player.armedSpell.Disarm(true);
+            player.armedSpell = this;
+            this._armed = true;
+            this.ScaleUp();
+            this.OrderLast();
+            this.engine.CreateJS.Tween.get(this, { override: true })
+                .to({ x: this.position.originX, y: this.position.originY - SPELL_LIFT }, 220, this.engine.CreateJS.Ease.quadOut);
+            this.SetTargetMark(ABILITY_COLOR[this.abilityId] || 0xffffff);
+            var kinds = this.TargetedSpell() ? Rules.AbilityTargets(this.abilityId) : [];
+            this.engine.ScreenMessage([this.name + ": " + (kinds.length ? "pick " + Rules.DescribeTargets(kinds) : "click the board to cast it")], 'info');
+
+            this._onPick = function (e) { that.OnPick(e); };
+            this._onKey = function (e) { if (e.key === 'Escape') that.Disarm(true); };
+            window.addEventListener('mousedown', this._onPick, true);
+            window.addEventListener('touchstart', this._onPick, { capture: true, passive: false });
+            window.addEventListener('keydown', this._onKey, true);
+        }
+
+        /// Ends click-then-pick; back: the spell goes back to the hand (Release).
+        Card.prototype.Disarm = function (back) {
+            if (!this._armed) return;
+            this._armed = false;
+            window.removeEventListener('mousedown', this._onPick, true);
+            window.removeEventListener('touchstart', this._onPick, { capture: true, passive: false });
+            window.removeEventListener('keydown', this._onKey, true);
+            var player = this.engine.player;
+            if (player && player.armedSpell === this) player.armedSpell = undefined;
+            if (player && player.arrow) player.arrow.Reset();
+            this.SetTargetMark(null);
+            this.ScaleDown();
+            if (this.engine.tooltip && this.engine.tooltip.pinned === this) this.engine.tooltip.Pin(null);
+            if (back) this.engine.gameService.RequestRelease(this);
+        }
+
+        /// A press while armed (see HeroPower.OnPick): on the board it casts on what is under it, else it cancels.
+        Card.prototype.OnPick = function (e) {
+            if (!this._armed || !this.engine.player) return;
+            var touch = e.type === 'touchstart';
+            if (e.target !== Hud.Canvas() || (!touch && e.button !== 0)) {
+                this.Disarm(true); // another control (it still gets the press) or a right click
+                return;
+            }
+
+            e.stopPropagation();
+            if (e.preventDefault) e.preventDefault();
+            if (touch) HeroPower.SwallowTouch(e);
+            var point = touch ? ((e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0])) : e;
+            if (point) this.engine.SetPointer(Hud.ToStage(point.clientX, point.clientY), touch);
+            this.engine.player.UpdateAim();
+
+            var target = this.target, kind = this.targetKind;
+            var cast = this.TargetedSpell() ? !!target : OverBoard(this.engine.conf.mouse);
+            this.target = undefined;
+            this.targetKind = undefined;
+            this.Disarm(!cast);
+            if (cast) this.Cast(target, kind);
+            if (touch) this.engine.ClearPointer();
+        }
+
 
         /// <summary>
         /// Mouse and touch callbacks. Touch: drag a hand card to a slot to play it, drag from a board card to a
@@ -1289,11 +1456,18 @@
                 // Pickup the card
                 this.Pickup();
 
-                // Only show cardslots on unslotted cards
+                // Only show cardslots on unslotted cards. A spell with a target is lifted out of the hand and aims
+                // from there (the arrow follows the pointer); the others follow the pointer.
                 if (!this.inSlot) {
-                    this.x = mouse.x;
-                    this.y = mouse.y;
-                    this.engine.getGroup("CardSlot-Player").visible = true;
+                    if (this.TargetedSpell()) {
+                        this.x = this.position.originX;
+                        this.y = this.position.originY - SPELL_LIFT;
+                    }
+                    else {
+                        this.x = mouse.x;
+                        this.y = mouse.y;
+                    }
+                    if (!this.spell) this.engine.getGroup("CardSlot-Player").visible = true;
                 }
 
                 this.dragging = true;
@@ -1338,7 +1512,8 @@
 
             var hadTarget = !!this.target;
             var moved = this._downPos ? Math.abs(mouseData.global.x - this._downPos.x) + Math.abs(mouseData.global.y - this._downPos.y) : 0;
-            var tap = pointer.touch && !hadTarget && moved < 20 && (Date.now() - (this._downAt || 0)) < 400;
+            var click = !hadTarget && moved < 20 && (Date.now() - (this._downAt || 0)) < 400;
+            var tap = pointer.touch && click;
 
             this.engine.getGroup("CardSlot-Player").visible = false;
 
@@ -1348,14 +1523,20 @@
             // Reset arrow.
             this.owner.arrow.Reset();
 
-            // Check and execute the card attack
-            this.CheckAttack();
+            if (this.spell && !this.inSlot) {
+                // Cast it on the target (on the board), pick the target next after a click, or let it go back
+                this.ReleaseSpell(click);
+            }
+            else {
+                // Check and execute the card attack
+                this.CheckAttack();
 
-            // Check and Request a release of the card
-            this.engine.gameService.RequestRelease(this);
+                // Check and Request a release of the card
+                this.engine.gameService.RequestRelease(this);
 
-            // Check and Request a "UseCard"
-            this.engine.gameService.Request_UseCard(this);
+                // Check and Request a "UseCard"
+                this.engine.gameService.Request_UseCard(this);
+            }
 
             // Removes hovercard from owner
             this.owner._chover = undefined;
@@ -1377,8 +1558,8 @@
             if (this.dragging) {
                 var mouse = data.getLocalPosition(this.parent);
 
-                // If the card is not in slot
-                if (!this.inSlot) {
+                // If the card is not in slot (a spell with a target stays lifted, the arrow aims)
+                if (!this.inSlot && !this.TargetedSpell()) {
                     this.x = mouse.x;
                     this.y = mouse.y;
                 }

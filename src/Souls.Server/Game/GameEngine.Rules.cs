@@ -207,7 +207,7 @@ public sealed partial class GameEngine
             {
                 var enemy = room.Other(side);
                 var targets = enemy.BoardCards.Values.Where(c => c.Health >= 1).Cast<object>().Append(enemy).ToList();
-                var target = targets[Random.Shared.Next(targets.Count)];
+                var target = targets[room.Random.Next(targets.Count)];
                 room.Event("curse", new JsonObject { ["src"] = card.Cid, ["owner"] = side.Ident, ["dst"] = Ref(target) });
                 var text = $"{card.Name}'s death curse hits {NameOf(target)}.";
                 room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);
@@ -448,6 +448,72 @@ public sealed partial class GameEngine
     /// <summary>Resolves the ability of a board card. Returns <c>false</c> (and tells the player why) if it cannot be used.</summary>
     private bool UseAbility(GameRoom room, Player player, GamePlayer gp, Card card, TargetType type, int targetCid)
     {
+        var target = AbilityTarget(room, gp, card, type, targetCid, out var error);
+        if (target is null)
+        {
+            Tell(player, error!);
+            return false;
+        }
+
+        gp.AbilitiesUsed++;
+        card.HasAttacked = true;
+        room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+        Activate(room, gp, card, target);
+        return true;
+    }
+
+    /// <summary>
+    /// A spell from the hand: its target is checked like an ability's (on-play spells have none), then it is paid for,
+    /// goes to the used pile, blesses (Lightbringer) and works like the ability it carries. It never takes a slot.
+    /// </summary>
+    private async Task CastSpellAsync(Player player, GamePlayer gp, Player opponent, Card card, Message message)
+    {
+        var room = gp.GameRoom!;
+        if (!gp.HasEnoughMana(card))
+        {
+            player.Send(new Response(GameResponse.GameUseCardOom, "Not enough mana!"));
+            RequestReleaseCard(player, message);
+            return;
+        }
+
+        object? target = null;
+        if (GameRules.IsActivated(card.AbilityId))
+        {
+            var type = message.Payload["type"] is null ? -1 : message.GetInt("type");
+            target = AbilityTarget(room, gp, card, (TargetType)type, message.Payload["target"] is null ? -1 : message.GetInt("target"), out var error);
+            if (target is null)
+            {
+                Tell(player, error!);
+                RequestReleaseCard(player, message);
+                return;
+            }
+        }
+
+        gp.HandCards.Remove(card.Cid);
+        gp.Used.Add(card);
+        gp.Mana -= card.Cost;
+        gp.CardsPlayed++;
+
+        JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData(), ["target"] = target is null ? null : Ref(target) };
+        player.Send(new Response(GameResponse.GameUseCardSpell, Payload()));
+        opponent.Send(new Response(GameResponse.GameOpponentUseCardSpell, Payload()));
+
+        var text = target is null ? $"{gp.Name} casts {card.Name}." : $"{gp.Name} casts {card.Name} on {NameOf(target)}.";
+        room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
+        room.LogLine(text);
+        OnPlay(room, gp, card);
+        if (target is not null)
+        {
+            room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+            Activate(room, gp, card, target);
+        }
+
+        await FinishActionAsync(room);
+    }
+
+    /// <summary>The target of an activated ability (or spell), or <c>null</c> and why it cannot be used there.</summary>
+    private static object? AbilityTarget(GameRoom room, GamePlayer gp, Card card, TargetType type, int targetCid, out string? error)
+    {
         var enemy = room.Other(gp);
         object? target = type switch
         {
@@ -465,7 +531,7 @@ public sealed partial class GameEngine
             TargetType.EnemyHero => "enemyHero",
             _ => "enemyCard",
         };
-        string? error = card.AbilityId switch
+        error = card.AbilityId switch
         {
             var id when !GameRules.IsActivated(id) => "This card has no ability to use!",
             _ when target is null => "Pick a valid target!",
@@ -477,29 +543,27 @@ public sealed partial class GameEngine
                 Ability.Paralyze => "Can only paralyze enemy cards!",
                 Ability.Burn => "Can only burn enemies!",
                 Ability.Drain => "Can only drain enemies!",
+                Ability.Empower => "Can only empower friendly cards!",
                 _ => "Pick a valid target!",
             },
             Ability.Sacrifice when target == card => "Cannot cast on itself!",
             _ => null,
         };
-        if (error is not null)
-        {
-            Tell(player, error);
-            return false;
-        }
+        return error is null ? target : null;
+    }
 
-        gp.AbilitiesUsed++;
-        card.HasAttacked = true;
-        room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target!) });
-        var targetDbId = target is Card tc ? tc.Id : room.PlayerOf(((GamePlayer)target!).Ident).Id;
+    /// <summary>What an activated ability (of a board card or a spell) does to its target.</summary>
+    private void Activate(GameRoom room, GamePlayer gp, Card card, object target)
+    {
+        var targetDbId = target is Card tc ? tc.Id : room.PlayerOf(((GamePlayer)target).Ident).Id;
         var targetType = target is Card ? "Card" : "Player";
         switch (card.AbilityId)
         {
             case Ability.Heal:
             {
                 var amount = card.AbilityValue + (card.RaceId == Races.Lightbringer ? GameRules.LightbringerHealBonus : 0);
-                var healed = Heal(room, target!, amount);
-                var text = $"{card.Name} heals {NameOf(target!)} for {healed}.";
+                var healed = Heal(room, target, amount);
+                var text = $"{card.Name} heals {NameOf(target)} for {healed}.";
                 if (target is Card healedCard)
                 {
                     foreach (var slot in new[] { healedCard.SlotId - 1, healedCard.SlotId + 1 })
@@ -518,7 +582,7 @@ public sealed partial class GameEngine
 
             case Ability.Sacrifice:
             {
-                var text = $"{card.Name} sacrifices itself, strengthening {NameOf(target!)} (+{card.Attack} attack, +{Math.Max(0, card.Health)} health, +{card.Armor} armor).";
+                var text = $"{card.Name} sacrifices itself, strengthening {NameOf(target)} (+{card.Attack} attack, +{Math.Max(0, card.Health)} health, +{card.Armor} armor).";
                 switch (target)
                 {
                     case Card t:
@@ -545,7 +609,7 @@ public sealed partial class GameEngine
 
             case Ability.Paralyze:
             {
-                var t = (Card)target!;
+                var t = (Card)target;
                 t.Paralyzed = true;
                 room.Event("paralyze", new JsonObject { ["cid"] = t.Cid, ["on"] = true });
                 var text = $"{card.Name} paralyzes {t.Name}.";
@@ -556,8 +620,8 @@ public sealed partial class GameEngine
 
             case Ability.Harden:
             {
-                GainArmor(room, target!, card.AbilityValue);
-                var text = $"{card.Name} hardens {NameOf(target!)} (+{card.AbilityValue} armor).";
+                GainArmor(room, target, card.AbilityValue);
+                var text = $"{card.Name} hardens {NameOf(target)} (+{card.AbilityValue} armor).";
                 room.Logger.Add(GameLogKind.AbilityHarden, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 break;
@@ -565,31 +629,41 @@ public sealed partial class GameEngine
 
             case Ability.Burn:
             {
-                var text = $"{card.Name} burns {NameOf(target!)} for {card.AbilityValue}.";
+                var text = $"{card.Name} burns {NameOf(target)} for {card.AbilityValue}.";
                 room.Logger.Add(GameLogKind.AbilityBurn, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
-                Damage(room, target!, card.AbilityValue, gp, card);
+                Damage(room, target, card.AbilityValue, gp, card);
                 break;
             }
 
             case Ability.Drain:
             {
-                var text = $"{card.Name} drains {NameOf(target!)} for {card.AbilityValue}.";
+                var text = $"{card.Name} drains {NameOf(target)} for {card.AbilityValue}.";
                 room.Logger.Add(GameLogKind.AbilityDrain, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
-                Damage(room, target!, card.AbilityValue, gp, card);
+                Damage(room, target, card.AbilityValue, gp, card);
                 var healed = Heal(room, gp, card.AbilityValue, emit: false);
                 if (healed > 0)
                 {
-                    room.Event("lifesteal", new JsonObject { ["src"] = Ref(target!), ["to"] = Ref(gp), ["amount"] = healed, ["health"] = gp.Health });
+                    room.Event("lifesteal", new JsonObject { ["src"] = Ref(target), ["to"] = Ref(gp), ["amount"] = healed, ["health"] = gp.Health });
                 }
 
+                break;
+            }
+
+            case Ability.Empower:
+            {
+                var t = (Card)target;
+                t.Attack += card.AbilityValue;
+                t.Health += card.AbilityValue;
+                t.MaxHealth += card.AbilityValue;
+                room.Event("buff", new JsonObject { ["to"] = Ref(t), ["src"] = Ref(card), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                LogTrigger(room, card, $"{card.Name} empowers {t.Name} (+{card.AbilityValue}/+{card.AbilityValue}).");
                 break;
             }
         }
 
         ResolveDeaths(room);
-        return true;
     }
 
     /// <summary>The hero power of the player's class. Returns <c>false</c> (and tells the player why) if it cannot be used.</summary>

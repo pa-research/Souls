@@ -76,6 +76,16 @@ const RESULT = [230, 231, 233];
   await waitFrame(f => f.dir === 'in' && f.type === 236, 0, 20000);
   await sleep(5000);
   await snap('start');
+  // Mulligan: replace the first starting card; the game then starts with the same hand size.
+  await page.click('.sg-mulligan-card >> nth=0');
+  await snap('mulligan');
+  const mulliganFrom = frames.length;
+  await page.click('.sg-mulligan-confirm');
+  const mulligan = await waitFrame(f => f.dir === 'in' && f.type === 227, mulliganFrom, 15000);
+  await waitFrame(f => f.dir === 'in' && f.type === 226, mulliganFrom, 45000);
+  await sleep(2500);
+  const handAfter = (await hook('state()')).hand.length;
+  step('mulligan replaces a card and keeps the hand size', !!mulligan && mulligan.p.replaced === 1 && mulligan.p.hand.length === 3 && handAfter === (ident === 1 ? 3 : 4), `replaced ${mulligan && mulligan.p.replaced}, hand ${handAfter}`);
 
   const counts = { played: 0, attacks: 0, abilities: 0, powers: 0, refused: 0 };
   let result = null;

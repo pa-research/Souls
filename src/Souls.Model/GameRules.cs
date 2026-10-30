@@ -10,7 +10,10 @@ public static class GameRules
     public const int MaxCardLevel = 3;
     public const int StartingHand = 3;
 
-    /// <summary>The player going second starts with this many more cards (and 1 extra mana on their first turn).</summary>
+    /// <summary>
+    /// The player going second draws this many more cards when the mulligan is over (and gets 1 extra mana on their
+    /// first turn).
+    /// </summary>
     public const int SecondPlayerExtraCards = 1;
     public const int HeroPowerCost = 2;
     public const int MaxMana = 10;
@@ -92,6 +95,7 @@ public static class GameRules
         new(Ability.Grow, "Grow", Timing.TurnStart, 1, "At the start of your turn, gains +{0} attack and +{0} health.", []),
         new(Ability.Drain, "Drain", Timing.Activated, 2, "Deals {0} damage to an enemy card or hero and restores {0} health to your hero.", EnemyTargets),
         new(Ability.Brood, "Brood", Timing.OnDeath, 1, "When it dies, summons {0} 1/1 Lost Soul(s) in its place.", []),
+        new(Ability.Empower, "Empower", Timing.Activated, 1, "A friendly card gains +{0} attack and +{0} health.", ["friendlyCard"]),
     }.ToDictionary(a => a.Id);
 
     /// <summary>The value an ability works with on a card (the card's own, or the ability's default).</summary>
@@ -109,7 +113,7 @@ public static class GameRules
         var v = AbilityValue(abilityId, value);
         return abilityId switch
         {
-            Ability.Rally or Ability.Grow => $"{a.Name} +{v}",
+            Ability.Rally or Ability.Grow or Ability.Empower => $"{a.Name} +{v}",
             Ability.Summon or Ability.Insight or Ability.Brood => v > 1 ? $"{a.Name} {v}" : a.Name,
             _ when a.Template.Contains("{0}", StringComparison.Ordinal) => $"{a.Name} {v}",
             _ => a.Name,
@@ -137,6 +141,22 @@ public static class GameRules
     public static bool IsActivated(int? abilityId) =>
         abilityId is { } id && Abilities.TryGetValue(id, out var a) && a.Timing == Timing.Activated;
 
+    /// <summary>
+    /// Abilities a spell can have: the activated ones but Sacrifice (cast on their targets like the ability) and the
+    /// on-play ones that do not need a board slot (cast on nothing).
+    /// </summary>
+    public static bool IsSpellAbility(int? abilityId) =>
+        abilityId is Ability.Insight or Ability.Inferno || IsActivated(abilityId) && abilityId != Ability.Sacrifice;
+
+    /// <summary>
+    /// A spell's ability value at an upgrade level: +1 per level above 1 (Burn 3 at level 2 deals 4), where cards
+    /// gain attack and health instead. <c>null</c> keeps the ability's default.
+    /// </summary>
+    public static int? SpellValue(int abilityId, int? value, int level) =>
+        level > 1 && Abilities.TryGetValue(abilityId, out var a) && a.Template.Contains("{0}", StringComparison.Ordinal)
+            ? AbilityValue(abilityId, value) + LevelBonus(level)
+            : value;
+
     /// <summary>What an activated ability can target: "friendlyCard", "ownHero", "enemyHero", "enemyCard".</summary>
     public static IReadOnlyList<string> AbilityTargets(int abilityId) =>
         Abilities.TryGetValue(abilityId, out var a) ? a.Targets : [];
@@ -148,6 +168,9 @@ public static class GameRules
         "friendly" => FriendlyTargets,
         _ => [],
     };
+
+    /// <summary>Race passives that work for spells (they never attack or die): Vampiric lifesteal, Lightbringer blessing.</summary>
+    public static bool RaceWorksForSpells(int? raceId) => raceId is Races.Vampiric or Races.Lightbringer;
 
     public static readonly IReadOnlyDictionary<int, RuleText> RaceTexts = new Dictionary<int, RuleText>
     {
@@ -168,6 +191,9 @@ public static class GameRules
         [4] = new("Fade", "Your hero gains 2 armor.", "none"),
     };
 
+    /// <summary>What players can say in a game (the Emote request sends the index): greeting, well played, thanks, oops, threaten, sorry.</summary>
+    public static readonly IReadOnlyList<string> Emotes = ["Greetings!", "Well played!", "Thanks!", "Oops!", "Your soul is mine!", "Sorry!"];
+
     public static class Keywords
     {
         public const string Ward = "Ward: the next damage this card would take breaks the ward instead.";
@@ -176,5 +202,6 @@ public static class GameRules
         public const string Armor = "Armor absorbs damage before health does.";
         public const string Fatigue = "When your deck is empty, each draw deals 1 more damage to your hero than the last.";
         public const string Burned = "Drawing with a full hand (10 cards) burns the drawn card.";
+        public const string Spell = "Spell: cast it from your hand (on its target), then it is used up. It never takes a slot on the board.";
     }
 }

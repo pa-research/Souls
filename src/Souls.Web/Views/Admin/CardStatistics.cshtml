@@ -1,0 +1,40 @@
+@model CardStatisticsViewModel
+@{
+    string? Faint(WinRate rate) => rate.Games < CardStatisticsViewModel.FewGames ? "opacity-50" : null;
+}
+<div class="s-admin">
+<section class="s-panel">
+<div class="s-panel-head"><s-icon name="gauge" /><h2>Card statistics</h2><span class="s-muted s-small">Win rate of the player who played the card, in decided games between players (draws and practice games are left out), to compare with docs/balance.md. Numbers from fewer than @CardStatisticsViewModel.FewGames games are faded: too few to trust.</span></div>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle" id="card-statistics">
+        <thead>
+            <tr>
+                <th>Card</th><th>Race</th><th>Rarity</th><th class="text-end">Games</th><th class="text-end">Wins</th><th class="text-end">Win rate</th>
+                @foreach (var type in Model.Classes)
+                {
+                    <th class="text-end">@type.Name</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Cards)
+            {
+                <tr data-card-id="@row.Card.Id">
+                    <td>@row.Card.Name</td>
+                    <td>@row.Card.Race?.Name</td>
+                    <td>@Souls.Model.Rarity.Name(row.Card.Rarity)</td>
+                    <td class="text-end s-num @Faint(row.Total)">@row.Total.Games</td>
+                    <td class="text-end s-num @Faint(row.Total)">@row.Total.Wins</td>
+                    <td class="text-end s-num @Faint(row.Total)">@row.Total.Percent</td>
+                    @foreach (var cell in row.ByClass)
+                    {
+                        <td class="text-end s-num text-nowrap @Faint(cell)" title="@cell.Wins of @cell.Games games won">@cell.Percent <span class="s-small">(@cell.Games)</span></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+</section>
+</div>

@@ -7,9 +7,9 @@ animate what the server reports.
 ## Rules in short
 
 - Decks have 20 cards (at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary), shuffled
-  at the start. Each player starts with 3 cards (4 when going second);
-  the player whose turn starts draws one. An empty deck deals fatigue damage (1, then 2, ...). Drawing with 10 cards in hand
-  burns the drawn card.
+  at the start. Each player starts with 3 cards and may replace any of them once ([mulligan](#mulligan)); then the
+  player going second draws a 4th card. The player whose turn starts draws one. An empty deck deals fatigue damage
+  (1, then 2, ...). Drawing with 10 cards in hand burns the drawn card.
 - Mana each turn: the round number plus the class bonus, at most 10. The player going second gets 1 extra mana on
   their first turn. Hero powers cost 2 mana, once per turn.
 - Armor absorbs damage before health (cards and heroes). Healing never goes above maximum health.
@@ -52,6 +52,7 @@ the default is used when a card has none.
 | 17 Grow | turn start | | +X attack, +X health and max health at the start of its owner's turn (1) |
 | 18 Drain | activated | 2 enemy hero, 3 enemy card | X damage, and +X health to its hero (2) |
 | 19 Brood | on death | | summons X Lost Souls where it died (1) |
+| 20 Empower | activated | 0 friendly card | +X attack, +X health and max health (1); only spells have it so far |
 
 Cards have a rarity (`rarity`: 1 common, 2 rare, 3 epic, 4 legendary) that limits the copies in a deck and sets the
 shop price.
@@ -63,7 +64,44 @@ shop price.
 | 3 Harrison | Holy Light: +2 health | 0 friendly card, 1 own hero |
 | 4 Fader | Fade: your hero gains 2 armor | none (send type 1) |
 
-Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON).
+Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON). A spell gets +1
+to its value per level instead (Burn 3 at level 2 deals 4; Paralyze has no value and does not change).
+
+### Spells
+
+Cards have a kind (`kind` in the card JSON): `minion` (the default) or `spell`. A spell has a cost, rarity, race and an
+ability but no attack or health (both 0). It is cast from the hand with UseCard (201) and never takes a board slot:
+
+- A spell with an **activated** ability (Burn, Drain, Heal, Harden, Paralyze, Empower) needs a target, sent and checked
+  exactly like UseAbility (`type` and `target`, same target kinds). A spell with an **on-play** ability (Insight,
+  Inferno) has none and is cast with `{"cid"}` alone. Sacrifice and the other abilities are not used on spells (the card
+  editor refuses them).
+- A refused cast (not your turn or the mulligan: NotYourTurn; not enough mana: 208; wrong or missing target:
+  GeneralMessage) also sends Release (212) so the card goes back to the hand, and the spell stays there.
+- When it works: the mana is paid, the spell goes from the hand to a used pile (it never comes back), the caster gets
+  UseCardSpell (224) and the opponent OpponentUseCardSpell (225) with the card and its target, then events: a `log`
+  line ("p casts X on Y."), the race passive (`blessing` for Lightbringer; Vampiric spells heal their hero by the damage
+  they deal, `lifesteal`), then the same events as the ability: `ability` (`src` is the spell's cid) and its effects for
+  activated abilities, `trigger` (`src` the spell) and its effects for on-play ones. GameSync follows as usual. The
+  spell's `src` cid is not on any board: clients show the cast card until the GameSync.
+- It counts as a card played (quests) and is logged as UseCard, so card statistics and the simulator count it.
+
+### Mulligan
+
+Before the first turn both players see their starting hand at the same time and may replace any of its cards, once
+(request 227). A new card is drawn for each replaced one, then the replaced cards are shuffled back into the deck
+(so they cannot come straight back). Every card of the new hand gets a new `cid`, kept cards stay in their place:
+the opponent, spectators and replays only learn how many cards were replaced. A request with a card that is not in
+the starting hand is refused (GeneralMessage) and the player may choose again; a second mulligan is ignored.
+
+- The mulligan lasts 30 seconds (`Souls:Game:MulliganTime`). Whoever has not chosen by then keeps their hand; this
+  is not a turn timeout.
+- When both have chosen, player one's first turn starts (NextTurn), the player going second draws their extra card,
+  and GameSync follows.
+- During the mulligan nobody may act (turn requests get NotYourTurn), GameSync has `current: 0` and its
+  `turnEndsIn` / `turnTime` count down the mulligan.
+- A player who reconnects during the mulligan gets GameCreate with `mulligan` again (`done` if they already chose).
+  Leaving the game during the mulligan forfeits it, like leaving later.
 
 ## Requests (client to server)
 
@@ -72,16 +110,22 @@ Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`lev
 | 0 | Login | `{}` (the connection is authenticated by the session cookie) |
 | 100 | QueueNormal | `{}` |
 | 101 | QueuePractice | `{"difficulty": 0 easy, 1 normal, 2 hard}` |
+| 197 | ChallengeCancel | `{}`: withdraws your pending challenge |
+| 198 | ChallengeAnswer | `{"accept": bool}`: answers the challenge you received |
+| 199 | Challenge | `{"name"}`: challenges an online player to a friendly game (below) |
 | 200 | Attack | `{"source": cid or -1, "target": cid or -1, "type": 0 card→card, 1 card→hero, 2 hero→card, 3 hero→hero}` |
-| 201 | UseCard | `{"cid", "slotId": 0-6}` |
+| 201 | UseCard | `{"cid", "slotId": 0-6}`; a spell: `{"cid", "target": cid or -1, "type": as UseAbility}`, or `{"cid"}` for an untargeted one ([spells](#spells)) |
 | 203 | MoveCard | `{"cid", "x", "y"}` (relays a dragged card to the opponent) |
 | 204 | ReleaseCard | `{"cid"}` |
 | 205 | UseAbility | `{"source": cid, "target": cid or -1, "type": 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}` |
 | 206 | HeroPower | `{"target": cid or -1, "type": as UseAbility}` |
 | 226 | NextTurn | `{}` |
+| 227 | Mulligan | `{"replace": [cid...]}`: the starting hand cards to replace (`[]` keeps the hand); once, during the mulligan |
 | 240 | ListLiveGames | `{}` |
 | 241 | Spectate | `{"gameId"}` |
 | 242 | StopSpectating | `{}` |
+| 298 | MuteEmotes | `{"muted": bool}`: stop (or resume) receiving the opponent's emotes in this game |
+| 299 | Emote | `{"emote": 0-5}` (below) |
 
 ## Responses (server to client)
 
@@ -91,12 +135,19 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 
 | Type | Name | Payload |
 |---|---|---|
-| 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}}` |
+| 197 | ChallengeClosed | string: your pending challenge ended without a game (declined, withdrawn, expired, a player left or started another game), or your request was refused |
+| 198 | ChallengeSent | `{name, expiresIn: ms}`: to the challenger |
+| 199 | ChallengeInvite | `{name, type, rating, expiresIn: ms}`: to the challenged player (`type`: the challenger's class) |
+| 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}, mulligan: {endsIn: ms, time: ms, done} \| null}` (`mulligan` while it runs) |
 | 207 | UseCardOk | `{card, pInfo}`: your card moved from hand to `card.slotId` |
 | 211 | OpponentUseCardOk | `{card, pInfo}`: the opponent played `card` |
+| 224 | UseCardSpell | `{card, pInfo, target: ref \| null}`: your spell `card` left your hand and is cast on `target` (events follow) |
+| 225 | OpponentUseCardSpell | `{card, pInfo, target: ref \| null}`: the opponent cast the spell `card` |
 | 222 | NewCard | `{card: [card...], returned: bool}`: cards added to your hand (`returned`: Haunt). Spectators get `{card: [{cid}], hidden: true}` |
 | 223 | OpponentNewCard | `{card: [{cid}...], returned}` |
-| 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` |
+| 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` (also when the first turn starts after the mulligan) |
+| 227 | Mulligan | `{hand: [card...], replaced: n}`: your whole starting hand after the mulligan, in order, all with new cids. Spectators get `{hand: [{cid}], replaced, hidden: true}` |
+| 228 | OpponentMulligan | `{hand: [{cid}...], replaced: n}`: the opponent's starting hand after their mulligan (all new cids) |
 | 230/231/233 | Victory/Defeat/Draw | `{statistics: gameId, text, coins, rating, ratingChange (null in practice), quests: [{text, progress, target, reward, done}]}` |
 | 235 | GameEvents | `{events: [event...]}`: what happened, in order (below) |
 | 236 | GameSync | the full public state after every action (below) |
@@ -104,10 +155,11 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 241 | SpectateStart | like GameCreate from player one's side, with `spectator: true` and player one's hand as `[{cid}]` |
 | 242 | SpectateEnd | `{winner: ident or 0 for a draw, text, statistics}` |
 | 243 | SpectateError | string |
+| 299 | Emote | `{ident, emote, text}`: a player emoted (to both players, spectators and the replay) |
 
 The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks and abilities are reported as events.
 
-**Card JSON**: `{cid, id, name, attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
+**Card JSON**: `{cid, id, name, kind: "minion" | "spell", attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
 In GameSync board cards also have `canAct` (it is that player's turn and the card can attack or use its ability).
 
 **Hero info** (`info`, `pInfo`, `playerInfo`, `opponentInfo`, GameSync heroes): `{name, type, ident, health, maxHealth, armor, attack, mana, maxMana, rating}`.
@@ -115,7 +167,12 @@ Numbers in the original fields (`health`, `attack`, `mana`, `type`) are strings 
 
 ### Message order
 
-For each action the server sends, in this order: the primary message (UseCardOk/OpponentUseCardOk, NextTurn), then
+A game starts with GameCreate and GameSync, then each player's Mulligan/OpponentMulligan (with a `log` event) as
+they choose; when both have chosen, NextTurn, OpponentNewCard/NewCard (the extra card of the player going second)
+and GameSync.
+
+For each action the server sends, in this order: the primary message (UseCardOk/OpponentUseCardOk,
+UseCardSpell/OpponentUseCardSpell, NextTurn), then
 GameEvents (events up to a draw), NewCard/OpponentNewCard, more GameEvents, and finally GameSync. If a hero died, the
 result (Victory/Defeat/Draw) follows the GameSync. Clients should process messages in order (queue them and finish
 each animation before the next) and treat GameSync as the truth for all numbers.
@@ -164,10 +221,12 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 }
 ```
 
+`current` is the ident of the player whose turn it is, or 0 during the mulligan.
+
 ### Card JSON
 
 ```json
-{"cid": 12, "id": 27, "name": "Pesta", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
+{"cid": 12, "id": 27, "name": "Pesta", "kind": "minion", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
  "rarity": 3, "ward": false, "paralyzed": false, "taunt": false, "token": false, "slotId": 2, "isDead": false,
  "hasAttacked": false, "portrait": "/Content/Images/Card/Portraits/27.jpg",
  "flavor": "Where she rakes, a few survive. Where she sweeps, nobody does.",
@@ -178,9 +237,31 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 
 `ability.label` is what the card face prints and `ability.text` the rules text with the card's numbers filled in.
 
+## Friendly challenges
+
+A player who is logged in to the game server (both clients: "Friendly" in the menu, or waiting in a queue) can be
+challenged by name instead of using the ranked queue; the clients open `/Game?challenge=<name>` straight into a
+challenge. The 3D client declines invites while it shows the live games. Neither player may be in a game, watching one, or part of
+another pending challenge (one at a time, sent or received); the challenged player may be waiting in a queue and
+leaves it by accepting. Challenges are limited to a burst of 3, then one every 10 seconds per account, and expire
+after 30 seconds (`Souls:Game:ChallengeTimeout`). A challenge also ends when either player disconnects or starts
+another game.
+
+Accepting starts the game at once (GameCreate to both, the first player is picked at random). Friendly games are
+**unranked**: they are stored, rewarded and listed like practice games (`practice: true`, no rating change, 2 coins
+for a win and nothing for a loss, daily quests count except the two "win" quests).
+
+## Emotes
+
+During a game each player can send one of six emotes: 0 Greetings!, 1 Well played!, 2 Thanks!, 3 Oops!, 4 Your soul
+is mine!, 5 Sorry! (also in the page config as `rules.emotes`). The server sends them to both players, the
+spectators and the replay; a player who muted the opponent (MuteEmotes) no longer receives the opponent's emotes in
+that game. Emotes are limited to a burst of 3, then one every 3 seconds (more are answered with a GeneralMessage).
+The practice bot sometimes greets at the start.
+
 ## Replays
 
-Every message player one receives that is public (and the spectator versions of GameCreate and NewCard) is recorded
-with its time. When the game ends the recording is stored (`game_replay`) and served as JSON by
+Every message player one receives that is public (and the spectator versions of GameCreate, NewCard and Mulligan) is recorded
+with its time, and so are emotes. When the game ends the recording is stored (`game_replay`) and served as JSON by
 `/Game/ReplayData/{id}`: `[{"t": ms since start, "m": {"Type", "Payload"}}]`, played back by the 3D client
 (`/Game/Replay/{id}`).

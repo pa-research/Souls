@@ -19,6 +19,9 @@ public sealed class GamePlayer
     /// <summary>The shuffled deck; the next card is drawn from the end.</summary>
     public List<Card> Deck { get; } = [];
 
+    /// <summary>Spells that were cast: they leave the hand for this pile, never the board.</summary>
+    public List<Card> Used { get; } = [];
+
     public bool IsPlayerOne { get; init; }
 
     /// <summary>1 for player one, 2 for player two: how events and the state refer to the heroes.</summary>
@@ -56,6 +59,15 @@ public sealed class GamePlayer
     /// <summary>Turns in a row that ended because the turn timer ran out.</summary>
     public int TimeoutsInARow { get; set; }
 
+    /// <summary>Emote rate limit, see <see cref="GameEngine.Throttle"/>.</summary>
+    public DateTimeOffset EmoteClock { get; set; }
+
+    /// <summary>The player muted the opponent's emotes for this game.</summary>
+    public bool EmotesMuted { get; set; }
+
+    /// <summary>The player has chosen which starting cards to replace (or kept them).</summary>
+    public bool MulliganDone { get; set; }
+
     /// <summary>Hero stats as strings, like the original server sent them, plus the new stats.</summary>
     public JsonObject GetPlayerData() => new()
     {
@@ -71,9 +83,51 @@ public sealed class GamePlayer
         ["ident"] = Ident,
     };
 
+    /// <summary>A deep copy for <see cref="GameRoom.Copy"/>; the deck is reshuffled with the copy's random numbers.</summary>
+    public GamePlayer Copy(GameRoom room)
+    {
+        var copy = new GamePlayer
+        {
+            IsPlayerOne = IsPlayerOne,
+            IsDead = IsDead,
+            Attack = Attack,
+            Health = Health,
+            MaxHealth = MaxHealth,
+            Armor = Armor,
+            Mana = Mana,
+            MaxMana = MaxMana,
+            BonusMana = BonusMana,
+            Name = Name,
+            Rank = Rank,
+            Rating = Rating,
+            Type = Type,
+            RaceId = RaceId,
+            HasAttacked = HasAttacked,
+            HeroPowerUsed = HeroPowerUsed,
+            Fatigue = Fatigue,
+            MulliganDone = MulliganDone,
+            GameRoom = room,
+        };
+        foreach (var (cid, card) in HandCards)
+        {
+            copy.HandCards[cid] = card.Copy();
+        }
+
+        foreach (var (slot, card) in BoardCards)
+        {
+            copy.BoardCards[slot] = card.Copy();
+        }
+
+        copy.Deck.AddRange(Deck.Select(c => c.Copy()));
+        copy.Used.AddRange(Used);
+        room.Random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(copy.Deck));
+        return copy;
+    }
+
     public bool HasEnoughMana(Card c) => Mana >= c.Cost;
 
-    public bool IsPlayerTurn() => GameRoom?.CurrentPlaying?.GPlayer == this;
+    /// <summary>Nobody's turn has started while the mulligan runs.</summary>
+    public bool IsPlayerTurn() => GameRoom is { InMulligan: false } room && room.CurrentPlaying?.GPlayer == this;
 
     public bool HasTaunt => BoardCards.Values.Any(c => c.HasTaunt && !c.IsDead);
 

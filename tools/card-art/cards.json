@@ -408,6 +408,117 @@
       "tweak": {"EmitCol": "#ff6a20"}
     },
     {
+      "id": 60,
+      "name": "Soul Rend",
+      "race": "darkness",
+      "rarity": "C",
+      "layers": [{"icon": "floating-ghost"}, {"icon": "claw-slashes", "s": 0.9, "accent": true}],
+      "material": "ethereal",
+      "accentMaterial": "iron",
+      "light": [0.3, 0.24],
+      "particles": "wisps",
+      "tweak": {"AccentCol": "#d8d0e0"}
+    },
+    {
+      "id": 61,
+      "name": "Death Grip",
+      "race": "darkness",
+      "rarity": "R",
+      "layers": [{"icon": "skeletal-hand"}],
+      "material": "bone",
+      "light": [0.7, 0.24],
+      "particles": "motes",
+      "motif": "barrow"
+    },
+    {
+      "id": 62,
+      "name": "Plague Wind",
+      "race": "darkness",
+      "rarity": "E",
+      "layers": [{"icon": "poison-gas"}],
+      "material": "ethereal",
+      "light": [0.5, 0.22],
+      "particles": "motes",
+      "particleColor": "#b8e090",
+      "tweak": {"BaseCol": "#3a4a2c", "Base2Col": "#7a9a58", "AuraCol": "#a8d080"}
+    },
+    {
+      "id": 63,
+      "name": "Blood Lance",
+      "race": "vampiric",
+      "rarity": "C",
+      "layers": [{"icon": "thrown-spear", "rot": -30}],
+      "material": "iron",
+      "light": [0.66, 0.26],
+      "particles": "blood",
+      "motif": "castle"
+    },
+    {
+      "id": 64,
+      "name": "Blood Pact",
+      "race": "vampiric",
+      "rarity": "R",
+      "layers": [{"icon": "bleeding-heart"}],
+      "material": "flesh",
+      "light": [0.32, 0.26],
+      "motif": "crypt"
+    },
+    {
+      "id": 65,
+      "name": "Blood Moon",
+      "race": "vampiric",
+      "rarity": "E",
+      "layers": [{"icon": "moon-bats"}],
+      "material": "cloth",
+      "light": [0.5, 0.28],
+      "fill": 0.8,
+      "tweak": {"DiscCol": "#ff5040", "GlowCol": "#ff3020", "BaseCol": "#3a1418", "Base2Col": "#6a2028"}
+    },
+    {
+      "id": 66,
+      "name": "Sacred Shield",
+      "race": "lightbringer",
+      "rarity": "C",
+      "layers": [{"icon": "cross-shield"}],
+      "material": "gold",
+      "light": [0.5, 0.24],
+      "motif": "sky"
+    },
+    {
+      "id": 67,
+      "name": "Revelation",
+      "race": "lightbringer",
+      "rarity": "R",
+      "layers": [{"icon": "book-aura"}],
+      "material": "gold",
+      "light": [0.5, 0.3],
+      "motif": "cathedral"
+    },
+    {
+      "id": 68,
+      "name": "Troll Blood",
+      "race": "ferocious",
+      "rarity": "C",
+      "layers": [{"icon": "health-potion"}],
+      "material": "ice",
+      "light": [0.3, 0.26],
+      "particles": "fireflies",
+      "tweak": {"BaseCol": "#2c5a28", "Base2Col": "#78c060", "EmitCol": "#9cff70"}
+    },
+    {
+      "id": 69,
+      "name": "Frostbite",
+      "race": "ferocious",
+      "rarity": "R",
+      "layers": [{"icon": "snowflake-1"}],
+      "material": "ice",
+      "motif": "mountains",
+      "light": [0.68, 0.2],
+      "particles": "snow",
+      "particleColor": "#e8f6ff",
+      "tweak": {"SkyTop": "#030a12", "SkyBot": "#16303c", "GlowCol": "#a8dcf0", "DiscCol": "#f0faff", "CloudLit": "#5a8494", "CloudDark": "#0a1620", "FogCol": "#3a5866", "SceneFar": "#3a5a6a", "SceneMid": "#122028", "RimCol": "#e8faff", "AuraCol": "#8cd0f0", "KeyCol": "#b8d4e8", "BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "ShadowTint": "#0c3040", "HiTint": "#f0faff", "EmitCol": "#c8f4ff", "GlowStr": 0.7, "KeyStr": 0.75}
+    },
+    {
       "id": "lost-soul",
       "name": "Lost Soul",
       "race": "neutral",
