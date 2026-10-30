@@ -18,8 +18,10 @@ public sealed partial class GameEngine
     /// </summary>
     public async Task EndGameAsync(GameRoom room, bool isDraw)
     {
-        if (room.IsEnded)
+        // A copy (the bot's lookahead) just ends: nothing is sent or stored.
+        if (room.IsEnded || room.IsCopy)
         {
+            room.IsEnded = true;
             return;
         }
 

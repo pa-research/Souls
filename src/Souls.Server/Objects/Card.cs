@@ -137,6 +137,9 @@ public sealed class Card
         return card;
     }
 
+    /// <summary>The same instance (same <see cref="Cid"/>) as a separate object, for a copy of the game.</summary>
+    public Card Copy() => (Card)MemberwiseClone();
+
     /// <summary>The JSON shape the browser clients expect (property names from the original Json.NET serialization).</summary>
     public JsonObject ToJson() => new()
     {
