@@ -393,6 +393,23 @@ public class WebAppTests(SoulsAppFixture app)
     }
 
     [Fact]
+    public async Task EmptyFormsShowTheirErrors()
+    {
+        using var browser = app.CreateBrowser();
+        using var register = await browser.PostFormAsync("/Player/Register", "/Player/Register", []);
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+        var html = await register.Content.ReadAsStringAsync();
+        Assert.Contains("You must input a username", html, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(html, "You must input a password<"));
+
+        using var admin = app.CreateBrowser();
+        using var _ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        using var card = await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", []);
+        Assert.Equal(HttpStatusCode.OK, card.StatusCode);
+        Assert.Contains("The Name field is required.", await card.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RegistrationRequiresFiveStarterCards()
     {
         using var browser = app.CreateBrowser();

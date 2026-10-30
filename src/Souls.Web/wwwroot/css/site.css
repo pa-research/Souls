@@ -36,25 +36,20 @@
     border-bottom-color: var(--s-line);
 }
 
-.s-site .btn {
-    font-family: var(--s-font-display);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
+/* Table rows scroll sideways on a phone instead of wrapping every cell. */
+.s-site .table-responsive > .table,
+.table-responsive > .s-table { white-space: nowrap; }
 
-.s-site .btn-primary {
-    --bs-btn-bg: #d9531b;
-    --bs-btn-border-color: #ffb46e;
-    --bs-btn-hover-bg: #ef6a2a;
-    --bs-btn-hover-border-color: #ffc78f;
-    --bs-btn-active-bg: #b8420f;
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent);
-}
-
-.s-site .btn-outline-secondary { --bs-btn-color: var(--s-text-2); --bs-btn-border-color: var(--s-line); --bs-btn-hover-bg: rgba(226, 184, 90, 0.12); --bs-btn-hover-border-color: var(--s-gold-2); --bs-btn-hover-color: var(--s-gold-1); }
-.s-site .btn-outline-dark { --bs-btn-color: var(--s-gold-1); --bs-btn-border-color: var(--s-line); --bs-btn-hover-bg: rgba(226, 184, 90, 0.15); --bs-btn-hover-color: #fff; }
-.s-site .btn-dark { --bs-btn-bg: #241f2c; --bs-btn-border-color: var(--s-line); --bs-btn-hover-bg: #322a3d; }
+/* Bootstrap form labels and selects look like the design system's (.s-label, .s-input). The theme's input background
+   would hide Bootstrap's select arrow, so it is put back. */
+.s-site .form-label { margin-bottom: 6px; font-family: var(--s-font-display); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--s-gold-2); }
+.s-site .form-select,
+.s-site .form-select:focus { padding-right: 2.4em; background-image: var(--bs-form-select-bg-img); background-repeat: no-repeat; background-position: right 0.85em center; background-size: 16px 12px; }
+.s-site .form-control-sm,
+.s-site .form-select-sm { min-height: 32px; padding-top: 0.3em; padding-bottom: 0.3em; font-size: 0.85rem; }
+.s-input.input-validation-error,
+.s-site .form-control.input-validation-error,
+.s-site .form-select.input-validation-error { border-color: rgba(255, 110, 130, 0.85); }
 
 .s-site .dropdown-menu,
 .s-dropdown {
@@ -261,6 +256,16 @@ a:hover { color: #fff0c2; }
 
 .s-alert-ok { border-color: rgba(67, 209, 122, 0.5); background: rgba(20, 70, 40, 0.55); color: #b8f5cf; }
 .s-alert-error { border-color: rgba(224, 49, 75, 0.55); background: rgba(80, 12, 22, 0.6); color: #ffc2cc; }
+/* Validation summaries: a plain list of messages. */
+.s-alert > ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+
+/* An empty list or table: an icon, a line of text and, where it helps, the way forward. */
+.s-empty { display: grid; justify-items: center; gap: 10px; padding: 18px 12px; text-align: center; color: var(--s-muted); }
+.s-empty > .s-icon { width: 2.2em; height: 2.2em; color: var(--s-gold-3); }
+.s-empty p { margin: 0; max-width: 46ch; }
+
+/* A panel head's note drops below the title when the two do not fit on one line. */
+.s-main .s-panel-head { flex-wrap: wrap; }
 
 .s-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 22px; }
 .s-page-head > div:first-child { flex: 1 1 320px; }
@@ -312,10 +317,12 @@ a:hover { color: #fff0c2; }
 .s-check input { accent-color: var(--s-gold-2); width: 16px; height: 16px; }
 .s-card-desc { margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--s-muted); text-align: center; }
 
+/* Sits on the tile's top edge, clear of the card's race emblem. */
 .s-ribbon {
     position: absolute;
-    top: 10px;
+    top: 0;
     right: -6px;
+    transform: translateY(-50%);
     z-index: 2;
     padding: 4px 10px 4px 12px;
     background: linear-gradient(180deg, #3fa86a, #1b5e38);
@@ -363,17 +370,27 @@ a:hover { color: #fff0c2; }
 .s-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
 .s-home-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
+.s-home-main,
+.s-home-side { align-content: start; }
+.s-home-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .s-home-grid #game-stats-feed { max-height: 360px; overflow-y: auto; }
-#news-carousel img { height: clamp(140px, 18vw, 220px); object-fit: cover; }
+/* The news images are 2:1; wide columns crop them a little, narrow ones show them whole. */
+#news-carousel img { aspect-ratio: 2 / 1; max-height: 240px; object-fit: cover; }
+.news-wrapper:not(:empty) { margin-top: 16px; }
+
+@media (max-width: 1199.98px) {
+    .s-home-grid > .s-home-side { grid-column: span 12; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+}
+
+@media (max-width: 767.98px) {
+    .s-home-pair { grid-template-columns: minmax(0, 1fr); }
+}
 .s-col-4 { grid-column: span 4; }
-.s-col-5 { grid-column: span 5; }
-.s-col-7 { grid-column: span 7; }
 .s-col-8 { grid-column: span 8; }
-.s-col-12 { grid-column: span 12; }
 
 @media (max-width: 1199.98px) {
     .s-col-4 { grid-column: span 6; }
-    .s-col-5, .s-col-7, .s-col-8 { grid-column: span 12; }
+    .s-col-8 { grid-column: span 12; }
 }
 
 @media (max-width: 767.98px) {
@@ -520,10 +537,11 @@ a:hover { color: #fff0c2; }
 
 .s-pick { position: relative; cursor: pointer; }
 .s-pick .s-card-wrap { height: 100%; }
+/* On the tile's top-right corner, clear of the card's cost gem and race emblem. */
 .s-pick-check {
     position: absolute;
-    top: 8px;
-    left: 8px;
+    top: -10px;
+    right: -10px;
     z-index: 3;
     display: grid;
     place-items: center;
@@ -554,8 +572,7 @@ a:hover { color: #fff0c2; }
 .s-shop-head .hansel-art { width: min(280px, 34vw); filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.6)); }
 .s-shop-layout { grid-template-columns: 280px 1fr; align-items: start; }
 .s-shop-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.s-price { display: flex; align-items: center; gap: 6px; font-weight: 700; color: #ffe08a; }
-.s-card-actions { display: grid; gap: 6px; width: 100%; }
+.s-card-actions { display: grid; gap: 6px; width: 100%; margin-top: auto; }
 .s-card-actions form { margin: 0; }
 
 @media (max-width: 991.98px) {
@@ -665,7 +682,7 @@ a:hover { color: #fff0c2; }
 .s-deck-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .s-deck-side { position: sticky; top: 90px; }
 
-.s-stepper { display: flex; align-items: center; gap: 6px; }
+.s-stepper { display: flex; align-items: center; gap: 6px; margin-top: auto; }
 .s-stepper .s-input { width: 64px; min-height: 36px; text-align: center; font-weight: 700; -moz-appearance: textfield; }
 .s-stepper .s-input::-webkit-outer-spin-button,
 .s-stepper .s-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -714,12 +731,13 @@ a:hover { color: #fff0c2; }
 
 @media (max-width: 991.98px) {
     .s-deck-layout { grid-template-columns: 1fr; }
-    .s-deck-side { position: static; order: -1; }
+    /* Relative, not static: the panel's gold corners are positioned on it. */
+    .s-deck-side { position: relative; top: auto; order: -1; }
 }
 
 /* ---- Stats -------------------------------------------------------------------------------------------------- */
 
-.s-versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(12px, 3vw, 40px); }
+.s-versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: clamp(12px, 3vw, 40px); }
 .s-fighter { text-align: center; }
 .s-fighter-portrait {
     position: relative;
@@ -747,7 +765,7 @@ a:hover { color: #fff0c2; }
 .s-fighter.draw .s-fighter-result { background: rgba(255, 255, 255, 0.1); color: var(--s-text); }
 .s-fighter h2 { font-family: var(--s-font-display); font-size: clamp(1.1rem, 0.9rem + 1vw, 1.6rem); color: var(--s-gold-1); margin: 0 0 6px; overflow-wrap: anywhere; }
 .s-fighter-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.s-vs-mark { font: 900 clamp(2.4rem, 1.5rem + 4vw, 5rem)/1 var(--s-font-title); color: #ffcc4d; text-shadow: 0 0 30px rgba(255, 106, 0, 0.8), 0 4px 0 #4a0d00; }
+.s-vs-mark { align-self: center; justify-self: center; font: 900 clamp(2.4rem, 1.5rem + 4vw, 5rem)/1 var(--s-font-title); color: #ffcc4d; text-shadow: 0 0 30px rgba(255, 106, 0, 0.8), 0 4px 0 #4a0d00; }
 
 .s-timeline { list-style: none; margin: 0; padding: 0 0 0 6px; max-height: 60vh; overflow-y: auto; }
 .s-timeline li {
@@ -779,8 +797,8 @@ a:hover { color: #fff0c2; }
 .s-timeline span { padding-top: 4px; }
 
 @media (max-width: 575.98px) {
-    .s-versus { grid-template-columns: 1fr; }
-    .s-vs-mark { order: 0; }
+    .s-versus { grid-template-columns: minmax(0, 1fr); }
+    .s-fighter-portrait { width: min(180px, 60%); }
 }
 
 /* ---- Admin and errors --------------------------------------------------------------------------------------- */
@@ -850,11 +868,21 @@ a:hover { color: #fff0c2; }
     text-overflow: ellipsis;
 }
 
-.s-card-title { top: 8.6%; right: 21%; font-size: 10.5cqw; line-height: 1.6; }
-/* Long names shrink so they stay clear of the race emblem. */
-.s-card-title.long { top: 9.4%; font-size: 8.4cqw; }
-.s-card-title.xlong { top: 10%; font-size: 7cqw; }
-.s-card-ability { top: 66.4%; font-size: 9cqw; line-height: 1.4; color: #1b130b; }
+/* The name band runs from x 72 to 244 of 330 (as on the 3D client's card), clear of the cost gem and the race emblem;
+   _CardTile sets --len to the name's length so long names shrink to fit. */
+.s-card-title {
+    top: 15.2%;
+    left: 21.8%;
+    right: 26.1%;
+    transform: translateY(-50%);
+    font-size: clamp(4.2cqw, calc(84cqw / var(--len, 10)), 10.5cqw);
+    line-height: 1.2;
+}
+/* The game clients' card faces mark long names with classes instead of setting --len. */
+.s-card-title.long { --len: 14; }
+.s-card-title.xlong { --len: 17; }
+/* Centred on y 312 of 450, above the rules text. */
+.s-card-ability { top: 69.3%; transform: translateY(-50%); font-size: 9cqw; line-height: 1.2; color: #1b130b; }
 
 /* Rules text and flavor in the text box (y 294-361 of 450). */
 .s-card-rules,
@@ -868,7 +896,7 @@ a:hover { color: #fff0c2; }
     color: #2b2118;
     text-align: center;
 }
-.s-card-rules { top: 73.4%; font-size: 4.5cqw; line-height: 1.15; -webkit-line-clamp: 2; line-clamp: 2; }
+.s-card-rules { top: 72.2%; font-size: 4.5cqw; line-height: 1.15; -webkit-line-clamp: 2; line-clamp: 2; }
 .s-card-flavor { top: 67%; font: italic 4.9cqw/1.2 Georgia, 'Times New Roman', serif; -webkit-line-clamp: 3; line-clamp: 3; color: #3a2d20; }
 
 /* Rarity: a gem where the portrait meets the text box; epic and legendary cards get a coloured edge. */
@@ -1014,6 +1042,11 @@ a:hover { color: #fff0c2; }
 .s-curve { margin-top: 30px; }
 
 @media (max-width: 575.98px) {
+    /* The leaderboard fits a phone with only the rank emblem; the tier name stays for screen readers. */
+    #season-standings .s-rank > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    #season-standings th,
+    #season-standings td { padding-left: 6px; padding-right: 6px; }
+    #season-standings th { letter-spacing: 0.06em; }
     .s-btn-lg,
     .s-btn-xl { white-space: normal; text-align: center; }
     .s-page-head > .s-btn { width: 100%; }
