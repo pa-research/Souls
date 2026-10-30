@@ -30,6 +30,9 @@
     overflow: auto;
 }
 
+/* Centred, but a layer taller than the screen (menu, end screen on a phone) starts at the top and scrolls. */
+.sg-layer > * { margin: auto; }
+
 .sg-shade {
     background:
         radial-gradient(ellipse at 30% 50%, rgba(6, 5, 9, 0.35), rgba(6, 5, 9, 0.88) 70%),
@@ -264,10 +267,12 @@
     display: grid;
     justify-items: center;
     gap: 6px;
+    width: max-content;
+    max-width: 100%;
     padding: 18px 90px;
     pointer-events: none;
     text-align: center;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     background: radial-gradient(ellipse at center, rgba(6, 5, 9, 0.85) 0%, rgba(6, 5, 9, 0.55) 55%, transparent 72%);
     animation: sg-banner 2.1s var(--s-ease) forwards;
 }
@@ -288,6 +293,13 @@
 .sg-banner::after { right: 10px; transform: scaleX(-1); }
 .sg-banner.enemy b { background: linear-gradient(180deg, #ffd0d6, #e0314b 55%, #7a0f20); -webkit-background-clip: text; background-clip: text; font-size: clamp(1.4rem, 1rem + 2vw, 2.6rem); }
 
+/* Phones: a long name (spectators see the players' names) wraps instead of running off the screen. */
+@media (max-width: 600px) {
+    .sg-banner { padding: 14px 24px; }
+    .sg-banner::before,
+    .sg-banner::after { display: none; }
+}
+
 @keyframes sg-banner {
     0% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
     14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -299,9 +311,9 @@
 
 .sg-toasts {
     position: absolute;
-    left: 50%;
+    left: 0;
+    right: 0;
     bottom: 22%;
-    transform: translateX(-50%);
     display: grid;
     justify-items: center;
     gap: 8px;
@@ -324,6 +336,8 @@
 }
 
 .sg-toast .s-icon { color: var(--s-gold-2); }
+/* A hint that stays while it applies (picking a target): no timed fade. */
+.sg-toast.sg-hint { animation: s-rise-in 0.25s var(--s-ease) both; }
 .sg-toast.warn { border-color: rgba(224, 49, 75, 0.7); }
 .sg-toast.warn .s-icon { color: var(--s-blood); }
 
@@ -671,7 +685,8 @@
 
 .sg-settings {
     position: absolute;
-    width: min(320px, calc(100vw - 24px));
+    /* Wide enough for the four graphics levels in one row. */
+    width: min(352px, calc(100vw - 24px));
     display: grid;
     gap: 14px;
 }
@@ -686,6 +701,7 @@
 
 .sg-end {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     align-content: center;
     gap: 18px;
@@ -706,6 +722,9 @@
     filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 40px rgba(255, 170, 60, 0.55));
     animation: sg-end-title 1.2s var(--s-ease) both;
 }
+
+/* "<name> wins" (spectators): smaller, and a long name breaks rather than widening the screen on a phone. */
+.sg-end-title.long { font-size: clamp(2rem, 1rem + 4vw, 4.5rem); overflow-wrap: anywhere; }
 
 .sg-end.defeat .sg-end-title { background: linear-gradient(180deg, #ffd0d6, #e0314b 55%, #6a0d1c); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 40px rgba(224, 49, 75, 0.5)); }
 .sg-end.draw .sg-end-title { background: linear-gradient(180deg, #ffffff, #b9c3d0 55%, #5b6573); -webkit-background-clip: text; background-clip: text; }
@@ -789,6 +808,8 @@
 @media (max-height: 560px) {
     .sg-mulligan-box { gap: 8px; }
     .sg-mulligan-box p:first-of-type { display: none; }
+    /* Smaller cards, so the confirm button fits a landscape phone without scrolling. */
+    .sg-mulligan-card .s-card.card-container { --w: clamp(72px, 21vh, 190px); }
 }
 
 /* ---- Spectating, replays, live games ------------------------------------------------------------------------ */
@@ -807,7 +828,7 @@
 
 .sg-live { padding: 2px 8px; border-radius: 4px; background: var(--s-blood); color: #fff; font: 800 0.66rem/1.4 var(--s-font-display); letter-spacing: 0.2em; animation: sg-pulse 1s ease-in-out infinite alternate; }
 .sg-live.replay { background: var(--s-arcane); animation: none; }
-.sg-watching-text { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-watching-text { min-width: 0; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sg-transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 8px 12px; }
 .sg-transport .s-progress { width: min(260px, 50vw); height: 8px; }
@@ -903,6 +924,8 @@
     .sg-power.ready .sg-power-orb,
     .sg-mulligan-card.new .s-card,
     .sg-fuse-fill::after,
+    .sg-fuse.urgent .sg-fuse-text,
+    .sg-toast.sg-hint,
     .sg-live { animation: none; }
     .sg-banner,
     .sg-toast { animation: sg-hold 2.2s linear forwards; }
