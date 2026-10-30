@@ -17,8 +17,8 @@ define("mulligan", ["hud"], function (Hud) {
         Hud.El('div', 's-card-portrait card-portrait', card).style.backgroundImage = Url(d.portrait);
         Hud.El('div', 's-card-cost', card, d.cost);
         var name = String(d.name === undefined || d.name === null ? '' : d.name);
-        // Smaller from 10 and 13 letters: "Revelation" and "Bone Colossus" stay clear of the race emblem.
-        Hud.El('div', 's-card-title' + (name.length > 12 ? ' xlong' : name.length > 9 ? ' long' : ''), card, name);
+        // --len shrinks long names to fit between the cost gem and the race emblem (as _CardTile.cshtml does).
+        Hud.El('div', 's-card-title', card, name).style.setProperty('--len', String(name.length));
         if (Number(d.level) > 1) Hud.El('div', 's-card-stars', card, new Array(Number(d.level)).join('★'));
         Hud.El('span', 's-card-gem', card);
         if (d.ability) {

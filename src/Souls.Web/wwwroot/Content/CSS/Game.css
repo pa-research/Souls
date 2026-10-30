@@ -354,9 +354,6 @@ div.chat-content-wrapper
 /* The mulligan covers what is placed on the board (an emote bubble at the start of the game, for one). */
 .souls-classic-hud .sg-layer.sg-mulligan { z-index: 23; }
 
-/* Names of 13 letters and more ("Bastion Guardian") fit between the cost gem and the race emblem. */
-.souls-classic-hud .sg-mulligan-card .s-card-title.xlong { font-size: 6.2cqw; }
-
 /* Short screens (phones held sideways): the mulligan fits without scrolling to the confirm button. */
 @media (max-height: 560px) {
     .souls-classic-hud .sg-mulligan .s-eyebrow { display: none; }
