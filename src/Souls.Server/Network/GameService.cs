@@ -49,6 +49,21 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                 case GameRequest.StopSpectating:
                     engine.StopSpectating(player);
                     return;
+                case GameRequest.Emote:
+                    engine.RequestEmote(player, message.GetInt("emote"));
+                    return;
+                case GameRequest.MuteEmotes:
+                    GameEngine.MuteEmotes(player, message.GetBool("muted"));
+                    return;
+                case GameRequest.Challenge:
+                    engine.RequestChallenge(player, message.GetString("name", 64));
+                    return;
+                case GameRequest.ChallengeAnswer:
+                    engine.AnswerChallenge(player, message.GetBool("accept"));
+                    return;
+                case GameRequest.ChallengeCancel:
+                    engine.CancelChallenge(player);
+                    return;
             }
         }
 
@@ -117,6 +132,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         }
 
         engine.RemoveFromQueues(player);
+        engine.DropChallenge(player, $"{player.Name} left.");
         await engine.ForfeitAsync(player);
         state.GameClients.Remove(connection);
         connection.LoggedIn = false;
@@ -132,6 +148,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
 
         engine.RemoveFromQueues(player);
         engine.StopSpectating(player);
+        engine.DropChallenge(player, $"{player.Name} left.");
         if (player.GPlayer?.GameRoom is { IsEnded: false })
         {
             if (player.IsBot || player.GetOpponent()?.IsBot == true)

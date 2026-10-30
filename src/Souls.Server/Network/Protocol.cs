@@ -72,6 +72,9 @@ public sealed class Message(int type, JsonObject payload)
         throw new ProtocolException($"Missing or invalid '{name}'");
     }
 
+    public bool GetBool(string name) =>
+        Payload[name] is JsonValue value && value.TryGetValue<bool>(out var b) ? b : throw new ProtocolException($"Missing or invalid '{name}'");
+
     public string GetString(string name, int maxLength)
     {
         var value = Payload[name] as JsonValue;
@@ -134,6 +137,17 @@ public enum GameResponse
     QueueUnqueue = 102,
     QueueError = 103,
 
+    // Friendly challenges, numbered down from the top of the queue range.
+
+    /// <summary>The pending challenge ended without a game (declined, cancelled, expired, a player left), or was refused. A string.</summary>
+    ChallengeClosed = 197,
+
+    /// <summary>To the challenger: <c>{"name", "expiresIn": ms}</c>.</summary>
+    ChallengeSent = 198,
+
+    /// <summary>To the challenged player: <c>{"name", "type", "rating", "expiresIn": ms}</c>.</summary>
+    ChallengeInvite = 199,
+
     GameUpdate = 201,
     GameNotYourTurn = 202,
     GameNextRoundFail = 203,
@@ -172,6 +186,9 @@ public enum GameResponse
     SpectateEnd = 242,
     SpectateError = 243,
 
+    /// <summary>A player emoted: <c>{"ident", "emote", "text"}</c>. Numbered down from the top of the game range.</summary>
+    Emote = 299,
+
     GameBotDisconnect = 500,
 }
 
@@ -182,6 +199,15 @@ public enum GameRequest
 
     /// <summary><c>{"difficulty": 0 easy, 1 normal, 2 hard}</c>.</summary>
     QueuePractice = 101,
+
+    /// <summary>Withdraws your pending challenge.</summary>
+    ChallengeCancel = 197,
+
+    /// <summary>Answers the challenge you received: <c>{"accept": bool}</c>.</summary>
+    ChallengeAnswer = 198,
+
+    /// <summary>Challenges an online player to an unranked game: <c>{"name"}</c>.</summary>
+    Challenge = 199,
 
     /// <summary>Subtypes: 0 = card on card, 1 = card on opponent, 2 = player on card, 3 = player on opponent.</summary>
     Attack = 200,
@@ -198,6 +224,12 @@ public enum GameRequest
     ListLiveGames = 240,
     Spectate = 241,
     StopSpectating = 242,
+
+    /// <summary><c>{"muted": bool}</c>: stop (or resume) receiving the opponent's emotes in this game.</summary>
+    MuteEmotes = 298,
+
+    /// <summary><c>{"emote": index into <see cref="Model.GameRules.Emotes"/>}</c>.</summary>
+    Emote = 299,
 }
 
 /// <summary>Targets of abilities and hero powers.</summary>

@@ -115,7 +115,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
     }
 
     /// <summary>
-    /// The main menu. options: {profile, difficulty, onRanked(), onPractice(difficulty), onDifficulty(difficulty)}.
+    /// The main menu. options: {profile, difficulty, onRanked(), onPractice(difficulty), onFriendly(), onDifficulty(difficulty)}.
     /// Returns {layer, Close(), SetDifficulty(d)}.
     /// </summary>
     function ShowMenu(options) {
@@ -177,6 +177,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
             e.stopPropagation();
         });
 
+        var friendly = MenuButton(nav, 'users', 'Friendly', 'Challenge a player by name, unranked');
         var watch = MenuButton(nav, 'eye', 'Watch live', 'Take a seat in the stands (3D)');
 
         var small = Hud.El('div', 'sg-menu-small', nav);
@@ -190,7 +191,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         // Up / down moves between the entries of the menu (the difficulty counts as one entry).
         nav.addEventListener('keydown', function (e) {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-            var items = [ranked, practice, radios[difficulty], watch];
+            var items = [ranked, practice, radios[difficulty], friendly, watch];
             var links = small.querySelectorAll ? small.querySelectorAll('a') : [];
             for (var i = 0; i < links.length; i++) items.push(links[i]);
             var index = items.indexOf(document.activeElement);
@@ -215,6 +216,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         }
         ranked.addEventListener('click', Pick(options.onRanked));
         practice.addEventListener('click', Pick(options.onPractice));
+        friendly.addEventListener('click', Pick(options.onFriendly));
         watch.addEventListener('click', Pick(function () {
             if (options.onWatch) options.onWatch();
             else window.location.href = LIVE_URL;
@@ -224,7 +226,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
 
         return {
             layer: layer,
-            buttons: { ranked: ranked, practice: practice, watch: watch, difficulty: radios },
+            buttons: { ranked: ranked, practice: practice, friendly: friendly, watch: watch, difficulty: radios },
             Difficulty: function () { return difficulty; },
             SetDifficulty: function (level) { Choose(level, false); },
             Close: function () {

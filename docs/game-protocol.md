@@ -72,6 +72,9 @@ Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`lev
 | 0 | Login | `{}` (the connection is authenticated by the session cookie) |
 | 100 | QueueNormal | `{}` |
 | 101 | QueuePractice | `{"difficulty": 0 easy, 1 normal, 2 hard}` |
+| 197 | ChallengeCancel | `{}`: withdraws your pending challenge |
+| 198 | ChallengeAnswer | `{"accept": bool}`: answers the challenge you received |
+| 199 | Challenge | `{"name"}`: challenges an online player to a friendly game (below) |
 | 200 | Attack | `{"source": cid or -1, "target": cid or -1, "type": 0 card→card, 1 card→hero, 2 hero→card, 3 hero→hero}` |
 | 201 | UseCard | `{"cid", "slotId": 0-6}` |
 | 203 | MoveCard | `{"cid", "x", "y"}` (relays a dragged card to the opponent) |
@@ -82,6 +85,8 @@ Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`lev
 | 240 | ListLiveGames | `{}` |
 | 241 | Spectate | `{"gameId"}` |
 | 242 | StopSpectating | `{}` |
+| 298 | MuteEmotes | `{"muted": bool}`: stop (or resume) receiving the opponent's emotes in this game |
+| 299 | Emote | `{"emote": 0-5}` (below) |
 
 ## Responses (server to client)
 
@@ -91,6 +96,9 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 
 | Type | Name | Payload |
 |---|---|---|
+| 197 | ChallengeClosed | string: your pending challenge ended without a game (declined, withdrawn, expired, a player left or started another game), or your request was refused |
+| 198 | ChallengeSent | `{name, expiresIn: ms}`: to the challenger |
+| 199 | ChallengeInvite | `{name, type, rating, expiresIn: ms}`: to the challenged player (`type`: the challenger's class) |
 | 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}}` |
 | 207 | UseCardOk | `{card, pInfo}`: your card moved from hand to `card.slotId` |
 | 211 | OpponentUseCardOk | `{card, pInfo}`: the opponent played `card` |
@@ -104,6 +112,7 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 241 | SpectateStart | like GameCreate from player one's side, with `spectator: true` and player one's hand as `[{cid}]` |
 | 242 | SpectateEnd | `{winner: ident or 0 for a draw, text, statistics}` |
 | 243 | SpectateError | string |
+| 299 | Emote | `{ident, emote, text}`: a player emoted (to both players, spectators and the replay) |
 
 The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks and abilities are reported as events.
 
@@ -178,9 +187,31 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 
 `ability.label` is what the card face prints and `ability.text` the rules text with the card's numbers filled in.
 
+## Friendly challenges
+
+A player who is logged in to the game server (both clients: "Friendly" in the menu, or waiting in a queue) can be
+challenged by name instead of using the ranked queue; the clients open `/Game?challenge=<name>` straight into a
+challenge. The 3D client declines invites while it shows the live games. Neither player may be in a game, watching one, or part of
+another pending challenge (one at a time, sent or received); the challenged player may be waiting in a queue and
+leaves it by accepting. Challenges are limited to a burst of 3, then one every 10 seconds per account, and expire
+after 30 seconds (`Souls:Game:ChallengeTimeout`). A challenge also ends when either player disconnects or starts
+another game.
+
+Accepting starts the game at once (GameCreate to both, the first player is picked at random). Friendly games are
+**unranked**: they are stored, rewarded and listed like practice games (`practice: true`, no rating change, 2 coins
+for a win and nothing for a loss, daily quests count except the two "win" quests).
+
+## Emotes
+
+During a game each player can send one of six emotes: 0 Greetings!, 1 Well played!, 2 Thanks!, 3 Oops!, 4 Your soul
+is mine!, 5 Sorry! (also in the page config as `rules.emotes`). The server sends them to both players, the
+spectators and the replay; a player who muted the opponent (MuteEmotes) no longer receives the opponent's emotes in
+that game. Emotes are limited to a burst of 3, then one every 3 seconds (more are answered with a GeneralMessage).
+The practice bot sometimes greets at the start.
+
 ## Replays
 
 Every message player one receives that is public (and the spectator versions of GameCreate and NewCard) is recorded
-with its time. When the game ends the recording is stored (`game_replay`) and served as JSON by
+with its time, and so are emotes. When the game ends the recording is stored (`game_replay`) and served as JSON by
 `/Game/ReplayData/{id}`: `[{"t": ms since start, "m": {"Type", "Payload"}}]`, played back by the 3D client
 (`/Game/Replay/{id}`).

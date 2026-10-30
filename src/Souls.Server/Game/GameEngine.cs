@@ -15,6 +15,9 @@ public sealed class GameOptions
 
     /// <summary>A player whose turn runs out this many times in a row forfeits.</summary>
     public int MaxTimeoutsInARow { get; set; } = 3;
+
+    /// <summary>How long a friendly challenge waits for an answer.</summary>
+    public TimeSpan ChallengeTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>
@@ -33,6 +36,8 @@ public sealed partial class GameEngine(
     /// <summary>Starts a game between two players.</summary>
     public GameRoom CreateGame(Pair<Player> players, bool practice = false)
     {
+        DropChallenge(players.First, $"{players.First.Name} started another game.");
+        DropChallenge(players.Second, $"{players.Second.Name} started another game.");
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 

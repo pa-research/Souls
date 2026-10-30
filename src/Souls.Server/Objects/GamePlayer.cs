@@ -56,6 +56,12 @@ public sealed class GamePlayer
     /// <summary>Turns in a row that ended because the turn timer ran out.</summary>
     public int TimeoutsInARow { get; set; }
 
+    /// <summary>Emote rate limit, see <see cref="GameEngine.Throttle"/>.</summary>
+    public DateTimeOffset EmoteClock { get; set; }
+
+    /// <summary>The player muted the opponent's emotes for this game.</summary>
+    public bool EmotesMuted { get; set; }
+
     /// <summary>Hero stats as strings, like the original server sent them, plus the new stats.</summary>
     public JsonObject GetPlayerData() => new()
     {

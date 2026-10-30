@@ -91,8 +91,11 @@ class EndTurnSign extends THREE.Group {
 }
 
 export class Game {
-    /** mode: 'normal' | 'practice' (play), 'watch' (spectate a live game) or 'replay' (play back a recording). */
-    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1 }) {
+    /**
+     * mode: 'normal' | 'practice' (play), 'friendly' (challenge a player by name: `challenge`, or wait for one),
+     * 'watch' (spectate a live game) or 'replay' (play back a recording).
+     */
+    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1, challenge = null }) {
         this.stage = stage;
         this.ui = ui;
         this.effects = effects;
@@ -102,6 +105,10 @@ export class Game {
         this.mode = mode;
         this.difficulty = difficulty;
         this.normalGame = mode === 'normal';
+        this.friendly = mode === 'friendly';
+        this.friendlyGame = this.friendly; // also when accepting a challenge while queued
+        this.challengeName = challenge;
+        this.emotesMuted = false;
         this.spectator = mode === 'watch' || mode === 'replay';
         this.rules = config.rules || { abilities: {}, races: {}, heroPowers: {}, heroTypes: {}, keywords: {} };
         this.tilt = 0;
@@ -163,6 +170,11 @@ export class Game {
             this.gameSocket = new Socket(`${wsBase}/game`, m => this.onGameMessage(m), e => this.onGameClosed(e));
             this.chatSocket = new Socket(`${wsBase}/chat`, m => this.onChatMessage(m), () => { });
             ui.onChat = text => this.sendChat(text);
+            ui.onEmote = emote => this.gameSocket.send(Request.EMOTE, { emote });
+            ui.onMuteEmotes = muted => {
+                this.emotesMuted = muted;
+                this.gameSocket.send(Request.MUTE_EMOTES, { muted });
+            };
             // Keeps the sliding login cookie alive while playing (classic: /Player/KeepAlive every minute).
             setInterval(() => fetch('/Player/KeepAlive', { credentials: 'same-origin' }).catch(() => { }), 60000);
         }
@@ -173,7 +185,14 @@ export class Game {
             this.playReplay();
             return;
         }
-        this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
+        if (this.friendly) {
+            this.ui.showFriendly({
+                onChallenge: name => this.gameSocket.send(Request.CHALLENGE, { name }),
+                onCancel: () => this.gameSocket.send(Request.CHALLENGE_CANCEL),
+            });
+        } else {
+            this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
+        }
         this.gameSocket.connect();
         if (!this.spectator) this.chatSocket.connect();
         this.login();
@@ -185,6 +204,13 @@ export class Game {
             const id = this.watchId ?? this.config.watch;
             if (id) this.spectate(id);
             else this.gameSocket.send(Request.LIST_LIVE_GAMES);
+            return;
+        }
+        // Friendly mode waits for challenges (a challenge does not survive a reconnect); in a game it rejoins below.
+        if (this.friendly && !this.active) {
+            this.ui.challengeIdle();
+            if (this.challengeName) this.gameSocket.send(Request.CHALLENGE, { name: this.challengeName });
+            this.challengeName = null;
             return;
         }
         if (this.normalGame) this.gameSocket.send(Request.QUEUE_NORMAL);
@@ -537,7 +563,7 @@ export class Game {
             case Response.LOGIN_OK:
                 this.reconnects = 0;
                 if (!this.spectator) this.chatSocket.send(Request.LOGIN);
-                if (!this.active && !this.spectator) this.ui.setStatus('Connection established!');
+                if (!this.active && !this.spectator && !this.friendly) this.ui.setStatus('Connection established!');
                 break;
             case Response.LOGIN_NO_HASH:
             case Response.LOGIN_NOT_LOGGED_IN:
@@ -585,9 +611,39 @@ export class Game {
             case Response.ERROR:
                 if (typeof p === 'string') this.ui.screenMessage(p);
                 break;
+            case Response.CHALLENGE_INVITE:
+                // The live games list is no place to start a game.
+                if (this.spectator) {
+                    this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept: false });
+                    break;
+                }
+                sound.play('CHAT_MESSAGE', 0.6);
+                this.ui.showInvite(p, accept => {
+                    if (accept) this.friendlyGame = true;
+                    this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept });
+                });
+                break;
+            case Response.CHALLENGE_SENT:
+                this.ui.challengeWaiting(String(p.name ?? ''));
+                break;
+            case Response.CHALLENGE_CLOSED:
+                this.ui.hideInvite();
+                this.ui.challengeIdle(String(p));
+                break;
+            case Response.EMOTE:
+                this.showEmote(p);
+                break;
             default:
                 break;
         }
+    }
+
+    /** A hero says something: a speech bubble by the hero (not the opponent's while muted). */
+    showEmote(p) {
+        const side = this.sideByIdent(p.ident);
+        if (!this.active || (side === this.opponent && this.emotesMuted)) return;
+        this.ui.emote(side.isPlayer ? 'player' : 'opponent', String(p.text ?? ''));
+        sound.play('CHAT_MESSAGE', 0.4);
     }
 
     enqueue(m) {
@@ -625,6 +681,8 @@ export class Game {
                 return this.onEnd('Draw!', p);
             case Response.SPECTATE_END:
                 return this.onSpectateEnd(p);
+            case Response.EMOTE: // replays (live emotes are shown at once)
+                return this.showEmote(p);
             default:
                 return undefined;
         }
@@ -1343,7 +1401,7 @@ export class Game {
         } else {
             this.celebrate(text === 'Draw!' ? 6 : 3, text === 'Draw!' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
-        this.ui.showEnd(text, p || {});
+        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame });
     }
 
     onSpectateEnd(p) {
@@ -1431,6 +1489,13 @@ export class Game {
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
         const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
         return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
+    }
+
+    /** Screen position for a hero's emote bubble: the top edge of the player's hero, the bottom edge of the opponent's. */
+    emoteAnchor(side) {
+        const hero = side.hero;
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+        return this.stage.toScreen(hero.position.clone().addScaledVector(up, (side.isPlayer ? 1 : -1) * 130 * hero.scale.x));
     }
 
     /** Screen position for the hero power button: beside the player's hero. */
@@ -1530,6 +1595,8 @@ export class Game {
             for (const side of [this.player, this.opponent]) {
                 const at = this.statusAnchor(side);
                 this.ui.placeStatus(side.isPlayer ? 'player' : 'opponent', at.x, at.y);
+                const bubble = this.emoteAnchor(side);
+                this.ui.placeEmote(side.isPlayer ? 'player' : 'opponent', bubble.x, bubble.y);
             }
         }
     }
