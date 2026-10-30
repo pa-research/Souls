@@ -217,8 +217,16 @@ export class Interaction {
         } else if (this.mode === 'arrow') {
             this.updateArrow(e);
         } else if (e.pointerType === 'mouse' && !this.mode) {
-            // Over the hero power button its own tooltip shows (UI); the board below must not replace it.
-            if (e.target instanceof Element && e.target.closest('.sg-power')) return;
+            // Only the arena itself is explained, not through the interface over it (the mulligan, panels); over the
+            // hero power button its own tooltip shows (UI).
+            if (e.target !== this.stage.renderer.domElement) {
+                if (!(e.target instanceof Element && e.target.closest('.sg-power'))) {
+                    game.setHovered(null);
+                    this.setBoardHover(null);
+                    game.ui.hideTooltip();
+                }
+                return;
+            }
             // Idle mouse: zoom the hovered hand card, lift a hovered board card, explain what is under the pointer.
             game.setHovered(game.canAct ? this.handCardAt(ndc) : null);
             const own = game.hovered || !game.canAct ? null : this.pick(ndc, [...game.player.board.values(), game.player.hero]);
@@ -307,7 +315,7 @@ export class Interaction {
         this.mode = 'power';
         this.powerTargets = this.game.candidates(power.targets);
         this.game.ui.setPowerArmed(true);
-        this.game.ui.screenMessage(`${power.name}: pick a target`, false);
+        this.game.ui.hint(`${power.name}: pick a target`);
         this.target = null;
         if (this.ndc) this.updatePowerArrow();
     }
@@ -321,7 +329,7 @@ export class Interaction {
         this.mode = 'power';
         this.spell = card;
         this.powerTargets = targets || [];
-        this.game.ui.screenMessage(`${card.data.name}: ${targets ? 'pick a target' : 'tap the board to cast it'}`, false);
+        this.game.ui.hint(`${card.data.name}: ${targets ? 'pick a target' : 'tap the board to cast it'}`);
         this.target = null;
     }
 
@@ -341,6 +349,7 @@ export class Interaction {
         this.effects.hideArrow();
         this.setTarget(null, POWER_COLOR);
         this.game.ui.setPowerArmed(false);
+        this.game.ui.hint(null);
         if (this.spell) {
             this.game.setHovered(null);
             this.game.ui.hideTooltip();
@@ -348,6 +357,11 @@ export class Interaction {
         this.mode = null;
         this.spell = null;
         this.powerTargets = [];
+    }
+
+    /** The turn ended or the game is over: an armed hero power or spell is put away (with its hint). */
+    cancelTargeting() {
+        if (this.mode === 'power') this.endPower();
     }
 
     spellColor(card) {

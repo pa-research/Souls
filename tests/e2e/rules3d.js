@@ -17,6 +17,31 @@ const RESULT = [230, 231, 233];
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
+  // Every animation frame: two full-screen layers (matchmaking, VS splash, mulligan, end screen) at once, or a centre
+  // banner, legendary name or tooltip over one of them, is a transition that overlaps.
+  await page.addInitScript(() => {
+    const overlaps = window.__overlaps = [];
+    const LAYERS = ['.souls3d-overlay', '.souls3d-versus', '.sg-mulligan', '.souls3d-end'];
+    const OVER = ['.sg-banner', '.sg-legend', '.sg-tip'];
+    const seen = e => {
+      for (let n = e, o = 1; n && n.nodeType === 1; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || (o *= Number(cs.opacity)) < 0.05) return false;
+      }
+      return true;
+    };
+    const t0 = performance.now();
+    const tick = () => {
+      const up = s => [...document.querySelectorAll(s)].some(seen);
+      const layers = LAYERS.filter(up);
+      const over = OVER.filter(up);
+      if ((layers.length > 1 || (layers.length && over.length) || over.filter(s => s !== '.sg-tip').length > 1) && overlaps.length < 20) {
+        overlaps.push(`${Math.round(performance.now() - t0)} ms: ${[...layers, ...over].join(' + ')}`);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   const problems = [];
   const frames = [];
   page.on('console', m => { if (m.type() === 'error' && !/GL Driver|GPU stall|api\.github/.test(m.text())) problems.push(m.text()); });
@@ -117,11 +142,16 @@ const RESULT = [230, 231, 233];
           if (counts.powers === 0) await snap('power-armed');
           const target = await hook('opponentHero()');
           await page.mouse.move(target.x, target.y, { steps: 4 }); await sleep(300);
+          const armed = await page.$$eval('.sg-hint', e => e.map(x => x.textContent).join());
           await page.mouse.click(target.x, target.y);
           const ev = await waitFrame(f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t === 'heroPower'), from, 6000);
           if (ev) counts.powers++; else counts.refused++;
           await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
           await sleep(800);
+          if (counts.powers === 1 && ev) {
+            const left = await page.$$eval('.sg-hint', e => e.length);
+            step('the targeting hint shows while the power is armed and goes with the use', /pick a target/.test(armed) && left === 0, `armed: "${armed}", after: ${left}`);
+          }
         }
       }
     };
@@ -225,6 +255,8 @@ const RESULT = [230, 231, 233];
   step('battle log has lines', log.length > 5, `${log.length} lines, last: ${log.slice(-2).join(' | ')}`);
   await sleep(2500);
   await snap('end');
+  const overlaps = await page.evaluate(() => window.__overlaps);
+  step('transitions never overlap (one full-screen layer at a time, no banner or tooltip over one)', overlaps.length === 0, overlaps.slice(0, 4).join(' | '));
   step('no console errors in the game', problems.length === 0, problems.slice(0, 5).join(' || '));
 
   if (result && result.p.statistics) {
