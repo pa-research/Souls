@@ -95,7 +95,8 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         ViewData["Title"] = "Registration";
         var key = nameof(RegisterPageModel.Form) + ".";
 
-        if (PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
+        // Required already reports an empty password.
+        if (!string.IsNullOrEmpty(form.Password) && PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
         {
             ModelState.AddModelError(key + nameof(form.Password), passwordProblem);
         }
@@ -117,7 +118,8 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
             ModelState.AddModelError(key + nameof(form.PlayerType), "You must select a class");
         }
 
-        var normalized = Player.Normalize(form.Username);
+        // An empty username binds as null; its Required error is already in the model state.
+        var normalized = ModelState.IsValid ? Player.Normalize(form.Username) : string.Empty;
         if (ModelState.IsValid && await db.Players.AnyAsync(p => p.NormalizedName == normalized, ct))
         {
             ModelState.AddModelError(key + nameof(form.Username), "The username already exists");

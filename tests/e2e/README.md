@@ -18,7 +18,7 @@ npm install
 | `hero_choice.js <base> <out>` | Hero powers and class cards: a Lurker picks Blood Gift on the Deck page, the shop shows each class only its own class cards, Blood Gift used on an own card in 3D (with a spectator) and in the classic client |
 | `vfx3d.js <base> <out>` | Replays the new card set's effects in the 3D client (legendary entrance, inferno, ward, venom, ice, grow, rally, drain, shatter) |
 | `hud3d.js <base> <out> [width height]` | Screenshots of the 3D client's interface states |
-| `ui_capture.js <base> <out>` | Every website page on desktop and phone, including the admin pages |
+| `ui_capture.js <base> <out>` | Every website page on desktop (1600x900) and phone (412x915), with their validation errors, flash messages and empty states, including the admin pages; fails on a console error or a page that scrolls sideways |
 
 `<base>` is the site, e.g. `https://localhost`; `<out>` a folder for the screenshots. Each script prints
 `PASS`/`FAIL` lines or a list of console problems.

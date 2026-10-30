@@ -6,7 +6,8 @@
     // Live preview of the card while editing.
     $("[data-preview]").on("input change", function () {
         var value = this.tagName === "SELECT" ? $(this).find("option:selected").text() : $(this).val();
-        preview.find($(this).data("preview")).text(value === "" ? "x" : value);
+        // --len sizes the name to fit (see _CardTile).
+        preview.find($(this).data("preview")).text(value === "" ? "x" : value).css("--len", String(Math.max(1, value.length)));
     });
 
     $("#race-select").on("change", function () {

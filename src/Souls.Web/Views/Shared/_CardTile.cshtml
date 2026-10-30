@@ -4,7 +4,8 @@
      style="background-image: url('@(Model.RaceTexture ?? "/Content/Images/Card/Texture/card_error.png")');">
     <div class="s-card-portrait card-portrait" style="background-image: url('@Model.Portrait');"></div>
     <div class="s-card-cost" aria-label="Cost @Model.Cost">@Model.Cost</div>
-    <div class="s-card-title @(Model.Name.Length > 14 ? "xlong" : Model.Name.Length > 10 ? "long" : null)">@Model.Name</div>
+    @* --len shrinks long names to fit the name band, between the cost gem and the race emblem. *@
+    <div class="s-card-title" style="--len: @Model.Name.Length">@Model.Name</div>
     @if (Model.Level > 1)
     {
         <div class="s-card-stars" aria-label="Level @Model.Level">@(new string('★', Model.Level - 1))</div>

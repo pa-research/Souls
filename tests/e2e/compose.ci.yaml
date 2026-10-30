@@ -1,6 +1,10 @@
 # Browser tests in CI (.github/workflows/ci.yml): headless Chromium renders WebGL in software, so the scripted
 # players need long turns and a long mulligan (the 30 s default runs out before the script can confirm it).
+# The scripts log in and register more often than the per-minute limit for one client allows.
 services:
+  web:
+    environment:
+      Souls__RateLimits__AuthPerMinute: "100"
   server:
     environment:
       Souls__Game__TurnTime: "00:08:00"
