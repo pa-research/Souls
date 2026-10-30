@@ -133,7 +133,7 @@ const BURN = 8, INSIGHT = 14;
     await register(C.page, 'sc' + id, []);
     await C.page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
     await C.page.waitForSelector('.sg-menu', { timeout: 120000 });
-    await C.page.click('.sg-menu-btn >> nth=2');
+    await C.page.click('.sg-menu-btn:has-text("Watch live")');
     await C.page.waitForSelector('.sg-game button', { timeout: 60000 });
     for (const row of await C.page.$$('.sg-game')) {
       if ((await row.textContent()).includes('sa' + id)) { await (await row.$('button')).click(); break; }
