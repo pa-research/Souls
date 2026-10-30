@@ -156,7 +156,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
             }
         });
         input.addEventListener('keydown', function (e) {
-            if (e.key !== 'Enter' || e.shiftKey) return;
+            if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
             e.preventDefault();
             var text = input.value.trim();
             if (text && that.room !== undefined) that.Message(that.room, text);
