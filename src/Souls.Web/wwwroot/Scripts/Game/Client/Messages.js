@@ -21,6 +21,7 @@ define('messages', ['conf'], function (Conf) {
                 ATTACK: 200, // {source, target, type: 0 card->card, 1 card->hero, 2 hero->card, 3 hero->hero}
                 USECARD: 201,
                 NEXT_TURN: 226,
+                MULLIGAN: 227, // {replace: [cid...]}: the starting hand cards to replace, once
                 NOT_YOUR_TURN: 202,
                 MOVE_CARD: 203,
                 RELEASE_CARD: 204,
@@ -48,6 +49,8 @@ define('messages', ['conf'], function (Conf) {
                 NEWCARD: 222,
                 OPPONENT_NEWCARD: 223,
                 NEXT_TURN: 226,
+                MULLIGAN: 227,
+                OPPONENT_MULLIGAN: 228,
                 VICTORY: 230,
                 DEFEAT: 231,
                 GENERAL_MESSAGE: 232,

@@ -35,6 +35,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.waitForFunction(() => window.__souls3d && window.__souls3d.state().active, null, { timeout: 120000 });
   await sleep(2500);
   await shot('versus');
+  await page.waitForSelector('.sg-mulligan-confirm'); await sleep(1200); await shot('mulligan');
+  await page.click('.sg-mulligan-confirm');
   await sleep(6000);
   await shot('game');
   // Tooltip over the first hand card, then the enemy hero.

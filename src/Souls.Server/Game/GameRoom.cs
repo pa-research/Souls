@@ -22,6 +22,8 @@ public sealed class GameRoom
         (int)GameResponse.GameNewCard,
         (int)GameResponse.GameOpponentNewCard,
         (int)GameResponse.GameNextTurn,
+        (int)GameResponse.GameMulligan,
+        (int)GameResponse.GameOpponentMulligan,
         (int)GameResponse.GameEvents,
         (int)GameResponse.GameSync,
     ];
@@ -30,13 +32,15 @@ public sealed class GameRoom
     private readonly List<JsonObject> _events = [];
     private readonly List<JsonObject> _replay = [];
 
-    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, bool practice = false)
+    /// <summary>Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over.</summary>
+    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false)
     {
         _time = time;
         GameId = Interlocked.Increment(ref _gameCounter);
         Players = players;
         StartedAt = time.GetUtcNow();
         TurnTime = turnTime;
+        MulliganTime = mulliganTime;
         IsPractice = practice;
         CurrentPlaying = players.First;
 
@@ -49,8 +53,7 @@ public sealed class GameRoom
                 gp.Deck.Add(card.NewInstance());
             }
 
-            var handSize = GameRules.StartingHand + (gp.IsPlayerOne ? 0 : GameRules.SecondPlayerExtraCards);
-            for (var i = 0; i < handSize && gp.Deck.Count > 0; i++)
+            for (var i = 0; i < GameRules.StartingHand && gp.Deck.Count > 0; i++)
             {
                 var card = gp.Deck[^1];
                 gp.Deck.RemoveAt(gp.Deck.Count - 1);
@@ -58,7 +61,18 @@ public sealed class GameRoom
             }
         }
 
-        StartTurn(players.First.GPlayer!);
+        TurnDeadline = time.GetUtcNow() + mulliganTime;
+    }
+
+    /// <summary>Both players are choosing which starting cards to replace; nobody's turn has started.</summary>
+    public bool InMulligan { get; private set; } = true;
+    public TimeSpan MulliganTime { get; }
+
+    /// <summary>Ends the mulligan: player one's first turn starts.</summary>
+    public void Start()
+    {
+        InMulligan = false;
+        StartTurn(Players.First.GPlayer!);
     }
 
     /// <summary>In-memory id while running; replaced by the database id when the game is saved.</summary>
@@ -70,7 +84,9 @@ public sealed class GameRoom
     public int Round { get; private set; } = 1;
     public bool IsPractice { get; }
     public TimeSpan TurnTime { get; }
+    /// <summary>When the turn (or the mulligan) runs out.</summary>
     public DateTimeOffset TurnDeadline { get; private set; }
+    public long TurnEndsIn => Math.Max(0, (long)(TurnDeadline - _time.GetUtcNow()).TotalMilliseconds);
 
     /// <summary>The player whose turn it is.</summary>
     public Player CurrentPlaying { get; private set; }
@@ -173,9 +189,9 @@ public sealed class GameRoom
         {
             ["turn"] = Turn,
             ["round"] = Round,
-            ["current"] = CurrentPlaying.GPlayer!.Ident,
-            ["turnEndsIn"] = Math.Max(0, (long)(TurnDeadline - _time.GetUtcNow()).TotalMilliseconds),
-            ["turnTime"] = (long)TurnTime.TotalMilliseconds,
+            ["current"] = InMulligan ? 0 : CurrentPlaying.GPlayer!.Ident,
+            ["turnEndsIn"] = TurnEndsIn,
+            ["turnTime"] = (long)(InMulligan ? MulliganTime : TurnTime).TotalMilliseconds,
             ["heroes"] = new JsonObject { ["1"] = HeroState(p1), ["2"] = HeroState(p2) },
             ["board"] = new JsonObject { ["1"] = BoardState(p1), ["2"] = BoardState(p2) },
         };
@@ -247,6 +263,15 @@ public sealed class GameRoom
             mirrored = new Response(GameResponse.GameNewCard, new JsonObject
             {
                 ["card"] = new JsonArray([.. cards.Select(c => (JsonNode)new JsonObject { ["cid"] = c?["cid"]?.DeepClone() })]),
+                ["hidden"] = true,
+            });
+        }
+        else if (response.Type == (int)GameResponse.GameMulligan)
+        {
+            mirrored = new Response(GameResponse.GameMulligan, new JsonObject
+            {
+                ["hand"] = HiddenHand(Players.First.GPlayer!),
+                ["replaced"] = response.Payload?["replaced"]?.DeepClone(),
                 ["hidden"] = true,
             });
         }
@@ -327,6 +352,9 @@ public static class GameData
                 // Only the instance ids of the opponent's hand are revealed.
                 ["hand"] = GameRoom.HiddenHand(opponent),
             },
+            ["mulligan"] = room.InMulligan
+                ? new JsonObject { ["endsIn"] = room.TurnEndsIn, ["time"] = (long)room.MulliganTime.TotalMilliseconds, ["done"] = player.MulliganDone }
+                : null,
         };
     }
 

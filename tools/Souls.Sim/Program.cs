@@ -129,15 +129,11 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     var one = Bot(1, class1);
     var two = Bot(2, class2);
     GameRoom room = null!;
+    // Drawn cards come from the log: the starting hands are logged once the bots' mulligans are done.
     var drawn = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
     await state.RunExclusiveAsync(() =>
     {
         room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true);
-        foreach (var (ident, gp) in new[] { (1, one.Player.GPlayer!), (2, two.Player.GPlayer!) })
-        {
-            drawn[ident].UnionWith(gp.HandCards.Values.Select(c => c.Id));
-        }
-
         return Task.CompletedTask;
     });
 
