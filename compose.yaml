@@ -22,7 +22,7 @@ x-app: &app
   environment: &app-env
     ASPNETCORE_ENVIRONMENT: Production
     # Only Caddy (on the frontend network) may set X-Forwarded-* headers.
-    Souls__TrustedProxyNetworks: 172.28.10.0/24
+    Souls__TrustedProxyNetworks: ${SOULS_FRONTEND_SUBNET:-172.28.10.0/24}
     Logging__Console__FormatterName: json
 
 services:
@@ -146,7 +146,7 @@ networks:
     internal: true
     ipam:
       config:
-        - subnet: 172.28.10.0/24
+        - subnet: ${SOULS_FRONTEND_SUBNET:-172.28.10.0/24}
   # Apps -> PostgreSQL.
   backend:
     internal: true
