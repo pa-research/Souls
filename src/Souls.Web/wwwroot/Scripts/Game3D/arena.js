@@ -212,11 +212,12 @@ function buildFlashes(places, count) {
  * health during a match, and a flash for big moments ("KO!", "VICTORY!"). Redrawn about ten times a second.
  */
 class StadiumScreen {
-    constructor() {
+    /** `memory`: draw in memory (see Card3D) for WebGPU. WebGL uploads a GPU canvas far cheaper, ten times a second. */
+    constructor(memory) {
         this.canvas = document.createElement('canvas');
         this.canvas.width = 1024 * SCREEN_SCALE;
         this.canvas.height = 576 * SCREEN_SCALE;
-        this.canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
+        this.canvas.getContext('2d', { willReadFrequently: memory });
         this.texture = new THREE.CanvasTexture(this.canvas);
         this.texture.colorSpace = THREE.SRGBColorSpace;
         this.texture.anisotropy = 8;
@@ -229,7 +230,7 @@ class StadiumScreen {
         this.grid = document.createElement('canvas');
         this.grid.width = 1024;
         this.grid.height = 576;
-        const g = this.grid.getContext('2d', { willReadFrequently: true }); // drawn into the screen: a memory canvas too
+        const g = this.grid.getContext('2d', { willReadFrequently: memory }); // drawn into the screen: the same kind
         g.fillStyle = 'rgba(0,0,0,0.35)';
         for (let x = 0; x < 1024; x += 4) g.fillRect(x, 0, 1, 576);
         for (let y = 0; y < 576; y += 4) g.fillRect(0, y, 1024, 1);
@@ -598,9 +599,11 @@ function skyDome(lowPower) {
 // ---- The arena ----------------------------------------------------------------------------------------------------
 
 export class Arena {
-    constructor(scene, quality) {
+    /** `backend`: 'webgpu' or 'webgl2' (Stage.backend). */
+    constructor(scene, quality, backend) {
         this.scene = scene;
         this.quality = quality;
+        this.backend = backend;
         this.lowPower = quality !== 'high';
         this.rise = 0; // 0 = classic picture, 1 = stadium
         this.target = 0;
@@ -655,7 +658,7 @@ export class Arena {
 
         // Parts that rise together share their merged meshes (see mergeStatic).
         const merged = (groups, delay) => { for (const g of groups) part(g, delay); part(mergeStatic(groups), delay); };
-        this.screen = new StadiumScreen();
+        this.screen = new StadiumScreen(this.backend === 'webgpu');
         merged([tunnelTower(-1, this.screen), tunnelTower(1, this.screen)], 0.15);
 
         const fire = glowTexture('rgba(255,250,220,1)', 'rgba(255,140,30,0.8)');

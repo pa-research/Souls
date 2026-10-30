@@ -289,9 +289,10 @@ export class Effects {
         g.lineJoin = 'round';
         g.lineWidth = 12;
         g.strokeStyle = '#000';
-        g.strokeText(text, 128, 64);
+        // Long labels ("Rabid Bite", "Fatigue 3") are squeezed to the canvas instead of clipped.
+        g.strokeText(text, 128, 64, 240);
         g.fillStyle = color;
-        g.fillText(text, 128, 64);
+        g.fillText(text, 128, 64, 240);
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
