@@ -221,6 +221,7 @@ async function practice(id) {
 
   // Play; right after the first end of turn, restart during the bot's turn.
   let restartedBotTurn = false;
+  let botTries = 0;
   for (let turn = 0; turn < 50 && !ended(P); turn++) {
     const mine = await waitTurn3d(P, ident);
     if (mine === 'ended' || ended(P)) break;
@@ -237,12 +238,18 @@ async function practice(id) {
       const botTurn = botSync ? botSync.p.turn : -1;
       from = P.frames.length;
       await restartServer('practice-restart-bot-turn', restartCmd, [P]);
-      restartedBotTurn = true;
       const again = await waitFrame(P, f => f.dir === 'in' && f.type === 206, from, 90000);
       const finishedBefore = P.frames.slice(0, from).some(f => f.dir === 'in' && f.type === 236 && f.p.turn > botTurn);
       const restored = again && await waitFrame(P, f => f.dir === 'in' && f.type === 236, from, 30000);
       // The bot finishes its turn on the new server (maybe before this client is back): my next turn comes.
       const mineAgain = again && await waitFrame(P, f => f.dir === 'in' && f.type === 236 && f.p.turn === botTurn + 1 && f.p.current === ident, from, 90000);
+      // On a fast host the bot can end its turn before the restart lands: then try again on a later bot turn.
+      if (finishedBefore && ++botTries < 3) {
+        console.log(`the bot's turn ${botTurn} was over before the restart; trying again on a later turn`);
+        await snap(P, `bot-turn-after-restart-try${botTries}`);
+        continue;
+      }
+      restartedBotTurn = true;
       step('practice: the bot plays on after a restart during its turn', !!botMove && !finishedBefore && !!again && !!mineAgain,
         again ? `bot moved before the restart: ${botMove ? botMove.type : 'no'}, its turn ${botTurn} was over before the restart: ${finishedBefore}; back in game ${again.p.gameId} at turn ${restored && restored.p.turn}, my turn ${botTurn + 1} came: ${!!mineAgain}` : 'no 206 after the restart');
       await snap(P, 'bot-turn-after-restart');
