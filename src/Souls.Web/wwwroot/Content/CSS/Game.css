@@ -192,6 +192,10 @@ div.chat-content-wrapper
 
 .souls-classic-hud .souls-classic-chat.collapsed { width: auto; }
 
+/* Open, it is above what is placed on the board (status pills, hero powers, banners, toasts); the tooltip (40) and
+   the full-screen layers (35) stay above it. */
+.souls-classic-hud .souls-classic-chat:not(.collapsed) { z-index: 31; }
+
 .souls-classic-hud .souls-classic-chat.collapsed .souls-classic-chat-members,
 .souls-classic-hud .souls-classic-chat.collapsed .souls-classic-chat-input { display: none; }
 
@@ -330,6 +334,10 @@ div.chat-content-wrapper
     }
 }
 
+/* Full-screen layers (loading, menu, matchmaking, mulligan, end screen) cover everything placed on the board, also an
+   open chat, emote bubbles and toasts. */
+.souls-classic-hud > .sg-layer { z-index: 35; }
+
 /* Held upright, the 16:9 board would be squeezed to a quarter of its width: while no other full-screen layer (the
    mulligan, the end screen) is up, a prompt to turn the device or switch to the 3D client covers it. */
 .souls-classic-hud > .souls-classic-rotate { display: none; z-index: 41; }
@@ -351,13 +359,9 @@ div.chat-content-wrapper
     .souls-classic-hud:not(:has(> .sg-layer:not(.souls-classic-rotate))) > .souls-classic-rotate { display: grid; }
 }
 
-/* The mulligan covers what is placed on the board (an emote bubble at the start of the game, for one). */
-.souls-classic-hud .sg-layer.sg-mulligan { z-index: 23; }
-
-/* Short screens (phones held sideways): the mulligan fits without scrolling to the confirm button. */
+/* Short screens: the classic layers start below the client switch, so the mulligan drops its eyebrow to fit. */
 @media (max-height: 560px) {
     .souls-classic-hud .sg-mulligan .s-eyebrow { display: none; }
-    .souls-classic-hud .sg-mulligan-card .s-card.card-container { --w: clamp(72px, min(24vw, 26vh), 150px); }
 }
 
 /* Short screens (phones held sideways): a compact matchmaking panel that fits without scrolling. */
