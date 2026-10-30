@@ -32,7 +32,9 @@ define("game",
             this.friendly = friendly || null;
             this.friendlyGame = !!friendly; // also set when a challenge is accepted while queued
             that = this;
-            State.call(this, "0xCAECAE");
+            // The sand of the arena: the colour behind the board, should a frame ever be drawn without it (seen now and
+            // then on one GPU; it was a mint green flash).
+            State.call(this, "0xE6C276");
             // Variables
             this.gameId = undefined;
             this.conf = Conf;
