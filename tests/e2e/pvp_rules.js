@@ -182,6 +182,9 @@ async function turnClassic(s, turn) {
   step('ranked game created for both clients', !!createdA && !!createdB, createdA ? `A ident ${createdA.p.ident} vs ${createdA.p.opponent.info.name}` : 'no game');
   if (!createdA || !createdB) { await finish(); return; }
   const identA = createdA.p.ident, identB = createdB.p.ident;
+  // Both keep their starting hand on the mulligan screen.
+  await A.page.click('.sg-mulligan-confirm'); await B.page.click('.sg-mulligan-confirm');
+  step('mulligan confirmed in both clients', !!(await waitFrame(A, f => f.dir === 'in' && f.type === 226, 0, 30000)));
 
   // C watches from the live games list.
   await C.page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });

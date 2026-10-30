@@ -55,6 +55,7 @@ require.config({
         "background": "Objects/Environment/Background",
         "endturnbutton": "Objects/Environment/EndTurnButton",
         "queue": "Objects/Environment/Queue",
+        "mulligan": "Objects/Environment/Mulligan",
         "audio": "Objects/Environment/AudioButton",
         "settings": "Objects/Environment/Settings",
         "turntimer": "Objects/Environment/TurnTimer",

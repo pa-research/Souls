@@ -56,6 +56,14 @@ public sealed class Message(int type, JsonObject payload)
 
     public int GetInt(string name) => ReadInt(Payload[name]) ?? throw new ProtocolException($"Missing or invalid '{name}'");
 
+    /// <summary>An optional list of integers (empty when missing).</summary>
+    public List<int> GetInts(string name) => Payload[name] switch
+    {
+        null => [],
+        JsonArray items => [.. items.Select(i => ReadInt(i) ?? throw new ProtocolException($"Invalid '{name}'"))],
+        _ => throw new ProtocolException($"Invalid '{name}'"),
+    };
+
     public double GetDouble(string name)
     {
         var value = Payload[name] as JsonValue;
@@ -169,6 +177,12 @@ public enum GameResponse
     GameUseCardSpell = 224,
     GameOpponentUseCardSpell = 225,
     GameNextTurn = 226,
+
+    /// <summary>Your starting hand after the mulligan: <c>{"hand": [card...], "replaced": n}</c> (every card has a new cid).</summary>
+    GameMulligan = 227,
+
+    /// <summary>The opponent's starting hand after their mulligan: <c>{"hand": [{"cid"}...], "replaced": n}</c>.</summary>
+    GameOpponentMulligan = 228,
     GameVictory = 230,
     GameDefeat = 231,
     GameGeneralMessage = 232,
@@ -220,6 +234,9 @@ public enum GameRequest
     /// <summary><c>{"target": cid or -1, "type": 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}</c>.</summary>
     HeroPower = 206,
     NextTurn = 226,
+
+    /// <summary><c>{"replace": [cid...]}</c>: the starting hand cards to replace, once, while the mulligan runs.</summary>
+    Mulligan = 227,
 
     ListLiveGames = 240,
     Spectate = 241,

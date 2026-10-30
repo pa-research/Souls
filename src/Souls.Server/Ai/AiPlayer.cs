@@ -104,6 +104,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     private List<Unit> _enemyBoard = [];
     private bool _synced;
     private bool _greet;
+    private Message? _mulligan;
+
+    /// <summary>The mulligan sends back starting cards that cost more than this (easy bots keep their hand).</summary>
+    private const int MulliganMaxCost = 4;
 
     /// <summary>How long each lookahead took, in milliseconds (read by the simulator).</summary>
     public List<double> PlanTimes { get; } = [];
@@ -125,6 +129,13 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                     {
                         _greet = false;
                         await send(Message.Create(GameRequest.Emote, new JsonObject { ["emote"] = 0 }));
+                    }
+
+                    if (_mulligan is { } mulligan)
+                    {
+                        _mulligan = null;
+                        await Task.Delay(options.ThinkDelay, ct);
+                        await send(mulligan);
                     }
 
                     // Act once everything the server sent has been read.
@@ -165,6 +176,23 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                 // Now and then the bot says hello (emote 0, "Greetings!").
                 _greet = (bool?)payload["create"] == true && _random.Next(3) == 0;
                 foreach (var (_, node) in payload["player"]!["hand"]!.AsObject())
+                {
+                    var card = Card.FromJson(node!);
+                    _hand[card.Cid] = card;
+                }
+
+                if ((bool?)payload["mulligan"]?["done"] == false)
+                {
+                    _mulligan = Message.Create(GameRequest.Mulligan, new JsonObject
+                    {
+                        ["replace"] = new JsonArray([.. _hand.Values.Where(c => difficulty > 0 && c.Cost > MulliganMaxCost).Select(c => (JsonNode)c.Cid)]),
+                    });
+                }
+
+                break;
+            case GameResponse.GameMulligan:
+                _hand.Clear();
+                foreach (var node in payload!["hand"]!.AsArray())
                 {
                     var card = Card.FromJson(node!);
                     _hand[card.Cid] = card;

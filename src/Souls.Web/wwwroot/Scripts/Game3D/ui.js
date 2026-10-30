@@ -1,5 +1,5 @@
 // DOM interface of the 3D client, built from the shared in-game components (css/game-hud.css on css/theme.css):
-// loading, main menu, matchmaking, turn banners, toasts, status, hero power, turn fuse, battle log, tooltips,
+// loading, main menu, matchmaking, mulligan, turn banners, toasts, status, hero power, turn fuse, battle log, tooltips,
 // settings, chat, end screen, live games, spectator bar and replay transport. Server text is always inserted as text.
 import { Images, sound } from './assets.js';
 import { QUALITY_KEY, VIEWS } from './scene.js';
@@ -79,6 +79,30 @@ function rankBadge(parent, rating, { compact = false } = {}) {
         badge.title = `${tier.name} · ${rating}`;
     }
     return badge;
+}
+
+const RARITIES = ['', 'common', 'rare', 'epic', 'legendary'];
+
+/** A card face like the site's card tiles (.s-card in site.css, same layout as Views/Shared/_CardTile.cshtml). */
+function cardFace(parent, d) {
+    const card = el('div', `s-card card-container rarity-${RARITIES[Number(d.rarity)] || 'common'}`, parent);
+    card.style.backgroundImage = `url(${JSON.stringify(String((d.race && d.race.cardUrl) || '/Content/Images/Card/Texture/card_error.png'))})`;
+    el('div', 's-card-portrait card-portrait', card).style.backgroundImage = `url(${JSON.stringify(String(d.portrait ?? ''))})`;
+    el('div', 's-card-cost', card, String(d.cost ?? ''));
+    const name = String(d.name ?? '');
+    el('div', `s-card-title${name.length > 14 ? ' xlong' : name.length > 10 ? ' long' : ''}`, card, name);
+    if (Number(d.level) > 1) el('div', 's-card-stars', card, '★'.repeat(Number(d.level) - 1));
+    el('span', 's-card-gem', card);
+    if (d.ability) {
+        el('div', 's-card-ability', card, String(d.ability.label || d.ability.name || ''));
+        el('div', 's-card-rules', card, String(d.ability.text ?? ''));
+    } else if (d.flavor) {
+        el('div', 's-card-flavor', card, String(d.flavor));
+    }
+    el('div', 's-card-attack', card, String(d.attack ?? ''));
+    el('div', 's-card-health', card, String(d.health ?? ''));
+    if (Number(d.armor) > 0) el('div', 's-card-armor', card, String(d.armor));
+    return card;
 }
 
 function readNumber(key, fallback) {
@@ -606,6 +630,101 @@ export class UI {
         side(opponent, 'right');
         setTimeout(() => splash.classList.add('leaving'), 3400);
         setTimeout(() => splash.remove(), 4100);
+    }
+
+    // ---- Mulligan ------------------------------------------------------------------------------------------------
+
+    /** The starting hand as card faces: tap the ones to replace, then confirm (once) before the countdown ends. */
+    showMulligan({ cards, endsAt, total, done, opponent, onConfirm }) {
+        this.hideMulligan(false);
+        const layer = el('div', 'sg-layer sg-shade sg-mulligan', this.root);
+        layer.setAttribute('role', 'dialog');
+        layer.setAttribute('aria-label', 'Mulligan');
+        const box = el('div', 'sg-mulligan-box', layer);
+        el('div', 's-eyebrow', box, 'Mulligan');
+        el('h2', '', box, 'Your starting hand');
+        el('p', '', box, 'Tap the cards you want to replace. You can do this once.');
+        const row = el('div', 'sg-mulligan-cards', box);
+        const timer = el('div', 'sg-mulligan-timer', box);
+        const bar = progress(timer, 1, 's-progress-ember');
+        const time = el('span', 'sg-time', timer);
+        const confirm = button('s-btn s-btn-gold s-btn-lg sg-mulligan-confirm', box, 'Keep hand', 'check');
+        const status = el('p', 'sg-mulligan-status s-muted', box);
+        status.setAttribute('aria-live', 'polite');
+        const m = this.mulligan = { layer, status, opponent, buttons: [], opponentDone: false };
+        const lock = text => {
+            m.locked = true;
+            for (const b of m.buttons) b.disabled = true;
+            confirm.disabled = true;
+            status.textContent = text;
+        };
+        for (const card of cards) {
+            const b = el('button', 'sg-mulligan-card', row);
+            b.type = 'button';
+            b.setAttribute('aria-pressed', 'false');
+            cardFace(b, card);
+            el('span', 'sg-mulligan-mark', b).append(icon('refresh'), 'Replace');
+            b.addEventListener('click', () => {
+                b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+                const n = m.buttons.filter(x => x.getAttribute('aria-pressed') === 'true').length;
+                confirm.replaceChildren(icon(n ? 'refresh' : 'check'), n ? `Replace ${n} card${n > 1 ? 's' : ''}` : 'Keep hand');
+            });
+            b.cid = card.cid;
+            m.buttons.push(b);
+        }
+        confirm.addEventListener('click', () => {
+            lock(`Waiting for ${opponent}...`);
+            onConfirm(m.buttons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.cid));
+        });
+        if (done) lock(`Waiting for ${opponent}...`);
+        const tick = () => {
+            const left = Math.max(0, endsAt - performance.now());
+            bar.style.setProperty('--p', `${Math.round((left / Math.max(1, total)) * 100)}%`);
+            time.textContent = clock(left);
+            if (left > 0 || m.locked) return;
+            for (const b of m.buttons) b.setAttribute('aria-pressed', 'false');
+            lock('Time is up: you keep your hand.');
+        };
+        tick();
+        m.timer = setInterval(tick, 250);
+        if (!done) confirm.focus({ preventScroll: true });
+    }
+
+    /** A mulligan was made: ours shows the new cards in place of the replaced ones, the opponent's how many. */
+    mulliganChosen(mine, hand, replaced) {
+        const m = this.mulligan;
+        if (!m) return;
+        if (!mine) {
+            m.opponentDone = true;
+            m.status.textContent = replaced ? `${m.opponent} replaced ${replaced} card${replaced > 1 ? 's' : ''}.` : `${m.opponent} kept their hand.`;
+            return;
+        }
+        hand.forEach((card, i) => {
+            const b = m.buttons[i];
+            if (!b) return;
+            const isNew = replaced > 0 && b.getAttribute('aria-pressed') === 'true';
+            b.disabled = true;
+            b.setAttribute('aria-pressed', 'false');
+            b.classList.toggle('new', isNew);
+            b.replaceChildren();
+            cardFace(b, card);
+            el('span', 'sg-mulligan-mark', b).append(icon(isNew ? 'sparkles' : 'check'), isNew ? 'New' : 'Kept');
+        });
+        m.locked = true;
+        m.status.textContent = m.opponentDone ? 'The battle begins!' : `Waiting for ${m.opponent}...`;
+    }
+
+    hideMulligan(fade = true) {
+        const m = this.mulligan;
+        if (!m) return;
+        this.mulligan = null;
+        clearInterval(m.timer);
+        if (!fade) {
+            m.layer.remove();
+            return;
+        }
+        m.layer.classList.add('sg-fade-out');
+        setTimeout(() => m.layer.remove(), 950);
     }
 
     // ---- Tooltips ------------------------------------------------------------------------------------------------

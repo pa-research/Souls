@@ -1,4 +1,4 @@
-﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower"], function (Message, Asset, EventPlayer, Animation, HeroPower) {
+﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower", "mulligan"], function (Message, Asset, EventPlayer, Animation, HeroPower, Mulligan) {
 
     var that;
     GameService = function (engine, socket) {
@@ -32,6 +32,7 @@
         this.RegisterResponseAction(["213"], Response_SlotOccupied);
         this.RegisterResponseAction(["226"], Response_NextTurn);
         this.RegisterResponseAction(["222", "223"], Response_NewCard);
+        this.RegisterResponseAction(["227", "228"], Response_Mulligan);
         this.RegisterResponseAction(["208"], Response_UseCard_OOM);
         this.RegisterResponseAction(["230", "231", "233"], Response_VictoryDefeat);
         this.RegisterResponseAction(["232"], Response_GeneralMessage);
@@ -136,6 +137,27 @@
         return 420 + 160 * (created.length - 1);
     }
 
+    /// 227 Mulligan (our starting hand) / 228 OpponentMulligan: the whole hand is new (every card has a new cid).
+    function Response_Mulligan(json) {
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var hero = (json.Type == 227) ? engine.player : engine.opponent;
+        hero.cardManager.ReplaceHand(payload.hand || []);
+        hero.handCount = hero.cardManager.HandCount();
+        hero.RefreshHud();
+        if (engine.mulligan) engine.mulligan.Chosen(hero === engine.player, payload.hand || [], Number(payload.replaced) || 0);
+        // A moment to see the new cards before the first turn closes the mulligan screen.
+        return hero === engine.player ? 1200 : 300;
+    }
+
+    function CloseMulligan(engine) {
+        if (!engine.mulligan) return false;
+        engine.mulligan.Close();
+        engine.mulligan = null;
+        return true;
+    }
+
     /// 230 Victory / 231 Defeat / 233 Draw: {statistics, text, coins, rating, ratingChange, quests}
     function Response_VictoryDefeat(json)
     {
@@ -143,6 +165,7 @@
         var payload = json.Payload || {};
         var engine = that.engine;
 
+        CloseMulligan(engine);
         engine.OnEnd();
         if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
 
@@ -264,6 +287,7 @@
         var engine = that.engine;
         var payload = data.Payload || {};
         ResetGame(engine);
+        CloseMulligan(engine);
 
         if (!engine.musicStarted) {
             engine.musicStarted = true;
@@ -327,6 +351,14 @@
         // Fade out the Queue overlay
         engine.queue.FadeOut();
 
+        // Before the first turn: pick the starting cards to replace (once).
+        if (payload.mulligan) {
+            engine.mulligan = new Mulligan(payload.player && payload.player.hand ? Object.values(payload.player.hand) : [], payload.mulligan,
+                engine.opponent.name, function (replace) {
+                    that.socket.send({ "Type": Message.Type.Game.MULLIGAN, "Payload": { "replace": replace } });
+                });
+        }
+
         // Lets the page resume this game after switching to the 3D client.
         if (window.SoulsGameMode) window.SoulsGameMode.markInGame(engine.normalGame);
         return 300;
@@ -368,6 +400,8 @@
         if (!engine.player) return 0;
         var payload = json.Payload || {};
         engine.myTurn = !!payload.yourTurn;
+        // The first turn starts after the mulligan (its turn number is already right).
+        var firstTurn = CloseMulligan(engine);
 
         var button = engine.background.endTurnButton;
         if (button.spinning || button.active !== engine.myTurn) button.Spin(engine.myTurn);
@@ -382,7 +416,7 @@
         }
 
         // The turn number: GameSync sends it (0 for the first turn); the next sync confirms it.
-        if (typeof engine.turnNumber === 'number') engine.turnNumber++;
+        if (typeof engine.turnNumber === 'number' && !firstTurn) engine.turnNumber++;
         engine.RefreshAll();
         var sub = typeof engine.turnNumber === 'number' ? "Turn " + (engine.turnNumber + 1) : null;
         if (engine.myTurn) engine.hud.Banner("Your turn", sub, false);
@@ -428,7 +462,10 @@
             if (owner) ApplyBoard(owner, board[side] || []);
         }
 
-        if (state.turnEndsIn !== undefined && state.turnEndsIn !== null) {
+        if (Number(state.current) === 0) {
+            engine.turnTimer.Stop(); // the mulligan has its own countdown
+        }
+        else if (state.turnEndsIn !== undefined && state.turnEndsIn !== null) {
             engine.turnTimer.Set(state.turnEndsIn - Age(json), state.turnTime, engine.myTurn);
         }
 

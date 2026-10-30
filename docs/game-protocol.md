@@ -7,9 +7,9 @@ animate what the server reports.
 ## Rules in short
 
 - Decks have 20 cards (at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary), shuffled
-  at the start. Each player starts with 3 cards (4 when going second);
-  the player whose turn starts draws one. An empty deck deals fatigue damage (1, then 2, ...). Drawing with 10 cards in hand
-  burns the drawn card.
+  at the start. Each player starts with 3 cards and may replace any of them once ([mulligan](#mulligan)); then the
+  player going second draws a 4th card. The player whose turn starts draws one. An empty deck deals fatigue damage
+  (1, then 2, ...). Drawing with 10 cards in hand burns the drawn card.
 - Mana each turn: the round number plus the class bonus, at most 10. The player going second gets 1 extra mana on
   their first turn. Hero powers cost 2 mana, once per turn.
 - Armor absorbs damage before health (cards and heroes). Healing never goes above maximum health.
@@ -65,6 +65,23 @@ shop price.
 
 Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON).
 
+### Mulligan
+
+Before the first turn both players see their starting hand at the same time and may replace any of its cards, once
+(request 227). A new card is drawn for each replaced one, then the replaced cards are shuffled back into the deck
+(so they cannot come straight back). Every card of the new hand gets a new `cid`, kept cards stay in their place:
+the opponent, spectators and replays only learn how many cards were replaced. A request with a card that is not in
+the starting hand is refused (GeneralMessage) and the player may choose again; a second mulligan is ignored.
+
+- The mulligan lasts 30 seconds (`Souls:Game:MulliganTime`). Whoever has not chosen by then keeps their hand; this
+  is not a turn timeout.
+- When both have chosen, player one's first turn starts (NextTurn), the player going second draws their extra card,
+  and GameSync follows.
+- During the mulligan nobody may act (turn requests get NotYourTurn), GameSync has `current: 0` and its
+  `turnEndsIn` / `turnTime` count down the mulligan.
+- A player who reconnects during the mulligan gets GameCreate with `mulligan` again (`done` if they already chose).
+  Leaving the game during the mulligan forfeits it, like leaving later.
+
 ## Requests (client to server)
 
 | Type | Name | Payload |
@@ -82,6 +99,7 @@ Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`lev
 | 205 | UseAbility | `{"source": cid, "target": cid or -1, "type": 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}` |
 | 206 | HeroPower | `{"target": cid or -1, "type": as UseAbility}` |
 | 226 | NextTurn | `{}` |
+| 227 | Mulligan | `{"replace": [cid...]}`: the starting hand cards to replace (`[]` keeps the hand); once, during the mulligan |
 | 240 | ListLiveGames | `{}` |
 | 241 | Spectate | `{"gameId"}` |
 | 242 | StopSpectating | `{}` |
@@ -99,12 +117,14 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 197 | ChallengeClosed | string: your pending challenge ended without a game (declined, withdrawn, expired, a player left or started another game), or your request was refused |
 | 198 | ChallengeSent | `{name, expiresIn: ms}`: to the challenger |
 | 199 | ChallengeInvite | `{name, type, rating, expiresIn: ms}`: to the challenged player (`type`: the challenger's class) |
-| 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}}` |
+| 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}, mulligan: {endsIn: ms, time: ms, done} \| null}` (`mulligan` while it runs) |
 | 207 | UseCardOk | `{card, pInfo}`: your card moved from hand to `card.slotId` |
 | 211 | OpponentUseCardOk | `{card, pInfo}`: the opponent played `card` |
 | 222 | NewCard | `{card: [card...], returned: bool}`: cards added to your hand (`returned`: Haunt). Spectators get `{card: [{cid}], hidden: true}` |
 | 223 | OpponentNewCard | `{card: [{cid}...], returned}` |
-| 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` |
+| 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` (also when the first turn starts after the mulligan) |
+| 227 | Mulligan | `{hand: [card...], replaced: n}`: your whole starting hand after the mulligan, in order, all with new cids. Spectators get `{hand: [{cid}], replaced, hidden: true}` |
+| 228 | OpponentMulligan | `{hand: [{cid}...], replaced: n}`: the opponent's starting hand after their mulligan (all new cids) |
 | 230/231/233 | Victory/Defeat/Draw | `{statistics: gameId, text, coins, rating, ratingChange (null in practice), quests: [{text, progress, target, reward, done}]}` |
 | 235 | GameEvents | `{events: [event...]}`: what happened, in order (below) |
 | 236 | GameSync | the full public state after every action (below) |
@@ -123,6 +143,10 @@ In GameSync board cards also have `canAct` (it is that player's turn and the car
 Numbers in the original fields (`health`, `attack`, `mana`, `type`) are strings for compatibility; the new ones are numbers.
 
 ### Message order
+
+A game starts with GameCreate and GameSync, then each player's Mulligan/OpponentMulligan (with a `log` event) as
+they choose; when both have chosen, NextTurn, OpponentNewCard/NewCard (the extra card of the player going second)
+and GameSync.
 
 For each action the server sends, in this order: the primary message (UseCardOk/OpponentUseCardOk, NextTurn), then
 GameEvents (events up to a draw), NewCard/OpponentNewCard, more GameEvents, and finally GameSync. If a hero died, the
@@ -173,6 +197,8 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 }
 ```
 
+`current` is the ident of the player whose turn it is, or 0 during the mulligan.
+
 ### Card JSON
 
 ```json
@@ -211,7 +237,7 @@ The practice bot sometimes greets at the start.
 
 ## Replays
 
-Every message player one receives that is public (and the spectator versions of GameCreate and NewCard) is recorded
+Every message player one receives that is public (and the spectator versions of GameCreate, NewCard and Mulligan) is recorded
 with its time, and so are emotes. When the game ends the recording is stored (`game_replay`) and served as JSON by
 `/Game/ReplayData/{id}`: `[{"t": ms since start, "m": {"Type", "Payload"}}]`, played back by the 3D client
 (`/Game/Replay/{id}`).

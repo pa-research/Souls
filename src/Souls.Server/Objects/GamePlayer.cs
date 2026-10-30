@@ -62,6 +62,9 @@ public sealed class GamePlayer
     /// <summary>The player muted the opponent's emotes for this game.</summary>
     public bool EmotesMuted { get; set; }
 
+    /// <summary>The player has chosen which starting cards to replace (or kept them).</summary>
+    public bool MulliganDone { get; set; }
+
     /// <summary>Hero stats as strings, like the original server sent them, plus the new stats.</summary>
     public JsonObject GetPlayerData() => new()
     {
@@ -99,6 +102,7 @@ public sealed class GamePlayer
             HasAttacked = HasAttacked,
             HeroPowerUsed = HeroPowerUsed,
             Fatigue = Fatigue,
+            MulliganDone = MulliganDone,
             GameRoom = room,
         };
         foreach (var (cid, card) in HandCards)
@@ -118,7 +122,8 @@ public sealed class GamePlayer
 
     public bool HasEnoughMana(Card c) => Mana >= c.Cost;
 
-    public bool IsPlayerTurn() => GameRoom?.CurrentPlaying?.GPlayer == this;
+    /// <summary>Nobody's turn has started while the mulligan runs.</summary>
+    public bool IsPlayerTurn() => GameRoom is { InMulligan: false } room && room.CurrentPlaying?.GPlayer == this;
 
     public bool HasTaunt => BoardCards.Values.Any(c => c.HasTaunt && !c.IsDead);
 

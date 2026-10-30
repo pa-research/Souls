@@ -41,7 +41,7 @@ const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1 };
 const QUEUED = new Set([
     Response.GAME_CREATE, Response.RECOVER, Response.SPECTATE_START, Response.USECARD_OK, Response.OPPONENT_USECARD_OK,
     Response.NEWCARD, Response.OPPONENT_NEWCARD, Response.NEXT_TURN, Response.GAME_EVENTS, Response.GAME_SYNC,
-    Response.VICTORY, Response.DEFEAT, Response.DRAW, Response.SPECTATE_END,
+    Response.MULLIGAN, Response.OPPONENT_MULLIGAN, Response.VICTORY, Response.DEFEAT, Response.DRAW, Response.SPECTATE_END,
 ]);
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -669,6 +669,10 @@ export class Game {
                 return this.onNewCards(this.opponent, p);
             case Response.NEXT_TURN:
                 return this.onNextTurn(p);
+            case Response.MULLIGAN:
+                return this.onMulligan(this.player, p);
+            case Response.OPPONENT_MULLIGAN:
+                return this.onMulligan(this.opponent, p);
             case Response.GAME_EVENTS:
                 return this.playEvents(p.events || []);
             case Response.GAME_SYNC:
@@ -712,6 +716,7 @@ export class Game {
             this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
         }
         if (p.create) this.kickOff();
+        if (p.mulligan && !spectating) this.showMulligan(p.mulligan, playerHand, p.create);
 
         this.setTurn(!!p.yourTurn && !spectating);
         this.sign.setActive(this.yourTurn);
@@ -728,7 +733,10 @@ export class Game {
 
     setTurn(yourTurn) {
         this.yourTurn = !!yourTurn && !this.spectator;
-        if (this.spectator && this.current) {
+        if (this.current === 0) {
+            // GameSync: nobody's turn during the mulligan.
+            this.ui.setTurn(false, 'Starting hands');
+        } else if (this.spectator && this.current) {
             const name = this.heroOf(this.current).info.name;
             this.ui.setTurn(this.current === 1, `${name}'s turn`);
         } else {
@@ -829,7 +837,36 @@ export class Game {
         return wait(150);
     }
 
+    /** The mulligan screen (after the VS splash of a new game): pick starting cards to replace, once. */
+    showMulligan(m, cards, create) {
+        const endsAt = performance.now() + (Number(m.endsIn) || 0);
+        clearTimeout(this.mulliganTimer);
+        this.opponentReplaced = null;
+        this.mulliganTimer = setTimeout(() => {
+            this.ui.showMulligan({
+                cards, endsAt, total: Number(m.time) || 30000, done: !!m.done, opponent: String(this.opponent.hero.info.name ?? ''),
+                onConfirm: replace => this.gameSocket.send(Request.MULLIGAN, { replace }),
+            });
+            // The opponent may have chosen during the VS splash.
+            if (this.opponentReplaced !== null) this.ui.mulliganChosen(false, [], this.opponentReplaced);
+        }, create ? 3000 : 0);
+    }
+
+    /** A starting hand after the mulligan: all cards are new instances (the opponent's and spectators' face down). */
+    onMulligan(side, p) {
+        for (const card of side.hand.values()) card.dispose();
+        side.hand.clear();
+        if (side.isPlayer) this.hovered = null;
+        else this.opponentReplaced = Number(p.replaced) || 0;
+        this.addHandCards(side, p.hand || []);
+        if (!this.spectator) this.ui.mulliganChosen(side.isPlayer, p.hand || [], Number(p.replaced) || 0);
+        // A moment to see the new cards before the first turn closes the mulligan screen.
+        return wait(side.isPlayer && !this.spectator ? 1200 : 300);
+    }
+
     onNextTurn(p) {
+        clearTimeout(this.mulliganTimer);
+        this.ui.hideMulligan();
         this.opponent.hero.setInfo(p.opponentInfo);
         this.player.hero.setInfo(p.playerInfo);
         if (this.spectator) {
@@ -1379,6 +1416,8 @@ export class Game {
         this.ui.hideTimer();
         this.ui.setPower(null);
         this.ui.hideTooltip();
+        clearTimeout(this.mulliganTimer);
+        this.ui.hideMulligan();
         for (const side of [this.player, this.opponent]) {
             side.hero.setReady(false);
             for (const card of side.board.values()) card.setReady(false);

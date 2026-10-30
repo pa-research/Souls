@@ -48,6 +48,7 @@ const card = (id, name, r, rarity, cost, attack, health, armor, ability, slotId,
   await page.click('.sg-menu-row .s-seg button >> nth=0');
   await page.click('.sg-menu-btn >> nth=1');
   await page.waitForFunction(() => window.__souls3d && window.__souls3d.sync() && window.__souls3d.state().active, null, { timeout: 120000 });
+  await page.click('.sg-mulligan-confirm');
   await sleep(9000);
   const ident = (await hook('state()')).ident;
   const enemy = 3 - ident;

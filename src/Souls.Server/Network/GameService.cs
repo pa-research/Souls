@@ -28,6 +28,9 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                 case GameRequest.NextTurn:
                     await engine.RequestNextTurnAsync(player);
                     return;
+                case GameRequest.Mulligan:
+                    await engine.RequestMulliganAsync(player, message);
+                    return;
                 case GameRequest.MoveCard:
                     engine.RequestMoveCard(player, message);
                     return;

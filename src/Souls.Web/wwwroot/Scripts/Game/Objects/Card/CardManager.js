@@ -255,6 +255,14 @@
         return card;
     }
 
+    /// Replaces the whole hand with new cards from the deck (the mulligan gives every card a new cid).
+    CardManager.prototype.ReplaceHand = function (jsonCards) {
+        for (var key in this.hand) this.RemoveCard(this.hand[key]);
+        this.hand = {};
+        this.handCounter = 0;
+        return this.JSONToHandCards(jsonCards, null, { draw: true });
+    }
+
     /// <summary>
     /// Makes the number of (hidden) opponent hand cards match the server.
     /// </summary>

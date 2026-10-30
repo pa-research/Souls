@@ -13,6 +13,9 @@ public sealed class GameOptions
     /// <summary>How long a turn may take before it ends automatically.</summary>
     public TimeSpan TurnTime { get; set; } = TimeSpan.FromSeconds(75);
 
+    /// <summary>How long the players may choose which starting cards to replace; then the rest keep their hand.</summary>
+    public TimeSpan MulliganTime { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>A player whose turn runs out this many times in a row forfeits.</summary>
     public int MaxTimeoutsInARow { get; set; } = 3;
 
@@ -33,7 +36,7 @@ public sealed partial class GameEngine(
     GameMetrics metrics,
     ILogger<GameEngine> logger)
 {
-    /// <summary>Starts a game between two players.</summary>
+    /// <summary>Starts a game between two players with the mulligan (see <see cref="RequestMulliganAsync"/>).</summary>
     public GameRoom CreateGame(Pair<Player> players, bool practice = false)
     {
         DropChallenge(players.First, $"{players.First.Name} started another game.");
@@ -41,7 +44,7 @@ public sealed partial class GameEngine(
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
-        var room = new GameRoom(players, time, options.Value.TurnTime, practice);
+        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice);
         state.Rooms[room.GameId] = room;
 
         var response = room.GenerateGameUpdate(create: true);
@@ -199,22 +202,7 @@ public sealed partial class GameEngine(
         room.LogLine(text);
         room.NextTurn();
         room.FlushEvents();
-
-        var turnEndsIn = (long)room.TurnTime.TotalMilliseconds;
-        player.Send(new Response(GameResponse.GameNextTurn, new JsonObject
-        {
-            ["yourTurn"] = false,
-            ["playerInfo"] = gp.GetPlayerData(),
-            ["opponentInfo"] = opponent.GPlayer!.GetPlayerData(),
-            ["turnEndsIn"] = turnEndsIn,
-        }));
-        opponent.Send(new Response(GameResponse.GameNextTurn, new JsonObject
-        {
-            ["yourTurn"] = true,
-            ["playerInfo"] = opponent.GPlayer.GetPlayerData(),
-            ["opponentInfo"] = gp.GetPlayerData(),
-            ["turnEndsIn"] = turnEndsIn,
-        }));
+        AnnounceTurn(room);
 
         if (room.Turn == 1)
         {
@@ -222,10 +210,103 @@ public sealed partial class GameEngine(
         }
 
         // Start-of-turn abilities, then the player whose turn starts draws a card.
-        StartOfTurn(room, opponent.GPlayer);
+        StartOfTurn(room, opponent.GPlayer!);
         ResolveDeaths(room);
-        Draw(room, opponent.GPlayer, 1);
+        Draw(room, opponent.GPlayer!, 1);
         await FinishActionAsync(room);
+    }
+
+    /// <summary>
+    /// The mulligan: while it runs, each player may replace any of their starting cards once (both at the same time).
+    /// Unknown cards refuse the request; a second request is ignored. The game starts when both have chosen.
+    /// </summary>
+    public async Task RequestMulliganAsync(Player player, Message message)
+    {
+        if (!TryGetGame(player, out var gp, out var opponent) || gp.GameRoom is not { InMulligan: true } room || gp.MulliganDone)
+        {
+            return;
+        }
+
+        var replace = message.GetInts("replace").ToHashSet();
+        if (!replace.IsSubsetOf(gp.HandCards.Keys))
+        {
+            Tell(player, "Those cards are not in your starting hand.");
+            return;
+        }
+
+        Mulligan(room, player, gp, replace);
+        if (opponent.GPlayer!.MulliganDone)
+        {
+            await StartGameAsync(room);
+        }
+    }
+
+    /// <summary>
+    /// Draws a new card for each replaced one, then shuffles the replaced cards back into the deck. Every card of the
+    /// new hand gets a new cid (kept cards in their place), so the opponent only learns how many were replaced.
+    /// </summary>
+    private static void Mulligan(GameRoom room, Player player, GamePlayer gp, IReadOnlySet<int> replace)
+    {
+        gp.MulliganDone = true;
+        var returned = new List<Card>();
+        var hand = gp.HandCards.Values.ToList();
+        gp.HandCards.Clear();
+        foreach (var card in hand)
+        {
+            var replaced = replace.Contains(card.Cid) && gp.Deck.Count > 0;
+            var next = replaced ? gp.Deck[^1] : card.NewInstance();
+            if (replaced)
+            {
+                gp.Deck.RemoveAt(gp.Deck.Count - 1);
+                returned.Add(card);
+            }
+
+            gp.HandCards[next.Cid] = next;
+            room.Logger.Add(GameLogKind.NewCard, player.Id, next.Id, "Player", "Card");
+        }
+
+        foreach (var card in returned)
+        {
+            gp.Deck.Insert(Random.Shared.Next(gp.Deck.Count + 1), card.NewInstance());
+        }
+
+        player.Send(new Response(GameResponse.GameMulligan, new JsonObject
+        {
+            ["hand"] = new JsonArray([.. gp.HandCards.Values.Select(c => (JsonNode)c.ToJson())]),
+            ["replaced"] = returned.Count,
+        }));
+        player.GetOpponent()!.Send(new Response(GameResponse.GameOpponentMulligan, new JsonObject
+        {
+            ["hand"] = GameRoom.HiddenHand(gp),
+            ["replaced"] = returned.Count,
+        }));
+        room.LogLine(returned.Count == 0 ? $"{gp.Name} keeps their starting hand."
+            : $"{gp.Name} replaces {returned.Count} starting card{(returned.Count == 1 ? "" : "s")}.");
+        room.FlushEvents();
+    }
+
+    /// <summary>After the mulligan: player one's first turn starts and the player going second draws their extra card.</summary>
+    private async Task StartGameAsync(GameRoom room)
+    {
+        room.Start();
+        AnnounceTurn(room);
+        Draw(room, room.Players.Second.GPlayer!, GameRules.SecondPlayerExtraCards);
+        await FinishActionAsync(room);
+    }
+
+    /// <summary>Tells both players whose turn starts (NextTurn).</summary>
+    private static void AnnounceTurn(GameRoom room)
+    {
+        foreach (var p in new[] { room.Players.First, room.Players.Second })
+        {
+            p.Send(new Response(GameResponse.GameNextTurn, new JsonObject
+            {
+                ["yourTurn"] = p.GPlayer!.IsPlayerTurn(),
+                ["playerInfo"] = p.GPlayer.GetPlayerData(),
+                ["opponentInfo"] = p.GetOpponent()!.GPlayer!.GetPlayerData(),
+                ["turnEndsIn"] = (long)room.TurnTime.TotalMilliseconds,
+            }));
+        }
     }
 
     public async Task RequestAttackAsync(Player player, Message message)
@@ -354,12 +435,23 @@ public sealed partial class GameEngine(
         }
     }
 
-    /// <summary>Ends turns whose time ran out; repeat offenders forfeit.</summary>
+    /// <summary>Ends turns whose time ran out; repeat offenders forfeit. An expired mulligan keeps the undecided hands.</summary>
     public async Task CheckTurnTimersAsync()
     {
         var now = time.GetUtcNow();
         foreach (var room in state.Rooms.Values.Where(r => !r.IsEnded && now >= r.TurnDeadline).ToList())
         {
+            if (room.InMulligan)
+            {
+                foreach (var undecided in new[] { room.Players.First, room.Players.Second }.Where(p => !p.GPlayer!.MulliganDone))
+                {
+                    Mulligan(room, undecided, undecided.GPlayer!, new HashSet<int>());
+                }
+
+                await StartGameAsync(room);
+                continue;
+            }
+
             var player = room.CurrentPlaying;
             var gp = player.GPlayer!;
             gp.TimeoutsInARow++;

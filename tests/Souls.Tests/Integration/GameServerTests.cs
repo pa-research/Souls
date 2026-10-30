@@ -107,11 +107,23 @@ public class GameServerTests(SoulsAppFixture app)
             await game.SendAsync(101);
             await game.ReceiveTypeAsync(100);
             var create = (await game.ReceiveTypeAsync(206))["Payload"]!;
-            Assert.True((bool)create["yourTurn"]!);
+            Assert.False((bool)create["yourTurn"]!); // the mulligan comes first
+            Assert.False((bool)create["mulligan"]!["done"]!);
             Assert.Equal(1, (int)create["ident"]!);
             Assert.StartsWith("[BOT] ", (string)create["opponent"]!["info"]!["name"]!, StringComparison.Ordinal);
             Assert.Equal(3, create["player"]!["hand"]!.AsObject().Count);
-            Assert.Equal(4, create["opponent"]!["hand"]!.AsArray().Count); // the bot goes second: one more card
+            Assert.Equal(3, create["opponent"]!["hand"]!.AsArray().Count);
+
+            // Mulligan: replace the first card. The game starts once the bot has chosen too, and the bot (going second)
+            // gets its extra card.
+            var first = (int)create["player"]!["hand"]!.AsObject().First().Value!["cid"]!;
+            await game.SendAsync(227, new JsonObject { ["replace"] = new JsonArray(first) });
+            var mulligan = (await game.ReceiveTypeAsync(227))["Payload"]!;
+            Assert.Equal(1, (int)mulligan["replaced"]!);
+            Assert.Equal(3, mulligan["hand"]!.AsArray().Count);
+            var start = (await game.ReceiveAsync(m => Type(m) == 226, seconds: 20))["Payload"]!;
+            Assert.True((bool)start["yourTurn"]!);
+            await game.ReceiveTypeAsync(223);
 
             // In-game chat with the bot.
             await chat.SendAsync(1009);
@@ -123,8 +135,8 @@ public class GameServerTests(SoulsAppFixture app)
 
             // Our turn: play the cheapest card, attack the bot's hero with ours and pass, until the game ends (empty decks
             // deal growing fatigue damage, so it always ends).
-            var mana = int.Parse((string)create["player"]!["info"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
-            var hand = create["player"]!["hand"]!.AsObject().Select(c => c.Value!).ToList();
+            var mana = int.Parse((string)start["playerInfo"]!["mana"]!, System.Globalization.CultureInfo.InvariantCulture);
+            var hand = mulligan["hand"]!.AsArray().Select(c => c!).ToList();
             var played = new HashSet<int>();
             JsonNode? result = null;
             for (var turn = 0; turn < 60 && result is null; turn++)
@@ -190,6 +202,8 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(241, (int)records[0]!["m"]!["Type"]!);
             Assert.Equal(242, (int)records[^1]!["m"]!["Type"]!);
             Assert.DoesNotContain(records, r => (int)r!["m"]!["Type"]! == 222 && r["m"]!["Payload"]!["card"]!.AsArray().Any(c => c!["name"] is not null));
+            var replayedMulligan = Assert.Single(records, r => (int)r!["m"]!["Type"]! == 227)!["m"]!["Payload"]!;
+            Assert.All(replayedMulligan["hand"]!.AsArray(), c => Assert.Single(c!.AsObject()));
             using var replayData = await browser.GetAsync($"/Game/ReplayData/{gameId}");
             Assert.Equal(System.Net.HttpStatusCode.OK, replayData.StatusCode);
 
