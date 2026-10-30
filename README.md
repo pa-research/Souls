@@ -128,12 +128,13 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 
 ### Balance
 
-`tools/Souls.Sim` plays the Hard bot against itself (random classes, random one- or two-race decks, several
-hundred games a minute) and reports win rates per card, race and class; `--tune n` adjusts the classes' health
-towards 50%. The card and class numbers were tuned with it, against the Hard bot before it looked ahead. With the
-lookahead the current report, [docs/balance.md](docs/balance.md), is less even and has not been retuned yet:
-classes win 32-60% (Fader weakest, Lurker strongest), races 46-60% (Ferocious strongest), cards' "drawn" win
-rates spread over 43-67%; the player going first wins 50% and a game lasts about 24 turns.
+`tools/Souls.Sim` plays the Hard bot against itself (random classes and hero powers, random one- or two-race decks,
+several hundred games a minute) and reports win rates per card, race, class and hero power; `--tune n` adjusts the
+classes' health towards 50%. The card and class numbers were tuned with it, against the Hard bot before it looked
+ahead. With the lookahead the current report, [docs/balance.md](docs/balance.md), is less even and the classes have
+not been retuned yet: classes win 24-61% (Fader weakest, Harrison strongest), races 49-53%, cards' "drawn" win
+rates spread over 48-62%; the player going first wins 48% and a game lasts about 23 turns. The two hero powers of
+each class are even (48-53% against each other) and the class cards are within 47-51% of decks like them.
 
 ```sh
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md
