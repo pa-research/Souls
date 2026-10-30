@@ -309,6 +309,9 @@ const MIN_CARD = 86;
       const replayed = await page.waitForFunction(() => window.__souls3d && window.__souls3d.state().active, null, { timeout: 90000 }).then(() => true, () => false);
       step('the replay starts upright', replayed);
       await sleep(8000);
+      // Paused, so no card is caught mid-deal (dealt cards fly in from the right edge, turning over).
+      if (replayed) await tap(await page.$eval('.souls3d-replay .sg-icon-btn', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }));
+      await sleep(2000);
       await snap('replay');
       if (replayed) await checkLayout('replay');
       step('no console errors in the replay', problems.length === 0, problems.slice(0, 4).join(' || '));
