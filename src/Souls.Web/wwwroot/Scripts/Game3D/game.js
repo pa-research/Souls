@@ -2,7 +2,7 @@
 // can play each other, see docs/game-protocol.md). Server messages are played in order through a queue: each one
 // finishes its animation before the next starts, and GameSync (the full state after every action) is the truth for
 // all numbers. The same code plays live games, spectated games and recorded replays.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS } from './cards.js';

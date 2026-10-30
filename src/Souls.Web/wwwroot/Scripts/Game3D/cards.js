@@ -1,5 +1,6 @@
 // Cards: a thin 3D card with the classic artwork painted on the front and the card back on the reverse.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
+import { abs, clamp, color, dot, exp, mix, mod, normalView, positionGeometry, positionViewDirection, pow, select, sin, uniform, uv, vec3, vec4 } from '/lib/three/three.tsl.js';
 import { Images, loadImage, textureFrom } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
@@ -27,8 +28,21 @@ const GEM_COLORS = {
 };
 
 /** Time for the foil shimmer of epic and legendary cards (seconds); see updateFoil. */
-const FOIL_TIME = { value: 0 };
+const FOIL_TIME = uniform(0);
 export function updateFoil(now) { FOIL_TIME.value = now / 1000; }
+
+/** Epic (foil 1) and legendary (foil 2) cards: a band of light sweeps across the face now and then. */
+function foilSheen(foil) {
+    const phase = mod(FOIL_TIME.mul(0.32).add(foil.mul(0.37)), 2.6).sub(0.6);
+    const d = uv().x.mul(0.75).add(uv().y.oneMinus().mul(0.55)).sub(phase.mul(1.3));
+    const d2 = d.add(0.12);
+    const sheen = exp(d.mul(d).mul(-55)).add(exp(d2.mul(d2).mul(-260)).mul(0.35));
+    const legendary = foil.greaterThan(1.5);
+    const tint = select(legendary,
+        mix(vec3(1.0, 0.82, 0.38), vec3(1.0, 0.55, 0.85), sin(uv().y.mul(9).add(FOIL_TIME)).mul(0.5).add(0.5)),
+        vec3(0.72, 0.52, 1.0));
+    return select(foil.greaterThan(0), tint.mul(sheen).mul(select(legendary, 0.55, 0.4)), vec3(0));
+}
 
 function roundedRect(w, h, r) {
     const shape = new THREE.Shape();
@@ -347,26 +361,13 @@ export class Card3D extends THREE.Group {
         this.canvas = document.createElement('canvas');
         this.canvas.width = 330 * FACE_SCALE;
         this.canvas.height = 450 * FACE_SCALE;
+        this.canvas.getContext('2d'); // hidden cards are never painted, and WebGPU cannot upload a canvas without a context
         this.faceTexture = new THREE.CanvasTexture(this.canvas);
         this.faceTexture.colorSpace = THREE.SRGBColorSpace;
         this.faceTexture.anisotropy = 8;
-        this.faceMaterial = new THREE.MeshStandardMaterial({ map: this.faceTexture, roughness: 0.55, metalness: 0.05, transparent: true });
-        // Epic and legendary cards: a band of light sweeps across the face now and then.
-        this.foil = { value: 0 };
-        this.faceMaterial.onBeforeCompile = shader => {
-            shader.uniforms.uFoil = this.foil;
-            shader.uniforms.uFoilTime = FOIL_TIME;
-            shader.fragmentShader = 'uniform float uFoil;\nuniform float uFoilTime;\n' + shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-                if (uFoil > 0.0) {
-                    float phase = mod(uFoilTime * 0.32 + uFoil * 0.37, 2.6) - 0.6;
-                    float d = vMapUv.x * 0.75 + (1.0 - vMapUv.y) * 0.55 - phase * 1.3;
-                    float sheen = exp(-d * d * 55.0) + 0.35 * exp(-(d + 0.12) * (d + 0.12) * 260.0);
-                    vec3 tint = uFoil > 1.5
-                        ? mix(vec3(1.0, 0.82, 0.38), vec3(1.0, 0.55, 0.85), 0.5 + 0.5 * sin(vMapUv.y * 9.0 + uFoilTime))
-                        : vec3(0.72, 0.52, 1.0);
-                    totalEmissiveRadiance += tint * sheen * (uFoil > 1.5 ? 0.55 : 0.4);
-                }`);
-        };
+        this.faceMaterial = new THREE.MeshStandardNodeMaterial({ map: this.faceTexture, roughness: 0.55, metalness: 0.05, transparent: true });
+        this.foil = uniform(0);
+        this.faceMaterial.emissiveNode = foilSheen(this.foil);
         this.backMaterial = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05, transparent: true });
         cardBackTexture().then(t => { this.backMaterial.map = t; this.backMaterial.needsUpdate = true; });
 
@@ -410,27 +411,14 @@ export class Card3D extends THREE.Group {
     /** A golden bubble over the card: an unbroken ward. */
     setWard(on) {
         if (on && !this.wardBubble) {
-            const material = new THREE.ShaderMaterial({
-                uniforms: { time: FOIL_TIME, color: { value: new THREE.Color(0xffd36b) }, fade: { value: 0 } },
-                vertexShader: `varying vec3 vNormal; varying vec3 vView; varying vec3 vPos;
-                    void main() {
-                        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-                        vNormal = normalize(normalMatrix * normal);
-                        vView = normalize(-mv.xyz);
-                        vPos = position;
-                        gl_Position = projectionMatrix * mv;
-                    }`,
-                fragmentShader: `uniform float time; uniform vec3 color; uniform float fade; varying vec3 vNormal; varying vec3 vView; varying vec3 vPos;
-                    void main() {
-                        // Clamped: interpolated vectors can give |dot| a hair above 1, and pow() of a negative base is NaN, which
-                        // the bloom blur spreads over the whole frame.
-                        float rim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vView))), 0.0, 1.0), 2.2);
-                        float hex = 0.5 + 0.5 * sin(vPos.x * 0.12 + time * 1.5) * sin(vPos.y * 0.12 - time * 1.1);
-                        float alpha = (0.08 + rim * 0.75 + hex * 0.06) * fade;
-                        gl_FragColor = vec4(color * (0.6 + rim), alpha);
-                    }`,
-                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-            });
+            const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+            material.uniforms = { fade: uniform(0) };
+            // Clamped: interpolated vectors can give |dot| a hair above 1, and pow() of a negative base is NaN, which
+            // the bloom blur spreads over the whole frame.
+            const rim = pow(clamp(abs(dot(normalView, positionViewDirection)), 0, 1).oneMinus(), 2.2);
+            const p = positionGeometry;
+            const hex = sin(p.x.mul(0.12).add(FOIL_TIME.mul(1.5))).mul(sin(p.y.mul(0.12).sub(FOIL_TIME.mul(1.1)))).mul(0.5).add(0.5);
+            material.colorNode = vec4(color(0xffd36b).mul(rim.add(0.6)), rim.mul(0.75).add(hex.mul(0.06)).add(0.08).mul(material.uniforms.fade));
             this.wardBubble = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), material);
             this.wardBubble.scale.set(CARD_W * 0.66, CARD_H * 0.62, 46);
             this.wardBubble.renderOrder = 8;

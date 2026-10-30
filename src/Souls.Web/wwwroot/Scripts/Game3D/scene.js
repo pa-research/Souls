@@ -4,11 +4,13 @@
 // "arena", "field" and "cinematic" go down into the 3D stadium. The player can also orbit and zoom freely.
 // Hand cards and the End Turn sign live in a HUD scene that is drawn on top with its own camera, so they
 // stay where the classic client has them whatever the world camera does.
-import * as THREE from '/lib/three/three.module.js';
-import { EffectComposer } from '/lib/three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from '/lib/three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from '/lib/three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from '/lib/three/addons/postprocessing/OutputPass.js';
+//
+// Rendering uses three.js's WebGPURenderer: WebGPU where the browser has it, its WebGL 2 backend otherwise (or with
+// `?renderer=webgl`). The world (with bloom) and then the HUD are drawn into one linear HDR target, which is
+// converted to the screen's colour space at the end.
+import * as THREE from '/lib/three/three.webgpu.js';
+import { pass, texture } from '/lib/three/three.tsl.js';
+import { bloom } from '/lib/three/addons/tsl/display/BloomNode.js';
 
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
@@ -20,6 +22,17 @@ export const toWorld = (x, y, height = 0) => new THREE.Vector3(x - STAGE_W / 2, 
 export const toClassic = v => ({ x: v.x + STAGE_W / 2, y: v.z + STAGE_H / 2 });
 
 const deg = THREE.MathUtils.degToRad;
+
+/**
+ * Point sprites: a unit quad drawn once per instance, for a PointsNodeMaterial whose positionNode reads the
+ * per-instance position (WebGPU only draws one-pixel points). Meshes using it need frustumCulled = false.
+ */
+export function spriteGeometry(attributes, count) {
+    const geometry = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1));
+    for (const [name, attribute] of Object.entries(attributes)) geometry.setAttribute(name, attribute);
+    geometry.instanceCount = count;
+    return geometry;
+}
 
 export const VIEWS = {
     classic: { label: 'Classic', key: '1', stadium: false, cardTilt: 0 },
@@ -47,23 +60,33 @@ function forcedQuality() {
     return QUALITIES.includes(forced) ? forced : null;
 }
 
+/** `?renderer=webgl` (or localStorage `souls3d.renderer` = "webgl") runs the WebGL 2 backend even where WebGPU works. */
+function forcedWebGL() {
+    if (new URLSearchParams(window.location.search).get('renderer') === 'webgl') return true;
+    try { return localStorage.getItem('souls3d.renderer') === 'webgl'; } catch (e) { return false; }
+}
+
+/** The GPU behind the renderer's backend, as the browser names it ("nvidia ampere", "ANGLE (...)"). */
+function gpuName(renderer) {
+    const backend = renderer.backend;
+    if (backend.isWebGPUBackend) {
+        const info = backend.device.adapterInfo || {};
+        return [info.vendor, info.architecture, info.description, info.isFallbackAdapter ? 'fallback' : ''].filter(Boolean).join(' ');
+    }
+    const gl = backend.gl;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+}
+
 /**
  * Graphics quality: "low" for software rendering (no bloom, thinner crowd), "medium" for phones and tablets,
  * "high" otherwise, but no higher than the level this device was stepped down to before. `?fx=` overrides it.
  */
-function detectQuality(renderer) {
+function detectQuality(gpu) {
     const forced = forcedQuality();
     if (forced) return forced;
-    let detected = 'high';
-    try {
-        const gl = renderer.getContext();
-        const info = gl.getExtension('WEBGL_debug_renderer_info');
-        const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
-        if (/swiftshader|llvmpipe|software/i.test(name)) return 'low';
-        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) detected = 'medium';
-    } catch (e) {
-        detected = 'medium';
-    }
+    if (/swiftshader|llvmpipe|software|fallback/i.test(gpu)) return 'low';
+    const detected = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'medium' : 'high';
     let stored = null;
     try { stored = localStorage.getItem(QUALITY_KEY); } catch (e) { /* storage blocked */ }
     return QUALITIES.indexOf(stored) >= 0 && QUALITIES.indexOf(stored) < QUALITIES.indexOf(detected) ? stored : detected;
@@ -78,16 +101,13 @@ export class Stage {
     constructor(container) {
         this.container = container;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-        this.quality = detectQuality(renderer);
-        this.lowPower = this.quality !== 'high';
+        // Anti-aliasing comes from the multisampled targets below; the canvas only receives the finished frame.
+        const renderer = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: forcedWebGL() });
         this.autoQuality = !forcedQuality();
         this.frameWatch = null; // started by watchFrameRate() once the arena is loaded
-        renderer.setPixelRatio(pixelRatio(this.quality));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.toneMapping = THREE.NoToneMapping;
-        renderer.autoClear = false;
         renderer.domElement.className = 'souls3d-canvas';
         container.appendChild(renderer.domElement);
         this.renderer = renderer;
@@ -112,21 +132,34 @@ export class Stage {
         this.free = { azimuth: 0, elevation: deg(50), distance: 2200, target: new THREE.Vector3(0, 40, 0) };
         this.transition = { from: null, start: 0, duration: 1 };
         this.menu = true; // cinematic orbit behind the menu
-
-        // Bloom makes torches, rings, screens and effects glow. Subtle in the classic view to keep it 1:1.
-        if (this.quality !== 'low') {
-            const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
-            this.composer = new EffectComposer(renderer, target);
-            this.composer.addPass(new RenderPass(this.scene, this.camera));
-            this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.35, 0.88);
-            this.composer.addPass(this.bloom);
-            this.composer.addPass(new OutputPass());
-        }
         this.kick = 0; // field-of-view punch on big hits
 
         this.raycaster = new THREE.Raycaster();
         this.listeners = new Set();
         this.viewListeners = new Set();
+    }
+
+    /**
+     * Starts the GPU backend (WebGPU, or WebGL 2 where it is missing), picks the quality and sets up the frame:
+     * world and HUD go into `target` (linear, half float, 4x MSAA), `output` converts it for the screen.
+     */
+    async init() {
+        const renderer = this.renderer;
+        await renderer.init();
+        this.backend = renderer.backend.isWebGPUBackend ? 'webgpu' : 'webgl2';
+        this.gpu = gpuName(renderer);
+        console.info(`[Souls3D] ${this.backend} on ${this.gpu}`);
+        this.quality = detectQuality(this.gpu);
+        renderer.setPixelRatio(pixelRatio(this.quality));
+        this.target = new THREE.RenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+        this.output = new THREE.RenderPipeline(renderer, texture(this.target.texture));
+        // Bloom makes torches, rings, screens and effects glow. Subtle in the classic view to keep it 1:1.
+        if (this.quality !== 'low') {
+            this.world = pass(this.scene, this.camera, { samples: 4 });
+            this.bloom = bloom(this.world, 0.45, 0.35, 0.88);
+            this.pipeline = new THREE.RenderPipeline(renderer, this.world.add(this.bloom));
+            this.pipeline.outputColorTransform = false; // the HUD still goes on top
+        }
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -144,7 +177,8 @@ export class Stage {
         const width = Math.max(1, this.container.clientWidth);
         const height = Math.max(1, this.container.clientHeight);
         this.renderer.setSize(width, height, false);
-        if (this.composer) this.composer.setSize(width, height);
+        const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+        this.target.setSize(size.x, size.y);
         for (const cam of [this.camera, this.classicCamera, this.hudCamera]) {
             cam.aspect = width / height;
             cam.updateProjectionMatrix();
@@ -389,7 +423,7 @@ export class Stage {
         fov -= this.kick;
         if (this.bloom) {
             const strength = this.viewInfo.stadium ? 0.45 : 0.1;
-            this.bloom.strength += (strength - this.bloom.strength) * Math.min(1, elapsed / 400);
+            this.bloom.strength.value += (strength - this.bloom.strength.value) * Math.min(1, elapsed / 400);
         }
         if (cam.fov !== fov) {
             cam.fov = fov;
@@ -422,10 +456,9 @@ export class Stage {
         this.quality = QUALITIES[QUALITIES.indexOf(this.quality) - 1];
         try { localStorage.setItem(QUALITY_KEY, this.quality); } catch (e) { /* storage blocked */ }
         this.renderer.setPixelRatio(pixelRatio(this.quality));
-        if (this.quality === 'low' && this.composer) {
-            this.composer.dispose();
-            this.composer = null;
-            this.bloom = null;
+        if (this.quality === 'low' && this.pipeline) {
+            for (const part of [this.pipeline, this.bloom, this.world]) part.dispose();
+            this.pipeline = this.bloom = this.world = null;
         }
         this.resize();
     }
@@ -433,10 +466,13 @@ export class Stage {
     render(now = performance.now()) {
         this.checkFrameRate(now);
         const r = this.renderer;
-        r.clear();
-        if (this.composer) this.composer.render();
+        r.setRenderTarget(this.target);
+        if (this.pipeline) this.pipeline.render();
         else r.render(this.scene, this.camera);
-        r.clearDepth();
+        r.autoClearColor = false; // the HUD goes over the world
         r.render(this.hudScene, this.hudCamera);
+        r.autoClearColor = true;
+        r.setRenderTarget(null);
+        this.output.render();
     }
 }

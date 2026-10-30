@@ -1,5 +1,5 @@
 // Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
 import { Images, loadImage } from './assets.js';
 import { tweens, Ease } from './tween.js';
 

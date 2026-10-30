@@ -2,9 +2,10 @@
 // client. In the other views a 3D stadium rises out of the ground around the sand: an arena wall in team
 // colours, terraces packed with a cheering crowd, the two "Souls" tunnel towers, gate towers with torches,
 // floodlights, flags and a dusk sky.
-import * as THREE from '/lib/three/three.module.js';
+import * as THREE from '/lib/three/three.webgpu.js';
+import { attribute, color, exp, fract, length, mix, mod, positionGeometry, positionLocal, positionView, screenDPR, sin, smoothstep, step, atan, uniform, uv, varying, vec3, vec4 } from '/lib/three/three.tsl.js';
 import { Images, loadImage, textureFrom } from './assets.js';
-import { toWorld, STAGE_W, STAGE_H } from './scene.js';
+import { toWorld, spriteGeometry, STAGE_W, STAGE_H } from './scene.js';
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -137,26 +138,22 @@ function buildCrowd(uniforms, quality) {
     body.translate(0, 12, 0);
     const head = new THREE.IcosahedronGeometry(6.5, 0);
     head.translate(0, 31, 0);
+    // Spectators hop (higher when the crowd is excited) and sway. positionLocal is already placed on the seat here.
+    const { uTime, uExcite, uWave, uWaveAmp } = uniforms;
+    const aPhase = attribute('aPhase', 'float');
+    const speed = fract(aPhase.mul(13.7)).mul(3).add(3);
+    const hop = sin(uTime.mul(speed).add(aPhase.mul(6.2831))).max(0);
+    const eager = step(0.3, fract(aPhase.mul(3.1)));
+    // Mexican wave: spectators near the wave front jump up and stretch.
+    const d = mod(atan(positionLocal.z, positionLocal.x).sub(uWave).add(3.14159265), 6.2831853).sub(3.14159265);
+    const wave = exp(d.mul(d).mul(-30)).mul(uWaveAmp);
+    const motion = vec3(
+        sin(uTime.mul(1.3).add(aPhase.mul(20))).mul(1.5),
+        hop.mul(hop).mul(uExcite.mul(16).mul(eager).add(1.5)).add(wave.mul(positionGeometry.y.mul(0.6).add(22))),
+        0);
     const material = () => {
-        const m = new THREE.MeshLambertMaterial();
-        m.onBeforeCompile = shader => {
-            shader.uniforms.uTime = uniforms.uTime;
-            shader.uniforms.uExcite = uniforms.uExcite;
-            shader.uniforms.uWave = uniforms.uWave;
-            shader.uniforms.uWaveAmp = uniforms.uWaveAmp;
-            shader.vertexShader = 'attribute float aPhase;\nuniform float uTime;\nuniform float uExcite;\nuniform float uWave;\nuniform float uWaveAmp;\n' +
-                shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-                    float speed = 3.0 + fract(aPhase * 13.7) * 3.0;
-                    float hop = max(0.0, sin(uTime * speed + aPhase * 6.2831));
-                    float eager = step(0.3, fract(aPhase * 3.1));
-                    transformed.y += hop * hop * (1.5 + 16.0 * uExcite * eager);
-                    transformed.x += sin(uTime * 1.3 + aPhase * 20.0) * 1.5;
-                    // Mexican wave: spectators near the wave front jump up and stretch.
-                    vec2 seat = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
-                    float d = mod(atan(seat.y, seat.x) - uWave + 3.14159265, 6.2831853) - 3.14159265;
-                    float wave = exp(-d * d * 30.0) * uWaveAmp;
-                    transformed.y += wave * (22.0 + position.y * 0.6);`);
-        };
+        const m = new THREE.MeshLambertNodeMaterial();
+        m.positionNode = positionLocal.add(motion);
         return m;
     };
     const bodies = new THREE.InstancedMesh(body, material(), places.length);
@@ -192,17 +189,16 @@ function buildCrowd(uniforms, quality) {
 function buildFlashes(places, count) {
     const picks = [];
     for (let i = 0; i < count && places.length; i++) picks.push(places[Math.floor(Math.random() * places.length)]);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(picks.flatMap(p => [p.x, p.y + 34, p.z]), 3));
-    geometry.setAttribute('flash', new THREE.Float32BufferAttribute(new Float32Array(picks.length), 1));
-    const material = new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        vertexShader: `attribute float flash; varying float vFlash;
-            void main() { vFlash = flash; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = flash * 9000.0 / -mv.z; gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `varying float vFlash;
-            void main() { float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vec3(1.0, 0.98, 0.9), vFlash * smoothstep(0.5, 0.0, d)); }`,
-    });
-    const points = new THREE.Points(geometry, material);
+    const geometry = spriteGeometry({
+        point: new THREE.InstancedBufferAttribute(new Float32Array(picks.flatMap(p => [p.x, p.y + 34, p.z])), 3),
+        flash: new THREE.InstancedBufferAttribute(new Float32Array(picks.length), 1).setUsage(THREE.DynamicDrawUsage),
+    }, picks.length);
+    const material = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false });
+    const flash = attribute('flash', 'float');
+    material.positionNode = attribute('point', 'vec3');
+    material.sizeNode = flash.mul(9000).div(positionView.z.negate()).div(screenDPR); // device pixels
+    material.colorNode = vec4(1.0, 0.98, 0.9, flash.mul(smoothstep(0, 0.5, length(uv().sub(0.5))).oneMinus()));
+    const points = new THREE.Mesh(geometry, material);
     points.frustumCulled = false;
     return points;
 }
@@ -489,11 +485,9 @@ function floodlight(angle, lampTexture) {
 
     // A faint light shaft towards the sand.
     const length = Math.hypot(r, 1270) * 0.85;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(520, length, 32, 1, true), new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        vertexShader: 'varying float vY; void main() { vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying float vY; void main() { gl_FragColor = vec4(vec3(1.0, 0.95, 0.8), 0.07 * vY * vY); }',
-    }));
+    const shaft = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    shaft.colorNode = vec4(1.0, 0.95, 0.8, uv().y.mul(uv().y).mul(0.07));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(520, length, 32, 1, true), shaft);
     const dir = new THREE.Vector3(-x, -1270, -z).normalize();
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
     cone.position.set(x, 1270, z).addScaledVector(dir, length / 2);
@@ -514,14 +508,12 @@ function flags(uniforms) {
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 220, 6), poleMaterial);
         pole.position.set(Math.cos(a) * r, TOP + 170, Math.sin(a) * r);
         group.add(pole);
-        const material = new THREE.MeshLambertMaterial({ color: colors[i % 3], side: THREE.DoubleSide });
-        material.onBeforeCompile = shader => {
-            shader.uniforms.uTime = uniforms.uTime;
-            shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-                float w = position.x / 110.0;
-                transformed.z += sin(position.x * 0.06 - uTime * 5.0 + ${(i * 1.7).toFixed(1)}) * 12.0 * w;
-                transformed.y += sin(position.x * 0.04 - uTime * 3.0) * 4.0 * w;`);
-        };
+        const material = new THREE.MeshLambertNodeMaterial({ color: colors[i % 3], side: THREE.DoubleSide });
+        // Flutters more towards the free end; a uniform per flag keeps one shader for all of them.
+        const x = positionLocal.x, w = x.div(110), t = uniforms.uTime;
+        material.positionNode = positionLocal.add(vec3(0,
+            sin(x.mul(0.04).sub(t.mul(3))).mul(4).mul(w),
+            sin(x.mul(0.06).sub(t.mul(5)).add(uniform(i * 1.7))).mul(12).mul(w)));
         const flag = new THREE.Mesh(flagGeometry, material);
         flag.position.set(Math.cos(a) * r, TOP + 245, Math.sin(a) * r);
         flag.rotation.y = -a + Math.PI / 2;
@@ -532,32 +524,22 @@ function flags(uniforms) {
 
 function skyDome(lowPower) {
     const group = new THREE.Group();
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(30000, 32, 16), new THREE.ShaderMaterial({
-        side: THREE.BackSide, depthWrite: false, fog: false,
-        uniforms: {
-            top: { value: new THREE.Color(0x0b1026) },
-            mid: { value: new THREE.Color(0x3b2a5c) },
-            horizon: { value: new THREE.Color(0xf08a4b) },
-        },
-        vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; varying vec3 vDir;
-            void main() {
-                float h = max(vDir.y, 0.0);
-                vec3 c = mix(horizon, mid, smoothstep(0.0, 0.25, h));
-                c = mix(c, top, smoothstep(0.25, 0.8, h));
-                gl_FragColor = vec4(c, 1.0);
-                #include <colorspace_fragment>
-            }`,
-    }));
+    const sky = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
+    const h = varying(positionLocal.normalize()).y.max(0);
+    sky.colorNode = mix(mix(color(0xf08a4b), color(0x3b2a5c), smoothstep(0, 0.25, h)), color(0x0b1026), smoothstep(0.25, 0.8, h));
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(30000, 32, 16), sky);
     group.add(dome);
     const stars = [];
     for (let i = 0; i < (lowPower ? 400 : 1500); i++) {
         const a = Math.random() * Math.PI * 2, e = 0.25 + Math.random() * 1.2;
         stars.push(Math.cos(a) * Math.cos(e) * 28000, Math.sin(e) * 28000, Math.sin(a) * Math.cos(e) * 28000);
     }
-    const starGeometry = new THREE.BufferGeometry();
-    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(stars, 3));
-    group.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false })));
+    const starGeometry = spriteGeometry({ point: new THREE.InstancedBufferAttribute(new Float32Array(stars), 3) }, stars.length / 3);
+    const starMaterial = new THREE.PointsNodeMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false, transparent: false });
+    starMaterial.positionNode = attribute('point', 'vec3');
+    const starPoints = new THREE.Mesh(starGeometry, starMaterial);
+    starPoints.frustumCulled = false;
+    group.add(starPoints);
     return group;
 }
 
@@ -571,7 +553,7 @@ export class Arena {
         this.rise = 0; // 0 = classic picture, 1 = stadium
         this.target = 0;
         this.excite = 0.1;
-        this.uniforms = { uTime: { value: 0 }, uExcite: { value: 0.1 }, uWave: { value: 0 }, uWaveAmp: { value: 0 } };
+        this.uniforms = { uTime: uniform(0), uExcite: uniform(0.1), uWave: uniform(0), uWaveAmp: uniform(0) };
         this.waveUntil = 0;
         this.nextWave = 20000;
     }
