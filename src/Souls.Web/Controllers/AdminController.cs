@@ -21,6 +21,9 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         {
             Players = await db.Players.AsNoTracking().Include(p => p.PlayerPermission).Where(p => !p.IsSystem).OrderBy(p => p.Id).ToListAsync(ct),
             Permissions = await db.PlayerPermissions.AsNoTracking().OrderBy(p => p.Id).ToListAsync(ct),
+            Cards = await db.PlayerCards.GroupBy(pc => pc.PlayerId)
+                .Select(g => new { g.Key, Count = g.Count(), Levels = g.Sum(pc => pc.Level) })
+                .ToDictionaryAsync(x => x.Key, x => (x.Count, x.Levels), ct),
         });
     }
 

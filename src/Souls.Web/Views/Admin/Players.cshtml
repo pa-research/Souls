@@ -6,15 +6,17 @@
 <div class="table-responsive">
     <table class="table table-sm align-middle" id="admin-players">
         <thead>
-            <tr><th>Id</th><th>Name</th><th>Money</th><th>Rank</th><th>Created</th><th>Permission</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Id</th><th>Name</th><th>Money</th><th title="Cards owned and the sum of their levels">Cards (levels)</th><th>Rank</th><th>Created</th><th>Permission</th><th>Status</th><th>Actions</th></tr>
         </thead>
         <tbody>
             @foreach (var player in Model.Players)
             {
+                var cards = Model.Cards.GetValueOrDefault(player.Id);
                 <tr data-player-id="@player.Id">
                     <td>@player.Id</td>
                     <td>@player.Name</td>
                     <td>@player.Money</td>
+                    <td>@cards.Count (@cards.Levels)</td>
                     <td>@player.Rank</td>
                     <td>@player.Created?.ToString("yyyy-MM-dd HH:mm")</td>
                     <td>

@@ -111,6 +111,12 @@ public sealed class ShopViewModel
     public required PlayerSummary Player { get; init; }
 }
 
+/// <summary>A card from a pack: the player's copy after the pack, and the coins paid back for a duplicate at the highest level.</summary>
+public sealed record PackCard(CardTile Card, int Coins)
+{
+    public string Result => Coins > 0 ? $"+{Coins} soul {(Coins == 1 ? "coin" : "coins")}" : Card.Level == 1 ? "New card" : $"Level {Card.Level}";
+}
+
 public sealed record PlayerSummary(string Name, int Money, int Rank, string Type, int Health, int BonusMana, string? Race)
 {
     public int Rating { get; init; } = Ratings.Initial;
@@ -220,6 +226,9 @@ public sealed class AdminPlayersViewModel
 {
     public required IReadOnlyList<Player> Players { get; init; }
     public required IReadOnlyList<PlayerPermission> Permissions { get; init; }
+
+    /// <summary>Per player: cards owned and the sum of their levels (packs and upgrades raise it).</summary>
+    public required IReadOnlyDictionary<int, (int Count, int Levels)> Cards { get; init; }
 }
 
 /// <summary>Games in which a card was played and how many of them its player won.</summary>

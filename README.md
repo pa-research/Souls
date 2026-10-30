@@ -110,6 +110,8 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 - **Coins**: 3 per normal win (+1 against a higher rated opponent), 1 per loss or draw, 1-3 per practice win
   (by bot difficulty), plus **daily quests** (three a day, shown on the home page and after each game).
 - **Card upgrades**: buying a card you own levels it up (to level 3), +1 attack and +1 health per level.
+- **Card packs**: 12 coins for five random cards, the last one rare or better, turned over one by one. A card you
+  own levels up instead; at level 3 it pays back half its price. Drop rates are in `src/Souls.Model/Packs.cs`.
 - **Practice bot**: Easy plays at random, Normal makes good trades and finds lethal, Hard also trades into
   valuable cards, pops wards, respects venom, defends when threatened and plays upgraded cards. The bot plays a
   random deck of one or two races.
