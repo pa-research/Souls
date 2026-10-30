@@ -6,14 +6,29 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
     var Fx = Animation.Fx;
 
+    var ABILITY = { SUMMON: 4, BURN: 8, WARD: 10, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
     var ABILITY_COLOR = {
-        1: 0x4cff6a, // Heal
-        2: 0xa569bd, // Sacrifice
-        5: 0x5aa9ff, // Paralyze
-        7: 0xb8c4cf, // Harden
-        8: 0xff7a1a  // Burn
+        1: 0x4cff6a,  // Heal
+        2: 0xa569bd,  // Sacrifice
+        4: 0xb07cff,  // Summon
+        5: 0x5aa9ff,  // Paralyze
+        7: 0xb8c4cf,  // Harden
+        8: 0xff7a1a,  // Burn
+        10: 0xffd36b, // Ward
+        11: 0xff5a3a, // Fury
+        12: 0x7dff4a, // Venom
+        13: 0xffc04d, // Rally
+        14: 0x7fd1ff, // Insight
+        15: 0xff6a1a, // Inferno
+        16: 0x6dff7a, // Regenerate
+        17: 0xff8c3a, // Grow
+        18: 0xd0104a, // Drain
+        19: 0xb07cff  // Brood
     };
     var POWER_COLOR = { 1: 0xff5544, 2: 0xa569bd, 3: 0xffe082, 4: 0x8fc8ff };
+
+    // Hits that land at the same moment (Inferno on every enemy card) are shown together.
+    var SIMULTANEOUS = { damage: true, ward: true, venom: true };
 
     function EventPlayer(engine) {
         this.engine = engine;
@@ -58,35 +73,63 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         return last ? { x: last.x, y: last.y } : null;
     }
 
+    /// Where a ref points: a hero, a card on the board, or where a card was when it died.
+    EventPlayer.prototype.WhereRef = function (ref) {
+        if (!ref) return null;
+        if (ref.k === 'hero') return this.Hero(ref.id);
+        return this.Where(ref.cid);
+    }
+
     /// <summary>
     /// Turns a list of events into steps. An attack takes the damage (and lifesteal/log) events right after it
-    /// along, so they are shown when the attacker hits.
+    /// along, so they are shown when the attacker hits. Events the client does not know are skipped.
     /// </summary>
     EventPlayer.prototype.Expand = function (events) {
         var steps = [];
         if (!events || typeof events.length !== 'number') return steps;
         var self = this;
 
+        function Next(i) {
+            return i + 1 < events.length && events[i + 1] && typeof events[i + 1].t === 'string' ? events[i + 1] : null;
+        }
+
         for (var i = 0; i < events.length; i++) {
             var e = events[i];
             if (!e || typeof e.t !== 'string') continue;
+            var group;
 
             if (e.t === 'attack') {
                 var hits = [];
-                while (i + 1 < events.length && events[i + 1] && this.IsHit(events[i + 1], e)) {
+                while (Next(i) && this.IsHit(Next(i), e)) {
                     hits.push(events[++i]);
                 }
                 steps.push(this.Bind(this.Attack, [e, hits]));
             }
             else if (e.t === 'death') {
                 // Cards that die together leave together.
-                var group = [e];
-                while (i + 1 < events.length && events[i + 1] && (events[i + 1].t === 'death' || events[i + 1].t === 'log')) {
+                group = [e];
+                while (Next(i) && (Next(i).t === 'death' || Next(i).t === 'log')) {
                     group.push(events[++i]);
                 }
                 steps.push(this.Bind(this.Together, [group]));
             }
-            else if (this.handlers[e.t]) {
+            else if (SIMULTANEOUS[e.t]) {
+                // Damage dealt to several cards at once (Inferno) lands at once.
+                group = [e];
+                while (Next(i) && (SIMULTANEOUS[Next(i).t] || Next(i).t === 'log')) {
+                    group.push(events[++i]);
+                }
+                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.handlers[e.t], [e]));
+            }
+            else if (e.t === 'buff' && e.src) {
+                // A card rallying its neighbours buffs them together.
+                group = [e];
+                while (Next(i) && ((Next(i).t === 'buff' && SameRef(Next(i).src, e.src)) || Next(i).t === 'log')) {
+                    group.push(events[++i]);
+                }
+                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.handlers.buff, [e]));
+            }
+            else if (this.handlers.hasOwnProperty(e.t)) {
                 steps.push(this.Bind(this.handlers[e.t], [e]));
             }
         }
@@ -108,7 +151,9 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
     EventPlayer.prototype.IsHit = function (next, attack) {
         if (next.t === 'log' || next.t === 'lifesteal') return true;
-        if (next.t === 'damage') return SameRef(next.to, attack.src) || SameRef(next.to, attack.dst);
+        if (next.t === 'damage' || next.t === 'ward' || next.t === 'venom') {
+            return SameRef(next.to, attack.src) || SameRef(next.to, attack.dst);
+        }
         return false;
     }
 
@@ -144,6 +189,62 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
     EventPlayer.prototype.SetStats = function (target, stats) {
         if (IsHero(target)) target.SetText(stats);
         else target.UpdateFromJson(stats);
+    }
+
+    function Num(value) {
+        var n = Number(value);
+        return value === undefined || value === null || value === '' || !isFinite(n) ? null : n;
+    }
+
+    /// What a buff gives ("+1 attack", "+2/+2"), from the target's numbers before it; "Empowered!" when unknown.
+    function Gains(target, e) {
+        var attack = Num(e.attack) !== null && Num(target.attack) !== null ? Num(e.attack) - Num(target.attack) : 0;
+        var newHealth = Num(e.maxHealth) !== null ? Num(e.maxHealth) : Num(e.health);
+        var oldHealth = Num(target.maxHealth) !== null ? Num(target.maxHealth) : Num(target.health);
+        var health = newHealth !== null && oldHealth !== null ? newHealth - oldHealth : 0;
+        if (attack > 0 && health > 0) return "+" + attack + "/+" + health;
+        if (attack > 0) return "+" + attack + " attack";
+        if (health > 0) return "+" + health + " health";
+        return "Empowered!";
+    }
+
+    /// Inferno: fire bursts across the enemy line, one card after the other (the damage events follow).
+    EventPlayer.prototype.Inferno = function (e, card, at, color) {
+        var engine = this.engine;
+        var mine;
+        if (card && card.owner) mine = card.owner === engine.player;
+        else {
+            var last = engine.lastCardPos && e.src && engine.lastCardPos[e.src.cid];
+            mine = last ? !!last.isPlayer : true;
+        }
+        var enemy = mine ? engine.opponent : engine.player;
+        if (!enemy) return 0;
+
+        Fx.Burst(engine, at.x, at.y, color, 70);
+        Fx.Glow(engine, at, color);
+        Animation.PlaySound(Asset.Sound.ABILITY_SACRIFICE, 0.25);
+
+        var targets = [];
+        for (var cid in enemy.cardManager.board) {
+            var c = enemy.cardManager.board[cid];
+            if (c && !c.isDead) targets.push(c);
+        }
+        targets.sort(function (a, b) { return a.x - b.x; });
+
+        var step = 90;
+        if (targets.length === 0) {
+            var hero = enemy.GetHome();
+            setTimeout(function () { Fx.Fire(engine, hero.x, hero.y); }, 120);
+            return 600;
+        }
+        targets.forEach(function (target, i) {
+            setTimeout(function () {
+                var home = target.GetHome();
+                Fx.Fire(engine, home.x, home.y);
+                if (!target.isDead) target.SetFlash(0xff9a3c, 260);
+            }, 120 + i * step);
+        });
+        return 420 + step * targets.length;
     }
 
     EventPlayer.prototype.handlers = {
@@ -199,35 +300,50 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             return 420;
         },
 
+        /// New stats after Sacrifice, Rally (src: the rallying card) or Grow (src: the card itself).
         buff: function (e) {
+            var self = this;
+            var engine = this.engine;
             var target = this.Resolve(e.to);
             if (!target) return 0;
-            this.SetStats(target, { attack: e.attack, health: e.health, maxHealth: e.maxHealth, armor: e.armor });
-            Fx.Float(this.engine, target, "Empowered!", "#ffd54a", 38);
-            Fx.Glow(this.engine, target, 0xffd54a);
-            if (IsHero(target)) {
-                Animation.General.GainAttack(target.pAttackText);
-                Animation.General.Heal(target.pHealthText);
+            var source = e.src ? this.Resolve(e.src) : null;
+            var gains = Gains(target, e);
+
+            function Apply() {
+                self.SetStats(target, { attack: e.attack, health: e.health, maxHealth: e.maxHealth, armor: e.armor });
+                Fx.Float(engine, target, gains, "#ffd54a", gains.charAt(0) === '+' ? 46 : 38);
+                Fx.Glow(engine, target, 0xffd54a);
+                if (IsHero(target)) {
+                    Animation.General.GainAttack(target.pAttackText);
+                    Animation.General.Heal(target.pHealthText);
+                }
+                else {
+                    Animation.General.GainAttack(target.txtAttack);
+                    Animation.General.Heal(target.txtHealth);
+                }
             }
-            else {
-                Animation.General.GainAttack(target.txtAttack);
-                Animation.General.Heal(target.txtHealth);
+
+            if (source && source !== target) {
+                // A streak from the rallying card to the card it buffs.
+                return Fx.Streak(engine, source, target, ABILITY_COLOR[ABILITY.RALLY], 260, Apply) + 420;
             }
+            Apply();
             return 520;
         },
 
+        /// Vampiric heal (src: the card that dealt the damage) or the heal of Drain (src: the drained target).
         lifesteal: function (e) {
             var engine = this.engine;
-            var src = this.Where(e.src && e.src.cid);
+            var src = this.WhereRef(e.src);
             var hero = this.Resolve(e.to);
             if (!hero) return 0;
             hero.SetText({ health: e.health });
             var amount = Number(e.amount) || 0;
-            Fx.Projectile(engine, src || hero, hero, 0xd63a4a, 280, function () {
+            Fx.Projectile(engine, src || hero, hero, 0xd63a4a, src && src !== hero ? 320 : 0, function () {
                 Fx.Float(engine, hero, "+" + amount, "#4cff6a", 50);
                 Animation.General.Heal(hero.pHealthText);
             });
-            return 320;
+            return 360;
         },
 
         blessing: function (e) {
@@ -256,12 +372,87 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
                 Fx.Glow(engine, src, color);
                 Fx.Float(engine, src, (ability ? ability.name : (src.abilityName || "Ability")) + "!", "#ffffff", 36, -120);
             }
+            if (src && dst && src !== dst && Number(e.abilityId) === ABILITY.DRAIN) {
+                // A bolt of blood; the life flows back with the lifesteal event that follows.
+                Fx.Bolt(engine, src, dst, color, 300, function () {
+                    if (dst.SetFlash) dst.SetFlash(0xff4d6a, 260);
+                    else if (dst.Flash) dst.Flash(0xff4d6a, 260);
+                });
+                return 600;
+            }
             if (src && dst && src !== dst) {
                 Fx.Projectile(engine, src, dst, color, 360);
                 return 620;
             }
             if (dst) Fx.Glow(engine, dst, color);
             return 450;
+        },
+
+        /// An on-play, turn-start or on-death ability fires; its effects (damage, buff, heal, summon) follow.
+        trigger: function (e) {
+            var engine = this.engine;
+            var id = Number(e.abilityId);
+            var card = this.Resolve(e.src);
+            var at = card || this.WhereRef(e.src); // Brood: the card is already gone
+            if (!at) return 0;
+            var ability = Rules.Ability(id);
+            var label = e.label || (card && card.abilityLabel) || (ability && ability.name);
+            var color = ABILITY_COLOR[id] || 0xffffff;
+            if (label) Fx.Float(engine, at, String(label), "#ffd98a", 38, -120);
+
+            switch (id) {
+                case ABILITY.INFERNO:
+                    return this.Inferno(e, card, at, color);
+                case ABILITY.RALLY:
+                    Fx.Pulse(engine, at, color);
+                    return 480;
+                case ABILITY.INSIGHT:
+                    Fx.Glow(engine, at, color);
+                    Fx.Sparkle(engine, at, color, 16);
+                    return 560;
+                case ABILITY.REGENERATE:
+                    Fx.Sparkle(engine, at, color, 14);
+                    return 420;
+                case ABILITY.GROW:
+                    if (card) Animation.Card.Grow(card);
+                    Fx.Sparkle(engine, at, color, 10);
+                    return 620;
+                case ABILITY.SUMMON:
+                case ABILITY.BROOD:
+                    Fx.Portal(engine, at.x, at.y, color);
+                    return 520;
+                default:
+                    if (card) Fx.Glow(engine, card, color);
+                    return 380;
+            }
+        },
+
+        /// A ward broke and blocked the damage (on: false).
+        ward: function (e) {
+            var card = this.Resolve(e.to);
+            if (!card || IsHero(card)) return 0;
+            if (e.on === true) {
+                card.UpdateFromJson({ ward: true });
+                return 0;
+            }
+            var ms = card.BreakWard();
+            Fx.Float(this.engine, card, "Blocked!", "#ffd36b", 46);
+            return Math.max(ms, 420);
+        },
+
+        /// Venom destroys the damaged card (its death follows).
+        venom: function (e) {
+            var engine = this.engine;
+            var target = this.Resolve(e.to);
+            if (!target) return 0;
+            var at = Animation.Home(target);
+            Fx.Venom(engine, at.x, at.y);
+            Fx.Float(engine, target, "Venom!", "#8dff5a", 48, -40);
+            if (!IsHero(target)) {
+                target.UpdateFromJson({ health: 0 });
+                target.SetFlash(0x7dff4a, 600);
+            }
+            return 480;
         },
 
         heroPower: function (e) {
@@ -298,6 +489,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             return 450;
         },
 
+        /// A token appears (Summon; Brood: src is the dead card, which may be gone already).
         summon: function (e) {
             var owner = this.Hero(e.owner);
             if (!owner || !e.card) return 0;
@@ -311,6 +503,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             card.playedOnTurn = this.engine.turnNumber;
             Animation.Card.Appear(card);
             Fx.Burst(this.engine, card.x, card.y, 0xc9a8ff, 60);
+            Fx.Sparkle(this.engine, card, 0xc9a8ff, 6);
             return 560;
         },
 

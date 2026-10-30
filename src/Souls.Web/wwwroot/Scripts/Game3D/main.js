@@ -147,6 +147,10 @@ function exposeTestHooks(stage, game, ui) {
         sync: () => game.lastSync,
         // The interface object, so tests can render states that take long to reach (end screens).
         ui,
+        // Plays game events (as the server sends them) so tests can show effects that are rare in real games.
+        playEvents: events => game.playEvents(events),
+        // A card entering the arena as if a side played it (legendary entrances).
+        useCard: (card, opponent = true) => game.onUseCard(opponent ? game.opponent : game.player, { card, pInfo: (opponent ? game.opponent : game.player).hero.info }),
         log: () => ui.logLines(),
         power: () => {
             const r = ui.power.getBoundingClientRect();

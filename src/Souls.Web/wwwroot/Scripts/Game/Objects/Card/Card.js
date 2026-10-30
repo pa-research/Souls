@@ -15,10 +15,103 @@
         var LONG_PRESS_MS = 450;
         var LONG_PRESS_SLOP = 30;
 
+        // Places on the race frame, in the frame texture's pixels (330 x 450) from its centre: the face's children are
+        // laid out in these (the face sprite scales them down with the texture).
+        var NAME_X = -4, NAME_Y = -158, NAME_WIDTH = 160;   // the name banner, between the cost gem and the race emblem
+        var BOX_Y = 101, BOX_WIDTH = 226, BOX_HEIGHT = 70;  // the text box under the portrait
+        var GEM_Y = 58;                                     // where the portrait meets the text box
+        // The dark body of the frame (without the corner emblems), in card coordinates.
+        var BODY_HALF_WIDTH = 64, BODY_HALF_HEIGHT = 93;
+
+        // Rarity: gem colours (light, mid, dark) and the edge of epic and legendary cards.
+        var GEM_COLORS = {
+            1: [0xf4f1ea, 0xa39e93, 0x5b574f],
+            2: [0xbfe4ff, 0x2f8de4, 0x123b73],
+            3: [0xf1d4ff, 0xa24ff0, 0x45136e],
+            4: [0xfff3c4, 0xff9d1c, 0x7a3a00]
+        };
+        var RARITY_EDGE = {
+            3: { glow: 0xb26bff, edge: 0x9b4de0, light: 0xe7c6ff },
+            4: { glow: 0xffb02e, edge: 0xd99a1e, light: 0xfff0b8 }
+        };
+        var WARD_COLOR = 0xffd36b;
+
+        /// The race whose frame a card wears: its own, or Darkness for a token without one (the Lost Soul), as the 3D
+        /// client paints it; 0 (the error frame) otherwise.
+        function FrameRace(card) {
+            return card.race || (card.token ? 1 : 0);
+        }
+
         /// Sets a label only when its text changes (re-rendering a text is not free).
         function SetLabel(label, value) {
             var text = String(value);
             if (label.text !== text) label.setText(text);
+        }
+
+        var measure = document.createElement('canvas').getContext('2d');
+        function TextWidth(text, font) {
+            measure.font = font;
+            return measure.measureText(text).width;
+        }
+
+        /// Breaks a text into lines no wider than width (a single long word stays on its own line).
+        function WrapLines(text, font, width) {
+            var words = String(text).split(/\s+/);
+            var lines = [];
+            var line = '';
+            for (var i = 0; i < words.length; i++) {
+                if (!words[i]) continue;
+                var test = line ? line + ' ' + words[i] : words[i];
+                if (line && TextWidth(test, font) > width) {
+                    lines.push(line);
+                    line = words[i];
+                }
+                else {
+                    line = test;
+                }
+            }
+            if (line) lines.push(line);
+            return lines;
+        }
+
+        /// The first lines of a text, the last one cut with an ellipsis when the text goes on.
+        function Clip(lines, count, font, width) {
+            if (lines.length <= count) return lines;
+            var kept = lines.slice(0, count);
+            var last = kept[count - 1] + '…';
+            while (last.length > 1 && TextWidth(last, font) > width) last = last.slice(0, -2) + '…';
+            kept[count - 1] = last;
+            return kept;
+        }
+
+        /// Sets a text's style and content and renders it at once, so its size is known. Returns its height.
+        function Render(label, text, style) {
+            label.setStyle(style);
+            label.setText(text);
+            label.updateText();
+            label.dirty = false;
+            return label.texture.frame.height;
+        }
+
+        /// A rounded rectangle path (Pixi 1.5 has none); used with lineStyle and/or beginFill.
+        function RoundRect(g, x, y, w, h, r) {
+            var points = [];
+            var corners = [[x + w - r, y + r, -Math.PI / 2], [x + w - r, y + h - r, 0], [x + r, y + h - r, Math.PI / 2], [x + r, y + r, Math.PI]];
+            for (var c = 0; c < corners.length; c++) {
+                for (var i = 0; i <= 4; i++) {
+                    var a = corners[c][2] + (Math.PI / 2) * (i / 4);
+                    points.push(corners[c][0] + Math.cos(a) * r, corners[c][1] + Math.sin(a) * r);
+                }
+            }
+            g.moveTo(points[0], points[1]);
+            for (var p = 2; p < points.length; p += 2) g.lineTo(points[p], points[p + 1]);
+            g.lineTo(points[0], points[1]);
+        }
+
+        function Polygon(g, points) {
+            g.moveTo(points[0], points[1]);
+            for (var i = 2; i < points.length; i += 2) g.lineTo(points[i], points[i + 1]);
+            g.lineTo(points[0], points[1]);
         }
 
         function ToNumber(value, fallback) {
@@ -102,10 +195,16 @@
             this.portraitUrl = jsonData.portrait;
             this.isDead = false;
             this.abilityId = (!!jsonData.ability) ? jsonData.ability.id : undefined;
+            this.rarity = 0; // 1 common, 2 rare, 3 epic, 4 legendary
+            this.flavor = '';
+            this.ward = false;
+            this.faceKey = null;
 
             // Setup the card layout / graphics
             this.SetupFrontCard(this);
             this.SetupBackCard(this);
+            this.SetupRarity();
+            this.addChild(this.rarityBack);
             this.addChild(this.frontCard);
             this.SetupOverlay();
 
@@ -146,12 +245,13 @@
                 SetLabel(this.texts.cost, text.cost);
             }
             if (text.ability) {
-                this.ability = text.ability;
-                SetLabel(this.texts.ability, text.ability);
+                // The printed ability ("Burn 3"): laid out in the text box with the rules text
+                this.abilityLabel = String(text.ability);
+                this.UpdateFace();
             }
-            if (text.name) {
+            if (text.name && text.name !== this.name) {
                 this.name = text.name;
-                SetLabel(this.texts.name, text.name);
+                this.FitName();
             }
             if (text.attack !== undefined && text.attack !== null) {
                 this.attack = ToNumber(text.attack, text.attack);
@@ -173,17 +273,26 @@
             if (!json) return;
 
             var oldId = this.id;
-            var oldRace = this.race;
+            var oldFrame = FrameRace(this);
             var oldPortrait = this.portraitUrl;
 
             if (json.id !== undefined && json.id !== null) this.id = json.id;
             if (json.race !== undefined) this.race = json.race ? json.race.id : 0;
             if (json.race) this.raceName = json.race.name;
             if (json.ability !== undefined) {
-                this.abilityId = json.ability ? json.ability.id : undefined;
-                this.abilityName = json.ability ? json.ability.name : undefined;
+                // {id, name, value, label ("Burn 3", printed on the face), text (rules text with the card's numbers), activated}
+                var ability = json.ability;
+                var rules = ability ? Rules.Ability(ability.id) : null;
+                this.abilityId = ability ? ability.id : undefined;
+                this.abilityName = ability ? (ability.name || (rules && rules.name) || undefined) : undefined;
+                this.abilityLabel = ability ? (ability.label || this.abilityName) : undefined;
+                this.abilityText = ability && typeof ability.text === 'string' ? ability.text : undefined;
+                this.abilityActivated = ability && ability.activated !== undefined && ability.activated !== null ? !!ability.activated : undefined;
             }
             if (json.portrait) this.portraitUrl = json.portrait;
+            if (json.rarity !== undefined && json.rarity !== null) this.rarity = ToNumber(json.rarity, 0);
+            if (json.flavor !== undefined) this.flavor = json.flavor ? String(json.flavor) : '';
+            if (json.ward !== undefined) this.ward = !!json.ward;
             if (json.maxHealth !== undefined && json.maxHealth !== null) this.maxHealth = ToNumber(json.maxHealth, this.maxHealth);
             if (json.armor !== undefined && json.armor !== null) this.armor = ToNumber(json.armor, 0);
             if (json.level !== undefined && json.level !== null) this.level = ToNumber(json.level, 1);
@@ -193,40 +302,172 @@
             if (json.hasAttacked !== undefined) this.hasAttacked = !!json.hasAttacked;
             if (json.canAct !== undefined) this.canAct = !!json.canAct;
 
-            var abilityText;
-            if (json.ability !== undefined) {
-                abilityText = json.ability ? (json.ability.name || (Rules.Ability(json.ability.id) || {}).name) : undefined;
-                if (!abilityText) {
-                    abilityText = this.token ? 'Token' : ' ';
-                    this.ability = abilityText;
-                    SetLabel(this.texts.ability, abilityText);
-                    abilityText = undefined;
-                }
-            }
-
             this.SetText({
                 health: json.health,
                 attack: json.attack,
                 name: json.name,
-                cost: json.cost,
-                ability: abilityText
+                cost: json.cost
             });
 
             if (this.maxHealth === undefined && typeof this.health === 'number') this.maxHealth = this.health;
 
+            // Text box and rarity (only re-rendered when they change).
+            if (json.ability !== undefined || json.flavor !== undefined || json.token !== undefined || json.rarity !== undefined) {
+                this.UpdateFace();
+            }
+
             // Art: the frame follows the race, the portrait the card (or its own portrait URL).
-            if (this.frontCard && oldRace !== this.race) {
-                this.frontCard.setTexture(CardType.GetCardTexture(this.race));
+            if (this.frontCard && oldFrame !== FrameRace(this)) {
+                this.frontCard.setTexture(CardType.GetCardTexture(FrameRace(this)));
                 this.frontCard.width = FACE_WIDTH;
                 this.frontCard.height = FACE_HEIGHT;
             }
             if (this.portrait && (oldId !== this.id || oldPortrait !== this.portraitUrl)) {
-                this.portrait.setTexture(CardType.GetPortraitTexture(this.id, this.portraitUrl));
-                this.portrait.width = 236;
-                this.portrait.height = 167;
+                this.SetPortrait();
             }
 
             this.RefreshVisuals();
+        }
+
+        /// The portrait of the card; a portrait that cannot be loaded is replaced by the card's config portrait or the
+        /// unknown portrait (see CardType.GetPortraitTexture).
+        Card.prototype.SetPortrait = function () {
+            var that = this;
+            var token = this.portraitToken = (this.portraitToken || 0) + 1;
+            function Show(texture) {
+                if (that.portraitToken !== token) return; // another portrait was asked for since
+                that.portrait.setTexture(texture);
+                that.portrait.width = 236;
+                that.portrait.height = 167;
+            }
+            function Use(texture) {
+                if (texture.baseTexture.hasLoaded) {
+                    Show(texture);
+                    return;
+                }
+                // Still loading: the card keeps its current art until it has. (Pixi 1.5 would size the sprite by the
+                // 1 x 1 frame of a texture that is still loading, and its canvas renderer throws on an image that
+                // failed.) The listener stays: removing it while the event is dispatched would skip other listeners.
+                texture.addEventListener('update', function () {
+                    if (texture.baseTexture.hasLoaded) Show(texture);
+                });
+            }
+            Use(CardType.GetPortraitTexture(this.id, this.portraitUrl, Use));
+        }
+
+        /// <summary>
+        /// The name on the banner: as large as it fits (40 px down to 24), else on two lines, centred.
+        /// </summary>
+        Card.prototype.FitName = function () {
+            var label = this.texts.name;
+            if (!label || !label.setStyle) return;
+            var name = String(this.name === undefined || this.name === null ? '' : this.name);
+            var size, text = name, font;
+            for (size = 40; size >= 24; size -= 2) {
+                font = size + "px Arial";
+                if (TextWidth(name, font) <= NAME_WIDTH) break;
+            }
+            if (size < 24 && name.indexOf(' ') !== -1) {
+                // Two lines (at most 22 px, so both fit the banner), split where they come out most even.
+                var words = name.split(' ');
+                var best = null;
+                for (var i = 1; i < words.length; i++) {
+                    var a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+                    var wide = Math.max(TextWidth(a, "10px Arial"), TextWidth(b, "10px Arial"));
+                    if (!best || wide < best.wide) best = { wide: wide, text: a + "\n" + b };
+                }
+                text = best.text;
+                size = Math.max(18, Math.min(22, Math.floor(10 * NAME_WIDTH / best.wide)));
+            }
+            else if (size < 24) {
+                size = 22;
+            }
+            Render(label, text, { font: size + "px Arial", fill: "black", align: "center" });
+        }
+
+        /// <summary>
+        /// The text box: the ability as printed ("Burn 3", "Rally +1") with its rules text under it in a smaller font
+        /// when both fit; cards without an ability show their flavor text in italics. Also draws the rarity.
+        /// </summary>
+        Card.prototype.UpdateFace = function () {
+            var label = this.abilityLabel || '';
+            var rulesText = this.abilityText || '';
+            var flavor = this.flavor || '';
+            var key = [label, rulesText, flavor, this.token, this.rarity].join('|');
+            if (key === this.faceKey) return;
+            this.faceKey = key;
+
+            var txtLabel = this.texts.ability;
+            var txtRules = this.txtRules;
+            var txtFlavor = this.txtFlavor;
+            txtRules.visible = false;
+            txtFlavor.visible = false;
+            txtLabel.visible = false;
+
+            if (label) {
+                this.ability = label;
+                // Label and rules text, from roomy to tight; the label alone when the rules text fits nowhere.
+                var options = rulesText ? [
+                    { label: 30, rules: 14, lines: 2 },
+                    { label: 28, rules: 12, lines: 2 },
+                    { label: 24, rules: 12, lines: 3 }
+                ] : [];
+                var placed = false;
+                for (var i = 0; i < options.length && !placed; i++) {
+                    var o = options[i];
+                    var rulesFont = o.rules + "px Arial";
+                    var lines = WrapLines(rulesText, rulesFont, BOX_WIDTH);
+                    if (lines.length > o.lines) continue;
+                    var labelHeight = Render(txtLabel, label, { font: FitSize(label, o.label, 18, "px Arial") + "px Arial", fill: "#1b130b", align: "center" });
+                    var rulesHeight = Render(txtRules, lines.join("\n"), { font: rulesFont, fill: "#2b2118", align: "center" });
+                    if (labelHeight + rulesHeight > BOX_HEIGHT) continue;
+                    var top = BOX_Y - (labelHeight + rulesHeight) / 2;
+                    txtLabel.anchor = { x: 0.5, y: 0 };
+                    txtLabel.position.y = top;
+                    txtRules.position.y = top + labelHeight;
+                    txtRules.visible = true;
+                    placed = true;
+                }
+                if (!placed) {
+                    Render(txtLabel, label, { font: FitSize(label, 34, 18, "px Arial") + "px Arial", fill: "#1b130b", align: "center" });
+                    txtLabel.anchor = { x: 0.5, y: 0.5 };
+                    txtLabel.position.y = BOX_Y;
+                }
+                txtLabel.visible = true;
+            }
+            else if (flavor) {
+                this.ability = ' ';
+                var flavorOptions = [{ size: 16, lines: 3 }, { size: 14, lines: 4 }, { size: 13, lines: 4, clip: true }];
+                for (var f = 0; f < flavorOptions.length; f++) {
+                    var fo = flavorOptions[f];
+                    var flavorFont = "italic " + fo.size + "px Georgia, 'Times New Roman', serif";
+                    var flavorLines = WrapLines(flavor, flavorFont, BOX_WIDTH);
+                    if (flavorLines.length > fo.lines && !fo.clip) continue;
+                    var height = Render(txtFlavor, Clip(flavorLines, fo.lines, flavorFont, BOX_WIDTH).join("\n"),
+                        { font: flavorFont, fill: "#3a2d20", align: "center" });
+                    if (height > BOX_HEIGHT && !fo.clip) continue;
+                    break;
+                }
+                txtFlavor.visible = true;
+            }
+            else {
+                // Vanilla card without flavor text, or a token.
+                this.ability = this.token ? 'Token' : ' ';
+                Render(txtLabel, this.ability, { font: "34px Arial", fill: "#1b130b", align: "center" });
+                txtLabel.anchor = { x: 0.5, y: 0.5 };
+                txtLabel.position.y = BOX_Y;
+                txtLabel.visible = true;
+            }
+
+            this.DrawRarity();
+        }
+
+        /// The largest font size (from max down to min) at which a one-line text fits the text box.
+        function FitSize(text, max, min, unit) {
+            for (var size = max; size > min; size -= 2) {
+                if (TextWidth(text, size + unit) <= BOX_WIDTH) return size;
+            }
+            return min;
         }
 
         Card.prototype.UpdateHealthColor = function () {
@@ -258,19 +499,20 @@
 
         Card.prototype.SetupFrontCard = function () {
             // Make card frontside
-            this.frontCard = new pixi.Sprite(CardType.GetCardTexture(this.race));
+            this.frontCard = new pixi.Sprite(CardType.GetCardTexture(FrameRace(this)));
             this.frontCard.anchor = { x: 0.5, y: 0.5 };
             this.frontCard.height = FACE_HEIGHT;
             this.frontCard.width = FACE_WIDTH;
 
 
             // Card Image
-            this.portrait = new pixi.Sprite(CardType.GetPortraitTexture(this.id, this.portraitUrl));
+            this.portrait = new pixi.Sprite(asset.GetTexture(asset.Textures.CARD_PORTRAIT_UNKNOWN)); // until its own art has loaded
             this.portrait.anchor = { x: 0.5, y: 0.5 };
             this.portrait.width = 236;
             this.portrait.height = 167;
             this.portrait.x = 0;
             this.portrait.y = -31;
+            this.SetPortrait();
             this.frontCard.addChild(this.portrait);
 
             // CardFactory Health Label
@@ -324,38 +566,148 @@
             this.txtAttack.position.y = (this.frontCard.height) - (this.txtAttack.height);
             this.texts.attack = this.txtAttack;
 
-            // CardFactory Ability Label
-            var txtAbility = new pixi.Text(String(this.ability),
-                 {
-                     font: "45px Arial",
-                     fill: "black",
-                     wordWrap: true,
-                     wordWrapWidth: this.width - 24
-                 });
-            txtAbility.anchor = { x: 0.5, y: 0.6 };
+            // Rarity gem where the portrait meets the text box (drawn in DrawRarity)
+            this.rarityGem = new pixi.Graphics();
+            this.rarityGem.y = GEM_Y;
+            this.rarityGem.visible = false;
+
+            // Text box: the ability label ("Burn 3"), its rules text, or the flavor text (laid out in UpdateFace)
+            var txtAbility = new pixi.Text(" ", { font: "34px Arial", fill: "#1b130b", align: "center" });
+            txtAbility.anchor = { x: 0.5, y: 0.5 };
             txtAbility.position.x = 0;
-            txtAbility.position.y = this.frontCard.height / 2;
+            txtAbility.position.y = BOX_Y;
             this.texts.ability = txtAbility;
 
-            // CardFry Name Label
-            var txtName = new pixi.Text(String(this.name),
-                {
-                    font: "40px Arial",
-                    fill: "black",
-                    wordWrap: true,
-                    align: 'center',
+            this.txtRules = new pixi.Text(" ", { font: "14px Arial", fill: "#2b2118", align: "center" });
+            this.txtRules.anchor = { x: 0.5, y: 0 };
+            this.txtRules.visible = false;
 
-                    wordWrapWidth: this.width
-                });
-            txtName.x = -(this.frontCard.width) + 60
-            txtName.y = -(this.frontCard.height) + 30
+            this.txtFlavor = new pixi.Text(" ", { font: "italic 16px Georgia, serif", fill: "#3a2d20", align: "center" });
+            this.txtFlavor.anchor = { x: 0.5, y: 0.5 };
+            this.txtFlavor.position.y = BOX_Y;
+            this.txtFlavor.visible = false;
+
+            // Name on the banner (sized in FitName)
+            var txtName = new pixi.Text(String(this.name), { font: "40px Arial", fill: "black", align: 'center' });
+            txtName.anchor = { x: 0.5, y: 0.5 };
+            txtName.x = NAME_X;
+            txtName.y = NAME_Y;
             this.texts.name = txtName;
 
+            // Legendary: a small golden crown over the name banner
+            this.crown = new pixi.Graphics();
+            DrawCrown(this.crown);
+            this.crown.visible = false;
+
+            this.frontCard.addChild(this.rarityGem);
             this.frontCard.addChild(this.txtHealth);
             this.frontCard.addChild(txtCost);
             this.frontCard.addChild(this.txtAttack);
             this.frontCard.addChild(txtAbility);
+            this.frontCard.addChild(this.txtRules);
+            this.frontCard.addChild(this.txtFlavor);
             this.frontCard.addChild(txtName);
+            this.frontCard.addChild(this.crown);
+            this.FitName();
+        }
+
+        /// Behind the face: the gilded (legendary) or violet (epic) edge around the frame (drawn in DrawRarity).
+        Card.prototype.SetupRarity = function () {
+            this.rarityBack = new pixi.Graphics();
+            this.rarityBack.visible = false;
+        }
+
+        /// Draws the rarity gem (not on tokens), and the edge and crown of epic and legendary cards.
+        Card.prototype.DrawRarity = function () {
+            var rarity = this.rarity;
+            var gem = this.rarityGem;
+            gem.clear();
+            gem.visible = !!GEM_COLORS[rarity] && !this.token;
+            if (gem.visible) DrawGem(gem, rarity);
+
+            var back = this.rarityBack;
+            var edge = RARITY_EDGE[rarity];
+            back.clear();
+            back.visible = !!edge;
+            if (edge) {
+                var w = BODY_HALF_WIDTH, h = BODY_HALF_HEIGHT;
+                // Soft glow, the metal edge and a light rim on it.
+                back.lineStyle(0, 0, 0);
+                back.beginFill(edge.glow, 0.22);
+                RoundRect(back, -w - 9, -h - 9, 2 * w + 18, 2 * h + 18, 14);
+                back.endFill();
+                back.beginFill(edge.edge, 1);
+                RoundRect(back, -w - 5, -h - 5, 2 * w + 10, 2 * h + 10, 10);
+                back.endFill();
+                back.lineStyle(1.5, edge.light, 0.95);
+                RoundRect(back, -w - 3.5, -h - 3.5, 2 * w + 7, 2 * h + 7, 8);
+            }
+            this.crown.visible = rarity === 4 && !this.token;
+        }
+
+        /// The gem (in frame texture pixels): a faceted pentagon in the rarity's colours.
+        function DrawGem(g, rarity) {
+            var c = GEM_COLORS[rarity];
+            var light = c[0], mid = c[1], dark = c[2];
+            var T = [0, -17], R = [15, -4], BR = [9, 15], BL = [-9, 15], L = [-15, -4], IL = [-6, -2], IR = [6, -2];
+            function Facet(color, alpha, pts) {
+                g.beginFill(color, alpha);
+                var flat = [];
+                for (var i = 0; i < pts.length; i++) flat.push(pts[i][0], pts[i][1]);
+                Polygon(g, flat);
+                g.endFill();
+            }
+            g.lineStyle(0, 0, 0);
+            if (rarity >= 3) {
+                // Epic and legendary gems glow.
+                g.beginFill(mid, rarity === 4 ? 0.22 : 0.16);
+                g.drawCircle(0, 0, 30);
+                g.endFill();
+                g.beginFill(mid, 0.3);
+                g.drawCircle(0, 0, 22);
+                g.endFill();
+            }
+            Facet(light, 1, [L, IL, T]);
+            Facet(light, 0.85, [IL, IR, T]);
+            Facet(mid, 1, [T, IR, R]);
+            Facet(mid, 1, [L, BL, IL]);
+            Facet(mid, 1, [IL, IR, BR, BL]);
+            Facet(dark, 1, [IR, R, BR]);
+            // Outline and facet edges
+            g.lineStyle(2.5, 0x1b130b, 1);
+            Polygon(g, [T[0], T[1], R[0], R[1], BR[0], BR[1], BL[0], BL[1], L[0], L[1]]);
+            g.lineStyle(1.2, 0xffffff, 0.55);
+            g.moveTo(L[0], L[1]); g.lineTo(IL[0], IL[1]); g.lineTo(T[0], T[1]); g.lineTo(IR[0], IR[1]); g.lineTo(R[0], R[1]);
+            g.moveTo(IL[0], IL[1]); g.lineTo(IR[0], IR[1]); g.lineTo(BR[0], BR[1]);
+            g.moveTo(IL[0], IL[1]); g.lineTo(BL[0], BL[1]);
+        }
+
+        /// The legendary crown (in frame texture pixels) over the top edge, centred.
+        function DrawCrown(g) {
+            g.lineStyle(0, 0, 0);
+            g.beginFill(0xffb02e, 0.25);
+            g.drawEllipse(0, -207, 40, 18);
+            g.endFill();
+            g.lineStyle(2.5, 0x4a2a00, 1);
+            g.beginFill(0xe9a93a, 1);
+            Polygon(g, [-27, -193, -31, -218, -15, -205, 0, -224, 15, -205, 31, -218, 27, -193]);
+            g.endFill();
+            // Band and shine
+            g.lineStyle(0, 0, 0);
+            g.beginFill(0xfff0b8, 0.75);
+            Polygon(g, [-25, -201, 25, -201, 26, -196, -26, -196]);
+            g.endFill();
+            g.beginFill(0xc97d0b, 1);
+            Polygon(g, [-26, -196, 26, -196, 27, -193, -27, -193]);
+            g.endFill();
+            // Jewels on the points
+            var jewels = [[-31, -218], [0, -224], [31, -218]];
+            for (var i = 0; i < jewels.length; i++) {
+                g.lineStyle(1.5, 0x4a2a00, 1);
+                g.beginFill(0xff4d4d, 1);
+                g.drawCircle(jewels[i][0], jewels[i][1], 4);
+                g.endFill();
+            }
         }
 
         /// Draws a small shield (armor, taunt).
@@ -390,6 +742,24 @@
             g.endFill();
         }
         Card.DrawBolt = DrawBolt;
+
+        /// Draws the ward around a card face (card coordinates): a soft golden glow, a translucent golden veil, a
+        /// bright edge and a sheen across the upper left corner. grow widens it (the break animation).
+        function DrawWard(g, grow) {
+            var w = FACE_WIDTH / 2 + 5 * (grow || 1), h = FACE_HEIGHT / 2 + 5 * (grow || 1);
+            g.lineStyle(10, 0xffc04d, 0.28);
+            RoundRect(g, -w - 3, -h - 3, 2 * w + 6, 2 * h + 6, 16);
+            g.lineStyle(4, WARD_COLOR, 0.95);
+            g.beginFill(0xffe9a0, 0.14);
+            RoundRect(g, -w, -h, 2 * w, 2 * h, 13);
+            g.endFill();
+            g.lineStyle(0, 0, 0);
+            g.beginFill(0xffffff, 0.16);
+            Polygon(g, [-w + 8, -h + 52, -w + 52, -h + 8, -w + 80, -h + 8, -w + 8, -h + 80]);
+            g.endFill();
+        }
+        Card.DrawWard = DrawWard;
+        Card.RoundRect = RoundRect;
 
         /// Status badges drawn above the card face, in card coordinates (the face is 150 x 210).
         Card.prototype.SetupOverlay = function () {
@@ -429,6 +799,18 @@
             this.paralyzeMark.addChild(bolt);
             this.paralyzeMark.visible = false;
 
+            // Ward: a golden shimmer over the card, a bright edge and a golden shield low on the left edge
+            this.wardMark = new pixi.DisplayObjectContainer();
+            var bubble = new pixi.Graphics();
+            DrawWard(bubble, 1);
+            var wardIcon = new pixi.Graphics();
+            DrawShield(wardIcon, 28, 34, 0xd9a21e, 0xfff3c4);
+            wardIcon.x = -FACE_WIDTH / 2 - 2;
+            wardIcon.y = 38;
+            this.wardMark.addChild(bubble);
+            this.wardMark.addChild(wardIcon);
+            this.wardMark.visible = false;
+
             // Armor: a grey shield with the value, bottom centre between attack and health
             this.armorBadge = new pixi.DisplayObjectContainer();
             var armorShield = new pixi.Graphics();
@@ -461,6 +843,7 @@
             overlay.addChild(this.glow);
             overlay.addChild(this.paralyzeMark);
             overlay.addChild(this.tauntFrame);
+            overlay.addChild(this.wardMark);
             overlay.addChild(this.targetMark);
             overlay.addChild(this.armorBadge);
             overlay.addChild(this.stars);
@@ -480,8 +863,11 @@
             var stars = this.level >= 2 ? new Array(Math.min(this.level, 5) + 1).join("\u2605") : "";
             this.stars.visible = stars.length > 0;
             if (stars) SetLabel(this.stars, stars);
+            // Legendary cards wear the crown on the top edge: their stars go on the top of the portrait.
+            this.stars.y = this.rarity === 4 && !this.token ? -FACE_HEIGHT / 2 + 54 : -FACE_HEIGHT / 2 + 4;
 
             this.tauntFrame.visible = onBoard && this.taunt;
+            this.wardMark.visible = onBoard && this.ward;
             this.paralyzeMark.visible = onBoard && this.paralyzed;
             this.glow.visible = onBoard && ownCard && this.canAct && !this.paralyzed && !!this.engine.myTurn;
 
@@ -502,6 +888,36 @@
             var tint = (this.paralyzed && this.inSlot) ? 0x9fbfff : 0xFFFFFF;
             if (this.frontCard) this.frontCard.tint = tint;
             if (this.portrait) this.portrait.tint = tint;
+        }
+
+        /// <summary>
+        /// The ward breaks (it blocked damage): the ward flares up, bursts into golden shards and is gone.
+        /// Returns the duration of the animation.
+        /// </summary>
+        Card.prototype.BreakWard = function () {
+            var engine = this.engine;
+            this.ward = false;
+            this.RefreshVisuals();
+            var group = engine && (engine.getGroup("Effects") || engine.getGroup("Text"));
+            if (!group || this.isDead) return 0;
+
+            var home = this.GetHome();
+            var flare = new pixi.Graphics();
+            DrawWard(flare, 1);
+            flare.beginFill(0xfff3c4, 0.45);
+            RoundRect(flare, -FACE_WIDTH / 2, -FACE_HEIGHT / 2, FACE_WIDTH, FACE_HEIGHT, 10);
+            flare.endFill();
+            flare.x = home.x;
+            flare.y = home.y;
+            group.addChild(flare);
+            Animation.Animate(flare, { scaleX: 1.08, scaleY: 1.06 }, 90, engine.CreateJS.Ease.quadOut, function () {
+                Animation.Animate(flare, { scaleX: 1.3, scaleY: 1.22, alpha: 0 }, 360, engine.CreateJS.Ease.quadOut, function () {
+                    if (flare.parent) flare.parent.removeChild(flare);
+                });
+            });
+            Animation.Fx.Shards(engine, home.x, home.y, WARD_COLOR, 16);
+            this.SetFlash(0xfff3c4, 160);
+            return 450;
         }
 
         /// Marks the card as a valid target while the player aims (null removes the mark).
@@ -565,14 +981,16 @@
         /// Flips the card to the opposite side
         /// </summary>
         Card.prototype.FlipCard = function () {
-            // The face goes below the badge overlay (index 0).
+            // The face goes below the badge overlay (index 0), the rarity edge below the face.
             if (this.cardFlipped) {
                 this.removeChild(this.backCard)
                 this.addChildAt(this.frontCard, 0)
+                if (this.rarityBack) this.addChildAt(this.rarityBack, 0);
                 this.cardFlipped = false;
             }
             else {
                 this.removeChild(this.frontCard)
+                if (this.rarityBack && this.rarityBack.parent === this) this.removeChild(this.rarityBack);
                 this.addChildAt(this.backCard, 0)
                 this.cardFlipped = true;
             }
@@ -809,6 +1227,11 @@
             // Pulse the "can act" glow
             if (this.glow && this.glow.visible) {
                 this.glow.alpha = 0.55 + 0.45 * Math.sin(Date.now() / 220);
+            }
+
+            // The ward shimmers
+            if (this.wardMark && this.wardMark.visible) {
+                this.wardMark.alpha = 0.78 + 0.22 * Math.sin(Date.now() / 340);
             }
         }
 

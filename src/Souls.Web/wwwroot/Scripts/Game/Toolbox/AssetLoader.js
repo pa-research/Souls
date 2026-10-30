@@ -12,27 +12,94 @@
             Sound: "/Content/Sound/"
         }
 
+        // Texture URLs that could not be loaded (a missing portrait): the cards show a fallback instead.
+        var broken = {};
+
+        function ImageOf(texture) {
+            var base = texture && texture.baseTexture;
+            return base && base.source && base.source.tagName === 'IMG' ? base.source : null;
+        }
+
+        /// Loads every texture. A texture that fails (404) counts as done, so a missing card portrait cannot keep
+        /// the game on the loading screen (Pixi's own AssetLoader waits for it forever).
         Asset.prototype.PreLoad = function (onProgressCallback, onCompleteCallBack) {
 
             var contentArray = new Array();
+            var seen = {};
             for (var key in Asset.prototype.Textures) {
                 if (Asset.prototype.Textures.hasOwnProperty(key)) {
-                    if (Asset.prototype.Textures[key] !== null) {
-                        contentArray.push(Asset.prototype.Textures[key]);
-                    }          
+                    var url = Asset.prototype.Textures[key];
+                    if (url !== null && url !== undefined && !seen[url]) {
+                        seen[url] = true;
+                        contentArray.push(url);
+                    }
                 }
             }
 
-            var loader = new Pixi.AssetLoader(contentArray)
-            loader.on('onProgress', function (e) {
-                var prct = 1 - (e.content.loadCount / e.content.assetURLs.length);
-                onProgressCallback(prct);
-            });
-            loader.on('onComplete', function (e) {
-                onCompleteCallBack();
-            });
+            var total = contentArray.length;
+            var left = total;
+            function Done() {
+                left--;
+                onProgressCallback(total > 0 ? 1 - left / total : 1);
+                if (left === 0) onCompleteCallBack();
+            }
 
-            loader.load();
+            if (total === 0) {
+                setTimeout(onCompleteCallBack, 0);
+                return;
+            }
+
+            contentArray.forEach(function (url) {
+                var texture = Pixi.Texture.fromImage(url);
+                var base = texture.baseTexture;
+                var image = ImageOf(texture);
+                var finished = false;
+                function Finish() {
+                    if (finished) return;
+                    finished = true;
+                    Done();
+                }
+
+                if (base.hasLoaded) {
+                    setTimeout(Finish, 0);
+                }
+                else if (image && image.complete && !image.naturalWidth) {
+                    broken[url] = true;
+                    setTimeout(Finish, 0);
+                }
+                else {
+                    base.addEventListener('loaded', Finish);
+                    if (image) image.addEventListener('error', function () {
+                        broken[url] = true;
+                        console.warn("[AssetLoader]: Could not load " + url);
+                        Finish();
+                    });
+                }
+            });
+        }
+
+        /// Whether a texture URL failed to load.
+        Asset.prototype.IsBroken = function (url) {
+            return !!broken[url];
+        }
+
+        /// Calls onBroken once if the image behind a texture (still loading) fails to load.
+        Asset.prototype.OnBroken = function (texture, url, onBroken) {
+            if (broken[url]) {
+                setTimeout(onBroken, 0);
+                return;
+            }
+            var image = ImageOf(texture);
+            if (!image || texture.baseTexture.hasLoaded) return;
+            if (image.complete && !image.naturalWidth) {
+                broken[url] = true;
+                setTimeout(onBroken, 0);
+                return;
+            }
+            image.addEventListener('error', function () {
+                broken[url] = true;
+                onBroken();
+            });
         }
 
         Asset.prototype.SetVolume = function (val) {

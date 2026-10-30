@@ -215,7 +215,9 @@ public sealed partial class GameEngine(
             room.LogLine($"{opponent.Name} goes second and gets 1 extra mana this turn.");
         }
 
-        // The player whose turn starts draws a card.
+        // Start-of-turn abilities, then the player whose turn starts draws a card.
+        StartOfTurn(room, opponent.GPlayer);
+        ResolveDeaths(room);
         Draw(room, opponent.GPlayer, 1);
         await FinishActionAsync(room);
     }

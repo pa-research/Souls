@@ -72,14 +72,14 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Equal(HttpStatusCode.OK, shop.StatusCode);
         Assert.Contains(name, await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
-        // A new player has no soul coins, Christine costs 3.
+        // A new player has no soul coins, Christine (epic) costs 6.
         using var buy = await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", "4")]);
         Assert.Equal(HttpStatusCode.Redirect, buy.StatusCode);
         using var after = await browser.GetAsync("/Shop");
         Assert.Contains("You cannot afford Christine!", await after.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
         var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
-        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 3)));
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 6)));
 
         using var buy2 = await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", "4")]);
         using var buy3 = await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", "4")]);
@@ -108,15 +108,20 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Contains("<span id=\"deck-total\">20</span>", deckHtml, StringComparison.Ordinal);
         Assert.Contains("automatic deck", deckHtml, StringComparison.Ordinal);
 
-        // Invalid decks are refused: too many copies, cards not owned, wrong size.
-        foreach (var counts in new[] { "1:5,2:4,3:4,5:4,6:3", "1:4,2:4,3:4,5:4,4:4", "1:4,2:4" })
+        // Invalid decks are refused: too many copies (4 of a common, 1 of a legendary), cards not owned, wrong size.
+        await app.WithDbAsync(db =>
+        {
+            db.PlayerCards.Add(new PlayerCard { PlayerId = playerId, CardId = 2, ObtainedAt = DateTimeOffset.UtcNow }); // Dr. Robotnik, legendary
+            return db.SaveChangesAsync();
+        });
+        foreach (var counts in new[] { "5:5,6:4,20:4,23:4,31:3", "5:4,6:4,20:4,23:4,4:4", "5:4,6:4", "5:4,6:4,20:4,23:4,31:2,2:2" })
         {
             using var bad = await browser.PostFormAsync("/Deck", "/Deck/Save", Counts(counts));
             Assert.Equal(HttpStatusCode.Redirect, bad.StatusCode);
             Assert.Equal(0, await app.WithDbAsync(db => db.DeckCards.CountAsync(d => d.PlayerId == playerId)));
         }
 
-        using var good = await browser.PostFormAsync("/Deck", "/Deck/Save", Counts("1:4,2:4,3:4,5:4,6:4"));
+        using var good = await browser.PostFormAsync("/Deck", "/Deck/Save", Counts("5:4,6:4,20:4,23:4,31:3,2:1"));
         Assert.Equal(20, await app.WithDbAsync(db => db.DeckCards.Where(d => d.PlayerId == playerId).SumAsync(d => d.Count)));
         using var saved = await browser.GetAsync("/Deck");
         Assert.Contains("You play with your own deck.", await saved.Content.ReadAsStringAsync(), StringComparison.Ordinal);
@@ -135,7 +140,7 @@ public class WebAppTests(SoulsAppFixture app)
             await db.PlayerCards.Where(pc => pc.PlayerId == playerId && pc.CardId == 6).Select(pc => pc.Level).SingleAsync(),
             await db.Players.Where(p => p.Id == playerId).Select(p => p.Money).SingleAsync()));
         Assert.Equal(3, level);
-        Assert.Equal(100 - (1 + 2) - (1 + 4), money); // Bobby costs 1: level 1->2 for 3, 2->3 for 5
+        Assert.Equal(100 - (2 + 2) - (2 + 4), money); // Bobby (common) costs 2: level 1->2 for 4, 2->3 for 6
         using var shop = await browser.GetAsync("/Shop");
         Assert.Contains("Owned &middot; Lv 3", await shop.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
@@ -161,7 +166,7 @@ public class WebAppTests(SoulsAppFixture app)
         using var response = await browser.PostFormAsync("/Player/Register", "/Player/Register",
         [
             new("Form.Username", name), new("Form.Password", password), new("Form.ConfirmPassword", password), new("Form.PlayerType", "1"),
-            new("Form.Cards", "1"), new("Form.Cards", "2"), new("Form.Cards", "3"), new("Form.Cards", "5"), new("Form.Cards", "6"),
+            new("Form.Cards", "5"), new("Form.Cards", "6"), new("Form.Cards", "20"), new("Form.Cards", "23"), new("Form.Cards", "31"),
         ]);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

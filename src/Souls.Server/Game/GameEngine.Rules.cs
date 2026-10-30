@@ -49,7 +49,9 @@ public sealed partial class GameEngine
 
         if (attackerCard is not null)
         {
-            attackerCard.HasAttacked = true;
+            // Fury cards may attack a second time.
+            attackerCard.AttacksThisTurn++;
+            attackerCard.HasAttacked = !(attackerCard.HasFury && attackerCard.AttacksThisTurn < 2);
         }
         else
         {
@@ -61,7 +63,10 @@ public sealed partial class GameEngine
         ResolveDeaths(room);
     }
 
-    /// <summary>Deals damage: armor absorbs it first. Vampiric sources heal their hero by the damage dealt.</summary>
+    /// <summary>
+    /// Deals damage: a ward blocks it completely, then armor absorbs it before health. Venom sources destroy the cards
+    /// they damage; Vampiric sources heal their hero by the damage dealt.
+    /// </summary>
     private void Damage(GameRoom room, object target, int amount, GamePlayer? sourceSide, Card? sourceCard)
     {
         if (amount <= 0)
@@ -72,11 +77,23 @@ public sealed partial class GameEngine
         int absorbed;
         switch (target)
         {
+            case Card { Ward: true } warded:
+                warded.Ward = false;
+                room.Event("ward", new JsonObject { ["to"] = Ref(warded), ["on"] = false });
+                room.LogLine($"{warded.Name}'s ward breaks.");
+                return;
             case Card c:
                 absorbed = Math.Min(c.Armor, amount);
                 c.Armor -= absorbed;
                 c.Health -= amount - absorbed;
                 room.Event("damage", new JsonObject { ["to"] = Ref(c), ["amount"] = amount, ["armorLost"] = absorbed, ["health"] = c.Health, ["armor"] = c.Armor });
+                if (sourceCard is { HasVenom: true } && c.Health > 0)
+                {
+                    c.Health = 0;
+                    room.Event("venom", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(c) });
+                    room.LogLine($"{sourceCard.Name}'s venom kills {c.Name}.");
+                }
+
                 break;
             case GamePlayer h:
                 absorbed = Math.Min(h.Armor, amount);
@@ -150,8 +167,9 @@ public sealed partial class GameEngine
     }
 
     /// <summary>
-    /// Removes dead cards until none are left: Darkness cards curse a random enemy as they die and Haunt cards return
-    /// to the hand once. Dead heroes are handled by <see cref="FinishActionAsync"/>.
+    /// Removes dead cards until none are left: Haunt cards return to the hand once, Brood cards leave Lost Souls
+    /// behind and Darkness cards curse a random enemy as they die. Dead heroes are handled by
+    /// <see cref="FinishActionAsync"/>.
     /// </summary>
     private void ResolveDeaths(GameRoom room)
     {
@@ -177,6 +195,12 @@ public sealed partial class GameEngine
             foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Haunt && !d.card.Haunted && !d.card.IsToken))
             {
                 ReturnToHand(room, side, card);
+            }
+
+            foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Brood))
+            {
+                Trigger(room, card);
+                SummonLostSouls(room, side, card, card.AbilityValue, card.SlotId);
             }
 
             foreach (var (side, card) in dead.Where(d => d.card.RaceId == Races.Darkness && !d.card.IsToken))
@@ -274,8 +298,50 @@ public sealed partial class GameEngine
         room.LogLine(text);
     }
 
-    /// <summary>What happens when a card enters the arena: Lightbringer blessing and Summon.</summary>
-    private static void OnPlay(GameRoom room, GamePlayer gp, Card card)
+    /// <summary>A card ability fires on its own (on play, at the start of the turn, on death): shown by the clients.</summary>
+    private static void Trigger(GameRoom room, Card card)
+    {
+        room.Event("trigger", new JsonObject
+        {
+            ["abilityId"] = card.AbilityId,
+            ["src"] = Ref(card),
+            ["label"] = card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValueOverride) : null,
+        });
+    }
+
+    /// <summary>
+    /// Summons up to <paramref name="count"/> Lost Souls: the first in <paramref name="slot"/> if it is free, the rest
+    /// as close to it as possible.
+    /// </summary>
+    private static void SummonLostSouls(GameRoom room, GamePlayer gp, Card source, int count, int slot)
+    {
+        var summoned = 0;
+        for (var i = 0; i < count; i++)
+        {
+            int? free = gp.BoardCards.ContainsKey(slot) ? gp.FreeSlotNear(slot) : slot;
+            if (free is not { } at)
+            {
+                break;
+            }
+
+            var token = Card.LostSoul();
+            token.SlotId = at;
+            token.HasAttacked = true;
+            gp.BoardCards[at] = token;
+            room.Event("summon", new JsonObject { ["src"] = source.Cid, ["owner"] = gp.Ident, ["card"] = token.ToJson() });
+            summoned++;
+        }
+
+        if (summoned > 0)
+        {
+            var text = $"{source.Name} summons {(summoned == 1 ? "a Lost Soul" : $"{summoned} Lost Souls")}.";
+            room.Logger.Add(GameLogKind.Summon, source.Id, source.Id, "Card", "Card", text);
+            room.LogLine(text);
+        }
+    }
+
+    /// <summary>What happens when a card enters the arena: Lightbringer blessing and the on-play abilities.</summary>
+    private void OnPlay(GameRoom room, GamePlayer gp, Card card)
     {
         if (card.RaceId == Races.Lightbringer)
         {
@@ -287,17 +353,96 @@ public sealed partial class GameEngine
             }
         }
 
-        if (card.AbilityId == Ability.Summon && gp.FreeSlotNear(card.SlotId) is { } slot)
+        var value = card.AbilityValue;
+        switch (card.AbilityId)
         {
-            var token = Card.LostSoul();
-            token.SlotId = slot;
-            token.HasAttacked = true;
-            gp.BoardCards[slot] = token;
-            var text = $"{card.Name} summons a Lost Soul.";
-            room.Logger.Add(GameLogKind.Summon, card.Id, card.Id, "Card", "Card", text);
-            room.Event("summon", new JsonObject { ["src"] = card.Cid, ["owner"] = gp.Ident, ["card"] = token.ToJson() });
-            room.LogLine(text);
+            case Ability.Summon:
+                if (gp.FreeSlotNear(card.SlotId) is not null)
+                {
+                    Trigger(room, card);
+                    SummonLostSouls(room, gp, card, value, gp.FreeSlotNear(card.SlotId)!.Value);
+                }
+
+                break;
+
+            case Ability.Rally:
+            {
+                var neighbours = new[] { card.SlotId - 1, card.SlotId + 1 }
+                    .Select(slot => gp.BoardCards.GetValueOrDefault(slot)).OfType<Card>().ToList();
+                if (neighbours.Count == 0)
+                {
+                    break;
+                }
+
+                Trigger(room, card);
+                foreach (var n in neighbours)
+                {
+                    n.Attack += value;
+                    room.Event("buff", new JsonObject { ["to"] = Ref(n), ["src"] = Ref(card), ["attack"] = n.Attack, ["health"] = n.Health, ["maxHealth"] = n.MaxHealth, ["armor"] = n.Armor });
+                }
+
+                LogTrigger(room, card, $"{card.Name} rallies {string.Join(" and ", neighbours.Select(n => n.Name))} (+{value} attack).");
+                break;
+            }
+
+            case Ability.Insight:
+                Trigger(room, card);
+                LogTrigger(room, card, $"{card.Name} reveals {(value == 1 ? "a card" : $"{value} cards")}.");
+                Draw(room, gp, value);
+                break;
+
+            case Ability.Inferno:
+            {
+                var enemy = room.Other(gp);
+                var targets = enemy.BoardCards.Values.OrderBy(c => c.SlotId).ToList();
+                Trigger(room, card);
+                LogTrigger(room, card, $"{card.Name} sets the enemy line ablaze ({value} damage to every enemy card).");
+                foreach (var target in targets)
+                {
+                    Damage(room, target, value, gp, card);
+                }
+
+                break;
+            }
         }
+
+        ResolveDeaths(room);
+    }
+
+    /// <summary>Start of a player's turn: Regenerate and Grow.</summary>
+    private void StartOfTurn(GameRoom room, GamePlayer gp)
+    {
+        foreach (var card in gp.BoardCards.Values.OrderBy(c => c.SlotId).ToList())
+        {
+            switch (card.AbilityId)
+            {
+                case Ability.Regenerate when card.Health < card.MaxHealth:
+                {
+                    Trigger(room, card);
+                    var healed = Heal(room, card, card.AbilityValue);
+                    LogTrigger(room, card, $"{card.Name} regenerates {healed} health.");
+                    break;
+                }
+
+                case Ability.Grow:
+                {
+                    var value = card.AbilityValue;
+                    Trigger(room, card);
+                    card.Attack += value;
+                    card.Health += value;
+                    card.MaxHealth += value;
+                    room.Event("buff", new JsonObject { ["to"] = Ref(card), ["src"] = Ref(card), ["attack"] = card.Attack, ["health"] = card.Health, ["maxHealth"] = card.MaxHealth, ["armor"] = card.Armor });
+                    LogTrigger(room, card, $"{card.Name} grows stronger (+{value}/+{value}).");
+                    break;
+                }
+            }
+        }
+    }
+
+    private static void LogTrigger(GameRoom room, Card card, string text)
+    {
+        room.Logger.Add(GameLogKind.AbilityTriggered, card.Id, card.Id, "Card", "Card", text);
+        room.LogLine(text);
     }
 
     /// <summary>Resolves the ability of a board card. Returns <c>false</c> (and tells the player why) if it cannot be used.</summary>
@@ -313,21 +458,29 @@ public sealed partial class GameEngine
             _ => null,
         };
 
-        string? error = (card.AbilityId, type) switch
+        var targetName = type switch
         {
-            (null, _) or (Ability.Taunt or Ability.Summon or Ability.Haunt or Ability.Charge, _) => "This card has no ability to use!",
+            TargetType.FriendlyCard => "friendlyCard",
+            TargetType.OwnHero => "ownHero",
+            TargetType.EnemyHero => "enemyHero",
+            _ => "enemyCard",
+        };
+        string? error = card.AbilityId switch
+        {
+            var id when !GameRules.IsActivated(id) => "This card has no ability to use!",
             _ when target is null => "Pick a valid target!",
-            (Ability.Heal or Ability.Harden, TargetType.FriendlyCard or TargetType.OwnHero) => null,
-            (Ability.Heal, _) => "Cannot heal the enemy!",
-            (Ability.Harden, _) => "Can only harden friendly targets!",
-            (Ability.Sacrifice, TargetType.FriendlyCard) when target == card => "Cannot cast on itself!",
-            (Ability.Sacrifice, TargetType.FriendlyCard or TargetType.OwnHero) => null,
-            (Ability.Sacrifice, _) => "Can only target friendly!",
-            (Ability.Paralyze, TargetType.EnemyCard) => null,
-            (Ability.Paralyze, _) => "Can only paralyze enemy cards!",
-            (Ability.Burn, TargetType.EnemyCard or TargetType.EnemyHero) => null,
-            (Ability.Burn, _) => "Can only burn enemies!",
-            _ => "This card has no ability to use!",
+            { } id when !GameRules.AbilityTargets(id).Contains(targetName) => id switch
+            {
+                Ability.Heal => "Cannot heal the enemy!",
+                Ability.Harden => "Can only harden friendly targets!",
+                Ability.Sacrifice => "Can only target friendly!",
+                Ability.Paralyze => "Can only paralyze enemy cards!",
+                Ability.Burn => "Can only burn enemies!",
+                Ability.Drain => "Can only drain enemies!",
+                _ => "Pick a valid target!",
+            },
+            Ability.Sacrifice when target == card => "Cannot cast on itself!",
+            _ => null,
         };
         if (error is not null)
         {
@@ -344,7 +497,7 @@ public sealed partial class GameEngine
         {
             case Ability.Heal:
             {
-                var amount = GameRules.HealAmount + (card.RaceId == Races.Lightbringer ? 2 : 0);
+                var amount = card.AbilityValue + (card.RaceId == Races.Lightbringer ? GameRules.LightbringerHealBonus : 0);
                 var healed = Heal(room, target!, amount);
                 var text = $"{card.Name} heals {NameOf(target!)} for {healed}.";
                 if (target is Card healedCard)
@@ -403,8 +556,8 @@ public sealed partial class GameEngine
 
             case Ability.Harden:
             {
-                GainArmor(room, target!, GameRules.HardenArmor);
-                var text = $"{card.Name} hardens {NameOf(target!)} (+{GameRules.HardenArmor} armor).";
+                GainArmor(room, target!, card.AbilityValue);
+                var text = $"{card.Name} hardens {NameOf(target!)} (+{card.AbilityValue} armor).";
                 room.Logger.Add(GameLogKind.AbilityHarden, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 break;
@@ -412,10 +565,25 @@ public sealed partial class GameEngine
 
             case Ability.Burn:
             {
-                var text = $"{card.Name} burns {NameOf(target!)} for {GameRules.BurnDamage}.";
+                var text = $"{card.Name} burns {NameOf(target!)} for {card.AbilityValue}.";
                 room.Logger.Add(GameLogKind.AbilityBurn, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
-                Damage(room, target!, GameRules.BurnDamage, gp, card);
+                Damage(room, target!, card.AbilityValue, gp, card);
+                break;
+            }
+
+            case Ability.Drain:
+            {
+                var text = $"{card.Name} drains {NameOf(target!)} for {card.AbilityValue}.";
+                room.Logger.Add(GameLogKind.AbilityDrain, card.Id, targetDbId, "Card", targetType, text);
+                room.LogLine(text);
+                Damage(room, target!, card.AbilityValue, gp, card);
+                var healed = Heal(room, gp, card.AbilityValue, emit: false);
+                if (healed > 0)
+                {
+                    room.Event("lifesteal", new JsonObject { ["src"] = Ref(target!), ["to"] = Ref(gp), ["amount"] = healed, ["health"] = gp.Health });
+                }
+
                 break;
             }
         }

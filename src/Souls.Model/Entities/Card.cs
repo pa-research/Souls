@@ -5,6 +5,9 @@ public class Card
     public int Id { get; set; }
     public int? AbilityId { get; set; }
     public Ability? Ability { get; set; }
+
+    /// <summary>Strength of the ability (Burn 3, Heal 4, ...); <c>null</c> uses the ability's default.</summary>
+    public int? AbilityValue { get; set; }
     public int? RaceId { get; set; }
     public Race? Race { get; set; }
     public required string Name { get; set; }
@@ -19,4 +22,10 @@ public class Card
 
     /// <summary>Relative URL of the card portrait image.</summary>
     public string? Portrait { get; set; }
+
+    /// <summary>See <see cref="Model.Rarity"/>: limits the copies in a deck.</summary>
+    public int Rarity { get; set; } = Model.Rarity.Common;
+
+    /// <summary>A line of story text shown under the rules text.</summary>
+    public string? Flavor { get; set; }
 }

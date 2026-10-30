@@ -5,7 +5,7 @@
 import * as THREE from '/lib/three/three.module.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
-import { Card3D, SlotMarker, FLAT_FACE_UP } from './cards.js';
+import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
@@ -30,7 +30,11 @@ const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 
 // Colours of abilities (by ability id) and hero powers (by class).
-export const ABILITY_COLORS = { 1: 0x6dff7a, 2: 0xc77dff, 5: 0x7fb8ff, 7: 0xc0c8d0, 8: 0xff7a1a };
+export const ABILITY_COLORS = {
+    1: 0xffe08a, 2: 0xc77dff, 3: 0x9aa5b1, 4: 0x9b59b6, 5: 0x7fb8ff, 6: 0xb39ddb, 7: 0xc0c8d0, 8: 0xff7a1a, 9: 0xffd34d,
+    10: 0xffd36b, 11: 0xff5a3a, 12: 0x7dff4a, 13: 0xffc04d, 14: 0x7fd1ff, 15: 0xff6a1a, 16: 0x6dff7a, 17: 0xff8c3a, 18: 0xd0104a, 19: 0x9b59b6,
+};
+const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
 const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1 };
 
 // Messages that change the game: played in order through the queue.
@@ -368,22 +372,27 @@ export class Game {
         if (!(obj instanceof Card3D) || !obj.revealed) return null;
         const d = obj.data;
         const level = Number(d.level) || 1;
-        const ability = d.ability && r.abilities[d.ability.id];
+        const rules = d.ability && r.abilities[d.ability.id];
+        const ability = d.ability ? { name: d.ability.label || d.ability.name || rules?.name, text: d.ability.text || rules?.text, activated: d.ability.activated ?? rules?.activated } : null;
         const race = d.race && r.races[d.race.id];
+        const rarity = RARITY[Number(d.rarity)];
         const side = this.sideOf(obj);
         const onBoard = side.board.get(obj.cid) === obj;
         const exhausted = onBoard && side.isPlayer && this.yourTurn && !obj.ready && !d.paralyzed;
         return {
             title: `${d.name}${level > 1 ? ' ' + '\u2605'.repeat(level - 1) : ''}`,
-            sub: [race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            rarity,
             stats: { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
             blocks: [
                 ability ? { label: ability.name, text: ability.text } : null,
                 race ? { kind: 'race', label: race.name, text: race.text } : null,
+                d.ward ? { kind: 'info', text: r.keywords.ward || 'Ward: the next damage breaks the ward instead.' } : null,
                 d.paralyzed ? { kind: 'warn', text: r.keywords.paralyzed } : null,
                 exhausted ? { kind: 'warn', text: 'Exhausted: it already acted this turn, or arrived this turn.' } : null,
-                !onBoard && side.isPlayer && !ability?.activated && ability?.name !== 'Charge' ? { kind: 'info', text: r.keywords.summoningSick } : null,
+                !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
                 level > 1 ? { kind: 'info', text: `Level ${level}: +${level - 1} attack and health.` } : null,
+                d.flavor ? { kind: 'flavor', text: d.flavor } : null,
             ],
         };
     }
@@ -709,13 +718,37 @@ export class Game {
         card.setData(data);
         this.layoutHand(side);
         if (side.isPlayer) this.player.hero.previewCost(null);
+        const rarity = Number(data.rarity) || 0;
+        if (rarity >= 3) this.rareEntrance(card, rarity, side);
         return card.moveTo(this.boardPose(side, card), side.isPlayer ? 380 : 750, Ease.cubicOut, { arc: side.isPlayer ? 40 : 220 }).then(() => {
+            if (rarity === 4) {
+                this.effects.shockwave(card.position, 0xffc04d, 700);
+                this.effects.shake(26);
+                this.stage.punch(10);
+                this.flameJets(1.2, 4);
+                this.cheer(1);
+            }
             sound.play('CARD_MOUNT', 0.5);
             this.effects.burst(card.position.clone().setY(8), { color: 0xd9b26f, count: 26, speed: 160, size: 34, life: 600, gravity: -300, up: 0.3 });
             this.effects.shockwave(card.position, side.isPlayer ? 0x8fd3ff : 0xff9a8f, 220);
             this.effects.shake(5);
             this.cheer(0.2);
         });
+    }
+
+    /** Epic and legendary cards arrive with a column of light (and, for legendaries, a fanfare and their name). */
+    rareEntrance(card, rarity, side) {
+        const pose = this.boardPose(side, card);
+        const legendary = rarity === 4;
+        this.effects.lightPillar(pose.position, legendary ? 0xffd36b : 0xc77dff, legendary ? 2400 : 1500);
+        this.effects.sigil(pose.position, legendary ? 0xffc04d : 0xb26bff, legendary ? 420 : 300, legendary ? 1800 : 1200);
+        if (legendary) {
+            this.crowd.spell('legendary');
+            this.ui.legendary(String(card.data.name ?? ''), side.isPlayer ? null : 'enemy');
+            this.celebrate(4, [0xffd34d, 0xffffff, 0xffb02e]);
+        } else {
+            this.crowd.spell('insight', 0.8);
+        }
     }
 
     onNewCards(side, p) {
@@ -849,6 +882,9 @@ export class Game {
                 case 'burned': await this.showBurned(e); break;
                 case 'fatigue': this.showFatigue(e); await wait(320); break;
                 case 'timeout': this.ui.screenMessage(`${this.heroOf(e.id).info.name} ran out of time!`); break;
+                case 'trigger': await this.showTrigger(e); break;
+                case 'ward': await this.showWardBreak(e); break;
+                case 'venom': this.showVenom(e); await wait(240); break;
                 case 'heroDeath': this.heroDeath(this.heroOf(e.id)); break;
                 case 'log': this.ui.logLine(e.text); break;
                 default: break;
@@ -881,6 +917,11 @@ export class Game {
         const hit = home.position.clone().lerp(target, 0.8).setY(defender instanceof Hero3D ? target.y : 40);
         await attacker.moveTo({ position: hit, quaternion: FLAT_FACE_UP.clone(), scale: 1.1 }, 190, Ease.quadIn);
         this.impact(defender, hit);
+        if (attacker.abilityId === ABILITY.FURY) {
+            this.effects.slash(hit, ABILITY_COLORS[ABILITY.FURY]);
+            this.crowd.spell('whoosh');
+        }
+        if (attacker.abilityId === ABILITY.VENOM) this.effects.venom(hit);
         return {
             finish: async () => {
                 await wait(180);
@@ -931,7 +972,8 @@ export class Game {
         if (target instanceof Hero3D) target.setInfo({ health: String(e.health) });
         else target.setData({ health: e.health });
         sound.play('ABILITY_HEAL', 0.2);
-        this.effects.sparkle(this.targetPoint(target));
+        this.effects.sparkle(this.targetPoint(target), 0x9dff8a, 34);
+        this.effects.spiral(this.targetPoint(target).setY(10), 0xffe9a0, { count: 18, radius: 60, height: 160, duration: 600, size: 22 });
         this.textAbove(target, `+${e.amount}`, '#4cd328');
     }
 
@@ -948,6 +990,11 @@ export class Game {
     showBuff(e) {
         const target = this.resolve(e.to);
         if (!target) return;
+        const source = e.src ? this.resolve(e.src) : null;
+        if (source && source !== target) {
+            this.effects.projectile(this.targetPoint(source), this.targetPoint(target), ABILITY_COLORS[ABILITY.RALLY], 320, 30);
+            this.textAbove(target, `+${Math.max(0, Number(e.attack) - Number(target.data?.attack ?? e.attack))}\u2694`, '#ffc04d', 64);
+        }
         if (target instanceof Hero3D) {
             target.setInfo({ attack: String(e.attack), health: String(e.health), maxHealth: e.maxHealth, armor: e.armor });
             target.flash(2, 0xc77dff);
@@ -984,24 +1031,126 @@ export class Game {
         const from = this.targetPoint(source);
         const to = this.targetPoint(target);
         switch (e.abilityId) {
-            case 2: { // Sacrifice: the card flies into its target
+            case ABILITY.SACRIFICE: { // the card flies into its target as a soul
                 sound.play('ABILITY_SACRIFICE', 0.3);
                 source.dying = true;
+                this.effects.soul(from, 0xc77dff);
                 await source.moveTo({ position: to.clone().setY(to.y + 60), quaternion: FLAT_FACE_UP.clone(), scale: 0.4 }, 650, Ease.quadIn, { arc: 160 });
+                this.effects.burst(to, { color: 0xc77dff, count: 50, speed: 260, size: 40, life: 800 });
                 return;
             }
-            case 8: // Burn: a fireball
-                await this.effects.projectile(from, to, color, 480, 54);
+            case ABILITY.BURN: // a fireball
+                this.crowd.spell('fire', 0.7);
+                await this.effects.projectile(from, to, color, 480, 58);
+                this.effects.burst(to, { color: 0x3a2a20, count: 16, speed: 120, size: 70, life: 1300, gravity: 60 });
                 this.flameJets(0.5, 1);
                 return;
-            case 5: // Paralyze: an ice bolt
+            case ABILITY.PARALYZE: // an ice bolt
+                this.crowd.spell('ice');
                 await this.effects.projectile(from, to, color, 420, 40);
+                this.effects.burst(to, { color: 0xe0f2ff, count: 40, speed: 260, size: 26, life: 700, gravity: -200 });
+                return;
+            case ABILITY.DRAIN: // a bolt of blood; the life flows back with the lifesteal event
+                this.crowd.spell('drain');
+                await this.effects.projectile(from, to, color, 460, 46);
+                this.effects.burst(to, { color: 0x5a0018, count: 30, speed: 200, size: 40, life: 900, gravity: -150 });
+                return;
+            case ABILITY.HARDEN: // stone skin
+                this.crowd.spell('ward', 0.7);
+                this.effects.beam(from, to, color, 600);
+                await wait(220);
+                this.effects.shockwave(target instanceof Hero3D ? target.podium.position : to.clone().setY(4), 0xc0c8d0, 240);
+                return;
+            case ABILITY.HEAL:
+                sound.play('ABILITY_HEAL', 0.2);
+                this.crowd.spell('heal');
+                this.effects.beam(from, to, color, 700);
+                await wait(260);
                 return;
             default:
-                if (e.abilityId === 1) sound.play('ABILITY_HEAL', 0.2);
                 this.effects.beam(from, to, color, 700);
                 await wait(260);
         }
+    }
+
+    /** An ability that fires on its own (on play, at the start of the turn, on death). */
+    async showTrigger(e) {
+        const source = this.resolve(e.src) || this.cardByCid(e.src?.cid) || this.dying.get(e.src?.cid);
+        const color = ABILITY_COLORS[e.abilityId] ?? 0xffffff;
+        if (!source) return;
+        const at = source instanceof Hero3D ? source.position.clone() : source.position.clone();
+        const label = e.label || this.rules.abilities[e.abilityId]?.name;
+        if (label) this.textAbove(source, label, '#ffd98a', 52);
+        switch (e.abilityId) {
+            case ABILITY.SUMMON:
+            case ABILITY.BROOD:
+                this.crowd.spell('summon');
+                this.effects.sigil(at, color, 300, 1300);
+                await wait(250);
+                return;
+            case ABILITY.RALLY:
+                this.crowd.spell('rally');
+                this.effects.shockwave(at, color, 320);
+                this.effects.sparkle(source.center(), color, 40);
+                await wait(300);
+                return;
+            case ABILITY.INSIGHT:
+                this.crowd.spell('insight');
+                this.effects.sigil(at, color, 240, 1000);
+                this.effects.spiral(at.clone().setY(10), color, { count: 30, radius: 80, height: 260 });
+                await wait(350);
+                return;
+            case ABILITY.INFERNO: {
+                this.crowd.spell('fire', 1.2);
+                this.effects.sigil(at, color, 300, 900);
+                this.effects.shake(16);
+                this.stage.punch(6);
+                this.flameJets(1, 4);
+                const enemy = this.sideOf(source) === this.player ? this.opponent : this.player;
+                const points = [...enemy.board.values()].sort((a, b) => a.data.slotId - b.data.slotId).map(c => c.position.clone());
+                if (points.length === 0) points.push(enemy.hero.position.clone().setY(10));
+                await this.effects.fireSweep(points);
+                return;
+            }
+            case ABILITY.REGENERATE:
+                this.crowd.spell('heal', 0.7);
+                this.effects.spiral(at.clone().setY(10), color, { count: 28, radius: 75, height: 200 });
+                await wait(300);
+                return;
+            case ABILITY.GROW:
+                this.crowd.spell('grow');
+                this.effects.burst(source.center(), { color, count: 50, speed: 160, size: 40, life: 900, gravity: 220, up: 1 });
+                if (source instanceof Card3D) {
+                    await tweens.to(source.body.scale, { x: 1.25, y: 1.25, z: 1.25 }, 220, Ease.quadOut);
+                    await tweens.to(source.body.scale, { x: 1, y: 1, z: 1 }, 420, Ease.elasticOut);
+                }
+                return;
+            default:
+                this.effects.sparkle(source.center ? source.center() : at, color, 30);
+                await wait(200);
+        }
+    }
+
+    /** A ward breaks instead of the card taking damage. */
+    async showWardBreak(e) {
+        const card = this.resolve(e.to);
+        if (!(card instanceof Card3D)) return;
+        this.crowd.spell('shatter');
+        this.effects.shards(card.center());
+        this.textAbove(card, 'Blocked!', '#ffd36b', 60);
+        card.breakWard();
+        await wait(200);
+    }
+
+    showVenom(e) {
+        const target = this.resolve(e.to);
+        if (!target) return;
+        this.crowd.spell('venom');
+        this.effects.venom(this.targetPoint(target));
+        // Above the damage number of the same hit.
+        const point = this.targetPoint(target);
+        this.effects.floatText('Venom!', point.setY(point.y + 170), '#8dff5a', 64);
+        if (target instanceof Card3D) target.setGlow(0x5aff2a, 1);
     }
 
     async showHeroPower(e) {
@@ -1023,6 +1172,7 @@ export class Game {
         const card = this.cardByCid(e.cid);
         if (!card) return;
         card.setData({ paralyzed: !!e.on });
+        if (e.on) this.crowd.spell('ice', 0.8);
         this.effects.burst(card.center(), { color: 0xbfe0ff, count: 40, speed: 200, size: 34, life: 800, gravity: 200 });
     }
 
@@ -1032,6 +1182,7 @@ export class Game {
         const card = this.addBoardCard(side, e.card);
         const pose = this.boardPose(side, card);
         card.setPose({ ...pose, scale: 0.01 });
+        this.effects.sigil(card.position, 0x9b59b6, 240, 1100);
         this.effects.lightPillar(card.position, 0x9b59b6, 1200);
         this.effects.burst(card.position.clone().setY(20), { color: 0x9b59b6, count: 30, speed: 180, size: 36, life: 700 });
         await card.moveTo(pose, 420, Ease.backOut);
@@ -1051,6 +1202,7 @@ export class Game {
         const target = this.resolve(e.dst);
         if (!target) return;
         const from = source ? source.center() : this.heroOf(e.owner).position.clone();
+        this.crowd.spell('curse');
         await this.effects.projectile(from, this.targetPoint(target), 0x8e44ad, 520, 48);
     }
 
@@ -1058,6 +1210,8 @@ export class Game {
         const card = this.cardByCid(e.cid);
         if (!card) return;
         this.effects.sparkle(card.center(), 0xb39ddb, 40);
+        this.effects.soul(card.center(), 0xd1c4e9);
+        this.crowd.spell('curse', 0.6);
         this.textAbove(card, 'Haunt!', '#d1c4e9', 60);
     }
 
@@ -1128,14 +1282,14 @@ export class Game {
         this.cheer(0.6);
         this.arena.screenFlash('KO!');
         this.flameJets(0.7, 2);
-        this.effects.burst(card.center(), { color: 0x9b59b6, count: 60, speed: 220, size: 46, life: 1100, gravity: 120 });
-        const start = card.position.clone();
-        tweens.run(900, t => {
-            card.position.y = start.y + t * 60;
-            card.body.rotation.z = t * 0.6;
-            card.setOpacity(1 - t);
-            card.scale.setScalar(Math.max(0.01, card.scale.x * 0.98));
-        }, Ease.quadIn, 150).then(() => {
+        const center = card.center();
+        this.effects.burst(center, { color: 0x9b59b6, count: 40, speed: 220, size: 46, life: 1000, gravity: 120 });
+        // A moment for the killing blow to land, then the card breaks apart and its soul leaves the arena.
+        tweens.wait(160).then(() => {
+            this.crowd.spell('shatter', 0.8);
+            this.effects.soul(center, card.rarity === 4 ? 0xffd36b : 0xb9a8ff);
+            return card.shatter(this.root, { force: card.rarity === 4 ? 1.4 : 1 });
+        }).then(() => {
             if (this.dying.get(card.cid) === card) this.dying.delete(card.cid);
             card.dispose();
         });
@@ -1358,6 +1512,7 @@ export class Game {
         }
         // Board cards stand up to face the camera in the low views; ready cards breathe.
         this.tilt += (this.stage.viewInfo.cardTilt - this.tilt) * Math.min(1, dt / 250);
+        updateFoil(now);
         for (const side of [this.player, this.opponent]) {
             for (const card of side.board.values()) {
                 card.setTilt(this.tilt);

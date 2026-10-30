@@ -195,7 +195,7 @@
             if (manager.board[cardData.cid]) return 0;
             card = manager.CreateBoardCard(cardData);
             if (card) Animation.Card.Appear(card);
-            return 500;
+            return 500 + RareEntrance(cardData, slot, hero === engine.opponent, 300);
         }
 
         card.canAct = false;
@@ -206,7 +206,26 @@
         manager.AddCardBoard(card);
         if (hero === engine.player && hero.holdingCard === card) hero.holdingCard = undefined;
         card.PutInSlot(slot);
-        return 650;
+        return 650 + RareEntrance(cardData, slot, hero === engine.opponent, 450);
+    }
+
+    /// <summary>
+    /// Epic and legendary cards make an entrance when they land (after landAfter ms): legendary cards with a golden
+    /// flash and their name in a "Legendary" banner, epic cards with a smaller violet flash. Returns the extra time
+    /// the next message waits.
+    /// </summary>
+    function RareEntrance(cardData, slot, enemy, landAfter) {
+        var engine = that.engine;
+        var rarity = Number(cardData.rarity) || 0;
+        if (rarity < 3 || cardData.token) return 0;
+        var legendary = rarity === 4;
+        if (legendary) engine.hud.Legendary(String(cardData.name === undefined || cardData.name === null ? '' : cardData.name), enemy);
+        setTimeout(function () {
+            if (engine.ended) return;
+            engine.hud.Flash(legendary ? 'legendary' : 'epic', slot.x, slot.y);
+            Animation.Fx.RareEntrance(engine, slot.x, slot.y, legendary);
+        }, landAfter);
+        return legendary ? 650 : 250;
     }
 
     /// Clears the board when the game state is sent again (reconnect).

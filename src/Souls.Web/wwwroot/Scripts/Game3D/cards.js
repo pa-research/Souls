@@ -9,7 +9,19 @@ const THICKNESS = 3;
 const FACE_SCALE = 2; // the face is painted at 2x the 330x450 card texture so it stays sharp when zoomed
 
 // Card JSON fields that change what the face looks like.
-const PAINTED = ['id', 'name', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait'];
+const PAINTED = ['id', 'name', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait', 'rarity', 'flavor', 'ward'];
+
+export const RARITY = { 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary' };
+const GEM_COLORS = {
+    1: ['#f4f1ea', '#a39e93', '#5b574f'],
+    2: ['#bfe4ff', '#2f8de4', '#123b73'],
+    3: ['#f1d4ff', '#a24ff0', '#45136e'],
+    4: ['#fff3c4', '#ff9d1c', '#7a3a00'],
+};
+
+/** Time for the foil shimmer of epic and legendary cards (seconds); see updateFoil. */
+const FOIL_TIME = { value: 0 };
+export function updateFoil(now) { FOIL_TIME.value = now / 1000; }
 
 function roundedRect(w, h, r) {
     const shape = new THREE.Shape();
@@ -124,6 +136,83 @@ function drawStar(g, x, y, r) {
     g.stroke();
 }
 
+/** The rarity gem between the portrait and the text box. */
+function drawGem(g, x, y, rarity) {
+    const [light, mid, dark] = GEM_COLORS[rarity] || GEM_COLORS[1];
+    g.save();
+    if (rarity >= 3) {
+        g.shadowColor = mid;
+        g.shadowBlur = rarity === 4 ? 18 : 12;
+    }
+    g.beginPath();
+    g.moveTo(x, y - 17);
+    g.lineTo(x + 15, y - 4);
+    g.lineTo(x + 9, y + 15);
+    g.lineTo(x - 9, y + 15);
+    g.lineTo(x - 15, y - 4);
+    g.closePath();
+    const fill = g.createLinearGradient(x - 15, y - 17, x + 15, y + 15);
+    fill.addColorStop(0, light);
+    fill.addColorStop(0.45, mid);
+    fill.addColorStop(1, dark);
+    g.fillStyle = fill;
+    g.fill();
+    g.shadowBlur = 0;
+    g.lineWidth = 2.5;
+    g.strokeStyle = '#1b130b';
+    g.stroke();
+    // Facets.
+    g.beginPath();
+    g.moveTo(x - 15, y - 4); g.lineTo(x - 6, y - 2); g.lineTo(x, y - 17);
+    g.moveTo(x + 15, y - 4); g.lineTo(x + 6, y - 2); g.lineTo(x, y - 17);
+    g.moveTo(x - 6, y - 2); g.lineTo(x + 6, y - 2); g.lineTo(x + 9, y + 15);
+    g.moveTo(x - 6, y - 2); g.lineTo(x - 9, y + 15);
+    g.lineWidth = 1.2;
+    g.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    g.stroke();
+    g.restore();
+}
+
+/** Legendary cards wear a golden crown over the name banner and a gilded edge; epic cards a violet edge. */
+function drawRarityFrame(g, rarity) {
+    if (rarity < 3) return;
+    g.save();
+    const gold = rarity === 4;
+    const edge = g.createLinearGradient(0, 0, 330, 450);
+    edge.addColorStop(0, gold ? '#fff0b8' : '#e7c6ff');
+    edge.addColorStop(0.5, gold ? '#d99a1e' : '#9b4de0');
+    edge.addColorStop(1, gold ? '#fff0b8' : '#e7c6ff');
+    g.strokeStyle = edge;
+    g.lineWidth = gold ? 6 : 4;
+    g.shadowColor = gold ? '#ffb02e' : '#b26bff';
+    g.shadowBlur = 10;
+    g.beginPath();
+    g.roundRect(5, 5, 320, 440, 16);
+    g.stroke();
+    if (gold) {
+        // Crown.
+        g.shadowBlur = 8;
+        g.beginPath();
+        g.moveTo(140, 30); g.lineTo(136, 8); g.lineTo(150, 19); g.lineTo(165, 2); g.lineTo(180, 19); g.lineTo(194, 8); g.lineTo(190, 30);
+        g.closePath();
+        const crown = g.createLinearGradient(0, 2, 0, 30);
+        crown.addColorStop(0, '#fff6cf');
+        crown.addColorStop(1, '#c97d0b');
+        g.fillStyle = crown;
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeStyle = '#4a2a00';
+        g.stroke();
+        for (const [cx, cy] of [[136, 8], [165, 3], [194, 8]]) {
+            g.beginPath();
+            g.arc(cx, cy, 3.5, 0, Math.PI * 2);
+            g.fillStyle = '#ff4d4d';
+            g.fill();
+        }
+    }
+    g.restore();
+}
+
 /** Paints the card face exactly like the classic client lays it out on the 330x450 race texture. */
 async function paintFace(canvas, data, portraits) {
     const g = canvas.getContext('2d');
@@ -144,16 +233,31 @@ async function paintFace(canvas, data, portraits) {
     const level = Number(data.level) || 1;
     for (let i = 0; i < level - 1; i++) drawStar(g, 165 + (i - (level - 2) / 2) * 34, 104, 15);
 
-    drawText(g, String(data.name ?? ''), 165, 58, { size: 40, fill: 'black', stroke: null, align: 'center', baseline: 'middle', maxWidth: 200 });
+    // Clear of the race emblem in the top right corner.
+    drawText(g, String(data.name ?? ''), 158, 58, { size: 40, fill: 'black', stroke: null, align: 'center', baseline: 'middle', maxWidth: 172 });
     drawText(g, String(data.cost ?? ''), 38, 44, { align: 'center', baseline: 'middle' });
-    if (data.ability && data.ability.name) {
-        g.font = '45px Arial, Helvetica, sans-serif';
-        let size = 45;
-        let lines = wrapLines(g, data.ability.name, 280);
-        while (lines.length > 2 && size > 24) { size -= 4; g.font = `${size}px Arial, Helvetica, sans-serif`; lines = wrapLines(g, data.ability.name, 280); }
-        const top = 330 - (lines.length - 1) * size * 0.55;
-        lines.forEach((l, i) => drawText(g, l, 165, top + i * size * 1.05, { size, fill: 'black', stroke: null, align: 'center', baseline: 'middle', maxWidth: 280 }));
+    // Text box: the ability as printed ("Burn 3") and its rules text; vanilla cards show their flavor text.
+    const ability = data.ability;
+    const label = ability ? (ability.label || ability.name) : null;
+    if (label) {
+        drawText(g, label, 165, 312, { size: 30, fill: '#1b130b', stroke: null, align: 'center', baseline: 'middle', maxWidth: 236 });
+        if (ability.text) {
+            g.font = '15px Arial, Helvetica, sans-serif';
+            const lines = wrapLines(g, ability.text, 238).slice(0, 2);
+            lines.forEach((l, i) => drawText(g, l, 165, 336 + i * 17, { size: 15, fill: '#2b2118', stroke: null, align: 'center', baseline: 'middle', maxWidth: 240 }));
+        }
+    } else if (data.flavor) {
+        g.font = 'italic 16px Georgia, serif';
+        const lines = wrapLines(g, data.flavor, 236).slice(0, 3);
+        const top = 327 - (lines.length - 1) * 9;
+        g.fillStyle = '#3a2d20';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        lines.forEach((l, i) => g.fillText(l, 165, top + i * 18));
     }
+    const rarity = Number(data.rarity) || 0;
+    if (rarity && !data.token) drawGem(g, 165, 287, rarity);
+    drawRarityFrame(g, rarity);
     drawText(g, String(data.attack ?? ''), 40, 408, { align: 'center', baseline: 'middle' });
     const damaged = data.maxHealth !== undefined && Number(data.health) < Number(data.maxHealth);
     drawText(g, String(data.health ?? ''), 298, 406, { align: 'center', baseline: 'middle', fill: damaged ? '#ff7b7b' : 'white' });
@@ -191,6 +295,22 @@ export class Card3D extends THREE.Group {
         this.faceTexture.colorSpace = THREE.SRGBColorSpace;
         this.faceTexture.anisotropy = 8;
         this.faceMaterial = new THREE.MeshStandardMaterial({ map: this.faceTexture, roughness: 0.55, metalness: 0.05, transparent: true });
+        // Epic and legendary cards: a band of light sweeps across the face now and then.
+        this.foil = { value: 0 };
+        this.faceMaterial.onBeforeCompile = shader => {
+            shader.uniforms.uFoil = this.foil;
+            shader.uniforms.uFoilTime = FOIL_TIME;
+            shader.fragmentShader = 'uniform float uFoil;\nuniform float uFoilTime;\n' + shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+                if (uFoil > 0.0) {
+                    float phase = mod(uFoilTime * 0.32 + uFoil * 0.37, 2.6) - 0.6;
+                    float d = vMapUv.x * 0.75 + (1.0 - vMapUv.y) * 0.55 - phase * 1.3;
+                    float sheen = exp(-d * d * 55.0) + 0.35 * exp(-(d + 0.12) * (d + 0.12) * 260.0);
+                    vec3 tint = uFoil > 1.5
+                        ? mix(vec3(1.0, 0.82, 0.38), vec3(1.0, 0.55, 0.85), 0.5 + 0.5 * sin(vMapUv.y * 9.0 + uFoilTime))
+                        : vec3(0.72, 0.52, 1.0);
+                    totalEmissiveRadiance += tint * sheen * (uFoil > 1.5 ? 0.55 : 0.4);
+                }`);
+        };
         this.backMaterial = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05, transparent: true });
         cardBackTexture().then(t => { this.backMaterial.map = t; this.backMaterial.needsUpdate = true; });
 
@@ -221,8 +341,147 @@ export class Card3D extends THREE.Group {
         if (data.ability === null) this.data.ability = null;
         this.revealed = true;
         this.setTaunt(!!this.data.taunt);
+        this.setWard(!!this.data.ward);
+        this.setFrozen(!!this.data.paralyzed);
+        const rarity = Number(this.data.rarity) || 0;
+        this.foil.value = rarity === 4 ? 2 : rarity === 3 ? 1 : 0;
         this.faceMaterial.color.set(this.data.paralyzed ? 0xb8d4ff : 0xffffff);
         this.repaint();
+    }
+
+    get rarity() { return Number(this.data.rarity) || 0; }
+
+    /** A golden bubble over the card: an unbroken ward. */
+    setWard(on) {
+        if (on && !this.wardBubble) {
+            const material = new THREE.ShaderMaterial({
+                uniforms: { time: FOIL_TIME, color: { value: new THREE.Color(0xffd36b) }, fade: { value: 0 } },
+                vertexShader: `varying vec3 vNormal; varying vec3 vView; varying vec3 vPos;
+                    void main() {
+                        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                        vNormal = normalize(normalMatrix * normal);
+                        vView = normalize(-mv.xyz);
+                        vPos = position;
+                        gl_Position = projectionMatrix * mv;
+                    }`,
+                fragmentShader: `uniform float time; uniform vec3 color; uniform float fade; varying vec3 vNormal; varying vec3 vView; varying vec3 vPos;
+                    void main() {
+                        float rim = pow(1.0 - abs(dot(vNormal, vView)), 2.2);
+                        float hex = 0.5 + 0.5 * sin(vPos.x * 0.12 + time * 1.5) * sin(vPos.y * 0.12 - time * 1.1);
+                        float alpha = (0.08 + rim * 0.75 + hex * 0.06) * fade;
+                        gl_FragColor = vec4(color * (0.6 + rim), alpha);
+                    }`,
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+            });
+            this.wardBubble = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), material);
+            this.wardBubble.scale.set(CARD_W * 0.66, CARD_H * 0.62, 46);
+            this.wardBubble.renderOrder = 8;
+            this.body.add(this.wardBubble);
+            tweens.to(material.uniforms.fade, { value: 1 }, 400, Ease.quadOut);
+        }
+        if (!on && this.wardBubble && !this.wardBreaking) this.removeWard();
+    }
+
+    /** The ward breaks: the bubble flares up and bursts. Resolves when it is gone. */
+    breakWard() {
+        this.data.ward = false;
+        if (!this.wardBubble || this.wardBreaking) return Promise.resolve();
+        this.wardBreaking = true;
+        const bubble = this.wardBubble;
+        const from = bubble.scale.clone();
+        return tweens.run(380, t => {
+            bubble.scale.copy(from).multiplyScalar(1 + t * 0.45);
+            bubble.material.uniforms.fade.value = t < 0.25 ? 1 + t * 6 : (1 - t) * 2;
+        }, Ease.quadOut).then(() => { this.wardBreaking = false; this.removeWard(); });
+    }
+
+    removeWard() {
+        if (!this.wardBubble) return;
+        this.wardBubble.removeFromParent();
+        this.wardBubble.geometry.dispose();
+        this.wardBubble.material.dispose();
+        this.wardBubble = null;
+    }
+
+    /** Ice crystals around the card while it is paralyzed. */
+    setFrozen(on) {
+        if (on && !this.ice) {
+            this.ice = new THREE.Group();
+            const material = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, emissive: 0x2a6fb0, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.82 });
+            const spots = [[-62, -88, 0.9], [58, -92, 1.1], [-70, 20, 0.8], [66, 40, 1], [-40, 96, 0.7], [44, 100, 0.85], [0, -100, 0.75]];
+            for (const [x, y, s] of spots) {
+                const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), material);
+                crystal.scale.set(10 * s, 30 * s, 10 * s);
+                crystal.position.set(x, y, 12 + Math.random() * 8);
+                crystal.rotation.set(Math.random() * 0.8 - 0.4, Math.random() * Math.PI, (x < 0 ? 0.5 : -0.5) + Math.random() * 0.3);
+                this.ice.add(crystal);
+            }
+            this.ice.scale.setScalar(0.01);
+            this.body.add(this.ice);
+            tweens.to(this.ice.scale, { x: 1, y: 1, z: 1 }, 350, Ease.backOut);
+        } else if (!on && this.ice) {
+            const ice = this.ice;
+            this.ice = null;
+            tweens.to(ice.scale, { x: 0.01, y: 0.01, z: 0.01 }, 300, Ease.quadIn).then(() => {
+                ice.removeFromParent();
+                ice.children.forEach(c => c.geometry.dispose());
+                ice.children[0]?.material.dispose();
+            });
+        }
+    }
+
+    /**
+     * Breaks the card into pieces of its own face that fly apart and fade (death). The card itself is hidden at once;
+     * resolves when the pieces are gone.
+     */
+    shatter(scene, { force = 1 } = {}) {
+        const pieces = [];
+        const cols = 4, rows = 5;
+        const w = CARD_W / cols, h = CARD_H / rows;
+        this.body.updateWorldMatrix(true, false);
+        const world = this.body.matrixWorld;
+        const material = new THREE.MeshStandardMaterial({ map: this.faceTexture, roughness: 0.6, transparent: true, side: THREE.DoubleSide });
+        for (let i = 0; i < cols; i++) {
+            for (let j = 0; j < rows; j++) {
+                // Two triangles per cell, each jittered a little so the cracks are not a grid.
+                const x0 = -CARD_W / 2 + i * w, y0 = -CARD_H / 2 + j * h;
+                for (const tri of [[[0, 0], [1, 0], [0, 1]], [[1, 0], [1, 1], [0, 1]]]) {
+                    const geometry = new THREE.BufferGeometry();
+                    const pts = tri.map(([a, b]) => [x0 + a * w, y0 + b * h]);
+                    const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
+                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [x - cx, y - cy, 0]), 3));
+                    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [x / CARD_W + 0.5, y / CARD_H + 0.5]), 2));
+                    geometry.computeVertexNormals();
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(cx, cy, THICKNESS / 2 + 0.1).applyMatrix4(world);
+                    mesh.quaternion.setFromRotationMatrix(world);
+                    mesh.scale.setScalar(this.scale.x);
+                    const out = new THREE.Vector3(cx, cy, 30).normalize();
+                    const velocity = out.applyQuaternion(mesh.quaternion).multiplyScalar((160 + Math.random() * 260) * force);
+                    velocity.y += 120 + Math.random() * 200;
+                    pieces.push({ mesh, velocity, spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(10) });
+                    scene.add(mesh);
+                }
+            }
+        }
+        this.visible = false;
+        let last = performance.now();
+        return tweens.run(1100, t => {
+            const now = performance.now();
+            const s = Math.min(0.05, (now - last) / 1000);
+            last = now;
+            for (const p of pieces) {
+                p.velocity.y -= 900 * s;
+                p.mesh.position.addScaledVector(p.velocity, s);
+                p.mesh.rotation.x += p.spin.x * s;
+                p.mesh.rotation.y += p.spin.y * s;
+                p.mesh.rotation.z += p.spin.z * s;
+            }
+            material.opacity = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        }, Ease.linear).then(() => {
+            for (const p of pieces) { p.mesh.removeFromParent(); p.mesh.geometry.dispose(); }
+            material.dispose();
+        });
     }
 
     setStat(key, value) {
@@ -330,6 +589,8 @@ export class Card3D extends THREE.Group {
     }
 
     dispose() {
+        this.removeWard();
+        if (this.ice) { this.ice.children.forEach(c => c.geometry.dispose()); this.ice.children[0]?.material.dispose(); this.ice = null; }
         this.faceTexture.dispose();
         this.faceMaterial.dispose();
         this.backMaterial.dispose();

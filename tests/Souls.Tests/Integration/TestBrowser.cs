@@ -64,7 +64,8 @@ public sealed partial class TestBrowser(HttpClient client) : IDisposable
 
     public async Task RegisterAsync(string name, string password, int playerType = 1, params int[] cards)
     {
-        cards = cards.Length > 0 ? cards : [1, 2, 3, 5, 6];
+        // Huy, Bobby, Gloom Imp, Draugr and Blood Thrall: common starter cards.
+        cards = cards.Length > 0 ? cards : [5, 6, 20, 23, 31];
         var fields = new List<KeyValuePair<string, string>>
         {
             new("Form.Username", name),

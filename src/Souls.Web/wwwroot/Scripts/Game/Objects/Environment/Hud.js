@@ -117,9 +117,11 @@ define("hud", ["conf"], function (Conf) {
     /// Icon and class of a battle log line, from its wording (the server's log texts).
     function Classify(line) {
         if (/ wins against | play a draw/.test(line)) return ['trophy', 'end'];
-        if (/ dies| has fallen/.test(line)) return ['skull', 'death'];
-        if (/ attacks | burns |curse/.test(line)) return ['sword', 'attack'];
-        if (/ heal| drains | blesses /.test(line)) return ['heart-pulse', 'heal'];
+        if (/ dies| has fallen|'s venom kills /.test(line)) return ['skull', 'death'];
+        if (/ attacks | burns |curse| ablaze/.test(line)) return ['sword', 'attack'];
+        if (/ heal| drains | blesses | regenerates /.test(line)) return ['heart-pulse', 'heal'];
+        if (/'s ward breaks/.test(line)) return ['shield', ''];
+        if (/ rallies | grows stronger| reveals /.test(line)) return ['sparkles', ''];
         if (/ gives the turn |ran out of time/.test(line)) return ['hourglass', 'turn'];
         if (/ plays | summons /.test(line)) return ['deck', ''];
         if (/ uses | paralyzes | hardens /.test(line)) return ['wand', ''];
@@ -162,6 +164,7 @@ define("hud", ["conf"], function (Conf) {
         this.overCanvas = true;
         this.toasts = null;
         this.banner = null;
+        this.legend = null;
     }
 
     Hud.prototype.El = El;
@@ -325,6 +328,35 @@ define("hud", ["conf"], function (Conf) {
         });
         setTimeout(done, 2300); // the animation lasts 2.1 s (2.2 s with reduced motion)
         return banner;
+    }
+
+    /// A legendary card was played: "Legendary" and its name in gold across the board (.sg-legend, as in the 3D
+    /// client; enemy: the opponent's). Removed after its animation (2.6 s).
+    Hud.prototype.Legendary = function (name, enemy) {
+        var that = this;
+        if (this.legend) Remove(this.legend);
+        var legend = El('div', 'sg-legend' + (enemy ? ' enemy' : ''), this.Root());
+        legend.setAttribute('aria-hidden', 'true');
+        El('small', '', legend, 'Legendary');
+        El('b', '', legend, name);
+        this.legend = legend;
+        setTimeout(function () {
+            Remove(legend);
+            if (that.legend === legend) that.legend = null;
+        }, 2700);
+        return legend;
+    }
+
+    /// A flash of light over the board centred on a stage point: kind "legendary" (gold, the whole board) or "epic"
+    /// (violet, smaller). Removed after its animation.
+    Hud.prototype.Flash = function (kind, x, y) {
+        var flash = El('div', 'souls-classic-flash ' + (kind === 'legendary' ? 'legendary' : 'epic'), this.Root());
+        flash.setAttribute('aria-hidden', 'true');
+        var p = this.ToOverlay(x, y);
+        flash.style.setProperty('--x', Math.round(p.x) + 'px');
+        flash.style.setProperty('--y', Math.round(p.y) + 'px');
+        setTimeout(function () { Remove(flash); }, 1300);
+        return flash;
     }
 
     /// The container of the short messages (created on first use, announced politely).
