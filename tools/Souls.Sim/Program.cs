@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,9 +95,11 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
 static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random)
 {
     var state = new ServerState();
-    var scopes = new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
+    var scopes = services.GetRequiredService<IServiceScopeFactory>();
     var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System,
-        Options.Create(new GameOptions { TurnTime = TimeSpan.FromHours(1) }), NullLogger<GameEngine>.Instance);
+        Options.Create(new GameOptions { TurnTime = TimeSpan.FromHours(1) }),
+        new GameMetrics(services.GetRequiredService<IMeterFactory>(), state), NullLogger<GameEngine>.Instance);
     var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
     var aiOptions = new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero };
     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
