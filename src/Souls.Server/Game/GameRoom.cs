@@ -6,7 +6,7 @@ using Souls.Server.Objects;
 
 namespace Souls.Server.Game;
 
-public sealed class GameRoom
+public sealed partial class GameRoom
 {
     private static int _gameCounter;
 
@@ -350,12 +350,16 @@ public sealed class GameRoom
         }
     }
 
-    /// <summary>Adds a message to the replay only.</summary>
-    public void Record(Response response) => _replay.Add(new JsonObject
+    /// <summary>Adds a message to the replay only. Every change players can see is recorded, so it marks the room <see cref="Dirty"/>.</summary>
+    public void Record(Response response)
     {
-        ["t"] = (long)(_time.GetUtcNow() - StartedAt).TotalMilliseconds,
-        ["m"] = JsonNode.Parse(response.ToJson()),
-    });
+        Dirty = true;
+        _replay.Add(new JsonObject
+        {
+            ["t"] = (long)(_time.GetUtcNow() - StartedAt).TotalMilliseconds,
+            ["m"] = JsonNode.Parse(response.ToJson()),
+        });
+    }
 
     public static JsonArray HiddenHand(GamePlayer gp) =>
         new([.. gp.HandCards.Values.Select(c => (JsonNode)new JsonObject { ["cid"] = c.Cid })]);

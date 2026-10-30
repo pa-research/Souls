@@ -1,4 +1,6 @@
-# The game server keeps running games in memory: run exactly one replica and replace it with Recreate.
+# Running games are saved in PostgreSQL and survive a restart (the server saves them on SIGTERM and the next pod
+# restores them), but each game is played in the memory of one instance: run exactly one replica and replace it with
+# Recreate, so two pods never resume the same games.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

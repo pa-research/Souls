@@ -22,7 +22,8 @@ restore)
 *)
     rm -f souls-*.partial
     file=souls-$(date -u +%Y%m%dT%H%M%SZ).dump
-    pg_dump --format=custom --file="$file.partial"
+    # Saved running games are only valid for the instance that stops; a restored dump must not resume them.
+    pg_dump --format=custom --exclude-table-data='running_game*' --file="$file.partial"
     mv "$file.partial" "$file"
     ls souls-*.dump | sort -r | tail -n "+$((SOULS_BACKUP_KEEP + 1))" | xargs -r rm -f
     echo "created $file" ;;

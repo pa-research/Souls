@@ -205,6 +205,15 @@ Both clients speak the same WebSocket protocol, so a classic player and a 3D pla
 Switching clients in the middle of a match reloads the page and resumes the running game (the server
 re-sends the game state when a player reconnects within the grace period).
 
+Running games also survive a restart or redeploy of the game server. The server saves every running game in
+PostgreSQL after each action (table `running_game`, one JSON row per game, and `running_game_replay`, the replay so
+far, appended message by message) and deletes it when the game ends, just before the result is stored, so a result
+is never counted twice. On SIGTERM it saves all games and closes every connection ("Server restarting"); the next
+instance restores them before it accepts connections, and both clients and spectators reconnect on their own (for
+about a minute) and continue where they were: hands, decks in order, board, mana, armor, hero power, mulligan,
+whose turn it is with the time it had left (at least 15 seconds), the used spells, the battle log and the replay.
+The practice bot picks up the game too. Players then have the usual grace period to come back.
+
 ## Security fixes
 
 The original application had several critical issues. Fixed in this port:
@@ -334,8 +343,9 @@ Notes:
 
 - Each pod runs `migrate` as an init container; EF Core locks the database while migrating, so concurrent
   rollouts are safe.
-- **The game server must run as a single replica** (running games live in memory); it uses the `Recreate`
-  strategy. The web tier scales horizontally.
+- **The game server must run as a single replica**: running games survive a restart or redeploy (they are saved in
+  the database), but each one is played in the memory of one instance. It uses the `Recreate` strategy, so two
+  instances never resume the same games. The web tier scales horizontally.
 - NetworkPolicies need a CNI that enforces them (Calico, Cilium, recent kindnet, ...). If your ingress
   controller lives in another namespace than `ingress-nginx`, patch `allow-http-from-ingress`.
 - Behind a TLS-terminating ingress the apps trust `X-Forwarded-*` from the private address ranges
@@ -529,8 +539,28 @@ have to log in again.
 
 ## Known limitations
 
-- The game server keeps games in memory: one replica, and a restart ends running games (finished games and
-  their replays are stored).
+- **One game server replica.** Running games survive restarts and redeploys, but a game lives in the memory of
+  the instance that plays it, and so do the matchmaking queues, pending challenges, who is online, the chat rooms
+  and spectators. A second replica would get half of the connections (Caddy and the ingress balance `/ws/*` freely)
+  and, for example, pair nobody across replicas, miss challenges and chat between players on different replicas,
+  and both resume the saved games after a deploy. What it needs, all on PostgreSQL:
+  1. *Ownership*: `running_game` gets `owner` and `lease_until`. A replica claims unowned or expired games
+     (`UPDATE ... WHERE lease_until < now()`, `FOR UPDATE SKIP LOCKED`), renews its leases every few seconds, writes
+     snapshots only `WHERE owner = <itself>` (fencing: a replica that lost a lease stops playing that game), and
+     releases its leases when it stops so another replica takes the games over at once.
+  2. *Routing*: the players and spectators of a game must reach its owner. Either the proxy routes by game (the
+     client connects to `/ws/game/<replica>` after a redirect message; needs one route per pod, e.g. a headless
+     Service), or the replica holding a socket forwards requests to the owner and the owner sends the responses
+     back over `LISTEN/NOTIFY` (one channel per replica; payloads above 8000 bytes, such as GameSync, go through a
+     table and the notification carries the key).
+  3. *Shared lobby state*: the queues as a table matched by the lease holder of a single "matchmaker" lease,
+     presence (online players for challenges, admin and chat) as rows with a heartbeat, challenges as rows, and
+     chat messages over the same notification channel. Season rollover is transactional already.
+  4. *Deployment*: replicas > 1 and `RollingUpdate` only once a stopping replica hands its games over (point 1).
+
+  If the server stays down longer than the clients retry (about a minute), players have to reload the page; a game
+  whose players do not come back within the grace period after the restart is forfeited like any abandoned game.
+  The in-game chat room between the two players is not restored (chat history is not stored).
 - The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known
   vulnerabilities and run with a strict CSP; the Modern 3D client is the up-to-date alternative.
 - Backups stay on the same host (Compose volume) or cluster (PersistentVolumeClaim); off-site copies are not

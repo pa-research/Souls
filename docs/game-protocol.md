@@ -120,6 +120,19 @@ the starting hand is refused (GeneralMessage) and the player may choose again; a
 - A player who reconnects during the mulligan gets GameCreate with `mulligan` again (`done` if they already chose).
   Leaving the game during the mulligan forfeits it, like leaving later.
 
+### Reconnecting
+
+A player whose connection drops has 60 seconds (`Souls:Matchmaker:ReconnectGracePeriod`) to come back; then the game
+is forfeited (at once in a practice game). To rejoin, a client opens a new connection, sends Login and its queue
+request (QueueNormal or QueuePractice): a player in a running game gets GameCreate (`create: false`, `mulligan` while
+it runs) and GameSync instead of being queued. A spectator sends Spectate with the same `gameId` again.
+
+Running games survive a restart of the game server, with the same game ids, cids and state. When it stops, the
+server closes every connection with the reason `Server restarting`; the next instance accepts connections once the
+games are restored. The clients reconnect as above, retrying for about a minute. The turn (or the mulligan) keeps the
+time it had left, but at least 15 seconds; the grace period starts again when the server starts. There are no new
+messages.
+
 ## Requests (client to server)
 
 | Type | Name | Payload |

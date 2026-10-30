@@ -55,7 +55,6 @@ public static class WebSocketEndpoints
         var state = services.GetRequiredService<ServerState>();
         var registry = services.GetRequiredService<ConnectionRegistry>();
         var metrics = services.GetRequiredService<GameMetrics>();
-        var stopping = services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
         using var connection = new WebSocketConnection(socket, services.GetRequiredService<IOptions<WebSocketOptionsConfig>>().Value, logger)
@@ -64,14 +63,20 @@ public static class WebSocketEndpoints
             User = user,
             Principal = context.User,
         };
-        using var aborted = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, stopping);
 
+        // A stopping server closes the connections itself (see Matchmaker.StoppingAsync), after saving the games, so
+        // the connection does not end with the application; one that arrives while it stops is closed at once.
         registry.Add(connection);
+        if (state.ShuttingDown)
+        {
+            connection.Close(Matchmaker.RestartReason);
+        }
+
         metrics.ConnectionOpened(kind);
         logger.LogDebug("{Connection} connected", connection);
         try
         {
-            await connection.RunAsync(message => state.RunExclusiveAsync(() => ProcessAsync(service, connection, message, logger, metrics)), aborted.Token);
+            await connection.RunAsync(message => state.RunExclusiveAsync(() => ProcessAsync(service, connection, message, logger, metrics)), context.RequestAborted);
         }
         finally
         {

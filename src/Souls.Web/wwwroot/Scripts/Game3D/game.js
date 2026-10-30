@@ -1560,13 +1560,14 @@ export class Game {
             this.ui.showQueue('You opened the game in another window.');
             return;
         }
-        if (this.reconnects++ < 5) {
-            this.ui.screenMessage('Connection lost, reconnecting...');
+        // Running games survive a restart of the game server: keep trying for about a minute (a redeploy).
+        if (this.reconnects++ < 12) {
+            this.ui.screenMessage(/restarting/i.test(reason) ? 'The server is restarting, reconnecting...' : 'Connection lost, reconnecting...');
             setTimeout(() => {
                 this.gameSocket.connect();
                 if (!this.spectator) this.chatSocket.connect();
                 this.login();
-            }, 1500 * this.reconnects);
+            }, Math.min(1500 * this.reconnects, 5000));
         } else {
             this.ui.showQueue('Connection lost. Reload the page to continue.');
         }

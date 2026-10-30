@@ -35,6 +35,7 @@ builder.Services.Configure<GameOptions>(builder.Configuration.GetSection("Souls:
 builder.Services.AddSingleton<ServerState>();
 builder.Services.AddSingleton<GameMetrics>();
 builder.Services.AddSingleton<GameEngine>();
+builder.Services.AddSingleton<GameStore>();
 builder.Services.AddSingleton<ChatEngine>();
 builder.Services.AddSingleton<PlayerRepository>();
 builder.Services.AddSingleton<GameService>();
