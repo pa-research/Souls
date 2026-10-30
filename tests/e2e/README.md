@@ -29,12 +29,17 @@ node rules3d.js https://localhost out/rules3d 2
 `ui_capture.js` logs in as the admin with `SOULS_ADMIN_PASSWORD`, or the password `deploy/compose/init-secrets.sh`
 wrote.
 
-Without a GPU, Chromium renders WebGL in software and the scripted players get slow. Give turns more time, or they
-time out (for example with an override file next to `compose.yaml`):
+Without a GPU, Chromium renders WebGL in software and the scripted players get slow. Give turns and the mulligan more time, or
+they time out (for example with an override file next to `compose.yaml`):
 
 ```yaml
 services:
   server:
     environment:
       Souls__Game__TurnTime: "00:08:00"
+      Souls__Game__MulliganTime: "00:03:00"
 ```
+
+CI (job "Browser tests" in `.github/workflows/ci.yml`) runs `ui_capture.js`, `classic_ui.js` and `rules3d.js` on
+every pull request against the stack with `compose.ci.yaml` (long turns). Those three exit non-zero on a `FAIL` line
+or a console problem, which fails the pull request; the screenshots are the `e2e-screenshots` artifact.
