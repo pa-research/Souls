@@ -14,7 +14,9 @@ const adminPassword = process.env.SOULS_ADMIN_PASSWORD
     const ctx = await browser.newContext({ viewport, ignoreHTTPSErrors: true, deviceScaleFactor: device === 'phone' ? 2 : 1, isMobile: device === 'phone', hasTouch: device === 'phone' });
     const page = await ctx.newPage();
     page.on('pageerror', e => problems.push(`${device} ${page.url()}: ${e.message}`));
-    page.on('console', m => { if (m.type() === 'error' && !/api\.github/.test(m.text())) problems.push(`${device} ${page.url()}: ${m.text()}`); });
+    // The 404 pages are visited on purpose; their status shows up as a console error.
+    const deliberate404 = m => /status of 404/.test(m.text()) && /\/(nope|Status\/404)$/.test(page.url());
+    page.on('console', m => { if (m.type() === 'error' && !/api\.github/.test(m.text()) && !deliberate404(m)) problems.push(`${device} ${page.url()}: ${m.text()}`); });
     const shot = async name => { await page.waitForTimeout(700); await page.screenshot({ path: `${out}/${device}-${name}.jpg`, type: 'jpeg', quality: 70, fullPage: true, animations: 'disabled' }); };
     await page.goto(base + '/'); await shot('home-anon');
     await page.goto(base + '/Player/Login'); await shot('login');
@@ -42,5 +44,6 @@ const adminPassword = process.env.SOULS_ADMIN_PASSWORD
     await ctx.close();
   }
   console.log('problems:', problems.length ? problems.slice(0, 10) : 'none');
+  if (problems.length) process.exitCode = 1;
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

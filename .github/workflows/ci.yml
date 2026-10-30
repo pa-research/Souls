@@ -64,6 +64,80 @@ jobs:
           touch deploy/compose/secrets/postgres-password deploy/compose/secrets/ConnectionStrings__Souls deploy/compose/secrets/Souls__Admin__Password
           docker compose config --quiet
 
+  # Plays real games in headless Chromium against the Compose stack (tests/e2e). Fails when a client breaks.
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      COMPOSE_FILE: compose.yaml:tests/e2e/compose.ci.yaml
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Same layer cache as the images job, loaded under the names compose.yaml uses.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          load: true
+          tags: souls-web:latest
+          cache-from: type=gha,scope=web
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: server
+          load: true
+          tags: souls-server:latest
+          cache-from: type=gha,scope=server
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install Playwright
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps --only-shell chromium
+
+      # `up` returns once web and server are healthy and Caddy has started; then wait for Caddy to answer.
+      - name: Start the stack
+        id: stack
+        run: |
+          ./deploy/compose/init-secrets.sh
+          docker compose up -d --no-build
+          curl -fsSk --retry 30 --retry-all-errors --retry-delay 2 -o /dev/null https://localhost/
+
+      - name: ui_capture.js
+        working-directory: tests/e2e
+        run: node ui_capture.js https://localhost out/ui_capture
+
+      - name: classic_ui.js
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: tests/e2e
+        run: node classic_ui.js https://localhost out/classic_ui
+
+      - name: rules3d.js
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: tests/e2e
+        run: node rules3d.js https://localhost out/rules3d
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: tests/e2e/out
+          if-no-files-found: ignore
+
   images:
     name: Container images
     needs: test

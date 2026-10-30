@@ -105,39 +105,46 @@ const RESULT = [230, 231, 233];
       step('turn timer is shown', timer !== null && Number(timer) > 0 && Number(timer) <= limit, `${timer}s left of ${limit}`);
     }
 
+    let sync;
     // Hero power (Rabid Bite: an enemy) when there is mana.
-    let sync = await hook('sync()');
-    if (sync && sync.heroes[ident].canUsePower) {
-      const power = await hook('power()');
-      if (power && !power.disabled) {
-        const from = frames.length;
-        await page.mouse.click(power.x, power.y); await sleep(500);
-        if (counts.powers === 0) await snap('power-armed');
-        const target = await hook('opponentHero()');
-        await page.mouse.move(target.x, target.y, { steps: 4 }); await sleep(300);
-        await page.mouse.click(target.x, target.y);
-        const ev = await waitFrame(f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t === 'heroPower'), from, 6000);
-        if (ev) counts.powers++; else counts.refused++;
-        await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
-        await sleep(800);
+    const usePower = async () => {
+      sync = await hook('sync()');
+      if (sync && sync.heroes[ident].canUsePower) {
+        const power = await hook('power()');
+        if (power && !power.disabled) {
+          const from = frames.length;
+          await page.mouse.click(power.x, power.y); await sleep(500);
+          if (counts.powers === 0) await snap('power-armed');
+          const target = await hook('opponentHero()');
+          await page.mouse.move(target.x, target.y, { steps: 4 }); await sleep(300);
+          await page.mouse.click(target.x, target.y);
+          const ev = await waitFrame(f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t === 'heroPower'), from, 6000);
+          if (ev) counts.powers++; else counts.refused++;
+          await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
+          await sleep(800);
+        }
       }
-    }
-
+    };
     // Play affordable cards.
-    for (let k = 0; k < 4; k++) {
-      const st = await hook('state()');
-      const taken = new Set(st.board.map(b => b.slotId));
-      const slot = [3, 2, 4, 1, 5, 0, 6].find(i => !taken.has(i));
-      const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending);
-      if (pick < 0 || slot === undefined) break;
-      const from = frames.length;
-      await drag(await hook(`handCard(${pick})`), await hook(`slot(${slot})`));
-      const used = await waitFrame(f => f.dir === 'in' && [207, 208, 202, 213, 232].includes(f.type), from, 6000);
-      if (used && used.type === 207) counts.played++; else { counts.refused++; console.log('card refused:', JSON.stringify(used && { type: used.type, p: used.p }), JSON.stringify(st.hand), 'mana', st.mana); break; }
-      await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
-      await sleep(900);
-      if (frames.slice(from).some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
-    }
+    const playCards = async () => {
+      for (let k = 0; k < 4; k++) {
+        const st = await hook('state()');
+        const taken = new Set(st.board.map(b => b.slotId));
+        const slot = [3, 2, 4, 1, 5, 0, 6].find(i => !taken.has(i));
+        const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending);
+        if (pick < 0 || slot === undefined) break;
+        const from = frames.length;
+        await drag(await hook(`handCard(${pick})`), await hook(`slot(${slot})`));
+        const used = await waitFrame(f => f.dir === 'in' && [207, 208, 202, 213, 232].includes(f.type), from, 6000);
+        if (used && used.type === 207) counts.played++; else { counts.refused++; console.log('card refused:', JSON.stringify(used && { type: used.type, p: used.p }), JSON.stringify(st.hand), 'mana', st.mana); break; }
+        await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
+        await sleep(900);
+        if (frames.slice(from).some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
+      }
+    };
+    // Until a card has been played, cards go first and the hero power gets the mana left (a strong bot can
+    // end the game before the script ever plays a card otherwise).
+    if (counts.played === 0) { await playCards(); await usePower(); } else { await usePower(); await playCards(); }
 
     // Cards act: abilities on sensible targets, the rest attack (Taunt first).
     for (let k = 0; k < 8; k++) {
@@ -239,5 +246,6 @@ const RESULT = [230, 231, 233];
 
   fs.writeFileSync(`${out}/steps.json`, JSON.stringify(steps, null, 2));
   console.log(`${steps.filter(s => s.ok).length}/${steps.length} passed`);
+  if (steps.some(s => !s.ok)) process.exitCode = 1;
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
