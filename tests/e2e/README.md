@@ -36,3 +36,7 @@ services:
     environment:
       Souls__Game__TurnTime: "00:08:00"
 ```
+
+CI (job "Browser tests" in `.github/workflows/ci.yml`) runs `ui_capture.js`, `classic_ui.js` and `rules3d.js` on
+every pull request against the stack with `compose.ci.yaml` (long turns). Those three exit non-zero on a `FAIL` line
+or a console problem, which fails the pull request; the screenshots are the `e2e-screenshots` artifact.

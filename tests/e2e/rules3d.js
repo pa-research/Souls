@@ -229,5 +229,6 @@ const RESULT = [230, 231, 233];
 
   fs.writeFileSync(`${out}/steps.json`, JSON.stringify(steps, null, 2));
   console.log(`${steps.filter(s => s.ok).length}/${steps.length} passed`);
+  if (steps.some(s => !s.ok)) process.exitCode = 1;
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

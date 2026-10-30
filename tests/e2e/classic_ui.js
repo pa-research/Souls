@@ -107,5 +107,6 @@ const RESULT = [230, 231, 233];
   await sleep(2000);
   await shot('later');
   console.log('problems:', problems.length ? problems.slice(0, 6) : 'none');
+  if (problems.length || !created || !counts.played) process.exitCode = 1;
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

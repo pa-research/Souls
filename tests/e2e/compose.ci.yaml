@@ -1,0 +1,6 @@
+# Browser tests in CI (.github/workflows/ci.yml): headless Chromium renders WebGL in software, so the scripted
+# players need long turns.
+services:
+  server:
+    environment:
+      Souls__Game__TurnTime: "00:08:00"
