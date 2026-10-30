@@ -8,9 +8,10 @@ public static class WebSocketEndpoints
 {
     public static IEndpointRouteBuilder MapSoulsWebSockets(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.Map("/ws/game", context => HandleAsync(context, ServiceKind.Game));
-        endpoints.Map("/ws/chat", context => HandleAsync(context, ServiceKind.Chat));
-        endpoints.Map("/ws/admin", context => HandleAsync(context, ServiceKind.Admin));
+        // A WebSocket request lasts as long as the connection; it would distort the HTTP request durations.
+        endpoints.Map("/ws/game", context => HandleAsync(context, ServiceKind.Game)).DisableHttpMetrics();
+        endpoints.Map("/ws/chat", context => HandleAsync(context, ServiceKind.Chat)).DisableHttpMetrics();
+        endpoints.Map("/ws/admin", context => HandleAsync(context, ServiceKind.Admin)).DisableHttpMetrics();
         return endpoints;
     }
 
@@ -53,6 +54,7 @@ public static class WebSocketEndpoints
         };
         var state = services.GetRequiredService<ServerState>();
         var registry = services.GetRequiredService<ConnectionRegistry>();
+        var metrics = services.GetRequiredService<GameMetrics>();
         var stopping = services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
@@ -65,20 +67,22 @@ public static class WebSocketEndpoints
         using var aborted = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, stopping);
 
         registry.Add(connection);
+        metrics.ConnectionOpened(kind);
         logger.LogDebug("{Connection} connected", connection);
         try
         {
-            await connection.RunAsync(message => state.RunExclusiveAsync(() => ProcessAsync(service, connection, message, logger)), aborted.Token);
+            await connection.RunAsync(message => state.RunExclusiveAsync(() => ProcessAsync(service, connection, message, logger, metrics)), aborted.Token);
         }
         finally
         {
             registry.Remove(connection);
+            metrics.ConnectionClosed(kind);
             await state.RunExclusiveAsync(() => service.OnDisconnectedAsync(connection));
             logger.LogDebug("{Connection} disconnected", connection);
         }
     }
 
-    internal static async Task ProcessAsync(IClientService service, Connection connection, Message message, ILogger logger)
+    internal static async Task ProcessAsync(IClientService service, Connection connection, Message message, ILogger logger, GameMetrics metrics)
     {
         try
         {
@@ -91,6 +95,7 @@ public static class WebSocketEndpoints
         catch (Exception e) when (e is not OperationCanceledException)
         {
             logger.LogError(e, "Failed to process message {Type} from {Connection}", message.Type, connection);
+            metrics.Error("message");
             connection.Send(new Response(ServiceResponse.Error, "Internal server error"));
         }
     }

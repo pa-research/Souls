@@ -11,6 +11,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Souls.Model.Security;
 
 namespace Souls.Model.Hosting;
@@ -132,6 +134,34 @@ public static class SoulsHostingExtensions
                 options.AllowedHosts = hosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             }
         });
+        return services;
+    }
+
+    /// <summary>
+    /// OpenTelemetry traces and metrics, exported with OTLP and configured by the standard <c>OTEL_*</c> environment
+    /// variables (<c>OTEL_EXPORTER_OTLP_ENDPOINT</c>, <c>OTEL_SERVICE_NAME</c>, <c>OTEL_RESOURCE_ATTRIBUTES</c>, ...).
+    /// Nothing is collected unless <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is set.
+    /// </summary>
+    public static IServiceCollection AddSoulsTelemetry(this IServiceCollection services, IConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        {
+            return services;
+        }
+
+        services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                // Health probes would be most of the traces.
+                .AddAspNetCoreInstrumentation(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/healthz"))
+                .AddHttpClientInstrumentation()
+                .AddSource("Npgsql")
+                .AddOtlpExporter())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                // .NET runtime metrics (GC, thread pool, memory) and the apps' own meters (Souls.Server).
+                .AddMeter("System.Runtime", "Souls.*")
+                .AddOtlpExporter());
         return services;
     }
 

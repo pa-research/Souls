@@ -1,0 +1,44 @@
+# Metric names as Prometheus stores OTLP metrics (dots become underscores; units and _total are appended).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: souls
+spec:
+  groups:
+    - name: souls
+      rules:
+        - alert: SoulsAppDown
+          # The apps push their metrics: no runtime metrics means the app is down or cannot reach the collector.
+          expr: |
+            absent_over_time(dotnet_process_memory_working_set_bytes{job="souls-web"}[5m])
+              or absent_over_time(dotnet_process_memory_working_set_bytes{job="souls-server"}[5m])
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.job }} has sent no metrics for 5 minutes"
+            description: "{{ $labels.job }} is down or cannot reach the OpenTelemetry Collector."
+        - alert: SoulsHttpErrorRateHigh
+          expr: |
+            sum by (job) (rate(http_server_request_duration_seconds_count{job=~"souls-web|souls-server", http_response_status_code=~"5.."}[5m]))
+              / sum by (job) (rate(http_server_request_duration_seconds_count{job=~"souls-web|souls-server"}[5m]))
+              > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.job }}: {{ $value | humanizePercentage }} of HTTP requests fail with 5xx"
+        - alert: SoulsGameServerErrors
+          expr: sum by (source) (increase(souls_errors_total[10m])) > 5
+          labels:
+            severity: warning
+          annotations:
+            summary: "Game server: {{ $value | humanize }} unhandled errors ({{ $labels.source }}) in 10 minutes"
+            description: "See the souls-server logs (Failed to process message, Matchmaking failed, Failed to store game)."
+        - alert: SoulsQueueWaitHigh
+          expr: histogram_quantile(0.95, sum by (le, mode) (rate(souls_queue_wait_time_seconds_bucket[15m]))) > 120
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "95% of {{ $labels.mode }} players wait up to {{ $value | humanizeDuration }} for a game"

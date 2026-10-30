@@ -11,6 +11,8 @@ resources:
 
 components:
   - ../../components/gateway-api
+  # Needs an OpenTelemetry Collector and the Prometheus Operator in the cluster (see the component); remove if absent.
+  - ../../components/observability
 
 secretGenerator:
   - name: souls-secrets

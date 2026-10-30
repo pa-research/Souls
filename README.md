@@ -266,10 +266,11 @@ deploy/k8s/
 ├── components/
 │   ├── postgres/         single-instance PostgreSQL StatefulSet (dev / small installs)
 │   ├── ingress/          Ingress: /ws → game server, / → web
-│   └── gateway-api/      HTTPRoute for a Gateway API implementation
+│   ├── gateway-api/      HTTPRoute for a Gateway API implementation
+│   └── observability/    OpenTelemetry settings, Grafana dashboard, Prometheus alerts (see Observability)
 └── overlays/
     ├── dev/              in-cluster PostgreSQL + Ingress on http://souls.localtest.me, locally built images
-    └── production/       managed PostgreSQL, Gateway API, HPA, pinned image tags
+    └── production/       managed PostgreSQL, Gateway API, HPA, observability, pinned image tags
 ```
 
 Local cluster (kind, k3d, minikube, Docker Desktop) with an ingress controller in the `ingress-nginx`
@@ -307,6 +308,47 @@ Notes:
   controller lives in another namespace than `ingress-nginx`, patch `allow-http-from-ingress`.
 - Behind a TLS-terminating ingress the apps trust `X-Forwarded-*` from the private address ranges
   (`Souls__TrustedProxyNetworks`); the NetworkPolicy ensures only the ingress controller can reach them.
+
+## Observability
+
+Both apps export OpenTelemetry traces and metrics over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; without
+it nothing is collected. Everything else uses the standard variables (`OTEL_SERVICE_NAME`,
+`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_RESOURCE_ATTRIBUTES`, ...).
+
+- Traces: incoming requests (not `/healthz`), outgoing HttpClient calls and PostgreSQL commands. A WebSocket
+  connection is one long request span.
+- Metrics: ASP.NET Core and Kestrel (`http.server.request.duration`, ...; WebSockets and health probes are not
+  counted), HttpClient, the .NET runtime (`System.Runtime`) and the game server's `Souls.Server` meter:
+
+| Metric | Type | Tags | |
+|---|---|---|---|
+| `souls.games.running` | gauge | | Games in progress. |
+| `souls.queue.players` | gauge | `mode` (normal, practice) | Players waiting for a game. |
+| `souls.queue.wait_time` | histogram (s) | `mode` | Time from joining the queue to the start of the game. |
+| `souls.games.finished` | counter | `mode`, `result` (win, draw, forfeit) | Games ended. |
+| `souls.websocket.connections` | up-down counter | `service` (game, chat, admin) | Open WebSocket connections. |
+| `souls.errors` | counter | `source` (message, matchmaker, store) | Unhandled errors. |
+
+On Kubernetes, the `observability` component (included in `overlays/production`) sets the variables, allows
+egress to the collector and adds a Grafana dashboard and a `PrometheusRule` (app down, HTTP 5xx ratio, game
+server errors, queue wait p95). It does not install a monitoring stack: it expects an OpenTelemetry Collector at
+`otel-collector.observability:4317`, the Prometheus Operator and Grafana's dashboard sidecar (details in its
+`kustomization.yaml`).
+
+With Compose, the apps only reach the internal networks: run a collector on the `backend` network and set the
+variables in a `compose.override.yaml`:
+
+```yaml
+services:
+  web:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: souls-web
+  server:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: souls-server
+```
 
 ## Development
 

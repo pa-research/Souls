@@ -28,6 +28,7 @@ public sealed class Matchmaker(
     TimeProvider time,
     IOptions<MatchmakerOptions> options,
     IOptions<AiOptions> aiOptions,
+    GameMetrics metrics,
     ILoggerFactory loggerFactory) : BackgroundService
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<Matchmaker>();
@@ -46,6 +47,7 @@ public sealed class Matchmaker(
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 _logger.LogError(e, "Matchmaking failed");
+                metrics.Error("matchmaker");
             }
         }
 
@@ -119,6 +121,8 @@ public sealed class Matchmaker(
             }
 
             waiting.Remove(partner);
+            metrics.QueueWaited("normal", now - first.QueuedAt);
+            metrics.QueueWaited("normal", now - partner.QueuedAt);
             engine.RemoveFromQueues(first);
             engine.RemoveFromQueues(partner);
             engine.CreateGame(new Pair<Player>(first, partner));
@@ -136,6 +140,7 @@ public sealed class Matchmaker(
                 return;
             }
 
+            metrics.QueueWaited("practice", time.GetUtcNow() - human.QueuedAt);
             engine.RemoveFromQueues(human);
 
             var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
@@ -147,7 +152,7 @@ public sealed class Matchmaker(
             var logger = loggerFactory.CreateLogger<AiPlayer>();
             var ai = new AiPlayer(
                 connection,
-                message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger)),
+                message => state.RunExclusiveAsync(() => WebSocketEndpoints.ProcessAsync(gameService, connection, message, logger, metrics)),
                 aiOptions.Value,
                 bot.Difficulty,
                 logger);
