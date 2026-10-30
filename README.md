@@ -349,6 +349,11 @@ dotnet tool restore && dotnet ef migrations add <Name> --project src/Souls.Model
 | `src/Souls.Web` | MVC site, Razor views, static assets, the classic PixiJS game client (`wwwroot/Scripts/Game`) and the three.js client (`wwwroot/Scripts/Game3D`) |
 | `src/Souls.Server` | Game engine, chat, admin service, practice bot, WebSocket endpoints |
 | `tests/Souls.Tests` | Unit tests and integration tests that host both apps against PostgreSQL |
+| `tests/e2e` | Playwright browser tests against a running stack (see its README) |
+| `tools/Souls.Sim` | Balance simulator: the bot plays itself and reports win rates |
+| `tools/card-art` | Generator for the expansion's card portraits |
+
+The plan for what comes next, with the verification status and open decisions, is [docs/PLAN.md](docs/PLAN.md).
 
 Both applications also accept two commands, used by the containers:
 `migrate` (apply migrations and seed data, then exit) and `healthcheck` (probe `/healthz/live`).

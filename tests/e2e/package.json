@@ -1,0 +1,8 @@
+{
+  "name": "souls-e2e",
+  "private": true,
+  "description": "Browser tests for Souls (Playwright). See README.md.",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
