@@ -8,7 +8,7 @@
 <p class="s-muted s-small">When the season ends, the game server stores the final standings, pays every player who played a ranked game the reward for their tier, resets every rating halfway to the start and starts the next season (it checks once a minute).</p>
 
 <form asp-action="Season" method="post" class="mb-4">
-    <div asp-validation-summary="All" class="text-danger"></div>
+    <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
     <input type="hidden" asp-for="Form.Number" />
     <div class="row g-3 mb-3">
         <div class="col-sm-6">
@@ -20,14 +20,14 @@
             <input asp-for="Form.EndsAt" asp-format="{0:yyyy-MM-ddTHH:mm}" class="form-control" />
         </div>
     </div>
-    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="submit" class="s-btn s-btn-primary"><s-icon name="save" />Save</button>
 </form>
 
 <form asp-action="Season" method="post" data-confirm="End @current.Name now? Ratings reset and rewards are paid.">
     <input type="hidden" name="Form.Number" value="@current.Number" />
     <input type="hidden" name="Form.Name" value="@current.Name" />
     <input type="hidden" name="endNow" value="true" />
-    <button type="submit" class="btn btn-outline-danger">End the season now</button>
+    <button type="submit" class="s-btn s-btn-danger">End the season now</button>
 </form>
 </section>
 </div>

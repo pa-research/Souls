@@ -144,6 +144,9 @@ function classify(line) {
     return ['flag', ''];
 }
 
+/** How long the VS splash stays up (it fades out over its last 700 ms); the mulligan opens after it. */
+export const VERSUS_MS = 4100;
+
 export class UI {
     constructor(root, config = {}) {
         this.config = config;
@@ -635,8 +638,8 @@ export class UI {
         side(player, 'left');
         el('div', 'souls3d-versus-mark', splash, 'VS');
         side(opponent, 'right');
-        setTimeout(() => splash.classList.add('leaving'), 3400);
-        setTimeout(() => splash.remove(), 4100);
+        setTimeout(() => splash.classList.add('leaving'), VERSUS_MS - 700);
+        setTimeout(() => splash.remove(), VERSUS_MS);
     }
 
     // ---- Mulligan ------------------------------------------------------------------------------------------------

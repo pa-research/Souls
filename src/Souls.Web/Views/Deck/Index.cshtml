@@ -41,7 +41,7 @@
                 <article class="s-card-wrap deck-card rarity-@entry.Card.RarityCss" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost" data-max="@entry.Card.MaxCopies" data-rarity="@entry.Card.RarityCss" data-class="@entry.Card.ClassName">
                     <partial name="_CardTile" model="entry.Card" />
                     <h2 class="s-card-name h6 mb-0">@entry.Card.Name</h2>
-                    <span class="s-rarity">@entry.Card.RarityName &middot; max @entry.Card.MaxCopies@(entry.Card.ClassName is null ? "" : $" · {entry.Card.ClassName} only")</span>
+                    <span class="s-rarity">@entry.Card.RarityName@(entry.Card.Spell ? " · Spell" : "") &middot; max @entry.Card.MaxCopies@(entry.Card.ClassName is null ? "" : $" · {entry.Card.ClassName} only")</span>
                     @if (!string.IsNullOrEmpty(entry.Card.Description))
                     {
                         <p class="s-card-desc">@entry.Card.Description</p>

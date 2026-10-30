@@ -8,6 +8,9 @@
         if (line.Contains(" attacks ", StringComparison.Ordinal) || line.Contains(" burns ", StringComparison.Ordinal) || line.Contains("curse", StringComparison.Ordinal)) return ("sword", "s-tl-attack");
         if (line.Contains(" heal", StringComparison.Ordinal) || line.Contains(" drains ", StringComparison.Ordinal) || line.Contains(" blesses ", StringComparison.Ordinal)) return ("heart-pulse", "s-tl-heal");
         if (line.Contains(" gives the turn ", StringComparison.Ordinal) || line.Contains("ran out of time", StringComparison.Ordinal)) return ("hourglass", "s-tl-turn");
+        if (line.Contains(" casts ", StringComparison.Ordinal)) return ("sparkles", "s-tl-play");
+        if (line.Contains(" rallies ", StringComparison.Ordinal) || line.Contains(" grows stronger", StringComparison.Ordinal) || line.Contains(" empowers ", StringComparison.Ordinal)) return ("arrow-up", "s-tl-heal");
+        if (line.Contains(" fatigue damage", StringComparison.Ordinal)) return ("flame", "s-tl-attack");
         if (line.Contains(" plays ", StringComparison.Ordinal) || line.Contains(" summons ", StringComparison.Ordinal)) return ("deck", "s-tl-play");
         if (line.Contains(" uses ", StringComparison.Ordinal) || line.Contains(" paralyzes ", StringComparison.Ordinal) || line.Contains(" hardens ", StringComparison.Ordinal)) return ("wand", "s-tl-play");
         if (line.Contains("haunt", StringComparison.OrdinalIgnoreCase)) return ("ghost", "s-tl-death");
