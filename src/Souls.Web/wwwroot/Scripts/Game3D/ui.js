@@ -2,7 +2,7 @@
 // loading, main menu, matchmaking, turn banners, toasts, status, hero power, turn fuse, battle log, tooltips,
 // settings, chat, end screen, live games, spectator bar and replay transport. Server text is always inserted as text.
 import { Images, sound } from './assets.js';
-import { VIEWS } from './scene.js';
+import { QUALITY_KEY, VIEWS } from './scene.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -699,7 +699,11 @@ export class UI {
             b.setAttribute('aria-pressed', String(current === q));
             b.addEventListener('click', () => {
                 const url = new URL(location.href);
-                if (q === 'auto') url.searchParams.delete('fx'); else url.searchParams.set('fx', q);
+                if (q === 'auto') {
+                    url.searchParams.delete('fx');
+                    // Let the frame-rate watch start from the detected level again.
+                    try { localStorage.removeItem(QUALITY_KEY); } catch (e) { /* storage blocked */ }
+                } else url.searchParams.set('fx', q);
                 location.href = url.toString();
             });
         }

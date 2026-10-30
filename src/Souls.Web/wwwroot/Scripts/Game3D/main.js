@@ -78,12 +78,13 @@ async function main() {
         crowd.presence = stage.viewInfo.stadium ? (stage.view === 'field' ? 1 : 0.7) : 0.25;
         crowd.update();
         if (game) game.update(now, dt);
-        stage.render();
+        stage.render(now);
         requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
 
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
+    stage.watchFrameRate();
 
     // Replays and watch links start right away; after switching clients mid-game, go straight back into the game.
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
