@@ -106,6 +106,29 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
 
+  # Dumps the database (pg_dump custom format) to the backups volume once a day and keeps the newest seven.
+  # Restore with ./deploy/compose/restore.sh; see the README.
+  backup:
+    <<: *hardening
+    image: postgres:18-alpine
+    restart: unless-stopped
+    init: true
+    entrypoint: ["souls-backup", "loop"]
+    environment:
+      PGHOST: db
+      PGUSER: souls
+      PGDATABASE: souls
+      SOULS_BACKUP_HOURS: ${SOULS_BACKUP_HOURS:-24}
+      SOULS_BACKUP_KEEP: ${SOULS_BACKUP_KEEP:-7}
+    secrets: [postgres-password]
+    volumes:
+      - ./deploy/compose/backup.sh:/usr/local/bin/souls-backup:ro
+      - backups:/backups
+    networks: [backend]
+    mem_limit: 256m
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
   caddy:
     image: caddy:2.11-alpine
     restart: unless-stopped
@@ -144,6 +167,7 @@ secrets:
 
 volumes:
   pgdata:
+  backups:
   caddy_data:
   caddy_config:
 

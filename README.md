@@ -262,6 +262,7 @@ Settings go in a `.env` file next to `compose.yaml`:
 | `SOULS_ADMIN_USERNAME` | `admin` | Bootstrap administrator. |
 | `SOULS_GITHUB_REPOSITORY` | | Show recent commits of `owner/repo` on the home page. |
 | `SOULS_WEB_IMAGE` / `SOULS_SERVER_IMAGE` | `souls-web:latest` / `souls-server:latest` | Use published images instead of building. |
+| `SOULS_BACKUP_HOURS` / `SOULS_BACKUP_KEEP` | `24` / `7` | Database dump interval and how many dumps to keep (see [Backups](#backups-and-restore)). |
 
 Only Caddy publishes ports. The web app and game server sit on internal networks without internet access, and
 PostgreSQL is only reachable from them. A one-shot `migrate` container applies the database migrations before
@@ -274,12 +275,13 @@ deploy/k8s/
 ├── base/                 web + game server Deployments, Services, PDB, NetworkPolicies, config, namespace
 ├── components/
 │   ├── postgres/         single-instance PostgreSQL StatefulSet (dev / small installs)
+│   ├── backup/           nightly pg_dump CronJob to a PersistentVolumeClaim
 │   ├── ingress/          Ingress: /ws → game server, / → web
 │   ├── gateway-api/      HTTPRoute for a Gateway API implementation
 │   └── observability/    OpenTelemetry settings, Grafana dashboard, Prometheus alerts (see Observability)
 └── overlays/
     ├── dev/              in-cluster PostgreSQL + Ingress on http://souls.localtest.me, locally built images
-    └── production/       managed PostgreSQL, Gateway API, HPA, pinned image tags (observability opt-in)
+    └── production/       managed PostgreSQL with nightly dumps, Gateway API, HPA, pinned image tags (observability opt-in)
 ```
 
 Local cluster (kind, k3d, minikube, Docker Desktop) with an ingress controller in the `ingress-nginx`
@@ -303,9 +305,10 @@ kind load docker-image souls-web:local souls-server:local
 
 Then open <http://souls.localtest.me> (resolves to 127.0.0.1; adjust for your ingress port).
 
-For production, copy `overlays/production`, set the host name, Gateway reference, image tags and the
-ingress/gateway namespace in the NetworkPolicy patch, and create `secrets.env` from `secrets.env.example`
-(it is git-ignored; use your secret manager / Sealed Secrets / External Secrets in real deployments). The value
+For production, copy `overlays/production`, set the host name, Gateway reference, image tags, the database host
+of the backup job (`PGHOST`) and the ingress/gateway namespace in the NetworkPolicy patch, and create
+`secrets.env` from `secrets.env.example` (it is git-ignored; use your secret manager / Sealed Secrets / External
+Secrets in real deployments). The value
 for `Souls__DataProtection__Certificate` (a self-signed certificate as a base64 PFX) comes from:
 
 ```bash
@@ -364,6 +367,67 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: souls-server
 ```
+
+## Backups and restore
+
+Backups are `pg_dump` files in PostgreSQL's custom format, named `souls-<UTC time>.dump`. A restore drops the
+database, recreates it from the dump and lets `migrate` bring the schema up to the running version.
+
+### Docker Compose
+
+The `backup` service writes a dump to the `backups` volume whenever the newest one is older than
+`SOULS_BACKUP_HOURS` (24) and keeps the newest `SOULS_BACKUP_KEEP` (7). It checks every five minutes, so
+restarts do not add dumps. `docker compose down -v` deletes the volume together with the database, so copy dumps
+you want to keep off the host:
+
+```bash
+docker compose exec backup souls-backup                                # take a backup now
+docker compose exec backup ls -l /backups                              # list the dumps
+docker compose cp backup:/backups/souls-20261030T031500Z.dump .        # copy one off the host
+```
+
+Restore (stops the web app and game server, replaces the database, runs `migrate` and starts them again):
+
+```bash
+./deploy/compose/restore.sh souls-20261030T031500Z.dump
+```
+
+Without an argument the script lists the dumps. To restore a dump from elsewhere, copy it in first with
+`docker compose cp <file> backup:/backups/`.
+
+### Kubernetes
+
+`components/backup` (enabled in `overlays/production`) adds a CronJob that dumps the database at 03:30 every night
+into the `souls-backup` PersistentVolumeClaim (5 GiB) and keeps the newest 7 dumps (`KEEP` in
+`souls-backup-config`). It runs as the non-root postgres user with a read-only root file system, and a
+NetworkPolicy lets it reach PostgreSQL only. It connects to the in-cluster `souls-postgres` (add the component to
+an overlay with `components/postgres`, such as dev); the production overlay points it at the managed database
+(`PGHOST` and TLS settings patched into `souls-backup-config`) and needs `postgres-password` in `secrets.env`.
+
+```bash
+kubectl -n souls create job souls-backup-now --from=cronjob/souls-backup     # take a backup now
+kubectl -n souls logs job/souls-backup-now                                   # shows the dumps on the volume
+```
+
+Restore: stop the apps, run the backup job with `RESTORE` set to a dump file, then start the apps again (their
+init containers run `migrate`):
+
+```bash
+kubectl -n souls scale deployment souls-web souls-server --replicas=0
+kubectl -n souls create job souls-restore --from=cronjob/souls-backup --dry-run=client -o yaml \
+  | kubectl set env --local -f - RESTORE=souls-20261030T033000Z.dump -o yaml | kubectl apply -f -
+kubectl -n souls wait --for=condition=complete job/souls-restore --timeout=30m && kubectl -n souls logs job/souls-restore
+kubectl -n souls scale deployment souls-server --replicas=1
+kubectl -n souls scale deployment souls-web --replicas=2
+kubectl -n souls delete job souls-restore
+```
+
+The restore drops and recreates the database, so the database user must be allowed to create databases. If a
+managed database does not allow that, restore into the existing database instead
+(`pg_restore --clean --if-exists --dbname souls <dump>`) or use the provider's point-in-time recovery.
+
+The dumps stay on the cluster's storage. To survive the loss of the cluster or its volumes, copy them off the
+cluster (for example to object storage); that is not set up here.
 
 ## Development
 
@@ -453,5 +517,7 @@ have to log in again.
   their replays are stored).
 - The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known
   vulnerabilities and run with a strict CSP; the Modern 3D client is the up-to-date alternative.
+- Backups stay on the same host (Compose volume) or cluster (PersistentVolumeClaim); off-site copies are not
+  automated.
 - The legacy MySQL data is not imported automatically. Old accounts can be copied into the `player` table;
   their SHA-256 password hashes are accepted and upgraded on first login.

@@ -1,0 +1,125 @@
+# Backup: kubectl create job --from=cronjob/souls-backup souls-backup-now
+# Restore: the same job with RESTORE=<dump file> (see the README).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: souls-backup
+  labels:
+    app.kubernetes.io/name: souls-backup
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "30 3 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: souls-backup
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70 # postgres user of the Alpine image
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: postgres:18-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  umask 077
+                  PGPASSWORD=$(cat /run/secrets/souls/postgres-password)
+                  export PGPASSWORD
+                  cd /backup
+                  if [ -n "${RESTORE:-}" ]; then
+                    pg_restore --clean --if-exists --create --exit-on-error --dbname postgres "$RESTORE"
+                    echo "restored $RESTORE"
+                    exit 0
+                  fi
+                  rm -f souls-*.partial
+                  file=souls-$(date -u +%Y%m%dT%H%M%SZ).dump
+                  pg_dump --format=custom --file="$file.partial"
+                  mv "$file.partial" "$file"
+                  ls souls-*.dump | sort -r | tail -n "+$((KEEP + 1))" | xargs -r rm -f
+                  echo "created $file"
+                  ls -l
+              envFrom:
+                - configMapRef:
+                    name: souls-backup-config
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 512Mi }
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: secrets
+                  mountPath: /run/secrets/souls
+                  readOnly: true
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: souls-backup
+            - name: secrets
+              secret:
+                secretName: souls-secrets
+                items:
+                  - key: postgres-password
+                    path: postgres-password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: souls-backup
+  labels:
+    app.kubernetes.io/name: souls-backup
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# The backup job only needs PostgreSQL (DNS is allowed in the base).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backup-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: souls-backup
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - { protocol: TCP, port: 5432 }
+---
+# Lets the backup job into the in-cluster PostgreSQL (components/postgres); selects nothing without it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backup-to-postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: souls-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: souls-backup
+      ports:
+        - { protocol: TCP, port: 5432 }
