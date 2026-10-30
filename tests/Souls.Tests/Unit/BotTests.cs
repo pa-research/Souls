@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -20,9 +21,10 @@ public class BotTests
     public async Task BotPlaysCardsAttacksAndEndsItsTurns(int difficulty)
     {
         var state = new ServerState();
-        var services = new ServiceCollection().BuildServiceProvider();
+        var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var scopes = services.GetRequiredService<IServiceScopeFactory>();
-        var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System, Options.Create(new GameOptions()), NullLogger<GameEngine>.Instance);
+        var metrics = new GameMetrics(services.GetRequiredService<IMeterFactory>(), state);
+        var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System, Options.Create(new GameOptions()), metrics, NullLogger<GameEngine>.Instance);
         var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
 
         Card Definition(int id, int attack, int health, int cost, int? ability = null) =>

@@ -31,6 +31,7 @@ public sealed partial class GameEngine
         var winner = isDraw ? null : room.Winner ?? opponent;
         var loser = winner is null ? null : winner == player ? opponent : player;
         var text = winner is null ? $"{player.Name} and {opponent.Name} play a draw." : $"{winner.Name} wins against {loser!.Name}!";
+        metrics.GameFinished(room.IsPractice ? "practice" : "normal", isDraw ? "draw" : player.GPlayer!.IsDead || opponent.GPlayer!.IsDead ? "win" : "forfeit");
         room.Logger.Add(isDraw ? GameLogKind.Draw : GameLogKind.Won, (winner ?? player).Id, (loser ?? opponent).Id, "Player", "Player", text);
         room.LogLine(text);
         room.FlushEvents();
@@ -50,6 +51,7 @@ public sealed partial class GameEngine
         catch (Exception e) when (e is not OperationCanceledException)
         {
             logger.LogError(e, "Failed to store game {GameId}", room.GameId);
+            metrics.Error("store");
             room.GameId = 0;
         }
 

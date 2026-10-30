@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Sends traces and metrics from the web app and game server to an existing OpenTelemetry Collector (OTLP/gRPC)
+# and adds a Grafana dashboard and Prometheus alerts. It does not install a monitoring stack. It assumes:
+#   - a Collector Service `otel-collector` in the namespace `observability`, port 4317 (change the endpoint below
+#     and the namespace in networkpolicy.yaml if yours differs);
+#   - metrics reach Prometheus with `job` = the service name (souls-web, souls-server): Prometheus' OTLP receiver,
+#     the Collector's prometheusremotewrite exporter, or its prometheus exporter scraped with honorLabels;
+#   - the Prometheus Operator (PrometheusRule CRD). Add the label your Prometheus selects rules by
+#     (kube-prometheus-stack: `release: <release name>`);
+#   - Grafana's dashboard sidecar watching ConfigMaps labelled `grafana_dashboard: "1"` in all namespaces.
+resources:
+  - networkpolicy.yaml
+  - prometheusrule.yaml
+
+configMapGenerator:
+  - name: souls-otel
+    literals:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.observability.svc:4317
+  - name: souls-grafana-dashboard
+    files:
+      - souls.json=dashboard.json
+    options:
+      # A stable name, so an update replaces the dashboard instead of adding a second copy.
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+
+# service.instance.id tells the replicas apart (Prometheus' `instance` label).
+patches:
+  - target: { kind: Deployment, name: souls-web }
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: souls-web
+      spec:
+        template:
+          spec:
+            containers:
+              - name: web
+                env:
+                  - name: POD_NAME
+                    valueFrom: { fieldRef: { fieldPath: metadata.name } }
+                  - name: OTEL_SERVICE_NAME
+                    value: souls-web
+                  - name: OTEL_RESOURCE_ATTRIBUTES
+                    value: service.instance.id=$(POD_NAME)
+                  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                    valueFrom: { configMapKeyRef: { name: souls-otel, key: OTEL_EXPORTER_OTLP_ENDPOINT } }
+  - target: { kind: Deployment, name: souls-server }
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: souls-server
+      spec:
+        template:
+          spec:
+            containers:
+              - name: server
+                env:
+                  - name: POD_NAME
+                    valueFrom: { fieldRef: { fieldPath: metadata.name } }
+                  - name: OTEL_SERVICE_NAME
+                    value: souls-server
+                  - name: OTEL_RESOURCE_ATTRIBUTES
+                    value: service.instance.id=$(POD_NAME)
+                  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                    valueFrom: { configMapKeyRef: { name: souls-otel, key: OTEL_EXPORTER_OTLP_ENDPOINT } }

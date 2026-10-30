@@ -27,6 +27,7 @@ public sealed partial class GameEngine(
     IServiceScopeFactory scopes,
     TimeProvider time,
     IOptions<GameOptions> options,
+    GameMetrics metrics,
     ILogger<GameEngine> logger)
 {
     /// <summary>Starts a game between two players.</summary>

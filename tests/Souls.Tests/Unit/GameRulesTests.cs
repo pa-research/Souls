@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -51,9 +52,10 @@ public class GameRulesTests
         {
             var clock = new ManualTime();
             var state = new ServerState();
-            var services = new ServiceCollection().BuildServiceProvider();
+            var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
             var options = Options.Create(new GameOptions { TurnTime = turnTime ?? TimeSpan.FromSeconds(75) });
-            var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), services.GetRequiredService<IServiceScopeFactory>(), clock, options, NullLogger<GameEngine>.Instance);
+            var metrics = new GameMetrics(services.GetRequiredService<IMeterFactory>(), state);
+            var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), services.GetRequiredService<IServiceScopeFactory>(), clock, options, metrics, NullLogger<GameEngine>.Instance);
             var game = new TestGame(clock, engine, NewPlayer(1, deck1 ?? Filler(), type1), NewPlayer(2, deck2 ?? Filler(), type2));
             game._room = engine.CreateGame(new Pair<Player>(game.P1, game.P2));
             return game;
