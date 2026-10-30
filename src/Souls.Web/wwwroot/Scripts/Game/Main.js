@@ -8,9 +8,6 @@ require.config({
     //baseUrl: "Scripts/GamePLS",
     paths: {
         // Third party
-        "jquery.dialogExtend": "/Scripts/Game/Vendor/jquery.dialogextend.min",
-
-
         "pixi": "/Scripts/Game/Vendor/pixi.dev", // PIXI.js
         "tweenjs": "/Scripts/Game/Vendor/tweenjs-0.5.1.min",
         "easeljs": "/Scripts/Game/Vendor/easeljs-0.7.1.min",
@@ -79,10 +76,6 @@ require.config({
         'pixi': {
             exports: 'PIXI'
         },
-        'jquery.dialogExtend':
-            {
-                deps: ['jquery', 'jqueryUI']
-            },
         'easeljs': {
             exports: 'createjs'
         },
@@ -101,9 +94,8 @@ require.config({
 });
 
 
-// jQuery and jQuery UI are loaded by the page (one shared instance); expose them as AMD modules.
+// jQuery is loaded by the page (one shared instance); expose it as an AMD module.
 define('jquery', [], function () { return window.jQuery; });
-define('jqueryUI', ['jquery'], function ($) { return $; });
 
 //This defines a global class "EngineConf" for the whole application. This is specifically targetet to the Engine.X namespace.
 // The server renders the settings (card portraits, WebSocket endpoint) into the page as JSON.
