@@ -361,7 +361,10 @@ export class Card3D extends THREE.Group {
         this.canvas = document.createElement('canvas');
         this.canvas.width = 330 * FACE_SCALE;
         this.canvas.height = 450 * FACE_SCALE;
-        this.canvas.getContext('2d'); // hidden cards are never painted, and WebGPU cannot upload a canvas without a context
+        // A context up front (hidden cards are never painted, and WebGPU cannot upload a canvas without one), kept in
+        // memory: a GPU canvas copied into a WebGPU texture comes out blank where Chromium's canvas and WebGPU do not
+        // share a device (Linux with ANGLE on GL).
+        this.canvas.getContext('2d', { willReadFrequently: true });
         this.faceTexture = new THREE.CanvasTexture(this.canvas);
         this.faceTexture.colorSpace = THREE.SRGBColorSpace;
         this.faceTexture.anisotropy = 8;
@@ -383,6 +386,7 @@ export class Card3D extends THREE.Group {
         this.glowMaterial = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
         this.glow = new THREE.Mesh(s.glow, this.glowMaterial);
         this.glow.position.z = -THICKNESS / 2 - 0.4;
+        this.glow.visible = false; // drawn only while it shows (see setGlow)
         this.glow.userData.card = this;
 
         this.body.add(this.glow, this.edge, this.front, this.back);
@@ -599,7 +603,10 @@ export class Card3D extends THREE.Group {
 
     setGlow(color, opacity) {
         if (color !== null && color !== undefined) this.glowMaterial.color.set(color);
-        tweens.to(this.glowMaterial, { opacity }, 150, Ease.quadOut);
+        this.glowTarget = opacity;
+        if (opacity > 0) this.glow.visible = true;
+        tweens.to(this.glowMaterial, { opacity }, 150, Ease.quadOut)
+            .then(() => { this.glow.visible = this.glowTarget > 0 || this.glowMaterial.opacity > 0.001; });
     }
 
     setOpacity(opacity) {

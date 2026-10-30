@@ -176,6 +176,10 @@ export class Stage {
     resize() {
         const width = Math.max(1, this.container.clientWidth);
         const height = Math.max(1, this.container.clientHeight);
+        // Kept for toScreen/classicToScreen: reading clientWidth every frame, between the HUD's DOM writes, forces
+        // the browser to lay out the page again each time.
+        this.width = width;
+        this.height = height;
         this.renderer.setSize(width, height, false);
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
         this.target.setSize(size.x, size.y);
@@ -292,13 +296,13 @@ export class Stage {
     /** World point to CSS pixels inside the container (live camera). */
     toScreen(world) {
         const v = world.clone().project(this.camera);
-        return { x: (v.x + 1) / 2 * this.container.clientWidth, y: (1 - v.y) / 2 * this.container.clientHeight };
+        return { x: (v.x + 1) / 2 * this.width, y: (1 - v.y) / 2 * this.height };
     }
 
     /** Classic stage point to CSS pixels, as laid out by the HUD. */
     classicToScreen(x, y) {
         const v = toWorld(x, y).project(this.classicCamera);
-        return { x: (v.x + 1) / 2 * this.container.clientWidth, y: (1 - v.y) / 2 * this.container.clientHeight };
+        return { x: (v.x + 1) / 2 * this.width, y: (1 - v.y) / 2 * this.height };
     }
 
     // ---- Views ----------------------------------------------------------------------------------------------------

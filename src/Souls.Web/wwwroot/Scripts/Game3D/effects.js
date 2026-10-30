@@ -267,9 +267,13 @@ export class Effects {
         }
         const geometry = this.points.geometry;
         geometry.instanceCount = n;
-        geometry.attributes.point.needsUpdate = true;
-        geometry.attributes.pcolor.needsUpdate = true;
-        geometry.attributes.size.needsUpdate = true;
+        if (n === 0) return;
+        for (const [name, size] of [['point', 3], ['pcolor', 4], ['size', 1]]) {
+            const attribute = geometry.attributes[name];
+            attribute.clearUpdateRanges();
+            attribute.addUpdateRange(0, n * size); // only the live particles, not all 6000
+            attribute.needsUpdate = true;
+        }
         this.pMaterial.uniforms.scale.value = this.stage.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.stage.camera.fov / 2)));
         this.pMaterial.uniforms.maxSize.value = 72 * this.stage.renderer.getPixelRatio();
     }
@@ -278,7 +282,7 @@ export class Effects {
     floatText(text, position, color = '#ff4136', size = 90) {
         const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 128;
-        const g = canvas.getContext('2d');
+        const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
         g.font = 'bold 96px Arial, Helvetica, sans-serif';
         g.textAlign = 'center';
         g.textBaseline = 'middle';
@@ -426,7 +430,7 @@ export class Effects {
 function makeSigilTexture() {
     const size = 256, canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
-    const g = canvas.getContext('2d');
+    const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
     g.translate(size / 2, size / 2);
     g.strokeStyle = '#fff';
     g.fillStyle = '#fff';
@@ -460,7 +464,7 @@ function makeSigilTexture() {
 function makeSlashTexture() {
     const size = 256, canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
-    const g = canvas.getContext('2d');
+    const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
     const gradient = g.createLinearGradient(30, 0, 226, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,0)');
     gradient.addColorStop(0.5, 'rgba(255,255,255,1)');
