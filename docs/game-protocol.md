@@ -52,6 +52,7 @@ the default is used when a card has none.
 | 17 Grow | turn start | | +X attack, +X health and max health at the start of its owner's turn (1) |
 | 18 Drain | activated | 2 enemy hero, 3 enemy card | X damage, and +X health to its hero (2) |
 | 19 Brood | on death | | summons X Lost Souls where it died (1) |
+| 20 Empower | activated | 0 friendly card | +X attack, +X health and max health (1); only spells have it so far |
 
 Cards have a rarity (`rarity`: 1 common, 2 rare, 3 epic, 4 legendary) that limits the copies in a deck and sets the
 shop price.
@@ -63,7 +64,27 @@ shop price.
 | 3 Harrison | Holy Light: +2 health | 0 friendly card, 1 own hero |
 | 4 Fader | Fade: your hero gains 2 armor | none (send type 1) |
 
-Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON).
+Card upgrades: owning a card at level 2 or 3 gives +1/+1 per level above 1 (`level` in the card JSON). A spell gets +1
+to its value per level instead (Burn 3 at level 2 deals 4; Paralyze has no value and does not change).
+
+### Spells
+
+Cards have a kind (`kind` in the card JSON): `minion` (the default) or `spell`. A spell has a cost, rarity, race and an
+ability but no attack or health (both 0). It is cast from the hand with UseCard (201) and never takes a board slot:
+
+- A spell with an **activated** ability (Burn, Drain, Heal, Harden, Paralyze, Empower) needs a target, sent and checked
+  exactly like UseAbility (`type` and `target`, same target kinds). A spell with an **on-play** ability (Insight,
+  Inferno) has none and is cast with `{"cid"}` alone. Sacrifice and the other abilities are not used on spells (the card
+  editor refuses them).
+- A refused cast (not your turn or the mulligan: NotYourTurn; not enough mana: 208; wrong or missing target:
+  GeneralMessage) also sends Release (212) so the card goes back to the hand, and the spell stays there.
+- When it works: the mana is paid, the spell goes from the hand to a used pile (it never comes back), the caster gets
+  UseCardSpell (224) and the opponent OpponentUseCardSpell (225) with the card and its target, then events: a `log`
+  line ("p casts X on Y."), the race passive (`blessing` for Lightbringer; Vampiric spells heal their hero by the damage
+  they deal, `lifesteal`), then the same events as the ability: `ability` (`src` is the spell's cid) and its effects for
+  activated abilities, `trigger` (`src` the spell) and its effects for on-play ones. GameSync follows as usual. The
+  spell's `src` cid is not on any board: clients show the cast card until the GameSync.
+- It counts as a card played (quests) and is logged as UseCard, so card statistics and the simulator count it.
 
 ### Mulligan
 
@@ -93,7 +114,7 @@ the starting hand is refused (GeneralMessage) and the player may choose again; a
 | 198 | ChallengeAnswer | `{"accept": bool}`: answers the challenge you received |
 | 199 | Challenge | `{"name"}`: challenges an online player to a friendly game (below) |
 | 200 | Attack | `{"source": cid or -1, "target": cid or -1, "type": 0 card→card, 1 card→hero, 2 hero→card, 3 hero→hero}` |
-| 201 | UseCard | `{"cid", "slotId": 0-6}` |
+| 201 | UseCard | `{"cid", "slotId": 0-6}`; a spell: `{"cid", "target": cid or -1, "type": as UseAbility}`, or `{"cid"}` for an untargeted one ([spells](#spells)) |
 | 203 | MoveCard | `{"cid", "x", "y"}` (relays a dragged card to the opponent) |
 | 204 | ReleaseCard | `{"cid"}` |
 | 205 | UseAbility | `{"source": cid, "target": cid or -1, "type": 0 friendly card, 1 own hero, 2 enemy hero, 3 enemy card}` |
@@ -120,6 +141,8 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 206 | GameCreate | `{gameId, ident: 1\|2, create, yourTurn, player: {info, board: {slot: card}, hand: {cid: card}}, opponent: {info, board, hand: [{cid}]}, mulligan: {endsIn: ms, time: ms, done} \| null}` (`mulligan` while it runs) |
 | 207 | UseCardOk | `{card, pInfo}`: your card moved from hand to `card.slotId` |
 | 211 | OpponentUseCardOk | `{card, pInfo}`: the opponent played `card` |
+| 224 | UseCardSpell | `{card, pInfo, target: ref \| null}`: your spell `card` left your hand and is cast on `target` (events follow) |
+| 225 | OpponentUseCardSpell | `{card, pInfo, target: ref \| null}`: the opponent cast the spell `card` |
 | 222 | NewCard | `{card: [card...], returned: bool}`: cards added to your hand (`returned`: Haunt). Spectators get `{card: [{cid}], hidden: true}` |
 | 223 | OpponentNewCard | `{card: [{cid}...], returned}` |
 | 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` (also when the first turn starts after the mulligan) |
@@ -136,7 +159,7 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 
 The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks and abilities are reported as events.
 
-**Card JSON**: `{cid, id, name, attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
+**Card JSON**: `{cid, id, name, kind: "minion" | "spell", attack, health, maxHealth, armor, cost, slotId, level, rarity, portrait, flavor, ability: {id, name, value, label, text, activated} | null, race: {id, name, cardUrl} | null, paralyzed, taunt, ward, token, hasAttacked, isDead}` (example below).
 In GameSync board cards also have `canAct` (it is that player's turn and the card can attack or use its ability).
 
 **Hero info** (`info`, `pInfo`, `playerInfo`, `opponentInfo`, GameSync heroes): `{name, type, ident, health, maxHealth, armor, attack, mana, maxMana, rating}`.
@@ -148,7 +171,8 @@ A game starts with GameCreate and GameSync, then each player's Mulligan/Opponent
 they choose; when both have chosen, NextTurn, OpponentNewCard/NewCard (the extra card of the player going second)
 and GameSync.
 
-For each action the server sends, in this order: the primary message (UseCardOk/OpponentUseCardOk, NextTurn), then
+For each action the server sends, in this order: the primary message (UseCardOk/OpponentUseCardOk,
+UseCardSpell/OpponentUseCardSpell, NextTurn), then
 GameEvents (events up to a draw), NewCard/OpponentNewCard, more GameEvents, and finally GameSync. If a hero died, the
 result (Victory/Defeat/Draw) follows the GameSync. Clients should process messages in order (queue them and finish
 each animation before the next) and treat GameSync as the truth for all numbers.
@@ -202,7 +226,7 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 ### Card JSON
 
 ```json
-{"cid": 12, "id": 27, "name": "Pesta", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
+{"cid": 12, "id": 27, "name": "Pesta", "kind": "minion", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
  "rarity": 3, "ward": false, "paralyzed": false, "taunt": false, "token": false, "slotId": 2, "isDead": false,
  "hasAttacked": false, "portrait": "/Content/Images/Card/Portraits/27.jpg",
  "flavor": "Where she rakes, a few survive. Where she sweeps, nobody does.",

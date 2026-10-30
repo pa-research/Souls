@@ -9,7 +9,14 @@ const THICKNESS = 3;
 const FACE_SCALE = 2; // the face is painted at 2x the 330x450 card texture so it stays sharp when zoomed
 
 // Card JSON fields that change what the face looks like.
-const PAINTED = ['id', 'name', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait', 'rarity', 'flavor', 'ward'];
+const PAINTED = ['id', 'name', 'kind', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait', 'rarity', 'flavor', 'ward'];
+
+// Colours of abilities (by ability id), for their effects and the spell gem.
+export const ABILITY_COLORS = {
+    1: 0xffe08a, 2: 0xc77dff, 3: 0x9aa5b1, 4: 0x9b59b6, 5: 0x7fb8ff, 6: 0xb39ddb, 7: 0xc0c8d0, 8: 0xff7a1a, 9: 0xffd34d,
+    10: 0xffd36b, 11: 0xff5a3a, 12: 0x7dff4a, 13: 0xffc04d, 14: 0x7fd1ff, 15: 0xff6a1a, 16: 0x6dff7a, 17: 0xff8c3a, 18: 0xd0104a, 19: 0x9b59b6,
+    20: 0xff9f43,
+};
 
 export const RARITY = { 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary' };
 const GEM_COLORS = {
@@ -173,6 +180,51 @@ function drawGem(g, x, y, rarity) {
     g.restore();
 }
 
+/**
+ * Spells have no attack or health: a dark plate covers those gems, with the spell gem (a glowing orb in the ability's
+ * colour) in the middle.
+ */
+function drawSpellPlate(g, color) {
+    const css = `#${color.toString(16).padStart(6, '0')}`;
+    g.save();
+    g.beginPath();
+    g.roundRect(4, 370, 322, 74, 16);
+    const plate = g.createLinearGradient(0, 370, 0, 444);
+    plate.addColorStop(0, '#2b2140');
+    plate.addColorStop(1, '#100b18');
+    g.fillStyle = plate;
+    g.fill();
+    g.lineWidth = 3;
+    g.strokeStyle = '#c9a24a';
+    g.stroke();
+    g.shadowColor = css;
+    g.shadowBlur = 22;
+    g.beginPath();
+    g.arc(165, 407, 27, 0, Math.PI * 2);
+    const orb = g.createRadialGradient(158, 399, 3, 165, 407, 27);
+    orb.addColorStop(0, '#ffffff');
+    orb.addColorStop(0.45, css);
+    orb.addColorStop(1, '#1b0f24');
+    g.fillStyle = orb;
+    g.fill();
+    g.shadowBlur = 0;
+    g.lineWidth = 2.5;
+    g.strokeStyle = '#f3dc9a';
+    g.stroke();
+    // A four-pointed glint in the orb.
+    g.beginPath();
+    for (let i = 0; i < 8; i++) {
+        const r = i % 2 ? 4 : 15;
+        const a = -Math.PI / 2 + i * Math.PI / 4;
+        g.lineTo(165 + Math.cos(a) * r, 407 + Math.sin(a) * r);
+    }
+    g.closePath();
+    g.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    g.fill();
+    g.restore();
+    for (const x of [86, 244]) drawText(g, 'SPELL', x, 408, { size: 22, fill: '#f3dc9a', stroke: '#000', strokeWidth: 2, align: 'center', baseline: 'middle' });
+}
+
 /** Legendary cards wear a golden crown over the name banner and a gilded edge; epic cards a violet edge. */
 function drawRarityFrame(g, rarity) {
     if (rarity < 3) return;
@@ -258,6 +310,10 @@ async function paintFace(canvas, data, portraits) {
     const rarity = Number(data.rarity) || 0;
     if (rarity && !data.token) drawGem(g, 165, 287, rarity);
     drawRarityFrame(g, rarity);
+    if (data.kind === 'spell') {
+        drawSpellPlate(g, ABILITY_COLORS[ability && ability.id] ?? 0xb98cff);
+        return;
+    }
     drawText(g, String(data.attack ?? ''), 40, 408, { align: 'center', baseline: 'middle' });
     const damaged = data.maxHealth !== undefined && Number(data.health) < Number(data.maxHealth);
     drawText(g, String(data.health ?? ''), 298, 406, { align: 'center', baseline: 'middle', fill: damaged ? '#ff7b7b' : 'white' });
@@ -531,6 +587,9 @@ export class Card3D extends THREE.Group {
     }
 
     get abilityId() { return this.data.ability ? this.data.ability.id : undefined; }
+
+    /** Cast from the hand, never on the board. */
+    get spell() { return this.data.kind === 'spell'; }
 
     /** Tilts the card up around its bottom edge (radians). */
     setTilt(angle) {

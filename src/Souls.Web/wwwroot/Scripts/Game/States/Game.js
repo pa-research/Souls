@@ -40,6 +40,7 @@ define("game",
             this.myTurn = false;
             this.ended = false;
             this.lastCardPos = {};
+            this.castSpells = {}; // cid -> spell being cast (UseCardSpell) until the GameSync after it
             // Create Groups
             this.addGroup("Background");
             this.addGroup("EndTurn");
@@ -127,6 +128,7 @@ define("game",
             this.emotes.Hide();
             this.battleLog.Hide(); // the end screen is a full-screen layer
             if (this.player) {
+                if (this.player.armedSpell) this.player.armedSpell.Disarm(false);
                 this.player.holdingCard = undefined;
                 this.player.isClicked = false;
             }
@@ -166,6 +168,11 @@ define("game",
 
         /// Removes the heroes and cards (the game state is sent again after a reconnect).
         Engine.prototype.ClearBoard = function () {
+            if (this.player && this.player.armedSpell) this.player.armedSpell.Disarm(false);
+            for (var cid in this.castSpells) {
+                if (this.castSpells[cid].parent) this.castSpells[cid].parent.removeChild(this.castSpells[cid]);
+            }
+            this.castSpells = {};
             var sides = [this.player, this.opponent];
             for (var i = 0; i < sides.length; i++) {
                 var side = sides[i];

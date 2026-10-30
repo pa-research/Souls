@@ -19,6 +19,8 @@ public sealed class GameRoom
         (int)GameResponse.GameOpponentMove,
         (int)GameResponse.GameOpponentRelease,
         (int)GameResponse.GameOpponentUseCardOk,
+        (int)GameResponse.GameUseCardSpell,
+        (int)GameResponse.GameOpponentUseCardSpell,
         (int)GameResponse.GameNewCard,
         (int)GameResponse.GameOpponentNewCard,
         (int)GameResponse.GameNextTurn,

@@ -7,24 +7,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
     var Fx = Animation.Fx;
 
     var ABILITY = { SUMMON: 4, BURN: 8, WARD: 10, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
-    var ABILITY_COLOR = {
-        1: 0x4cff6a,  // Heal
-        2: 0xa569bd,  // Sacrifice
-        4: 0xb07cff,  // Summon
-        5: 0x5aa9ff,  // Paralyze
-        7: 0xb8c4cf,  // Harden
-        8: 0xff7a1a,  // Burn
-        10: 0xffd36b, // Ward
-        11: 0xff5a3a, // Fury
-        12: 0x7dff4a, // Venom
-        13: 0xffc04d, // Rally
-        14: 0x7fd1ff, // Insight
-        15: 0xff6a1a, // Inferno
-        16: 0x6dff7a, // Regenerate
-        17: 0xff8c3a, // Grow
-        18: 0xd0104a, // Drain
-        19: 0xb07cff  // Brood
-    };
+    var ABILITY_COLOR = Card.ABILITY_COLOR;
     var POWER_COLOR = { 1: 0xff5544, 2: 0xa569bd, 3: 0xffe082, 4: 0x8fc8ff };
 
     // Hits that land at the same moment (Inferno on every enemy card) are shown together.
@@ -50,11 +33,11 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         return Number(ident) === Number(engine.myIdent) ? engine.player : engine.opponent;
     }
 
-    /// A card on either board, or null.
+    /// A card on either board, or a spell being cast (it is the source of its events), or null.
     EventPlayer.prototype.Card = function (cid) {
         var engine = this.engine;
         if (cid === undefined || cid === null || !engine.player) return null;
-        return engine.player.cardManager.board[cid] || engine.opponent.cardManager.board[cid] || null;
+        return engine.player.cardManager.board[cid] || engine.opponent.cardManager.board[cid] || engine.castSpells[cid] || null;
     }
 
     /// The object a ref ({k: "card", cid} or {k: "hero", id}) points at, or null.

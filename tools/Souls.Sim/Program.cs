@@ -176,11 +176,13 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     }
 
     var playedCards = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
+    var spells = 0;
     foreach (var log in room.Logger.Records)
     {
         if (log.GameLogTypeId == (int)GameLogKind.UseCard)
         {
             playedCards[log.Obj1Id].Add(log.Obj2Id);
+            spells += pool.Any(c => c.Id == log.Obj2Id && c.Kind == CardKind.Spell) ? 1 : 0;
         }
         else if (log.GameLogTypeId == (int)GameLogKind.NewCard)
         {
@@ -190,7 +192,7 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
 
     var winner = room.Winner is null || !room.IsEnded ? 0 : room.Winner.Id;
     return new GameResult(class1.Id, class2.Id, winner, room.Turn + 1,
-        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes]);
+        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells);
 
     SideResult Side(int ident, List<Souls.Model.Entities.Card> deck) =>
         new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()]);
@@ -211,6 +213,7 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
     sb.AppendLine($"- Player one (goes first) wins {Pct(decided.Count(r => r.Winner == 1) / (double)Math.Max(1, decided.Count))} of decided games.");
     sb.AppendLine($"- Draws (both heroes fall, or {MaxTurns} turns): {Pct(draws / (double)n)}.");
     sb.AppendLine($"- Average game length: {results.Average(r => r.Turns).ToString("0.0", CultureInfo.InvariantCulture)} turns (median {results.Select(r => r.Turns).Order().ElementAt(n / 2)}).");
+    sb.AppendLine($"- Spells cast: {results.Average(r => r.Spells).ToString("0.0", CultureInfo.InvariantCulture)} per game (both players), at least one in {Pct(results.Count(r => r.Spells > 0) / (double)n)} of games.");
     sb.AppendLine();
 
     sb.AppendLine("## Hero classes");
@@ -269,7 +272,7 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
         var flag = drawnCount < 100 ? "few games" : gih > mean + 0.05 ? "strong" : gih < mean - 0.05 ? "weak" : "";
         var ability = card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValue) : "-";
         var race = SeedData.Races.Single(r => r.Id == card.RaceId).Name;
-        sb.AppendLine($"| {card.Name} | {race} | {Rarity.Name(card.Rarity)} | {card.Cost} | {card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")} | {ability} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
+        sb.AppendLine($"| {card.Name} | {race} | {Rarity.Name(card.Rarity)} | {card.Cost} | {(card.Kind == CardKind.Spell ? "spell" : $"{card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")}")} | {ability} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
     }
 
     return sb.ToString();
@@ -311,4 +314,4 @@ string? ArgString(string name)
 
 internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races);
 
-internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes);
+internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells);

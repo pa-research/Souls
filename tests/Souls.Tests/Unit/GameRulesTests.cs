@@ -9,6 +9,7 @@ using Souls.Server.Game;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 using AbilityIds = Souls.Model.Entities.Ability;
+using CardKind = Souls.Model.Entities.CardKind;
 using Races = Souls.Model.GameRules.Races;
 
 namespace Souls.Tests.Unit;
@@ -117,10 +118,24 @@ public class GameRulesTests
         public Task Play(Player p, Card card, int slot) =>
             Engine.RequestUseCardAsync(p, Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = slot }));
 
+        /// <summary>Casts a spell from the hand on a target (or, without a type, on nothing).</summary>
+        public Task Cast(Player p, Card spell, TargetType? type = null, int target = -1) =>
+            Engine.RequestUseCardAsync(p, Message.Create(GameRequest.UseCard, type is { } t
+                ? new JsonObject { ["cid"] = spell.Cid, ["target"] = target, ["type"] = (int)t }
+                : new JsonObject { ["cid"] = spell.Cid }));
+
         public Task EndTurn(Player p) => Engine.RequestNextTurnAsync(p);
 
         public Task Mulligan(Player p, params int[] replace) =>
             Engine.RequestMulliganAsync(p, Message.Create(GameRequest.Mulligan, new JsonObject { ["replace"] = new JsonArray([.. replace.Select(cid => (JsonNode)cid)]) }));
+    }
+
+    /// <summary>A spell in the player's hand.</summary>
+    private static Card GiveSpell(GamePlayer gp, int ability, int? value = null, int cost = 1, int? race = null)
+    {
+        var spell = new Card { Id = 60, Name = "Spell", Kind = CardKind.Spell, AbilityId = ability, AbilityValueOverride = value, Cost = cost, RaceId = race }.NewInstance();
+        gp.HandCards[spell.Cid] = spell;
+        return spell;
     }
 
     /// <summary>A deck of 20 different cards ("c0" to "c19").</summary>
@@ -895,9 +910,21 @@ public class GameRulesTests
         }
 
         Assert.Equal(SeedData.Cards.Length, SeedData.Cards.Select(c => c.Id).Distinct().Count());
-        Assert.All(new[] { Races.Darkness, Races.Vampiric, Races.Lightbringer, Races.Ferocious },
-            race => Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race), 10, 11));
+        Assert.All(new[] { Races.Darkness, Races.Vampiric, Races.Lightbringer, Races.Ferocious }, race =>
+        {
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Minion), 10, 11);
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Spell), 2, 3);
+        });
         Assert.All(SeedData.Abilities, a => Assert.Contains(SeedData.Cards, c => c.AbilityId == a.Id));
+
+        // Spells: no attack or health, an ability a spell can cast, never a starter card or a legendary.
+        Assert.All(SeedData.Cards.Where(c => c.Kind == CardKind.Spell), spell =>
+        {
+            Assert.Equal((0, 0, 0), (spell.Attack, spell.Health, spell.Armor));
+            Assert.True(GameRules.IsSpellAbility(spell.AbilityId), $"{spell.Name} cannot be cast");
+            Assert.NotEqual(1, spell.Level);
+            Assert.NotEqual(Rarity.Legendary, spell.Rarity);
+        });
     }
 
     [Fact]
@@ -946,6 +973,165 @@ public class GameRulesTests
         Assert.Empty(game.Messages(game.P1));
         Assert.Empty(game.Messages(game.P2));
         Assert.Equal((logs, replay), (game.Room.Logger.Records.Count, game.Room.Replay.Count));
+    }
+
+    [Fact]
+    public async Task SpellsAreCastOnTheirTargetAndNeverTakeASlot()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 5;
+        var victim = game.Put(game.P2, NewCard(2, 3), 0);
+        var spell = GiveSpell(game.G1, AbilityIds.Burn, value: 3, cost: 2);
+        game.Messages(game.P1);
+        game.Messages(game.P2);
+
+        await game.Cast(game.P1, spell, TargetType.EnemyCard, victim.Cid);
+
+        Assert.True(victim.IsDead);
+        Assert.DoesNotContain(spell.Cid, game.G1.HandCards.Keys);
+        Assert.Same(spell, Assert.Single(game.G1.Used));
+        Assert.Empty(game.G1.BoardCards);
+        Assert.Equal((3, 1), (game.G1.Mana, game.G1.CardsPlayed));
+        Assert.Equal(0, game.G1.AbilitiesUsed);
+
+        var mine = game.Messages(game.P1);
+        var cast = mine.Single(m => (int?)m["Type"] == (int)GameResponse.GameUseCardSpell)["Payload"]!;
+        Assert.Equal(("spell", spell.Cid, victim.Cid), ((string?)cast["card"]!["kind"], (int)cast["card"]!["cid"]!, (int)cast["target"]!["cid"]!));
+        Assert.DoesNotContain(mine, m => (int?)m["Type"] == (int)GameResponse.GameUseCardOk);
+        var theirs = game.Messages(game.P2);
+        Assert.Contains(theirs, m => (int?)m["Type"] == (int)GameResponse.GameOpponentUseCardSpell);
+        var ability = theirs.Where(m => (int?)m["Type"] == (int)GameResponse.GameEvents).SelectMany(m => m["Payload"]!["events"]!.AsArray()).First(e => (string?)e!["t"] == "ability")!;
+        Assert.Equal((AbilityIds.Burn, spell.Cid), ((int)ability["abilityId"]!, (int)ability["src"]!["cid"]!));
+
+        // Logged as a card played, with the target in the battle log line.
+        var log = game.Room.Logger.Records.Last(r => r.GameLogTypeId == (int)Model.Entities.GameLogKind.UseCard);
+        Assert.Equal((game.P1.Id, spell.Id), (log.Obj1Id, log.Obj2Id));
+        Assert.Equal("p1 casts Spell on Test.", log.Text);
+
+        // A full board does not stop a spell, and it can hit the enemy hero.
+        for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
+        {
+            game.Put(game.P1, NewCard(1, 1), slot);
+        }
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Burn, value: 3, cost: 2), TargetType.EnemyHero);
+        Assert.Equal(17, game.G2.Health);
+        Assert.Equal(GamePlayer.BoardSlots, game.G1.BoardCards.Count);
+    }
+
+    [Theory]
+    [InlineData(AbilityIds.Empower, TargetType.FriendlyCard, true)]
+    [InlineData(AbilityIds.Empower, TargetType.OwnHero, false)]
+    [InlineData(AbilityIds.Empower, TargetType.EnemyCard, false)]
+    [InlineData(AbilityIds.Heal, TargetType.OwnHero, true)]
+    [InlineData(AbilityIds.Heal, TargetType.FriendlyCard, true)]
+    [InlineData(AbilityIds.Heal, TargetType.EnemyHero, false)]
+    [InlineData(AbilityIds.Paralyze, TargetType.EnemyCard, true)]
+    [InlineData(AbilityIds.Paralyze, TargetType.EnemyHero, false)]
+    [InlineData(AbilityIds.Drain, TargetType.EnemyHero, true)]
+    [InlineData(AbilityIds.Drain, TargetType.EnemyCard, true)]
+    [InlineData(AbilityIds.Burn, TargetType.FriendlyCard, false)]
+    [InlineData(AbilityIds.Burn, null, false)]
+    public async Task SpellTargetsAreCheckedLikeAbilityTargets(int ability, TargetType? type, bool allowed)
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 5;
+        game.G1.Health = 10;
+        var friend = game.Put(game.P1, NewCard(2, 3), 0);
+        var enemy = game.Put(game.P2, NewCard(4, 5), 0);
+        var spell = GiveSpell(game.G1, ability, value: 2);
+        game.Messages(game.P1);
+
+        await game.Cast(game.P1, spell, type, type == TargetType.FriendlyCard ? friend.Cid : type == TargetType.EnemyCard ? enemy.Cid : -1);
+
+        Assert.Equal(allowed, !game.G1.HandCards.ContainsKey(spell.Cid));
+        Assert.Equal(allowed ? 4 : 5, game.G1.Mana);
+        var messages = game.Messages(game.P1);
+        Assert.Equal(!allowed, messages.Any(m => (int?)m["Type"] == (int)GameResponse.GameGeneralMessage));
+        Assert.Equal(!allowed, messages.Any(m => (int?)m["Type"] == (int)GameResponse.GameRelease));
+        if (allowed && ability == AbilityIds.Empower)
+        {
+            Assert.Equal((4, 5, 5), (friend.Attack, friend.Health, friend.MaxHealth));
+        }
+
+        if (allowed && ability == AbilityIds.Paralyze)
+        {
+            Assert.True(enemy.Paralyzed);
+        }
+    }
+
+    [Fact]
+    public async Task UntargetedSpellsDrawOrBurnTheEnemyLine()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 10;
+        var a = game.Put(game.P2, NewCard(1, 2), 0);
+        var b = game.Put(game.P2, NewCard(1, 5), 3);
+        var hand = game.G1.HandCards.Count;
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Inferno, value: 2));
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Insight, value: 2));
+
+        Assert.True(a.IsDead);
+        Assert.Equal(3, b.Health);
+        Assert.Equal(hand + 2, game.G1.HandCards.Count);
+        Assert.Equal(2, game.G1.Used.Count);
+        Assert.Empty(game.G1.BoardCards);
+    }
+
+    [Fact]
+    public async Task SpellsNeedManaAndTheirOwnersTurn()
+    {
+        var game = TestGame.Start(mulligan: true);
+        var spell = GiveSpell(game.G1, AbilityIds.Burn, cost: 3);
+        game.G1.Mana = 10;
+
+        await game.Cast(game.P1, spell, TargetType.EnemyHero); // during the mulligan
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameNotYourTurn);
+
+        await game.Mulligan(game.P1);
+        await game.Mulligan(game.P2);
+        spell = game.G1.HandCards.Values.Single(c => c.IsSpell); // a kept card gets a new cid
+        game.G1.Mana = 2;
+        game.Messages(game.P1);
+        await game.Cast(game.P1, spell, TargetType.EnemyHero);
+        Assert.Contains(game.Messages(game.P1), m => (int?)m["Type"] == (int)GameResponse.GameUseCardOom);
+
+        var theirs = GiveSpell(game.G2, AbilityIds.Burn);
+        await game.Cast(game.P2, theirs, TargetType.EnemyHero);
+        Assert.Contains(game.Messages(game.P2), m => (int?)m["Type"] == (int)GameResponse.GameNotYourTurn);
+
+        Assert.Equal((20, 20), (game.G1.Health, game.G2.Health));
+        Assert.Contains(spell.Cid, game.G1.HandCards.Keys);
+        Assert.Contains(theirs.Cid, game.G2.HandCards.Keys);
+    }
+
+    [Fact]
+    public async Task SpellsKeepTheirRacePassives()
+    {
+        var game = TestGame.Start();
+        game.G1.Mana = 10;
+        game.G1.Health = 10;
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Burn, value: 2, race: Races.Vampiric), TargetType.EnemyHero);
+        Assert.Equal((12, 18), (game.G1.Health, game.G2.Health)); // lifesteal
+
+        await game.Cast(game.P1, GiveSpell(game.G1, AbilityIds.Harden, value: 4, race: Races.Lightbringer), TargetType.OwnHero);
+        Assert.Equal((14, 4), (game.G1.Health, game.G1.Armor)); // blessing
+    }
+
+    [Fact]
+    public void UpgradedSpellsGetAStrongerEffectInsteadOfStats()
+    {
+        var entity = SeedData.Cards.Single(c => c.Name == "Soul Rend");
+        var card = Card.FromEntity(entity, level: 3).NewInstance();
+        var json = card.ToJson();
+
+        var upgraded = entity.AbilityValue!.Value + 2;
+        Assert.True(card.IsSpell);
+        Assert.Equal((0, 0, upgraded), (card.Attack, card.Health, card.AbilityValue));
+        Assert.Equal(("spell", $"Burn {upgraded}"), ((string?)json["kind"], (string?)json["ability"]!["label"]));
+        Assert.Equal(GameRules.AbilityValue(AbilityIds.Paralyze, null), Card.FromEntity(SeedData.Cards.Single(c => c.Name == "Frostbite"), level: 2).AbilityValue);
     }
 
     [Fact]

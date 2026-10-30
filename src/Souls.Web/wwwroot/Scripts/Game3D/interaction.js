@@ -1,5 +1,7 @@
 // Mouse / touch / keyboard input for the 3D client, following the classic controls:
 //  - hover a hand card to zoom it (touch: tap or hold it), drag it onto a free slot to play it;
+//  - drag from a spell to its target (an arrow aims from the hand), or a spell without a target anywhere over the
+//    board; or click / tap the spell, then the target (or the board);
 //  - drag from your card or hero to an enemy to attack;
 //  - right-drag from your card (touch: hold it, then drag) to use its ability on a valid target;
 //  - click / tap the hero power button, then click / tap a target;
@@ -93,11 +95,14 @@ export class Interaction {
 
     onDown(e) {
         if (this.mode === 'power') {
-            // Hero power armed: this press picks the target (anything else cancels).
+            // Hero power or spell armed: this press picks the target (anything else cancels).
             this.ndc = this.stage.ndc(e);
+            const spell = this.spell;
             const target = e.button === 0 ? this.pick(this.ndc, this.powerTargets) : null;
+            const onBoard = e.button === 0 && spell && !this.game.spellTargets(spell) && this.overBoard(this.ndc);
             this.endPower();
-            if (target) this.game.usePower(target);
+            if (spell && (target || onBoard)) this.game.cast(spell, target);
+            else if (target && !spell) this.game.usePower(target);
             e.preventDefault();
             return;
         }
@@ -246,12 +251,27 @@ export class Interaction {
             const show = tap && !this.wasPreviewed;
             game.setHovered(show ? card : null);
             game.inspect(show ? card : null, at);
+            if (show && card.spell) this.beginSpell(card);
         } else if (this.mode === 'card') {
             const card = this.card;
             this.mode = null;
             this.card = null;
-            if (game.player.hand.get(card.cid) === card) game.drop(card, this.slot);
+            // A spell without a target is cast by dropping it over the board.
+            if (game.player.hand.get(card.cid) !== card) {
+                // Already answered.
+            } else if (card.spell && this.overBoard(this.ndc)) {
+                game.cast(card, null);
+            } else {
+                game.drop(card, card.spell ? null : this.slot);
+            }
+            if (!card.dying) card.setGlow(null, 0);
             this.slot = null;
+        } else if (this.mode === 'power' && this.spell && this.downAt && this.moved(e) > DRAG_START) {
+            // Released after dragging a spell's arrow: cast it on what it points at (anywhere else puts it back).
+            const spell = this.spell;
+            const target = this.target;
+            this.endPower();
+            if (target) game.cast(spell, target);
         } else if (this.mode === 'arrow') {
             this.mode = null;
             this.effects.hideArrow();
@@ -290,23 +310,52 @@ export class Interaction {
         if (this.ndc) this.updatePowerArrow();
     }
 
+    /**
+     * A spell armed like the hero power (tapped, clicked, or a targeted spell being dragged): the next press, or the
+     * release of the drag, casts it on a target (or, without a target, on the board).
+     */
+    beginSpell(card) {
+        const targets = this.game.spellTargets(card);
+        this.mode = 'power';
+        this.spell = card;
+        this.powerTargets = targets || [];
+        this.game.ui.screenMessage(`${card.data.name}: ${targets ? 'pick a target' : 'tap the board to cast it'}`, false);
+        this.target = null;
+    }
+
     updatePowerArrow() {
         const game = this.game;
-        if (!this.ndc) return;
+        if (!this.ndc || (this.spell && !game.spellTargets(this.spell))) return;
+        const color = this.spell ? this.spellColor(this.spell) : POWER_COLOR;
         const target = this.pick(this.ndc, this.powerTargets);
         this.ability = true;
-        this.setTarget(target, POWER_COLOR);
-        const from = game.targetPoint(game.player.hero);
+        this.setTarget(target, color);
+        const from = (this.spell && game.handPoint(this.spell)) || game.targetPoint(game.player.hero);
         const to = target ? game.targetPoint(target) : this.stage.pointerOnPlane(this.ndc, 0);
-        if (to) this.effects.showArrow(from, to.clampLength(0, 1400), POWER_COLOR, !!target);
+        if (to) this.effects.showArrow(from, to.clampLength(0, 1400), color, !!target);
     }
 
     endPower() {
         this.effects.hideArrow();
         this.setTarget(null, POWER_COLOR);
         this.game.ui.setPowerArmed(false);
+        if (this.spell) {
+            this.game.setHovered(null);
+            this.game.ui.hideTooltip();
+        }
         this.mode = null;
+        this.spell = null;
         this.powerTargets = [];
+    }
+
+    spellColor(card) {
+        return ABILITY_COLORS[card.abilityId] ?? 0xb98cff;
+    }
+
+    /** Over the arena between the two heroes (where an untargeted spell is dropped). */
+    overBoard(ndc) {
+        const classic = this.classicAt(ndc);
+        return !!classic && classic.x > 300 && classic.x < 1620 && classic.y > 260 && classic.y < 860;
     }
 
     /** Center and spread of the first two pointers (pinch / two-finger orbit). */
@@ -319,6 +368,15 @@ export class Interaction {
 
     startCardDrag() {
         this.clearTimer();
+        if (this.card.spell && this.game.spellTargets(this.card)) {
+            // A spell with a target stays in the hand (shown big) and aims an arrow at its target instead.
+            this.held = false;
+            this.game.setHovered(this.card);
+            this.beginSpell(this.card);
+            this.card = null;
+            this.updatePowerArrow();
+            return;
+        }
         if (this.held) this.game.setHovered(null);
         this.held = false;
         this.mode = 'card';
@@ -356,6 +414,12 @@ export class Interaction {
         const classic = this.classicAt(this.ndc);
         if (!world || !classic) return;
         game.drag(this.card, world, classic, now);
+        if (this.card.spell) {
+            // A spell without a target lights up over the board, where it is cast.
+            this.card.setGlow(this.spellColor(this.card), this.overBoard(this.ndc) ? 0.9 : 0);
+            this.slot = null;
+            return;
+        }
         // Hovering a slot (classic: card rectangle overlapping the slot).
         let slot = null;
         for (let i = 0; i < 7; i++) {

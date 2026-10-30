@@ -230,6 +230,17 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
         }
     }
 
+    /// A cast spell is used up (after its events): it flares in its colour, rises and fades away. Removes it.
+    Animation.prototype.Card.Spend = function (card, color) {
+        if (!card) return 0;
+        CreateJS.Tween.removeTweens(card);
+        if (card.SetFlash) card.SetFlash(color || 0xffffff);
+        if (card.engine) Animation.prototype.Fx.Sparkle(card.engine, card, color || 0xffffff, 10);
+        Animate(card, { alpha: 0, scaleX: card.scale.x * 1.15, scaleY: card.scale.y * 1.15, y: card.y - 50 }, 650, CreateJS.Ease.quadIn,
+            function () { Remove(card); });
+        return 650;
+    }
+
     Animation.prototype.Card.MoveTo = function () {
 
     }
@@ -778,6 +789,26 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
             setTimeout(function () { Animation.prototype.Fx.Burst(engine, x, y, color, legendary ? 110 : 80); }, r * 140);
         }
         Animation.prototype.Fx.Sparkle(engine, { x: x, y: y }, legendary ? 0xffe08a : 0xd9a8ff, legendary ? 18 : 10);
+    }
+
+    /// <summary>
+    /// A spell is cast: the card flies to (x, y) beside the board (where it rests until it is used up, see
+    /// Card.Spend) and flares up in its ability's colour with rings and sparks. Returns how long the next step waits.
+    /// </summary>
+    Animation.prototype.Fx.CastSpell = function (engine, card, x, y, color) {
+        color = color || 0xd9c2ff;
+        card.position.originX = x; // the effects of its events start here
+        card.position.originY = y;
+        CreateJS.Tween.removeTweens(card);
+        Animate(card, { x: x, y: y, alpha: 1, rotation: 0, scaleX: 1.3, scaleY: 1.3 }, 380, CreateJS.Ease.cubicOut, function () {
+            if (card.SetFlash) card.SetFlash(color, 260);
+            Animation.prototype.Fx.Pulse(engine, { x: x, y: y }, color);
+            Animation.prototype.Fx.Burst(engine, x, y, color, 100);
+            setTimeout(function () { Animation.prototype.Fx.Burst(engine, x, y, 0xffffff, 70); }, 140);
+            Animation.prototype.Fx.Sparkle(engine, { x: x, y: y }, color, 14);
+        });
+        PlaySound(Asset.Sound.ABILITY_SACRIFICE, 0.3);
+        return 900;
     }
 
     /// Shows a card face for a moment, then burns it away (a card drawn into a full hand).

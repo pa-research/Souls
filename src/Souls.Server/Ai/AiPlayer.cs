@@ -21,7 +21,7 @@ public sealed class AiOptions
 /// <summary>
 /// The practice bot. It plays through an in-memory <see cref="BotConnection"/> using the same messages as a
 /// browser. After every action the server sends the full state (<see cref="GameResponse.GameSync"/>); on its turn the
-/// bot then picks one action at a time: lethal if it can, cards to play, abilities, trades, the hero power, and
+/// bot then picks one action at a time: lethal if it can, spells, cards to play, abilities, trades, the hero power, and
 /// finally ends the turn. Difficulty: 0 easy (random), 1 normal (greedy), 2 hard (careful trades, plays to its outs).
 /// Given the engine and a way to copy its game, hard looks ahead instead (see <see cref="PlanAsync"/>).
 /// </summary>
@@ -34,6 +34,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// </summary>
     private const int LookaheadBudget = 10_000;
     private const int BeamWidth = 20;
+
+    /// <summary>
+    /// What a card in the hand is worth to the lookahead (3 health). A card played keeps it (its stats count on the
+    /// board), so only a spell pays it: a spell must gain more than the card it uses up, and drawing cards is worth it.
+    /// </summary>
+    private const int HandCardWorth = 6;
 
     private sealed class Unit
     {
@@ -208,6 +214,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
                 break;
             case GameResponse.GameUseCardOk:
+            case GameResponse.GameUseCardSpell:
                 _hand.Remove((int?)payload!["card"]?["cid"] ?? 0);
                 break;
             case GameResponse.GameSync:
@@ -336,7 +343,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return null; // easy bots sometimes just pass
         }
 
-        return Lethal() ?? PlayCard() ?? UseAbility() ?? Attack() ?? HeroAttack() ?? HeroPower();
+        return Lethal() ?? CastSpell() ?? PlayCard() ?? UseAbility() ?? Attack() ?? HeroAttack() ?? HeroPower();
     }
 
     // ---- Lethal ---------------------------------------------------------------------------------------------------
@@ -352,7 +359,8 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         static bool Shoots(Unit u) => u.Ability is AbilityIds.Burn or AbilityIds.Drain;
         var damage = ready.Sum(u => Shoots(u) ? Math.Max(u.Hit, u.AbilityValue) : u.Ability == AbilityIds.Fury ? 2 * u.Hit : u.Hit)
             + (_me.CanAttack ? _me.Attack : 0)
-            + (_me.CanUsePower && _me.Type is 1 or 2 ? 1 : 0);
+            + (_me.CanUsePower && _me.Type is 1 or 2 ? 1 : 0)
+            + _hand.Values.Where(c => c.IsSpell && c.Cost <= _me.Mana && c.AbilityId is AbilityIds.Burn or AbilityIds.Drain).Select(c => c.AbilityValue).DefaultIfEmpty().Max();
         if (damage < _enemy.Toughness)
         {
             return null;
@@ -387,7 +395,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return null;
         }
 
-        var affordable = _hand.Values.Where(c => c.Cost <= _me.Mana).ToList();
+        var affordable = _hand.Values.Where(c => !c.IsSpell && c.Cost <= _me.Mana).ToList();
         if (affordable.Count == 0)
         {
             return null;
@@ -429,6 +437,42 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             AbilityIds.Summon => free.OrderByDescending(OpenAround).ThenBy(s => Math.Abs(s - 3)).First(),
             _ => free[0],
         };
+    }
+
+    // ---- Spells ---------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Simple rules: a burn that kills the hero, else what it kills on the board; heal or armor the hero when it is
+    /// low; paralyze a big hitter; empower a card that can still attack; draw while the hand has room; Inferno into
+    /// two or more cards. Otherwise the spell waits.
+    /// </summary>
+    private Message? CastSpell()
+    {
+        foreach (var spell in _hand.Values.Where(c => c.IsSpell && c.Cost <= _me.Mana).OrderByDescending(c => c.Cost).ToList())
+        {
+            var v = spell.AbilityValue;
+            var low = _me.Health <= _me.MaxHealth / 2;
+            var m = spell.AbilityId switch
+            {
+                AbilityIds.Burn or AbilityIds.Drain when v >= _enemy.Toughness => Cast(spell.Cid, TargetType.EnemyHero),
+                AbilityIds.Burn or AbilityIds.Drain => _enemyBoard.Where(u => u.DiesTo(v, venom: false)).OrderByDescending(u => u.Value)
+                    .Select(u => Cast(spell.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault(),
+                AbilityIds.Heal or AbilityIds.Harden => low ? Cast(spell.Cid, TargetType.OwnHero) : null,
+                AbilityIds.Paralyze => _enemyBoard.Where(u => u.Attack >= 3).OrderByDescending(u => u.Attack)
+                    .Select(u => Cast(spell.Cid, TargetType.EnemyCard, u.Cid)).FirstOrDefault(),
+                AbilityIds.Empower => _myBoard.OrderByDescending(u => u.CanAct).ThenByDescending(u => u.Attack)
+                    .Select(u => Cast(spell.Cid, TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),
+                AbilityIds.Insight => _hand.Count - 1 + v <= GamePlayer.MaxHandCards ? Cast(spell.Cid) : null,
+                AbilityIds.Inferno => _enemyBoard.Count >= 2 ? Cast(spell.Cid) : null,
+                _ => null,
+            };
+            if (m is not null && Try(m) is { } ok)
+            {
+                return ok;
+            }
+        }
+
+        return null;
     }
 
     // ---- Abilities ------------------------------------------------------------------------------------------------
@@ -668,7 +712,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
     /// <summary>
     /// The bot's value of a position at the end of its turn: its cards' <see cref="Unit.Value"/> minus the enemy's, the
-    /// enemy's counting one and a half times (they attack next), plus its hero's health and armor minus the enemy's.
+    /// enemy's counting one and a half times (they attack next, paralyzed cards without their attack), plus its hero's
+    /// health and armor minus the enemy's, plus <see cref="HandCardWorth"/> per card in its hand or played this turn
+    /// (spells cast are used up, so they do not count).
     /// </summary>
     private int Score(GameRoom room)
     {
@@ -685,7 +731,8 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         static int Cards(GamePlayer gp) => gp.BoardCards.Values.Sum(c => Unit.Of(c).Value);
-        return 2 * (Cards(me) + me.Health + me.Armor - enemy.Health - enemy.Armor) - 3 * Cards(enemy);
+        var threat = Cards(enemy) - enemy.BoardCards.Values.Where(c => c.Paralyzed).Sum(c => 2 * c.Attack);
+        return 2 * (Cards(me) + me.Health + me.Armor - enemy.Health - enemy.Armor) - 3 * threat + HandCardWorth * (me.HandCards.Count + me.CardsPlayed - me.Used.Count);
     }
 
     /// <summary>Identifies a position, to drop actions that changed nothing and positions reached in another order.</summary>
@@ -708,16 +755,33 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         return hash.ToHashCode();
     }
 
-    /// <summary>Every action the bot could take: each card once (in the slot <see cref="PickSlot"/> picks), every target.</summary>
+    /// <summary>
+    /// Every action the bot could take: each card once (in the slot <see cref="PickSlot"/> picks), each spell once on
+    /// every target, every attack and ability target.
+    /// </summary>
     private IEnumerable<Message> Moves(GameRoom room)
     {
         var me = room.PlayerOf(_ident).GPlayer!;
         var enemy = room.Other(me);
         var free = Enumerable.Range(0, GamePlayer.BoardSlots).Where(s => !me.BoardCards.ContainsKey(s)).ToList();
         var holdInferno = enemy.BoardCards.Count < 2 && me.HandCards.Count < 8;
-        foreach (var card in me.HandCards.Values.Where(c => free.Count > 0 && c.Cost <= me.Mana && !(holdInferno && c.AbilityId == AbilityIds.Inferno)).DistinctBy(c => c.Id))
+        foreach (var card in me.HandCards.Values.Where(c => c.Cost <= me.Mana).DistinctBy(c => c.Id))
         {
-            yield return Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = PickSlot(card, free) });
+            if (card.IsSpell && GameRules.IsActivated(card.AbilityId))
+            {
+                foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value)))
+                {
+                    yield return Cast(card.Cid, type, target);
+                }
+            }
+            else if (card.IsSpell)
+            {
+                yield return Cast(card.Cid);
+            }
+            else if (free.Count > 0 && !(holdInferno && card.AbilityId == AbilityIds.Inferno))
+            {
+                yield return Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = PickSlot(card, free) });
+            }
         }
 
         // Enemy cards before the hero: on equal scores the bot trades.
@@ -802,6 +866,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
     private static Message Ability(int source, TargetType type, int target) =>
         Message.Create(GameRequest.UseAbility, new JsonObject { ["source"] = source, ["target"] = target, ["type"] = (int)type });
+
+    /// <summary>Casts a spell on a target, or on nothing (on-play spells).</summary>
+    private static Message Cast(int cid, TargetType? type = null, int target = -1) => Message.Create(GameRequest.UseCard, type is { } t
+        ? new JsonObject { ["cid"] = cid, ["target"] = target, ["type"] = (int)t }
+        : new JsonObject { ["cid"] = cid });
 
     private static Message Power(TargetType type, int target) =>
         Message.Create(GameRequest.HeroPower, new JsonObject { ["target"] = target, ["type"] = (int)type });

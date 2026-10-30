@@ -51,7 +51,7 @@ public static class CardPower
             Ability.Insight or Ability.Inferno => 2.5 * v,
             Ability.Regenerate => 1.2 * v,
             Ability.Grow => 3 * v,
-            Ability.Drain => 2 * v,
+            Ability.Drain or Ability.Empower => 2 * v,
             _ => 0,
         };
     }

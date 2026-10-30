@@ -75,22 +75,32 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     public string? AbilityText { get; init; }
     public string? Flavor { get; init; }
 
+    /// <summary>A spell: no attack or health; its level raises its value instead.</summary>
+    public bool Spell { get; init; }
+
     public static CardTile From(Card c, bool owned = false, int level = 1)
     {
-        var bonus = GameRules.LevelBonus(level);
+        var spell = c.Kind == CardKind.Spell;
+        var bonus = spell ? 0 : GameRules.LevelBonus(level);
+        var value = spell && c.AbilityId is { } a ? GameRules.SpellValue(a, c.AbilityValue, level) : c.AbilityValue;
         var lines = new List<string>();
-        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, c.AbilityValue, c.RaceId) : null;
-        if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
+        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, value, c.RaceId) : null;
+        if (spell)
         {
-            lines.Add($"{GameRules.AbilityLabel(id, c.AbilityValue)}: {abilityText}");
+            lines.Add(GameRules.Keywords.Spell);
         }
 
-        if (c.RaceId is { } race && GameRules.RaceTexts.TryGetValue(race, out var raceText))
+        if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
+        {
+            lines.Add($"{GameRules.AbilityLabel(id, value)}: {abilityText}");
+        }
+
+        if (c.RaceId is { } race && (!spell || GameRules.RaceWorksForSpells(race)) && GameRules.RaceTexts.TryGetValue(race, out var raceText))
         {
             lines.Add($"{raceText.Name}. {raceText.Text}");
         }
 
-        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } a ? GameRules.AbilityLabel(a, c.AbilityValue) : null,
+        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } l ? GameRules.AbilityLabel(l, value) : null,
             c.Race?.CardUrl, c.Portrait ?? DefaultPortrait, c.VendorPrice, owned)
         {
             Armor = c.Armor,
@@ -101,6 +111,7 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
             RaceName = c.Race?.Name,
             AbilityText = abilityText,
             Flavor = c.Flavor,
+            Spell = spell,
         };
     }
 }
@@ -225,6 +236,7 @@ public sealed record RulesConfig(
                 ["fatigue"] = GameRules.Keywords.Fatigue,
                 ["burned"] = GameRules.Keywords.Burned,
                 ["ward"] = GameRules.Keywords.Ward,
+                ["spell"] = GameRules.Keywords.Spell,
             },
             GameRules.DeckSize,
             10);
@@ -290,8 +302,11 @@ public sealed class CardEditorModel
     [Range(0, 100)]
     public int Attack { get; set; }
 
-    [Range(1, 100)]
+    /// <summary>At least 1 for a card; spells have none (saved as 0).</summary>
+    [Range(0, 100)]
     public int Health { get; set; } = 1;
+
+    public CardKind Kind { get; set; }
 
     [Range(0, 100)]
     public int Armor { get; set; }

@@ -11,9 +11,17 @@
     "slug": "lorc",
     "name": "Lorc"
   },
+  "bleeding-heart": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
   "boar": {
     "slug": "caro-asercion",
     "name": "Caro Asercion"
+  },
+  "book-aura": {
+    "slug": "lorc",
+    "name": "Lorc"
   },
   "breaking-chain": {
     "slug": "skoll",
@@ -24,6 +32,10 @@
     "name": "Lorc"
   },
   "chalice-drops": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "claw-slashes": {
     "slug": "lorc",
     "name": "Lorc"
   },
@@ -38,6 +50,10 @@
   "crenulated-shield": {
     "slug": "lorc",
     "name": "Lorc"
+  },
+  "cross-shield": {
+    "slug": "delapouite",
+    "name": "Delapouite"
   },
   "crown": {
     "slug": "lorc",
@@ -67,6 +83,10 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "floating-ghost": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
   "goblin": {
     "slug": "caro-asercion",
     "name": "Caro Asercion"
@@ -74,6 +94,10 @@
   "grim-reaper": {
     "slug": "lorc",
     "name": "Lorc"
+  },
+  "health-potion": {
+    "slug": "delapouite",
+    "name": "Delapouite"
   },
   "horned-helm": {
     "slug": "lorc",
@@ -91,11 +115,19 @@
     "slug": "lorc",
     "name": "Lorc"
   },
+  "moon-bats": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
   "ogre": {
     "slug": "delapouite",
     "name": "Delapouite"
   },
   "pentagram-rose": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "poison-gas": {
     "slug": "lorc",
     "name": "Lorc"
   },
@@ -123,9 +155,17 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "skeletal-hand": {
+    "slug": "delapouite",
+    "name": "Delapouite"
+  },
   "skull-staff": {
     "slug": "delapouite",
     "name": "Delapouite"
+  },
+  "snowflake-1": {
+    "slug": "lorc",
+    "name": "Lorc"
   },
   "soul": {
     "slug": "delapouite",
@@ -142,6 +182,10 @@
   "templar-shield": {
     "slug": "delapouite",
     "name": "Delapouite"
+  },
+  "thrown-spear": {
+    "slug": "lorc",
+    "name": "Lorc"
   },
   "troll": {
     "slug": "skoll",

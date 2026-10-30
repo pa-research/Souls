@@ -5,7 +5,7 @@
 import * as THREE from '/lib/three/three.module.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
-import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY } from './cards.js';
+import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
@@ -29,17 +29,15 @@ const BOARD_HEIGHT = 2;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 
-// Colours of abilities (by ability id) and hero powers (by class).
-export const ABILITY_COLORS = {
-    1: 0xffe08a, 2: 0xc77dff, 3: 0x9aa5b1, 4: 0x9b59b6, 5: 0x7fb8ff, 6: 0xb39ddb, 7: 0xc0c8d0, 8: 0xff7a1a, 9: 0xffd34d,
-    10: 0xffd36b, 11: 0xff5a3a, 12: 0x7dff4a, 13: 0xffc04d, 14: 0x7fd1ff, 15: 0xff6a1a, 16: 0x6dff7a, 17: 0xff8c3a, 18: 0xd0104a, 19: 0x9b59b6,
-};
-const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
+// Colours of abilities (by ability id, see cards.js) and hero powers (by class).
+export { ABILITY_COLORS };
+const ABILITY = { HEAL: 1, SACRIFICE: 2, SUMMON: 4, PARALYZE: 5, HAUNT: 6, HARDEN: 7, BURN: 8, CHARGE: 9, WARD: 10, FURY: 11, VENOM: 12, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19, EMPOWER: 20 };
 const POWER_COLORS = { 1: 0xff4d4d, 2: 0xd0104a, 3: 0xfff1a8, 4: 0x9aa5b1 };
 
 // Messages that change the game: played in order through the queue.
 const QUEUED = new Set([
     Response.GAME_CREATE, Response.RECOVER, Response.SPECTATE_START, Response.USECARD_OK, Response.OPPONENT_USECARD_OK,
+    Response.USECARD_SPELL, Response.OPPONENT_USECARD_SPELL,
     Response.NEWCARD, Response.OPPONENT_NEWCARD, Response.NEXT_TURN, Response.GAME_EVENTS, Response.GAME_SYNC,
     Response.MULLIGAN, Response.OPPONENT_MULLIGAN, Response.VICTORY, Response.DEFEAT, Response.DRAW, Response.SPECTATE_END,
 ]);
@@ -123,7 +121,8 @@ export class Game {
         this.hovered = null;
         this.reconnects = 0;
         this.queue = Promise.resolve();
-        this.dying = new Map(); // cid -> Card3D that left the board and is still animating
+        this.dying = new Map(); // cid -> Card3D that left the board (or a spell being cast) and is still animating
+        this.casting = []; // spells cast in this action: shown until the GameSync, then used up
         this.lastSync = null;
         this.interaction = null;
 
@@ -319,6 +318,7 @@ export class Game {
         }
         for (const card of this.dying.values()) card.dispose();
         this.dying.clear();
+        this.casting = [];
         this.hovered = null;
     }
 
@@ -400,24 +400,27 @@ export class Game {
         const level = Number(d.level) || 1;
         const rules = d.ability && r.abilities[d.ability.id];
         const ability = d.ability ? { name: d.ability.label || d.ability.name || rules?.name, text: d.ability.text || rules?.text, activated: d.ability.activated ?? rules?.activated } : null;
-        const race = d.race && r.races[d.race.id];
+        const spell = d.kind === 'spell';
+        // Spells never attack or die: only the Vampiric and Lightbringer passives work for them.
+        const race = d.race && (d.kind !== 'spell' || [2, 3].includes(Number(d.race.id))) && r.races[d.race.id];
         const rarity = RARITY[Number(d.rarity)];
         const side = this.sideOf(obj);
         const onBoard = side.board.get(obj.cid) === obj;
         const exhausted = onBoard && side.isPlayer && this.yourTurn && !obj.ready && !d.paralyzed;
         return {
             title: `${d.name}${level > 1 ? ' ' + '\u2605'.repeat(level - 1) : ''}`,
-            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, spell ? 'Spell' : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
             rarity,
-            stats: { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
+            stats: spell ? { cost: d.cost } : { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
             blocks: [
                 ability ? { label: ability.name, text: ability.text } : null,
                 race ? { kind: 'race', label: race.name, text: race.text } : null,
                 d.ward ? { kind: 'info', text: r.keywords.ward || 'Ward: the next damage breaks the ward instead.' } : null,
                 d.paralyzed ? { kind: 'warn', text: r.keywords.paralyzed } : null,
                 exhausted ? { kind: 'warn', text: 'Exhausted: it already acted this turn, or arrived this turn.' } : null,
-                !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
-                level > 1 ? { kind: 'info', text: `Level ${level}: +${level - 1} attack and health.` } : null,
+                spell ? { kind: 'info', text: r.keywords.spell || 'Spell: cast it from your hand, then it is used up.' } : null,
+                !spell && !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
+                level > 1 ? { kind: 'info', text: spell ? `Level ${level}: +${level - 1} to its effect.` : `Level ${level}: +${level - 1} attack and health.` } : null,
                 d.flavor ? { kind: 'flavor', text: d.flavor } : null,
             ],
         };
@@ -437,6 +440,18 @@ export class Game {
             else if (t === 'enemyHero') list.push(this.opponent.hero);
         }
         return list;
+    }
+
+    /** The arena point (live camera) under a hand card on screen: where a spell's arrow starts. */
+    handPoint(card) {
+        const v = card.getWorldPosition(new THREE.Vector3()).project(this.stage.hudCamera);
+        return this.stage.pointerOnPlane(new THREE.Vector2(v.x, v.y), 30);
+    }
+
+    /** What a spell in the hand may be cast on, as game objects; null for a spell cast on nothing (Insight, Inferno). */
+    spellTargets(card) {
+        const ability = this.rules.abilities[card.abilityId];
+        return ability && ability.activated ? this.candidates(ability.targets) : null;
     }
 
     abilityOf(card) {
@@ -463,7 +478,7 @@ export class Game {
         card.dragging = true;
         this.liftOut(card);
         sound.play('CARD_PICKUP', 0.5);
-        this.showSlots(true);
+        this.showSlots(!card.spell);
         this.lastMove = 0;
     }
 
@@ -490,7 +505,25 @@ export class Game {
         } else {
             this.gameSocket.send(Request.RELEASE_CARD, { cid: card.cid, gameId: this.gameId });
         }
-        // Safety net: if the server never answers, put the card back.
+        this.awaitAnswer(card);
+    }
+
+    /**
+     * Casts a spell from the hand (dragged or armed) on its target, or on nothing; the server answers UseCardSpell,
+     * or Release when it is refused.
+     */
+    cast(card, target) {
+        card.dragging = false;
+        card.pending = true;
+        this.showSlots(false);
+        this.gameSocket.send(Request.USECARD, target
+            ? { cid: card.cid, target: target instanceof Card3D ? target.cid : -1, type: this.targetType(target) }
+            : { cid: card.cid });
+        this.awaitAnswer(card);
+    }
+
+    /** Safety net: if the server never answers a hand card, put it back. */
+    awaitAnswer(card) {
         setTimeout(() => {
             if (card.pending && this.player.hand.get(card.cid) === card) { card.pending = false; this.putBack(card); this.layoutHand(this.player); }
         }, 8000);
@@ -663,6 +696,9 @@ export class Game {
             case Response.USECARD_OK:
             case Response.OPPONENT_USECARD_OK:
                 return this.onUseCard(m.Type === Response.USECARD_OK ? this.player : this.opponent, p);
+            case Response.USECARD_SPELL:
+            case Response.OPPONENT_USECARD_SPELL:
+                return this.onCastSpell(m.Type === Response.USECARD_SPELL ? this.player : this.opponent, p);
             case Response.NEWCARD:
                 return this.onNewCards(this.player, p);
             case Response.OPPONENT_NEWCARD:
@@ -802,6 +838,53 @@ export class Game {
         });
     }
 
+    /**
+     * A spell was cast: it leaves the hand (the opponent's is revealed) and hangs over the middle of the arena in a ring
+     * of its colour while the events of the cast play (they refer to it by cid); the GameSync uses it up.
+     */
+    onCastSpell(side, p) {
+        const data = p.card;
+        side.hero.setInfo(p.pInfo);
+        const card = side.hand.get(data.cid) || this.createCard(side, data);
+        side.hand.delete(data.cid);
+        card.pending = card.dragging = card.opponentDragging = false;
+        this.liftOut(card);
+        if (this.hovered === card) this.hovered = null;
+        card.setData(data);
+        card.setOpacity(1);
+        this.layoutHand(side);
+        if (side.isPlayer) this.player.hero.previewCost(null);
+        this.dying.set(card.cid, card);
+        this.casting.push(card);
+        const color = ABILITY_COLORS[card.abilityId] ?? 0xb98cff;
+        const below = toWorld(960, 540, 4);
+        const pose = { position: below.clone().setY(150), quaternion: this.stage.camera.quaternion.clone(), scale: 1.1 };
+        this.crowd.spell('insight', 0.7);
+        if (Number(data.rarity) >= 3) this.effects.lightPillar(below, color, 1400);
+        return card.moveTo(pose, side.isPlayer ? 380 : 650, Ease.cubicOut, { arc: 60 }).then(() => {
+            card.setGlow(color, 0.9);
+            this.effects.sigil(below, color, 260, 1100);
+            this.effects.spiral(below.clone().setY(10), color, { count: 30, radius: 90, height: 260, duration: 800 });
+            this.effects.burst(card.center(), { color, count: 40, speed: 240, size: 34, life: 700, gravity: -120 });
+            this.cheer(0.3);
+            return wait(250);
+        });
+    }
+
+    /** The spells of the last action are used up: they flare and fade away. */
+    useUpSpells() {
+        for (const card of this.casting) {
+            card.setGlow(0xffffff, 1);
+            this.effects.burst(card.center(), { color: 0xfff1c0, count: 30, speed: 200, size: 30, life: 600, gravity: -250, up: 1 });
+            const from = card.position.y;
+            tweens.run(550, t => { card.setOpacity(1 - t); card.position.y = from + t * 90; }, Ease.quadIn).then(() => {
+                if (this.dying.get(card.cid) === card) this.dying.delete(card.cid);
+                card.dispose();
+            });
+        }
+        this.casting = [];
+    }
+
     /** Epic and legendary cards arrive with a column of light (and, for legendaries, a fanfare and their name). */
     rareEntrance(card, rarity, side) {
         const pose = this.boardPose(side, card);
@@ -890,6 +973,7 @@ export class Game {
     /** The full public state: numbers, statuses, who may act, and the turn timer. */
     applySync(s) {
         this.lastSync = s;
+        this.useUpSpells();
         this.current = s.current;
         this.setTurn(!this.spectator && s.current === this.ident);
         this.sign.setActive(this.yourTurn);

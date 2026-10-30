@@ -93,6 +93,72 @@ public class WebAppTests(SoulsAppFixture app)
     }
 
     [Fact]
+    public async Task PlayersBuySpellsAndPutThemInTheirDeck()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        // Nobody starts with spells; they are in the shop like any card (Blood Lance: a common, 2 coins).
+        var playerId = await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync());
+        Assert.False(await app.WithDbAsync(db => db.PlayerCards.AnyAsync(pc => pc.PlayerId == playerId && pc.Card!.Kind == CardKind.Spell)));
+        await app.WithDbAsync(db => db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, 6)));
+        using (await browser.PostFormAsync("/Shop", "/Shop/Buy", [new("cardId", "63")]))
+        {
+        }
+
+        Assert.True(await app.WithDbAsync(db => db.PlayerCards.AnyAsync(pc => pc.PlayerId == playerId && pc.CardId == 63)));
+        using var shop = await browser.GetAsync("/Shop");
+        var shopHtml = await shop.Content.ReadAsStringAsync();
+        Assert.Contains("owned spell\" id=\"card_63\"", shopHtml, StringComparison.Ordinal);
+        Assert.Contains("class=\"s-card-spell\"", shopHtml, StringComparison.Ordinal);
+
+        // A deck with four of them; an upgrade makes the spell stronger instead of giving it stats (Burn 3 -> Burn 4).
+        using (await browser.PostFormAsync("/Deck", "/Deck/Save", [new("count[5]", "4"), new("count[6]", "4"), new("count[20]", "4"), new("count[23]", "4"), new("count[63]", "4")]))
+        {
+        }
+
+        Assert.Equal(4, await app.WithDbAsync(db => db.DeckCards.Where(d => d.PlayerId == playerId && d.CardId == 63).Select(d => d.Count).SingleAsync()));
+        using (await browser.PostFormAsync("/Shop", "/Shop/Upgrade", [new("cardId", "63")]))
+        {
+        }
+
+        using var deck = await browser.GetAsync("/Deck");
+        var deckHtml = await deck.Content.ReadAsStringAsync();
+        Assert.Contains("You play with your own deck.", deckHtml, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"s-card-ability\">Burn 4</div>", deckHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CardEditorMakesSpellsWithAnAbilityTheyCanCast()
+    {
+        using var admin = app.CreateBrowser();
+        using var _ = await admin.LoginAsync(SoulsAppFixture.AdminName, SoulsAppFixture.AdminPassword);
+        KeyValuePair<string, string>[] Spell(string name, int ability) =>
+        [
+            new("Card.Name", name), new("Card.Kind", "1"), new("Card.Cost", "1"), new("Card.Attack", "0"), new("Card.Health", "0"), new("Card.Armor", "0"),
+            new("Card.Level", "2"), new("Card.VendorPrice", "2"), new("Card.RaceId", "1"), new("Card.AbilityId", ability.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ];
+
+        using (var refused = await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", Spell("Taunting Spell", Ability.Taunt)))
+        {
+            Assert.Contains("A spell needs an ability it can cast", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        using (await admin.PostFormAsync("/Admin/CardEditor", "/Admin/CardEditor", Spell("Test Bolt", Ability.Burn)))
+        {
+        }
+
+        var card = await app.WithDbAsync(db => db.Cards.SingleAsync(c => c.Name == "Test Bolt"));
+        Assert.Equal((CardKind.Spell, 0), (card.Kind, card.Health));
+        Assert.False(await app.WithDbAsync(db => db.Cards.AnyAsync(c => c.Name == "Taunting Spell")));
+        await app.WithDbAsync(db => db.Cards.Where(c => c.Id == card.Id).ExecuteDeleteAsync());
+    }
+
+    [Fact]
     public async Task DeckBuilderUpgradesAndQuests()
     {
         var name = NewName();

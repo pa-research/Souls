@@ -11,7 +11,8 @@ define("mulligan", ["hud"], function (Hud) {
 
     /// A card face like the site's card tiles (.s-card in site.css, same layout as Views/Shared/_CardTile.cshtml).
     function CardFace(parent, d) {
-        var card = Hud.El('div', 's-card card-container rarity-' + (RARITIES[Number(d.rarity)] || 'common'), parent);
+        var spell = d.kind === 'spell';
+        var card = Hud.El('div', 's-card card-container rarity-' + (RARITIES[Number(d.rarity)] || 'common') + (spell ? ' spell' : ''), parent);
         card.style.backgroundImage = Url((d.race && d.race.cardUrl) || '/Content/Images/Card/Texture/card_error.png');
         Hud.El('div', 's-card-portrait card-portrait', card).style.backgroundImage = Url(d.portrait);
         Hud.El('div', 's-card-cost', card, d.cost);
@@ -26,8 +27,15 @@ define("mulligan", ["hud"], function (Hud) {
         else if (d.flavor) {
             Hud.El('div', 's-card-flavor', card, d.flavor);
         }
-        Hud.El('div', 's-card-attack', card, d.attack);
-        Hud.El('div', 's-card-health', card, d.health);
+        if (spell) {
+            var plate = Hud.El('div', 's-card-spell', card);
+            Hud.El('span', '', plate, 'Spell');
+            Hud.El('span', '', plate, 'Spell');
+        }
+        else {
+            Hud.El('div', 's-card-attack', card, d.attack);
+            Hud.El('div', 's-card-health', card, d.health);
+        }
         if (Number(d.armor) > 0) Hud.El('div', 's-card-armor', card, d.armor);
         return card;
     }

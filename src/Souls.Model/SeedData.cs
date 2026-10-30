@@ -131,6 +131,29 @@ public static class SeedData
             flavor: "Older than the mountains, and twice as patient."),
         Card(56, "Fenrir", Ferocious, L, cost: 9, attack: 7, health: 8, armor: 0, Ability.Fury,
             flavor: "No chain forged by gods or men holds him for long."),
+
+        // ---- Spells: cast from the hand, they never take a board slot. Lightbringer spells bless their hero and
+        // Vampiric spells heal it by the damage they deal, like the cards of their race. ---------------------------
+        Spell(60, "Soul Rend", Darkness, C, cost: 4, Ability.Burn, value: 4,
+            flavor: "It does not cut the flesh. It cuts what lives inside."),
+        Spell(61, "Death Grip", Darkness, R, cost: 3, Ability.Drain, value: 2,
+            flavor: "Cold fingers close, and something warm flows the other way."),
+        Spell(62, "Plague Wind", Darkness, E, cost: 2, Ability.Inferno, value: 2,
+            flavor: "It blows from the barrows, and the fields go quiet behind it."),
+        Spell(63, "Blood Lance", Vampiric, C, cost: 2, Ability.Burn, value: 3,
+            flavor: "Forged from a single drop, and thirsty for the rest."),
+        Spell(64, "Blood Pact", Vampiric, R, cost: 3, Ability.Empower, value: 2,
+            flavor: "Drink deep, and rise stronger than you fell."),
+        Spell(65, "Blood Moon", Vampiric, E, cost: 2, Ability.Inferno, value: 2,
+            flavor: "When the moon turns red, every wound bleeds for the count."),
+        Spell(66, "Sacred Shield", Lightbringer, C, cost: 1, Ability.Harden, value: 8,
+            flavor: "The light does not ask whether you deserve it."),
+        Spell(67, "Revelation", Lightbringer, R, cost: 2, Ability.Insight, value: 3,
+            flavor: "For one blinding moment, every path is clear."),
+        Spell(68, "Troll Blood", Ferocious, C, cost: 2, Ability.Heal, value: 4,
+            flavor: "Troll blood closes any wound. The taste is another matter."),
+        Spell(69, "Frostbite", Ferocious, R, cost: 0, Ability.Paralyze,
+            flavor: "The cold of the high passes does not kill. It waits."),
     ];
 
     /// <summary>
@@ -210,6 +233,13 @@ public static class SeedData
         Portrait = portrait ?? $"/Content/Images/Card/Portraits/{id}.jpg",
         Flavor = flavor,
     };
+
+    private static Card Spell(int id, string name, int race, int rarity, int cost, int ability, int? value = null, string? flavor = null)
+    {
+        var card = Card(id, name, race, rarity, cost, attack: 0, health: 0, armor: 0, ability, value, flavor: flavor);
+        card.Kind = CardKind.Spell;
+        return card;
+    }
 
     private static GameLogType LogType(GameLogKind kind, string description, string text) => new()
     {

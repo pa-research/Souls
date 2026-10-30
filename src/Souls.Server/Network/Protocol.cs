@@ -174,7 +174,11 @@ public enum GameResponse
     GameRecover = 220,
     GameNewCard = 222,
     GameOpponentNewCard = 223,
+
+    /// <summary>Your spell was cast: <c>{"card", "pInfo", "target": ref or null}</c>; it left your hand (events follow).</summary>
     GameUseCardSpell = 224,
+
+    /// <summary>The opponent cast a spell, same payload as <see cref="GameUseCardSpell"/>.</summary>
     GameOpponentUseCardSpell = 225,
     GameNextTurn = 226,
 
@@ -225,6 +229,8 @@ public enum GameRequest
 
     /// <summary>Subtypes: 0 = card on card, 1 = card on opponent, 2 = player on card, 3 = player on opponent.</summary>
     Attack = 200,
+
+    /// <summary><c>{"cid", "slotId"}</c> plays a card; a spell is cast with <c>{"cid", "target", "type"}</c> as UseAbility (untargeted: <c>{"cid"}</c>).</summary>
     UseCard = 201,
     NotYourTurn = 202,
     MoveCard = 203,

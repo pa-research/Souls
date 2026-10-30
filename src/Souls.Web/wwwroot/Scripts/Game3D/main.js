@@ -139,7 +139,7 @@ function exposeTestHooks(stage, game, ui) {
             mana: Number(game.player.hero.info.mana) || 0,
             playerHealth: game.player.hero.info.health,
             opponentHealth: game.opponent.hero.info.health,
-            hand: [...game.player.hand.values()].map(c => ({ cid: c.cid, cost: Number(c.data.cost), pending: !!c.pending })),
+            hand: [...game.player.hand.values()].map(c => ({ cid: c.cid, cost: Number(c.data.cost), pending: !!c.pending, spell: c.spell, name: c.data.name, ability: c.abilityId ?? null })),
             board: [...game.player.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, ability: c.abilityId ?? null })),
             opponentHand: game.opponent.hand.size,
             opponentBoard: [...game.opponent.board.values()].map(c => ({ cid: c.cid, slotId: c.data.slotId, health: c.data.health, taunt: !!c.data.taunt })),

@@ -99,8 +99,15 @@ function cardFace(parent, d) {
     } else if (d.flavor) {
         el('div', 's-card-flavor', card, String(d.flavor));
     }
-    el('div', 's-card-attack', card, String(d.attack ?? ''));
-    el('div', 's-card-health', card, String(d.health ?? ''));
+    if (d.kind === 'spell') {
+        card.classList.add('spell');
+        const plate = el('div', 's-card-spell', card);
+        el('span', '', plate, 'Spell');
+        el('span', '', plate, 'Spell');
+    } else {
+        el('div', 's-card-attack', card, String(d.attack ?? ''));
+        el('div', 's-card-health', card, String(d.health ?? ''));
+    }
     if (Number(d.armor) > 0) el('div', 's-card-armor', card, String(d.armor));
     return card;
 }

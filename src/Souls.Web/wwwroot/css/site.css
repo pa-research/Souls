@@ -960,6 +960,39 @@ a:hover { color: #fff0c2; }
     border: 0.8cqw solid #1f2933;
 }
 
+/* Spells: a dark plate hides the frame's attack and health gems, with the spell gem (an orb) in the middle. */
+.s-card-spell {
+    position: absolute;
+    left: 1.2%;
+    right: 1.2%;
+    top: 82.2%;
+    height: 16.4%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 9%;
+    border: 0.9cqw solid #c9a24a;
+    border-radius: 4.8cqw;
+    background: linear-gradient(#2b2140, #100b18);
+    color: #f3dc9a;
+    font: 700 6.4cqw/1 Arial, Helvetica, sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.s-card-spell::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 17%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border: 0.7cqw solid #f3dc9a;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #fff 0 10%, #b98cff 48%, #1b0f24);
+    box-shadow: 0 0 4cqw #b98cff;
+}
+
 .s-card-stars {
     position: absolute;
     top: 19.4%;
