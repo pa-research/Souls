@@ -1,6 +1,7 @@
 # Browser tests in CI (.github/workflows/ci.yml): headless Chromium renders WebGL in software, so the scripted
-# players need long turns.
+# players need long turns and a long mulligan (the 30 s default runs out before the script can confirm it).
 services:
   server:
     environment:
       Souls__Game__TurnTime: "00:08:00"
+      Souls__Game__MulliganTime: "00:03:00"
