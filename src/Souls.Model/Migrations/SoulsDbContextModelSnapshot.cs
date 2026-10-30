@@ -233,6 +233,10 @@ namespace Souls.Model.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("attack");
 
+                    b.Property<int?>("ClassId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_class");
+
                     b.Property<int>("Cost")
                         .HasColumnType("integer")
                         .HasColumnName("cost");
@@ -282,6 +286,8 @@ namespace Souls.Model.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AbilityId");
+
+                    b.HasIndex("ClassId");
 
                     b.HasIndex("RaceId");
 
@@ -1178,6 +1184,154 @@ namespace Souls.Model.Migrations
                             RaceId = 4,
                             Rarity = 2,
                             VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 70,
+                            AbilityId = 9,
+                            Armor = 0,
+                            Attack = 3,
+                            ClassId = 1,
+                            Cost = 2,
+                            Flavor = "It smelled the battle three graveyards away.",
+                            Health = 1,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Rabid Ghoul",
+                            Portrait = "/Content/Images/Card/Portraits/70.jpg",
+                            RaceId = 1,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 71,
+                            AbilityId = 11,
+                            Armor = 0,
+                            Attack = 4,
+                            ClassId = 1,
+                            Cost = 4,
+                            Flavor = "It strikes twice: once in the dark, once in your dreams.",
+                            Health = 3,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Night Terror",
+                            Portrait = "/Content/Images/Card/Portraits/71.jpg",
+                            RaceId = 1,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 72,
+                            AbilityId = 5,
+                            Armor = 0,
+                            Attack = 2,
+                            ClassId = 2,
+                            Cost = 3,
+                            Flavor = "You never see the Lurker's hunters. You only stop moving.",
+                            Health = 3,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Night Stalker",
+                            Portrait = "/Content/Images/Card/Portraits/72.jpg",
+                            RaceId = 2,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 73,
+                            AbilityId = 18,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 0,
+                            ClassId = 2,
+                            Cost = 3,
+                            Flavor = "The Lurker drinks twice: once from the wound, once from the fear.",
+                            Health = 0,
+                            Kind = 1,
+                            Level = 2,
+                            Name = "Crimson Feast",
+                            Portrait = "/Content/Images/Card/Portraits/73.jpg",
+                            RaceId = 2,
+                            Rarity = 2,
+                            VendorPrice = 4
+                        },
+                        new
+                        {
+                            Id = 74,
+                            AbilityId = 8,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 0,
+                            ClassId = 3,
+                            Cost = 2,
+                            Flavor = "Harrison throws it like he swings his sword: straight and without mercy.",
+                            Health = 0,
+                            Kind = 1,
+                            Level = 2,
+                            Name = "Sunlance",
+                            Portrait = "/Content/Images/Card/Portraits/74.jpg",
+                            RaceId = 3,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 75,
+                            AbilityId = 18,
+                            AbilityValue = 2,
+                            Armor = 0,
+                            Attack = 4,
+                            ClassId = 3,
+                            Cost = 5,
+                            Flavor = "Every blow he lands closes one of Harrison's wounds.",
+                            Health = 5,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Dawn Paladin",
+                            Portrait = "/Content/Images/Card/Portraits/75.jpg",
+                            RaceId = 3,
+                            Rarity = 3,
+                            VendorPrice = 6
+                        },
+                        new
+                        {
+                            Id = 76,
+                            AbilityId = 6,
+                            Armor = 0,
+                            Attack = 3,
+                            ClassId = 4,
+                            Cost = 3,
+                            Flavor = "Kill it and it fades. Turn around and it is back.",
+                            Health = 2,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Phantom Wolf",
+                            Portrait = "/Content/Images/Card/Portraits/76.jpg",
+                            RaceId = 4,
+                            Rarity = 1,
+                            VendorPrice = 2
+                        },
+                        new
+                        {
+                            Id = 77,
+                            AbilityId = 7,
+                            AbilityValue = 3,
+                            Armor = 0,
+                            Attack = 3,
+                            ClassId = 4,
+                            Cost = 4,
+                            Flavor = "Fader's bears sleep in armor. They wake up in more.",
+                            Health = 5,
+                            Kind = 0,
+                            Level = 2,
+                            Name = "Ironhide Bear",
+                            Portrait = "/Content/Images/Card/Portraits/77.jpg",
+                            RaceId = 4,
+                            Rarity = 2,
+                            VendorPrice = 4
                         });
                 });
 
@@ -1594,6 +1748,10 @@ namespace Souls.Model.Migrations
                     b.Property<DateTimeOffset?>("Created")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created");
+
+                    b.Property<int?>("HeroPowerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("hero_power");
 
                     b.Property<bool>("IsSystem")
                         .HasColumnType("boolean")
@@ -2086,12 +2244,19 @@ namespace Souls.Model.Migrations
                         .HasForeignKey("AbilityId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Souls.Model.Entities.PlayerType", "Class")
+                        .WithMany()
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Souls.Model.Entities.Race", "Race")
                         .WithMany()
                         .HasForeignKey("RaceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Ability");
+
+                    b.Navigation("Class");
 
                     b.Navigation("Race");
                 });

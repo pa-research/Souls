@@ -116,16 +116,19 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     var aiOptions = new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero };
     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
+    // Each bot plays the cards its class may use and one of its class's hero powers at random.
     (Player Player, Task Ai, List<Souls.Model.Entities.Card> Deck, AiPlayer Bot) Bot(int id, PlayerType type)
     {
-        var deck = Decks.Themed(pool, c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, random);
+        var deck = Decks.Themed([.. pool.Where(c => GameRules.CanUse(c.ClassId, type.Id))], c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, random);
         var cards = deck.Select(c => Card.FromEntity(c)).ToList();
+        var powers = GameRules.PowersOf(type.Id);
         var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
         var player = new Player
         {
             Id = id,
             Name = "p" + id,
             PlayerType = new PlayerTypeInfo(type.Id, type.Attack, type.Health, type.Mana, type.Armor, type.RaceId),
+            HeroPower = powers[random.Next(powers.Count)],
             OwningCards = cards,
             Deck = cards,
             IsBot = true,
@@ -195,7 +198,8 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
         [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells);
 
     SideResult Side(int ident, List<Souls.Model.Entities.Card> deck) =>
-        new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()]);
+        new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()],
+            ident == 1 ? class1.Id : class2.Id, (ident == 1 ? one : two).Player.HeroPower ?? 0);
 }
 
 static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> pool, PlayerType[] classes)
@@ -238,6 +242,30 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
         sb.AppendLine($"| {c.Name} | {mine.Count} | {Pct(wins / (double)Math.Max(1, mine.Count))} | {string.Join(" | ", cells)} |");
     }
 
+    // Each bot picks one of its class's two powers at random. "Against the other power" compares the two powers of a
+    // class: the head-to-head win rate their log-odds imply (both win rates are against the same mix of opponents).
+    sb.AppendLine();
+    sb.AppendLine("## Hero powers");
+    sb.AppendLine();
+    sb.AppendLine("Games of each class (mirror matches left out) by the hero power it played. *Against the other power* is the head-to-head win rate the two powers' win rates imply (log-odds difference); 50% means both powers are equally strong.");
+    sb.AppendLine();
+    sb.AppendLine("| Power | Class | Games | Win rate | Against the other power |");
+    sb.AppendLine("|---|---|---:|---:|---:|");
+    var powerRates = GameRules.HeroPowers.Keys.Order().ToDictionary(id => id, id =>
+    {
+        var mine = results.SelectMany(r => new[] { (r, ident: 1, me: r.Sides[0], them: r.Sides[1]), (r, ident: 2, me: r.Sides[1], them: r.Sides[0]) })
+            .Where(x => x.me.Power == id && x.me.Class != x.them.Class).ToList();
+        return (games: mine.Count, rate: mine.Count(x => x.r.Winner == x.ident) / (double)Math.Max(1, mine.Count));
+    });
+    static double Logit(double p) => Math.Log(Math.Clamp(p, 0.001, 0.999) / (1 - Math.Clamp(p, 0.001, 0.999)));
+    foreach (var (id, (games, rate)) in powerRates)
+    {
+        var power = GameRules.HeroPowers[id];
+        var other = GameRules.PowersOf(power.ClassId).Where(o => o != id).Select(o => powerRates[o].rate).FirstOrDefault(double.NaN);
+        var h2h = double.IsNaN(other) ? double.NaN : 1 / (1 + Math.Exp(Logit(other) - Logit(rate)));
+        sb.AppendLine($"| {power.Name} | {classes.Single(c => c.Id == power.ClassId).Name} | {games} | {Pct(rate)} | {Pct(h2h)} |");
+    }
+
     sb.AppendLine();
     sb.AppendLine("## Races");
     sb.AppendLine();
@@ -267,12 +295,29 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
         var pwr = playedSides.Count == 0 ? double.NaN : playedSides.Count(x => x.won) / (double)playedSides.Count;
         return (card, drawn: drawnSides.Count, gih, pwr);
     }).OrderByDescending(r => r.gih).ToList();
-    foreach (var (card, drawnCount, gih, pwr) in rows)
+    string StatsOf(Souls.Model.Entities.Card card) => card.Kind == CardKind.Spell ? "spell" : $"{card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")}";
+    string AbilityOf(Souls.Model.Entities.Card card) => card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValue) : "-";
+    string RaceOf(Souls.Model.Entities.Card card) => SeedData.Races.Single(r => r.Id == card.RaceId).Name;
+    foreach (var (card, drawnCount, gih, pwr) in rows.Where(r => r.card.ClassId is null))
     {
         var flag = drawnCount < 100 ? "few games" : gih > mean + 0.05 ? "strong" : gih < mean - 0.05 ? "weak" : "";
-        var ability = card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValue) : "-";
-        var race = SeedData.Races.Single(r => r.Id == card.RaceId).Name;
-        sb.AppendLine($"| {card.Name} | {race} | {Rarity.Name(card.Rarity)} | {card.Cost} | {(card.Kind == CardKind.Spell ? "spell" : $"{card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")}")} | {ability} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
+        sb.AppendLine($"| {card.Name} | {RaceOf(card)} | {Rarity.Name(card.Rarity)} | {card.Cost} | {StatsOf(card)} | {AbilityOf(card)} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
+    }
+
+    // A class card only shows up in its class's decks that hold its race, so its raw win rates mostly measure the
+    // class: the adjusted rate compares it with those decks (50% + played win rate - their win rate).
+    sb.AppendLine();
+    sb.AppendLine("## Class cards");
+    sb.AppendLine();
+    sb.AppendLine("Only their class can play them, so their raw win rates follow the class's. *Decks like it* is the win rate of that class's decks that contain the card's race; *played, adjusted* is 50% plus the played win rate minus that.");
+    sb.AppendLine();
+    sb.AppendLine("| Card | Class | Race | Rarity | Cost | Stats | Ability | Drawn | Drawn win rate | Played win rate | Decks like it | Played, adjusted |");
+    sb.AppendLine("|---|---|---|---|---:|---|---|---:|---:|---:|---:|---:|");
+    foreach (var (card, drawnCount, gih, pwr) in rows.Where(r => r.card.ClassId is not null).OrderBy(r => r.card.Id))
+    {
+        var like = Sides(results).Where(x => x.decided && x.side.Class == card.ClassId && x.side.Races.Contains(card.RaceId ?? 0)).ToList();
+        var likeRate = like.Count(x => x.won) / (double)Math.Max(1, like.Count);
+        sb.AppendLine($"| {card.Name} | {classes.Single(c => c.Id == card.ClassId).Name} | {RaceOf(card)} | {Rarity.Name(card.Rarity)} | {card.Cost} | {StatsOf(card)} | {AbilityOf(card)} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {Pct(likeRate)} | {Pct(0.5 + pwr - likeRate)} |");
     }
 
     return sb.ToString();
@@ -312,6 +357,6 @@ string? ArgString(string name)
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 }
 
-internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races);
+internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races, int Class, int Power);
 
 internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells);

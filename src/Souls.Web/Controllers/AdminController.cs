@@ -170,6 +170,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
                 Rarity = card.Rarity,
                 Flavor = card.Flavor,
                 RaceId = card.RaceId,
+                ClassId = card.ClassId,
                 Portrait = card.Portrait,
                 Kind = card.Kind,
             };
@@ -190,6 +191,11 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         if (model.RaceId is { } raceId && !await db.Races.AnyAsync(r => r.Id == raceId, ct))
         {
             ModelState.AddModelError("Card.RaceId", "Unknown race");
+        }
+
+        if (model.ClassId is { } classId && !await db.PlayerTypes.AnyAsync(t => t.Id == classId, ct))
+        {
+            ModelState.AddModelError("Card.ClassId", "Unknown class");
         }
 
         if (model.Kind == CardKind.Spell && !GameRules.IsSpellAbility(model.AbilityId))
@@ -237,7 +243,8 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         card.Rarity = model.Rarity;
         card.Flavor = string.IsNullOrWhiteSpace(model.Flavor) ? null : model.Flavor.Trim();
         card.RaceId = model.RaceId;
-        card.Portrait = string.IsNullOrWhiteSpace(model.Portrait) ? null : model.Portrait;
+        card.ClassId = model.ClassId;
+        card.Portrait =string.IsNullOrWhiteSpace(model.Portrait) ? null : model.Portrait;
         await db.SaveChangesAsync(ct);
 
         TempData["Message"] = $"Saved {card.Name}.";
@@ -366,7 +373,8 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         Card = model,
         Abilities = await db.Abilities.AsNoTracking().OrderBy(a => a.Id).ToListAsync(ct),
         Races = await db.Races.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct),
-        Cards = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).OrderBy(c => c.Id).ToListAsync(ct),
+        Classes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct),
+        Cards = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race).Include(c => c.Class).OrderBy(c => c.Id).ToListAsync(ct),
     };
 
     private async Task<NewsEditorViewModel> NewsEditorPageAsync(NewsEditorModel model, CancellationToken ct) => new()

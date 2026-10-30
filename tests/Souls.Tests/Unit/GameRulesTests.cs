@@ -50,7 +50,7 @@ public class GameRulesTests
         private GameRoom? _room;
 
         /// <summary>A game whose first turn has started (both players kept their starting hand), or with <paramref name="mulligan"/> one that waits for the mulligan.</summary>
-        public static TestGame Start(IReadOnlyList<Card>? deck1 = null, IReadOnlyList<Card>? deck2 = null, PlayerTypeInfo? type1 = null, PlayerTypeInfo? type2 = null, TimeSpan? turnTime = null, bool mulligan = false)
+        public static TestGame Start(IReadOnlyList<Card>? deck1 = null, IReadOnlyList<Card>? deck2 = null, PlayerTypeInfo? type1 = null, PlayerTypeInfo? type2 = null, TimeSpan? turnTime = null, bool mulligan = false, int? power1 = null)
         {
             var clock = new ManualTime();
             var state = new ServerState();
@@ -58,7 +58,7 @@ public class GameRulesTests
             var options = Options.Create(new GameOptions { TurnTime = turnTime ?? TimeSpan.FromSeconds(75) });
             var metrics = new GameMetrics(services.GetRequiredService<IMeterFactory>(), state);
             var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), services.GetRequiredService<IServiceScopeFactory>(), clock, options, metrics, NullLogger<GameEngine>.Instance);
-            var game = new TestGame(clock, engine, NewPlayer(1, deck1 ?? Filler(), type1), NewPlayer(2, deck2 ?? Filler(), type2));
+            var game = new TestGame(clock, engine, NewPlayer(1, deck1 ?? Filler(), type1, power1), NewPlayer(2, deck2 ?? Filler(), type2, null));
             game._room = engine.CreateGame(new Pair<Player>(game.P1, game.P2));
             if (!mulligan)
             {
@@ -71,11 +71,12 @@ public class GameRulesTests
 
         private static IReadOnlyList<Card> Filler() => [.. Enumerable.Range(0, GameRules.DeckSize).Select(_ => Definition(1, 1, name: "Filler"))];
 
-        private static Player NewPlayer(int id, IReadOnlyList<Card> deck, PlayerTypeInfo? type) => new()
+        private static Player NewPlayer(int id, IReadOnlyList<Card> deck, PlayerTypeInfo? type, int? power) => new()
         {
             Id = id,
             Name = "p" + id,
             PlayerType = type ?? new PlayerTypeInfo(1, Attack: 5, Health: 20, Mana: 1),
+            HeroPower = power,
             OwningCards = deck,
             Deck = deck,
             GameContext = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true },
@@ -640,6 +641,109 @@ public class GameRulesTests
     }
 
     [Fact]
+    public void EveryClassPicksOneOfTwoPowersAndTheFirstIsTheDefault()
+    {
+        foreach (var type in SeedData.PlayerTypes)
+        {
+            var powers = GameRules.PowersOf(type.Id);
+            Assert.Equal(2, powers.Count);
+            Assert.Equal(type.Id, powers[0]); // the power every class had before keeps its id and stays the default
+            Assert.Equal(type.Id, GameRules.PowerOf(type.Id, null));
+            Assert.Equal(powers[1], GameRules.PowerOf(type.Id, powers[1]));
+        }
+
+        // A power of another class (an old pick after a class change) falls back to the default.
+        Assert.Equal(GameRules.Powers.RabidBite, GameRules.PowerOf(1, GameRules.Powers.BloodGift));
+    }
+
+    [Fact]
+    public void TheChosenPowerIsPlayedAndSentToTheClients()
+    {
+        var game = TestGame.Start(type1: new PlayerTypeInfo(1, 1, 20, 0), power1: GameRules.Powers.Ravage);
+        Assert.Equal(GameRules.Powers.Ravage, game.G1.Power);
+        Assert.Equal(GameRules.Powers.Ravage, (int?)game.Room.SyncPayload()["heroes"]!["1"]!["power"]);
+        Assert.Equal(GameRules.Powers.Ravage, (int?)game.Room.SpectatorSnapshot()["player"]!["info"]!["power"]);
+        Assert.Equal(GameRules.Powers.Ravage, game.Room.Copy().Players.First.GPlayer!.Power);
+
+        var other = TestGame.Start(type1: new PlayerTypeInfo(2, 1, 20, 0), power1: GameRules.Powers.Ravage);
+        Assert.Equal(GameRules.Powers.Drain, other.G1.Power);
+    }
+
+    [Fact]
+    public async Task RavageOnlyHitsEnemyCards()
+    {
+        var game = TestGame.Start(type1: new PlayerTypeInfo(1, 1, 20, 0), power1: GameRules.Powers.Ravage);
+        var enemy = game.Put(game.P2, NewCard(3, 3), 0);
+        game.G1.Mana = 10;
+        game.Messages(game.P2);
+
+        await game.Power(game.P1, TargetType.EnemyHero);
+        Assert.False(game.G1.HeroPowerUsed);
+        Assert.Equal(20, game.G2.Health);
+        await game.Power(game.P1, TargetType.EnemyCard, enemy.Cid);
+
+        Assert.Equal(3 - GameRules.RavageDamage, enemy.Health);
+        Assert.Equal(20 - GameRules.RavageSelfDamage, game.G1.Health);
+        Assert.Equal(8, game.G1.Mana);
+        var events = game.Events(game.P2);
+        Assert.Contains(events, e => (string?)e["t"] == "heroPower" && (int?)e["power"] == GameRules.Powers.Ravage && (string?)e["name"] == "Ravage");
+        Assert.Contains(events, e => (string?)e["t"] == "damage" && (int?)e["amount"] == GameRules.RavageDamage);
+    }
+
+    [Fact]
+    public async Task BloodGiftAegisAndThickHideOnlyTargetFriendlyCards()
+    {
+        var gift = TestGame.Start(type1: new PlayerTypeInfo(2, 1, 20, 0), power1: GameRules.Powers.BloodGift);
+        var card = gift.Put(gift.P1, NewCard(2, 2), 0);
+        gift.G1.Mana = 10;
+        await gift.Power(gift.P1, TargetType.OwnHero);
+        Assert.False(gift.G1.HeroPowerUsed);
+        await gift.Power(gift.P1, TargetType.FriendlyCard, card.Cid);
+        Assert.Equal((2 + GameRules.BloodGiftAttack, 2 + GameRules.BloodGiftHealth, 2 + GameRules.BloodGiftHealth), (card.Attack, card.Health, card.MaxHealth));
+        Assert.Equal(8, gift.G1.Mana);
+
+        var aegis = TestGame.Start(type1: new PlayerTypeInfo(3, 1, 20, 0), power1: GameRules.Powers.Aegis);
+        var warded = aegis.Put(aegis.P1, NewCard(2, 2, ability: AbilityIds.Ward), 0);
+        var plain = aegis.Put(aegis.P1, NewCard(2, 2), 1);
+        aegis.G1.Mana = 10;
+        aegis.Messages(aegis.P2);
+        await aegis.Power(aegis.P1, TargetType.FriendlyCard, warded.Cid);
+        Assert.False(aegis.G1.HeroPowerUsed);
+        await aegis.Power(aegis.P1, TargetType.FriendlyCard, plain.Cid);
+        Assert.True(plain.Ward);
+        Assert.Contains(aegis.Events(aegis.P2), e => (string?)e["t"] == "ward" && (bool?)e["on"] == true);
+
+        var hide = TestGame.Start(type1: new PlayerTypeInfo(4, 1, 20, 0), power1: GameRules.Powers.ThickHide);
+        var bear = hide.Put(hide.P1, NewCard(3, 3), 0);
+        var enemy = hide.Put(hide.P2, NewCard(3, 3), 0);
+        hide.G1.Mana = 10;
+        await hide.Power(hide.P1, TargetType.EnemyCard, enemy.Cid);
+        Assert.Equal(0, enemy.Armor);
+        await hide.Power(hide.P1, TargetType.FriendlyCard, bear.Cid);
+        Assert.Equal(GameRules.ThickHideArmor, bear.Armor);
+        Assert.Equal(0, hide.G1.Armor);
+    }
+
+    [Fact]
+    public void ClassCardsAreTwoPerClassOfItsRaceAndOnlyItsOwn()
+    {
+        Assert.All(SeedData.PlayerTypes, type =>
+        {
+            var cards = SeedData.Cards.Where(c => c.ClassId == type.Id).ToList();
+            Assert.Equal(2, cards.Count);
+            Assert.All(cards, c =>
+            {
+                Assert.Equal(type.RaceId, c.RaceId);
+                Assert.NotEqual(1, c.Level); // never a starter card
+                Assert.NotEqual(Rarity.Legendary, c.Rarity); // never a season reward
+            });
+        });
+        Assert.True(GameRules.CanUse(null, 1));
+        Assert.True(GameRules.CanUse(3, 3));
+        Assert.False(GameRules.CanUse(3, 1));
+    }
+
+    [Fact]
     public async Task EmptyDecksDealGrowingFatigueAndFullHandsBurnCards()
     {
         var game = TestGame.Start(deck2: [.. Enumerable.Range(0, 5).Select(_ => Definition(1, 1))]);
@@ -912,8 +1016,9 @@ public class GameRulesTests
         Assert.Equal(SeedData.Cards.Length, SeedData.Cards.Select(c => c.Id).Distinct().Count());
         Assert.All(new[] { Races.Darkness, Races.Vampiric, Races.Lightbringer, Races.Ferocious }, race =>
         {
-            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Minion), 10, 11);
-            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.Kind == CardKind.Spell), 2, 3);
+            // Cards every class can play (class cards: see ClassCardsAreTwoPerClassOfItsRaceAndOnlyItsOwn).
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.ClassId == null && c.Kind == CardKind.Minion), 10, 11);
+            Assert.InRange(SeedData.Cards.Count(c => c.RaceId == race && c.ClassId == null && c.Kind == CardKind.Spell), 2, 3);
         });
         Assert.All(SeedData.Abilities, a => Assert.Contains(SeedData.Cards, c => c.AbilityId == a.Id));
 

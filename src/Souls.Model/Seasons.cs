@@ -79,7 +79,8 @@ public static class Seasons
             }
 
             var standings = await Standings(db, season.StartsAt, now).ToListAsync(ct);
-            var legendaries = await db.Cards.Where(c => c.Rarity == Rarity.Legendary).Select(c => c.Id).ToListAsync(ct);
+            // Class cards are left out: a reward has to be playable by every class.
+            var legendaries = await db.Cards.Where(c => c.Rarity == Rarity.Legendary && c.ClassId == null).Select(c => c.Id).ToListAsync(ct);
             var owned = (await db.PlayerCards.Where(pc => legendaries.Contains(pc.CardId)).Select(pc => new { pc.PlayerId, pc.CardId }).ToListAsync(ct))
                 .ToLookup(pc => pc.PlayerId, pc => pc.CardId);
             var paid = new List<SeasonStanding>(standings.Count);

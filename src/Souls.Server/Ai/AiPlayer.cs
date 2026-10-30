@@ -89,7 +89,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         public int Armor { get; init; }
         public int Attack { get; init; }
         public int Mana { get; init; }
-        public int Type { get; init; }
+
+        /// <summary>The hero power (see <see cref="GameRules.HeroPowers"/>).</summary>
+        public int Power { get; init; }
         public bool CanAttack { get; init; }
         public bool CanUsePower { get; init; }
         public int Toughness => Health + Armor;
@@ -270,7 +272,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         Armor = Int(node?["armor"]),
         Attack = Int(node?["attack"]),
         Mana = Int(node?["mana"]),
-        Type = Int(node?["type"]),
+        Power = Int(node?["power"]),
         CanAttack = (bool?)node?["canAttack"] ?? false,
         CanUsePower = (bool?)node?["canUsePower"] ?? false,
     };
@@ -359,7 +361,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         static bool Shoots(Unit u) => u.Ability is AbilityIds.Burn or AbilityIds.Drain;
         var damage = ready.Sum(u => Shoots(u) ? Math.Max(u.Hit, u.AbilityValue) : u.Ability == AbilityIds.Fury ? 2 * u.Hit : u.Hit)
             + (_me.CanAttack ? _me.Attack : 0)
-            + (_me.CanUsePower && _me.Type is 1 or 2 ? 1 : 0)
+            + (_me.CanUsePower && HitsHeroes(_me.Power) ? 1 : 0)
             + _hand.Values.Where(c => c.IsSpell && c.Cost <= _me.Mana && c.AbilityId is AbilityIds.Burn or AbilityIds.Drain).Select(c => c.AbilityValue).DefaultIfEmpty().Max();
         if (damage < _enemy.Toughness)
         {
@@ -382,8 +384,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return heroHit;
         }
 
-        return _me.CanUsePower && _me.Type is 1 or 2 ? Try(Power(TargetType.EnemyHero, -1)) : null;
+        return _me.CanUsePower && HitsHeroes(_me.Power) ? Try(Power(TargetType.EnemyHero, -1)) : null;
     }
+
+    /// <summary>Powers that deal 1 damage to the enemy hero (Rabid Bite, Drain).</summary>
+    private static bool HitsHeroes(int power) => power is GameRules.Powers.RabidBite or GameRules.Powers.Drain;
 
     // ---- Cards ----------------------------------------------------------------------------------------------------
 
@@ -639,13 +644,22 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return null;
         }
 
-        var m = _me.Type switch
+        Message? OnBest(IEnumerable<Unit> units, TargetType type) => units.OrderByDescending(u => u.Value).Select(u => Power(type, u.Cid)).FirstOrDefault();
+        var m = _me.Power switch
         {
-            1 or 2 => _enemyBoard.Where(u => u.DiesTo(1, venom: false) || u.Ward).OrderByDescending(u => u.Value).Select(u => Power(TargetType.EnemyCard, u.Cid)).FirstOrDefault()
+            GameRules.Powers.RabidBite or GameRules.Powers.Drain => OnBest(_enemyBoard.Where(u => u.DiesTo(1, venom: false) || u.Ward), TargetType.EnemyCard)
                 ?? Power(TargetType.EnemyHero, -1),
-            3 => _me.Health < _me.MaxHealth ? Power(TargetType.OwnHero, -1)
+            GameRules.Powers.HolyLight => _me.Health < _me.MaxHealth ? Power(TargetType.OwnHero, -1)
                 : _myBoard.Where(u => u.Health < u.MaxHealth).Select(u => Power(TargetType.FriendlyCard, u.Cid)).FirstOrDefault(),
-            4 => Power(TargetType.OwnHero, -1),
+            GameRules.Powers.Fade => Power(TargetType.OwnHero, -1),
+
+            // Kills the best card it can (or pops a ward), else wounds the hardest hitter.
+            GameRules.Powers.Ravage => OnBest(_enemyBoard.Where(u => u.DiesTo(GameRules.RavageDamage, venom: false) || u.Ward), TargetType.EnemyCard)
+                ?? _enemyBoard.OrderByDescending(u => u.Hit).Select(u => Power(TargetType.EnemyCard, u.Cid)).FirstOrDefault(),
+
+            // The buffs go to the best card (Aegis only to one without a ward).
+            GameRules.Powers.BloodGift or GameRules.Powers.ThickHide => OnBest(_myBoard, TargetType.FriendlyCard),
+            GameRules.Powers.Aegis => OnBest(_myBoard.Where(u => !u.Ward), TargetType.FriendlyCard),
             _ => null,
         };
         return m is null ? null : Try(m);
@@ -824,7 +838,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             }
         }
 
-        if (!me.HeroPowerUsed && me.Mana >= GameRules.HeroPowerCost && GameRules.HeroPowers.TryGetValue(me.Type, out var power))
+        if (!me.HeroPowerUsed && me.Mana >= GameRules.HeroPowerCost && GameRules.HeroPowers.TryGetValue(me.Power, out var power))
         {
             var kinds = GameRules.PowerTargets(power.Target);
             foreach (var (type, target) in kinds.Count == 0 ? [(TargetType.OwnHero, -1)] : Targets(me, enemy, kinds))

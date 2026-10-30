@@ -176,11 +176,56 @@ public class BotTests
         Assert.Equal(2, ai.PlanTimes.Count);
     }
 
+    [Theory]
+    [InlineData(1, false, GameRules.Powers.Ravage)]
+    [InlineData(2, false, GameRules.Powers.BloodGift)]
+    [InlineData(1, false, GameRules.Powers.Aegis)]
+    [InlineData(2, false, GameRules.Powers.ThickHide)]
+    [InlineData(2, true, GameRules.Powers.Ravage)]
+    [InlineData(2, true, GameRules.Powers.BloodGift)]
+    [InlineData(2, true, GameRules.Powers.Aegis)]
+    [InlineData(2, true, GameRules.Powers.ThickHide)]
+    public async Task BotUsesItsSecondHeroPower(int difficulty, bool lookahead, int power)
+    {
+        // A ready 3/3 of its own; Ravage gets an enemy 9/2 behind a 9/9 Taunt (too strong to attack into).
+        var wolf = new Card { Id = 3, Name = "wolf", BaseAttack = 3, BaseHealth = 3 }.NewInstance();
+        var prey = new Card { Id = 4, Name = "prey", BaseAttack = 9, BaseHealth = 2 }.NewInstance();
+        var (room, _, me, _) = await PlayFirstTurnAsync(difficulty, lookahead, (side, enemy) =>
+        {
+            side.BoardCards[0] = wolf;
+            if (power == GameRules.Powers.Ravage)
+            {
+                prey.SlotId = 1;
+                enemy.BoardCards[0] = new Card { Id = 5, Name = "wall", BaseAttack = 9, BaseHealth = 9, AbilityId = Model.Entities.Ability.Taunt }.NewInstance();
+                enemy.BoardCards[1] = prey;
+            }
+        }, power);
+
+        Assert.False(room.IsEnded);
+        Assert.True(me.HeroPowerUsed);
+        switch (power)
+        {
+            case GameRules.Powers.Ravage:
+                Assert.True(prey.IsDead);
+                break;
+            case GameRules.Powers.BloodGift:
+                Assert.Equal((3 + GameRules.BloodGiftAttack, 3 + GameRules.BloodGiftHealth), (wolf.Attack, wolf.MaxHealth));
+                break;
+            case GameRules.Powers.Aegis:
+                Assert.True(wolf.Ward);
+                break;
+            default:
+                Assert.Equal(GameRules.ThickHideArmor, wolf.Armor);
+                break;
+        }
+    }
+
     /// <summary>
     /// The bot (player one, nothing affordable in its deck) plays its first turn after <paramref name="setup"/> changed
-    /// its side and the enemy's; returns when the game is over (or after 10 seconds).
+    /// its side and the enemy's; returns when the game is over or the turn has passed (or after 10 seconds). With a
+    /// <paramref name="power"/> the bot plays that power's class with 2 mana on its first turn.
     /// </summary>
-    private static async Task<(GameRoom Room, Player Bot, GamePlayer Me, AiPlayer Ai)> PlayFirstTurnAsync(int difficulty, bool lookahead, Action<GamePlayer, GamePlayer> setup)
+    private static async Task<(GameRoom Room, Player Bot, GamePlayer Me, AiPlayer Ai)> PlayFirstTurnAsync(int difficulty, bool lookahead, Action<GamePlayer, GamePlayer> setup, int? power = null)
     {
         var state = new ServerState();
         var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
@@ -191,7 +236,8 @@ public class BotTests
 
         IReadOnlyList<Card> deck = [.. Enumerable.Range(0, GameRules.DeckSize).Select(_ => new Card { Id = 1, Name = "c", BaseAttack = 1, BaseHealth = 1, Cost = 10 })];
         var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
-        var bot = new Player { Id = 1, Name = "bot", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, IsBot = true, Difficulty = difficulty, GameContext = connection };
+        var type = power is { } p ? new PlayerTypeInfo(GameRules.HeroPowers[p].ClassId, 0, 30, Mana: 1) : new PlayerTypeInfo(1, 0, 30, 0);
+        var bot = new Player { Id = 1, Name = "bot", PlayerType = type, HeroPower = power, OwningCards = deck, Deck = deck, IsBot = true, Difficulty = difficulty, GameContext = connection };
         var human = new Player { Id = 2, Name = "human", PlayerType = new PlayerTypeInfo(1, 0, 30, 0), OwningCards = deck, Deck = deck, GameContext = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true } };
         state.GameClients[connection] = bot;
 
@@ -210,8 +256,14 @@ public class BotTests
             new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero }, difficulty, NullLogger.Instance,
             lookahead ? engine : null, () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await ai.RunAsync(cts.Token); // returns when the game is over
+        var running = Task.Run(() => ai.RunAsync(cts.Token)); // returns when the game is over
+        while (!running.IsCompleted && room.Turn == 0)
+        {
+            await Task.Delay(10);
+        }
 
+        await cts.CancelAsync();
+        await running;
         return (room, bot, me, ai);
     }
 }

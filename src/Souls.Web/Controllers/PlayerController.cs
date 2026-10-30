@@ -106,7 +106,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         }
 
         var cards = form.Cards.Distinct().ToList();
-        var starterIds = await db.Cards.Where(c => c.Level == 1).Select(c => c.Id).ToListAsync(ct);
+        var starterIds = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == form.PlayerType)).Select(c => c.Id).ToListAsync(ct);
         if (cards.Count != 5 || cards.Except(starterIds).Any())
         {
             ModelState.AddModelError(key + nameof(form.Cards), "You must select 5 starter cards!");
@@ -192,7 +192,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         var races = await db.Races.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct);
         var types = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
         var starters = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race)
-            .Where(c => c.Level == 1).OrderBy(c => c.Id).ToListAsync(ct);
+            .Where(c => c.Level == 1 && c.ClassId == null).OrderBy(c => c.Id).ToListAsync(ct);
 
         return new RegisterPageModel
         {

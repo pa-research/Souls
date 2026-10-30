@@ -78,6 +78,9 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     /// <summary>A spell: no attack or health; its level raises its value instead.</summary>
     public bool Spell { get; init; }
 
+    /// <summary>The class that alone can play a class card (<see cref="Card.Class"/> must be loaded), else <c>null</c>.</summary>
+    public string? ClassName { get; init; }
+
     public static CardTile From(Card c, bool owned = false, int level = 1)
     {
         var spell = c.Kind == CardKind.Spell;
@@ -85,6 +88,11 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
         var value = spell && c.AbilityId is { } a ? GameRules.SpellValue(a, c.AbilityValue, level) : c.AbilityValue;
         var lines = new List<string>();
         var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, value, c.RaceId) : null;
+        if (c.Class?.Name is { } className)
+        {
+            lines.Add($"{className} card: only {className} can play it.");
+        }
+
         if (spell)
         {
             lines.Add(GameRules.Keywords.Spell);
@@ -112,6 +120,7 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
             AbilityText = abilityText,
             Flavor = c.Flavor,
             Spell = spell,
+            ClassName = c.Class?.Name,
         };
     }
 }
@@ -171,10 +180,16 @@ public sealed class SeasonViewModel
 
 public sealed record DeckEntry(CardTile Card, int Count);
 
+/// <summary>One of the class's hero powers on the deck page.</summary>
+public sealed record HeroPowerOption(int Id, GameRules.HeroPowerText Power, bool Selected);
+
 public sealed class DeckViewModel
 {
     public required IReadOnlyList<DeckEntry> Entries { get; init; }
     public bool Custom { get; init; }
+    public required string ClassName { get; init; }
+    public required IReadOnlyList<HeroPowerOption> HeroPowers { get; init; }
+    public int HeroPowerCost => GameRules.HeroPowerCost;
     public int DeckSize => GameRules.DeckSize;
     public int MaxCopies => GameRules.MaxCopiesInDeck;
     public int MaxRare => Model.Rarity.MaxCopies(Model.Rarity.Rare);
@@ -332,6 +347,9 @@ public sealed class CardEditorModel
     [Required]
     public int? RaceId { get; set; }
 
+    /// <summary>A class card can only be owned and played by this class; empty for every class.</summary>
+    public int? ClassId { get; set; }
+
     [StringLength(255)]
     public string? Portrait { get; set; }
 }
@@ -341,6 +359,7 @@ public sealed class CardEditorViewModel
     public required CardEditorModel Card { get; init; }
     public required IReadOnlyList<Ability> Abilities { get; init; }
     public required IReadOnlyList<Race> Races { get; init; }
+    public required IReadOnlyList<PlayerType> Classes { get; init; }
     public required IReadOnlyList<Card> Cards { get; init; }
 }
 

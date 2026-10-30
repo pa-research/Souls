@@ -45,6 +45,14 @@
                             <option value="@race.Id" data-texture="@race.CardUrl">@race.Name</option>
                         }
                     </select>
+                    <label asp-for="Card.ClassId" class="form-label mt-2">Class</label>
+                    <select asp-for="Card.ClassId" class="form-select">
+                        <option value="">Every class</option>
+                        @foreach (var type in Model.Classes)
+                        {
+                            <option value="@type.Id">@type.Name only</option>
+                        }
+                    </select>
                 </div>
                 <div class="col-md-4">
                     <div class="row g-2">
@@ -75,16 +83,16 @@
 </div>
 
 <table class="table table-sm mt-4">
-    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th></tr></thead>
+    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th><th>Class</th></tr></thead>
     <tbody>
         @foreach (var c in Model.Cards)
         {
             <tr>
                 <td><a asp-action="CardEditor" asp-route-id="@c.Id">@c.Name</a></td>
-                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td><td>@c.Kind</td>
+                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td><td>@c.Kind</td><td>@c.Class?.Name</td>
             </tr>
         }
-        <tr><td colspan="9"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
+        <tr><td colspan="10"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
     </tbody>
 </table>
 </section>
