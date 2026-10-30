@@ -94,6 +94,7 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         this.panel.hidden = !open;
         this.button.setAttribute('aria-expanded', String(open));
         if (open) {
+            if (this.engine.emotes) this.engine.emotes.Toggle(false);
             this.UpdateSound();
             var active = this.soundButtons[Sound.IsMuted() ? 1 : 0];
             try { active.focus({ preventScroll: true }); } catch (e) { /* focus is optional */ }

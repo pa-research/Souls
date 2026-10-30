@@ -25,6 +25,12 @@ public sealed class ServerState
     public LinkedList<Player> NormalQueue { get; } = new();
     public LinkedList<Player> PracticeQueue { get; } = new();
 
+    /// <summary>Friendly challenges waiting for an answer. A player is in at most one, on either side.</summary>
+    public List<Challenge> Challenges { get; } = [];
+
+    /// <summary>Rate limit of challenges by account id (survives reconnects), see <see cref="GameEngine.Throttle"/>.</summary>
+    public Dictionary<int, DateTimeOffset> ChallengeClocks { get; } = [];
+
     public Dictionary<int, ChatRoom> ChatRooms { get; } = [];
     public int ChatRoomCounter { get; set; }
 
@@ -58,4 +64,10 @@ public sealed class ServerState
     public Player? FindPlayer(int playerId) => GameClients.Values.FirstOrDefault(p => p.Id == playerId && !p.IsBot);
 
     public Connection? FindGameConnection(Player player) => GameClients.FirstOrDefault(x => x.Value == player).Key;
+
+    /// <summary>The pending challenge a player sent or received.</summary>
+    public Challenge? ChallengeOf(Player player) => Challenges.FirstOrDefault(c => c.From == player || c.To == player);
 }
+
+/// <summary>A friendly challenge from one online player to another, open until it expires.</summary>
+public sealed record Challenge(Player From, Player To, DateTimeOffset ExpiresAt);

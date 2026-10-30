@@ -171,6 +171,9 @@ public static class GameRules
         [4] = new("Fade", "Your hero gains 2 armor.", "none"),
     };
 
+    /// <summary>What players can say in a game (the Emote request sends the index): greeting, well played, thanks, oops, threaten, sorry.</summary>
+    public static readonly IReadOnlyList<string> Emotes = ["Greetings!", "Well played!", "Thanks!", "Oops!", "Your soul is mine!", "Sorry!"];
+
     public static class Keywords
     {
         public const string Ward = "Ward: the next damage this card would take breaks the ward instead.";

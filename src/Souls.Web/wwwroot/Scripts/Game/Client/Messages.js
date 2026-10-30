@@ -18,6 +18,9 @@ define('messages', ['conf'], function (Conf) {
             Game: {
                 NORMAL_QUEUE: 100,
                 PRACTICE_QUEUE: 101, // {difficulty: 0 easy, 1 normal, 2 hard}
+                CHALLENGE_CANCEL: 197,
+                CHALLENGE_ANSWER: 198, // {accept}
+                CHALLENGE: 199, // {name}
                 ATTACK: 200, // {source, target, type: 0 card->card, 1 card->hero, 2 hero->card, 3 hero->hero}
                 USECARD: 201,
                 NEXT_TURN: 226,
@@ -29,13 +32,18 @@ define('messages', ['conf'], function (Conf) {
                 HERO_POWER: 206, // {target, type} (same types as USE_ABILITY)
                 LIST_LIVE_GAMES: 240,
                 SPECTATE: 241,
-                STOP_SPECTATING: 242
+                STOP_SPECTATING: 242,
+                MUTE_EMOTES: 298, // {muted}
+                EMOTE: 299 // {emote}
             },
             // Server to client (see docs/game-protocol.md)
             Response: {
                 LOGIN_OK: 10,
                 QUEUE_OK: 100,
                 QUEUE_ALREADY_IN: 101,
+                CHALLENGE_CLOSED: 197,
+                CHALLENGE_SENT: 198,
+                CHALLENGE_INVITE: 199,
                 NOT_YOUR_TURN: 202,
                 GAME_CREATE: 206,
                 USECARD_OK: 207,
@@ -60,7 +68,8 @@ define('messages', ['conf'], function (Conf) {
                 LIVE_GAMES: 240,
                 SPECTATE_START: 241,
                 SPECTATE_END: 242,
-                SPECTATE_ERROR: 243
+                SPECTATE_ERROR: 243,
+                EMOTE: 299
             },
             Chat: {
                 ENABLE: 1000,

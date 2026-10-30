@@ -42,6 +42,28 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         this.started = Date.now();
         this.clock = setInterval(function () { that.Tick(); }, 500);
         this.SetMode(engine.normalGame, engine.difficulty);
+
+        // Friendly: challenge a player by name, or wait here to be challenged.
+        if (engine.friendly) {
+            var form = Hud.El('form', 'sg-challenge', null);
+            var input = Hud.El('input', 's-input', form);
+            input.placeholder = 'Player name';
+            input.maxLength = 64;
+            input.autocomplete = 'off';
+            input.setAttribute('aria-label', 'Player to challenge');
+            Hud.Button('s-btn s-btn-primary s-btn-sm', form, 'Challenge', 'swords').type = 'submit';
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var name = input.value.trim();
+                if (name) engine.gameService.Challenge(name);
+            });
+            var withdraw = Hud.Button('s-btn s-btn-ghost s-btn-sm', null, 'Withdraw challenge', 'close');
+            withdraw.addEventListener('click', function () { engine.gameService.CancelChallenge(); });
+            box.insertBefore(form, this.cancel);
+            box.insertBefore(withdraw, this.cancel);
+            this.friendly = { form: form, input: input, withdraw: withdraw };
+            this.ChallengeIdle();
+        }
     }
     // Constructor
     Queue.prototype = Object.create(Pixi.Sprite.prototype);
@@ -55,14 +77,19 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     Queue.prototype.SetMode = function (normalGame, difficulty) {
         var profile = Conf.profile;
         var name = DIFFICULTY_NAMES[difficulty] || DIFFICULTY_NAMES[1];
+        var friendly = !!this.engine.friendly;
         Hud.Clear(this.rings);
-        this.rings.appendChild(Hud.Icon(normalGame ? 'swords' : 'bot'));
+        this.rings.appendChild(Hud.Icon(friendly ? 'users' : normalGame ? 'swords' : 'bot'));
 
         if (this.resuming) this.title.textContent = 'Rejoining your game';
-        else this.title.textContent = normalGame ? 'Finding an opponent' : 'Preparing the arena';
+        else this.title.textContent = friendly ? 'Friendly challenge' : normalGame ? 'Finding an opponent' : 'Preparing the arena';
 
         Hud.Clear(this.chip);
-        if (normalGame) {
+        if (friendly) {
+            this.chip.appendChild(Hud.Icon('users'));
+            Hud.Text(this.chip, 'Friendly · unranked');
+        }
+        else if (normalGame) {
             this.chip.appendChild(Hud.Icon('crown'));
             var text = 'Ranked';
             if (profile && typeof profile.rating === 'number') {
@@ -81,8 +108,9 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         this.text.textContent = String(text === undefined || text === null ? '' : text);
     }
 
-    /// Logged in to the game server (10).
+    /// Logged in to the game server (10). The friendly lobby keeps its own text.
     Queue.prototype.Connected = function () {
+        if (this.friendly) return;
         if (this.resuming) this.SetText('Connected. Waiting for the game…');
         else this.SetText(this.engine.normalGame ? 'Connected. Joining the queue…' : 'Connected. The bot takes its seat…');
     }
@@ -91,6 +119,71 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     Queue.prototype.Queued = function () {
         if (this.resuming) return;
         this.SetText(this.engine.normalGame ? 'Waiting for a player of your rank…' : 'The bot is shuffling its deck…');
+    }
+
+    /// The challenge was sent (198): wait for the answer.
+    Queue.prototype.ChallengeWaiting = function (name) {
+        if (!this.friendly) return;
+        this.friendly.form.hidden = true;
+        this.friendly.withdraw.hidden = false;
+        this.SetText('Waiting for ' + name + ' to answer…');
+        this.started = Date.now();
+    }
+
+    /// Ready to challenge (again); text says what became of the last challenge (197). Outside friendly mode: a toast.
+    Queue.prototype.ChallengeIdle = function (text) {
+        if (!this.friendly) {
+            if (text) this.engine.ScreenMessage([text]);
+            return;
+        }
+        this.friendly.form.hidden = false;
+        this.friendly.withdraw.hidden = true;
+        var name = Conf.profile ? Conf.profile.name : 'your name';
+        this.SetText(text || 'Challenge a player who has the game open, or wait here: others can challenge ' + name + '.');
+    }
+
+    /// <summary>
+    /// Someone challenges you (199 {name, type, rating, expiresIn}): accept or decline before the time runs out.
+    /// </summary>
+    Queue.prototype.ShowInvite = function (p) {
+        var that = this;
+        this.HideInvite();
+        var card = Hud.El('section', 's-panel sg-invite', Hud.Root());
+        card.setAttribute('role', 'alertdialog');
+        card.setAttribute('aria-label', 'Challenge');
+        var head = Hud.El('div', 'sg-invite-head', card);
+        var img = Hud.El('img', '', head);
+        img.src = '/Content/Images/Player/Portraits/' + (Number(p.type) || 0) + '.png';
+        img.alt = '';
+        var who = Hud.El('div', '', head);
+        Hud.El('b', '', who, String(p.name) + ' challenges you!');
+        Hud.El('div', 's-muted s-small', who, 'Friendly game · unranked' + (p.rating ? ' · ' + p.rating : ''));
+        var bar = Hud.Progress(card, 1, 's-progress-ember', 'Time to answer');
+        var actions = Hud.El('div', 'sg-invite-actions', card);
+        var decline = Hud.Button('s-btn s-btn-ghost s-btn-sm', actions, 'Decline', 'close');
+        var accept = Hud.Button('s-btn s-btn-primary s-btn-sm', actions, 'Accept', 'check');
+        var total = Number(p.expiresIn) || 30000;
+        var ends = Date.now() + total;
+        var timer = setInterval(function () {
+            var left = ends - Date.now();
+            Hud.SetProgress(bar, left / total);
+            if (left <= 0) that.HideInvite();
+        }, 250);
+        function Answer(ok) {
+            that.HideInvite();
+            that.engine.gameService.AnswerChallenge(ok);
+        }
+        accept.addEventListener('click', function () { Answer(true); });
+        decline.addEventListener('click', function () { Answer(false); });
+        this.invite = { card: card, timer: timer };
+        try { accept.focus({ preventScroll: true }); } catch (e) { /* focus is optional */ }
+    }
+
+    Queue.prototype.HideInvite = function () {
+        if (!this.invite) return;
+        clearInterval(this.invite.timer);
+        Hud.Remove(this.invite.card);
+        this.invite = null;
     }
 
     /// Something went wrong (not logged in, banned): the title says what, the clock stops.
@@ -186,11 +279,12 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             }
             Hud.CountUp(ratingValue, Math.abs(change), up ? '+' : '-', 1000);
         }
-        else if (!this.engine.normalGame) {
+        else if (!this.engine.normalGame || this.engine.friendlyGame) {
+            var friendly = this.engine.friendlyGame;
             var practice = Hud.El('div', 's-panel sg-reward', rewards);
-            practice.appendChild(Hud.Icon('bot'));
+            practice.appendChild(Hud.Icon(friendly ? 'users' : 'bot'));
             Hud.El('b', '', practice, '–');
-            Hud.El('span', '', practice, 'Practice · unrated');
+            Hud.El('span', '', practice, friendly ? 'Friendly · unranked' : 'Practice · unrated');
         }
         if (!rewards.firstChild) Hud.Remove(rewards);
 

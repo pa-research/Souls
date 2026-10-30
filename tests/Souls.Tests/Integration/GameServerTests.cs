@@ -212,6 +212,68 @@ public class GameServerTests(SoulsAppFixture app)
         }
     }
 
+    /// <summary>A challenges B by name; B declines, then accepts; they emote until B mutes A; A leaves and B wins, unrated.</summary>
+    [Fact]
+    public async Task FriendlyChallengeStartsAnUnrankedGameWithEmotes()
+    {
+        var (browserA, nameA) = await LoggedInPlayerAsync();
+        var (browserB, nameB) = await LoggedInPlayerAsync(2);
+        using (browserA)
+        using (browserB)
+        {
+            await using var a = await GameSocket.ConnectAsync(app.Server, "ws/game", browserA.AuthCookie);
+            await using var b = await GameSocket.ConnectAsync(app.Server, "ws/game", browserB.AuthCookie);
+            await a.SendAsync(0);
+            await a.ReceiveTypeAsync(10);
+            await b.SendAsync(0);
+            await b.ReceiveTypeAsync(10);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = "x" + nameB });
+            Assert.Equal($"x{nameB} is not online.", (string)(await a.ReceiveTypeAsync(197))["Payload"]!);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = nameB });
+            await a.ReceiveTypeAsync(198);
+            Assert.Equal(nameA, (string)(await b.ReceiveTypeAsync(199))["Payload"]!["name"]!);
+            await b.SendAsync(198, new JsonObject { ["accept"] = false });
+            Assert.Equal($"{nameB} declined your challenge.", (string)(await a.ReceiveTypeAsync(197))["Payload"]!);
+
+            await a.SendAsync(199, new JsonObject { ["name"] = nameB });
+            await b.ReceiveTypeAsync(199);
+            await b.SendAsync(198, new JsonObject { ["accept"] = true });
+            var identA = (int)(await a.ReceiveTypeAsync(206))["Payload"]!["ident"]!;
+            await b.ReceiveTypeAsync(206);
+
+            await a.SendAsync(299, new JsonObject { ["emote"] = 1 });
+            var emote = (await b.ReceiveTypeAsync(299))["Payload"]!;
+            Assert.Equal(identA, (int)emote["ident"]!);
+            Assert.Equal("Well played!", (string)emote["text"]!);
+
+            // B mutes A (the heartbeat answer confirms the server has read it): A still sees its own emote, B does not.
+            await b.SendAsync(298, new JsonObject { ["muted"] = true });
+            await b.SendAsync(2, new JsonObject { ["heartbeat"] = 1, ["last"] = 1 });
+            await b.ReceiveTypeAsync(5);
+            await a.SendAsync(299, new JsonObject { ["emote"] = 2 });
+            await a.ReceiveAsync(m => Type(m) == 299 && (int)m["Payload"]!["emote"]! == 2);
+            await b.SendAsync(2, new JsonObject { ["heartbeat"] = 2, ["last"] = 2 });
+            await b.ReceiveAsync(m => Type(m) == 5 && (int)m["Payload"]!["last"]! == 2);
+            Assert.DoesNotContain(b.Received, m => Type(m) == 299 && (int)m["Payload"]!["emote"]! == 2);
+
+            // A leaves: B wins, and nobody's rating moves.
+            await a.SendAsync(1);
+            var result = (await b.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
+            Assert.Equal(230, Type(b.Received[^1]));
+            Assert.Null(result["ratingChange"]);
+            var gameId = (int)result["statistics"]!;
+            var (game, ratings) = await app.WithDbAsync(async db => (
+                await db.Games.SingleAsync(g => g.Id == gameId),
+                await db.Players.Where(p => p.Name == nameA || p.Name == nameB).Select(p => p.Rating).ToListAsync()));
+            Assert.True(game.IsPractice);
+            Assert.Equal(0, game.Player1RatingChange);
+            Assert.Equal(0, game.Player2RatingChange);
+            Assert.All(ratings, r => Assert.Equal(Souls.Model.Ratings.Initial, r));
+        }
+    }
+
     [Fact]
     public async Task AdminCanSeeAndKickOnlinePlayers()
     {

@@ -56,6 +56,12 @@ public sealed class GamePlayer
     /// <summary>Turns in a row that ended because the turn timer ran out.</summary>
     public int TimeoutsInARow { get; set; }
 
+    /// <summary>Emote rate limit, see <see cref="GameEngine.Throttle"/>.</summary>
+    public DateTimeOffset EmoteClock { get; set; }
+
+    /// <summary>The player muted the opponent's emotes for this game.</summary>
+    public bool EmotesMuted { get; set; }
+
     /// <summary>The player has chosen which starting cards to replace (or kept them).</summary>
     public bool MulliganDone { get; set; }
 

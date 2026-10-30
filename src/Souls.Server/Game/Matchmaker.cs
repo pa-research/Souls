@@ -83,6 +83,7 @@ public sealed class Matchmaker(
             MatchPractice(bots, ct);
             await ForfeitAbandonedAsync();
             await engine.CheckTurnTimersAsync();
+            engine.ExpireChallenges();
         });
 
         _bots.RemoveAll(t => t.IsCompleted);
