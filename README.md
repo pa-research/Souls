@@ -13,8 +13,9 @@ container, Docker Compose and Kubernetes (Kustomize) deployments.
                                                                 └──── PostgreSQL ◀─┘
 ```
 
-Both services share the database and the ASP.NET Core Data Protection key ring, so the login cookie issued
-by the web app authenticates the WebSockets on the game server (same origin, no tokens in JavaScript).
+Both services share the database and the ASP.NET Core Data Protection key ring (encrypted with a shared
+certificate), so the login cookie issued by the web app authenticates the WebSockets on the game server (same
+origin, no tokens in JavaScript).
 
 ## What changed
 
@@ -239,6 +240,10 @@ Requires Docker with Compose v2.
 docker compose up -d --build
 ```
 
+`init-secrets.sh` also creates `Souls__DataProtection__Certificate`, the certificate that encrypts the login cookie
+keys in the database (requires `openssl`; run it again after updating from an older version, existing secrets are
+kept).
+
 Open <https://localhost> (Caddy issues a certificate from its local CA, so the browser shows a warning the
 first time). Log in as `admin` with the password printed by `init-secrets.sh`
 (also in `deploy/compose/secrets/Souls__Admin__Password`), or register a player and press **Play Now!**.
@@ -295,7 +300,12 @@ Then open <http://souls.localtest.me> (resolves to 127.0.0.1; adjust for your in
 
 For production, copy `overlays/production`, set the host name, Gateway reference, image tags and the
 ingress/gateway namespace in the NetworkPolicy patch, and create `secrets.env` from `secrets.env.example`
-(it is git-ignored; use your secret manager / Sealed Secrets / External Secrets in real deployments).
+(it is git-ignored; use your secret manager / Sealed Secrets / External Secrets in real deployments). The value
+for `Souls__DataProtection__Certificate` (a self-signed certificate as a base64 PFX) comes from:
+
+```bash
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Souls Data Protection" -keyout /dev/stdout -out /dev/stdout | openssl pkcs12 -export -passout pass: | openssl base64 -A
+```
 
 Notes:
 
@@ -380,13 +390,20 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
 | `Souls__Game__TurnTime` | server | Length of a turn (default 75 s). |
 | `Souls__Game__MaxTimeoutsInARow` | server | Timed-out turns in a row that forfeit the game (default 3). |
+| `Souls__DataProtection__Certificate` / `CertificatePassword` | both | PFX certificate (RSA, base64) that encrypts the Data Protection keys in the database; the password is optional (**secret**). |
+| `Souls__DataProtection__PreviousCertificate` / `PreviousCertificatePassword` | both | The certificate before a rotation, so keys it encrypted stay readable (**secret**). |
+
+The Data Protection keys (they protect the login cookie) live in the database. With a certificate configured they
+are encrypted at rest; without one they are stored in plain form and the apps log a warning in Production. The
+web app, the game server and `migrate` must use the same certificate. Keys written before the certificate was
+added stay readable and are replaced as they expire (90 days). To rotate the certificate, keep the old one as
+`PreviousCertificate` until the keys it encrypted have expired; without it the apps create a new key and players
+have to log in again.
 
 ## Known limitations
 
 - The game server keeps games in memory: one replica, and a restart ends running games (finished games and
   their replays are stored).
-- The Data Protection key ring is stored unencrypted in the database. Anyone with read access to the database
-  could forge login cookies; protect database access accordingly or add `ProtectKeysWith*`.
 - The classic client still uses its original 2014 libraries (PixiJS 1.x, CreateJS 0.x). They have no known
   vulnerabilities and run with a strict CSP; the Modern 3D client is the up-to-date alternative.
 - The legacy MySQL data is not imported automatically. Old accounts can be copied into the `player` table;

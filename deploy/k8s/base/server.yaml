@@ -92,6 +92,8 @@ spec:
             items:
               - key: ConnectionStrings__Souls
                 path: ConnectionStrings__Souls
+              - key: Souls__DataProtection__Certificate
+                path: Souls__DataProtection__Certificate
 ---
 apiVersion: v1
 kind: Service
