@@ -217,6 +217,9 @@ public sealed record RulesConfig(
     int DeckSize,
     int MaxHandCards)
 {
+    /// <summary>The emotes players can send in a game, by id.</summary>
+    public IReadOnlyList<string> Emotes => GameRules.Emotes;
+
     public static RulesConfig Create(IEnumerable<PlayerType> heroTypes)
     {
         static string Key(int id) => id.ToString(CultureInfo.InvariantCulture);

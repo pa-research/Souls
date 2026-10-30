@@ -86,22 +86,26 @@ async function main() {
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
     stage.watchFrameRate();
 
-    // Replays and watch links start right away; after switching clients mid-game, go straight back into the game.
+    // Replays, watch and challenge links start right away; after switching clients mid-game, go straight back into
+    // the game.
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
+    const query = new URLSearchParams(location.search);
     let choice;
     if (config.replayUrl) {
         choice = { mode: 'replay' };
-    } else if (config.watch || new URLSearchParams(location.search).get('live')) {
+    } else if (config.watch || query.get('live')) {
         choice = { mode: 'watch' };
     } else if (resume) {
         choice = { mode: resume.normal ? 'normal' : 'practice', difficulty: ui.difficulty };
+    } else if (query.get('challenge')) {
+        choice = { mode: 'friendly', challenge: query.get('challenge') };
     } else {
         sound.playMusic('MENU', 0.1);
         choice = await ui.showMenu();
     }
     sound.stopMusic();
 
-    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1 });
+    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge });
     new Interaction(stage, game, effects);
     ui.setView(stage.view);
     ui.showViews(true, { chat: !game.spectator });

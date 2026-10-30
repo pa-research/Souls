@@ -63,6 +63,7 @@ require.config({
         "battlelog": "Objects/Environment/BattleLog",
         "hud": "Objects/Environment/Hud",
         "menu": "Objects/Environment/Menu",
+        "emotes": "Objects/Environment/Emotes",
         //// Player
         "player": "Objects/Player/Player",
         "playerbase": "Objects/Player/PlayerBase",
@@ -225,8 +226,14 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
                 loading.Close();
                 // After switching from the 3D client mid-game, go straight back into the running game.
                 var resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
+                // A challenge link (/Game?challenge=name) goes straight to the friendly challenge.
+                var challenge = new URLSearchParams(window.location.search).get('challenge');
                 if (resume) {
                     gameEngine = new Game(resume.normal, ReadDifficulty(), true);
+                    Conf.currentState = Gamestate.GAME;
+                }
+                else if (challenge) {
+                    gameEngine = new Game(false, ReadDifficulty(), false, { challenge: challenge });
                     Conf.currentState = Gamestate.GAME;
                 }
                 else {
@@ -300,12 +307,12 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         this.stage.addChild(backdrop);
 
         var started = false;
-        function Start(normal, difficulty) {
+        function Start(normal, difficulty, friendly) {
             if (started) return;
             started = true;
             try { menuSound.stop(); } catch (e) { }
             menu.Close();
-            gameEngine = new Game(normal, difficulty);
+            gameEngine = new Game(normal, difficulty, false, friendly);
             Conf.currentState = Gamestate.GAME;
         }
 
@@ -314,7 +321,8 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
             difficulty: ReadDifficulty(),
             onDifficulty: WriteDifficulty,
             onRanked: function () { Start(true); },
-            onPractice: function (difficulty) { Start(false, difficulty); }
+            onPractice: function (difficulty) { Start(false, difficulty); },
+            onFriendly: function (difficulty) { Start(false, difficulty, {}); }
         });
     }
 

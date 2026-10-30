@@ -44,10 +44,12 @@
         this.RegisterResponseAction(["236"], Response_GameSync);
         this.RegisterResponseAction(["240", "241", "242"], Response_Spectate);
         this.RegisterResponseAction(["243"], Response_SpectateError);
+        this.RegisterResponseAction(["197", "198", "199"], Response_Challenge);
+        this.RegisterResponseAction(["299"], Response_Emote);
 
-        // Feedback on the player's own requests and the opponent's card dragging are shown at once instead of
-        // waiting behind the animations.
-        this.immediate = { 202: true, 208: true, 209: true, 213: true, 232: true, 243: true };
+        // Feedback on the player's own requests, the opponent's card dragging, challenges and emotes are shown at
+        // once instead of waiting behind the animations.
+        this.immediate = { 197: true, 198: true, 199: true, 202: true, 208: true, 209: true, 213: true, 232: true, 243: true, 299: true };
     }
     // Constructor
     GameService.prototype.constructor = GameService;
@@ -98,6 +100,28 @@
 
     function Response_Spectate(json) {
         // Spectating is offered by the 3D client; the classic client only plays.
+        return 0;
+    }
+
+    /// 199 ChallengeInvite {name, type, rating, expiresIn}, 198 ChallengeSent {name}, 197 ChallengeClosed (string).
+    function Response_Challenge(json) {
+        var queue = that.engine.queue;
+        if (json.Type == 199) {
+            queue.ShowInvite(json.Payload || {});
+        }
+        else if (json.Type == 198) {
+            queue.ChallengeWaiting(json.Payload && json.Payload.name);
+        }
+        else {
+            queue.HideInvite();
+            queue.ChallengeIdle(Text(json.Payload, ""));
+        }
+        return 0;
+    }
+
+    /// 299 Emote {ident, emote, text}
+    function Response_Emote(json) {
+        that.engine.emotes.Say(json.Payload || {});
         return 0;
     }
 
@@ -359,6 +383,7 @@
             engine.battleLog.Show();
         }
         if (engine.settings) engine.settings.Show();
+        engine.emotes.Show();
         engine.RefreshAll();
 
         // Fade out the Queue overlay
@@ -547,6 +572,12 @@
     GameService.prototype.Login = function () {
         this.socket.send(this.message.GENERAL.LOGIN);
 
+        // Friendly: wait to be challenged, or challenge the player named in the link
+        if (this.engine.friendly) {
+            if (this.engine.friendly.challenge) this.Challenge(this.engine.friendly.challenge);
+            return;
+        }
+
         // Normal (ranked) game, or practice against the bot with the chosen difficulty
         if (this.engine.normalGame) {
             this.socket.send({ "Type": Message.Type.Game.NORMAL_QUEUE, "Payload": {} });
@@ -556,6 +587,20 @@
             if (!(difficulty >= 0 && difficulty <= 2)) difficulty = 1;
             this.socket.send({ "Type": Message.Type.Game.PRACTICE_QUEUE, "Payload": { "difficulty": difficulty } });
         }
+    }
+
+    /// Friendly challenges: invite a player by name, withdraw the invitation, answer one.
+    GameService.prototype.Challenge = function (name) {
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE, "Payload": { "name": String(name) } });
+    }
+
+    GameService.prototype.CancelChallenge = function () {
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE_CANCEL, "Payload": {} });
+    }
+
+    GameService.prototype.AnswerChallenge = function (accept) {
+        if (accept) this.engine.friendlyGame = true;
+        this.socket.send({ "Type": Message.Type.Game.CHALLENGE_ANSWER, "Payload": { "accept": !!accept } });
     }
 
     /// <summary>

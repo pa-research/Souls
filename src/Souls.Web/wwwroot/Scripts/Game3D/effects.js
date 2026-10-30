@@ -149,7 +149,7 @@ export class Effects {
             uniforms: { color: { value: new THREE.Color(color) }, fade: { value: 0 } },
             vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
             fragmentShader: `uniform vec3 color; uniform float fade; varying vec2 vUv;
-                void main() { gl_FragColor = vec4(color, fade * pow(1.0 - vUv.y, 2.0) * 0.45); }`,
+                void main() { gl_FragColor = vec4(color, fade * (1.0 - vUv.y) * (1.0 - vUv.y) * 0.45); }`,
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
         });
         const beam = new THREE.Mesh(new THREE.CylinderGeometry(110, 140, 1600, 32, 1, true), material);

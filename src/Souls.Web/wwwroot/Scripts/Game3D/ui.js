@@ -160,13 +160,16 @@ export class UI {
         this.log.hidden = true;
         this.buildViews();
         this.buildSettings();
+        this.buildEmotes();
         this.toasts = el('div', 'sg-toasts', this.root);
         this.toasts.setAttribute('aria-live', 'polite');
         this.tooltip = el('div', 'sg-tip s-tip', this.root);
         this.tooltip.hidden = true;
         this.tooltip.setAttribute('role', 'tooltip');
         window.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && !this.settings.hidden) this.toggleSettings(false);
+            if (e.key !== 'Escape') return;
+            if (!this.settings.hidden) this.toggleSettings(false);
+            if (!this.emotePanel.hidden) this.toggleEmotes(false);
         });
     }
 
@@ -223,7 +226,7 @@ export class UI {
         return list;
     }
 
-    /** Resolves with {mode: 'practice' | 'normal' | 'watch', difficulty}. */
+    /** Resolves with {mode: 'practice' | 'normal' | 'friendly' | 'watch', difficulty}. */
     showMenu() {
         clearInterval(this.tipTimer);
         this.overlay.replaceChildren();
@@ -247,6 +250,7 @@ export class UI {
             return b;
         });
         this.setDifficulty(this.difficulty);
+        const friendly = this.menuButton(nav, 'users', 'Friendly', 'Challenge a player by name, unranked');
         const watch = this.menuButton(nav, 'eye', 'Watch live', 'Take a seat in the stands');
         const small = el('div', 'sg-menu-small', nav);
         for (const [href, iconName, label] of [['/Deck', 'deck', 'Deck'], ['/Shop', 'shop', 'Shop'], ['/', 'home', 'Home']]) {
@@ -286,6 +290,7 @@ export class UI {
         return new Promise(resolve => {
             ranked.onclick = () => resolve({ mode: 'normal', difficulty: this.difficulty });
             practice.onclick = () => resolve({ mode: 'practice', difficulty: this.difficulty });
+            friendly.onclick = () => resolve({ mode: 'friendly', difficulty: this.difficulty });
             watch.onclick = () => resolve({ mode: 'watch', difficulty: this.difficulty });
         });
     }
@@ -312,8 +317,8 @@ export class UI {
             this.queueText = el('p', '', box);
             this.queueTime = el('div', 'sg-time', box, '0:00');
             this.queueChip = el('span', 's-chip', box);
-            const cancel = button('s-btn s-btn-ghost s-btn-sm', box, 'Back to the menu', 'arrow-left');
-            cancel.addEventListener('click', () => { window.location.href = '/Game'; });
+            this.queueBack = button('s-btn s-btn-ghost s-btn-sm', box, 'Back to the menu', 'arrow-left');
+            this.queueBack.addEventListener('click', () => { window.location.href = '/Game'; });
             this.queueBox = box;
             this.queueStarted = performance.now();
             this.queueTimer = setInterval(() => {
@@ -322,14 +327,16 @@ export class UI {
         }
         if (mode) {
             this.queueMode = mode;
-            const iconName = mode === 'practice' ? 'bot' : mode === 'normal' ? 'swords' : 'eye';
+            const iconName = { practice: 'bot', normal: 'swords', friendly: 'users' }[mode] || 'eye';
             this.queueRings.replaceChildren(icon(iconName));
-            this.queueTitle.textContent = mode === 'normal' ? 'Finding an opponent' : mode === 'practice' ? 'Preparing the arena' : 'Joining the stands';
+            this.queueTitle.textContent = { normal: 'Finding an opponent', practice: 'Preparing the arena', friendly: 'Friendly challenge' }[mode] || 'Joining the stands';
             this.queueChip.replaceChildren();
             if (mode === 'normal' && this.config.profile) {
                 this.queueChip.append(icon('crown'), `Ranked · ${tierOf(this.config.profile.rating).name} · ${this.config.profile.rating}`);
             } else if (mode === 'practice') {
                 this.queueChip.append(icon('bot'), `Practice · ${['Easy', 'Normal', 'Hard'][this.difficulty] || 'Normal'}`);
+            } else if (mode === 'friendly') {
+                this.queueChip.append(icon('users'), 'Friendly · unranked');
             } else {
                 this.queueChip.append(icon('eye'), 'Spectator');
             }
@@ -352,7 +359,94 @@ export class UI {
             this.overlay.classList.remove('sg-fade-out');
             this.overlay.replaceChildren();
             this.queueBox = null;
+            this.challengeForm = null;
         }, 950);
+    }
+
+    // ---- Friendly challenges -------------------------------------------------------------------------------------
+
+    /** Friendly mode in the queue box: challenge a player by name, or wait here to be challenged. */
+    showFriendly({ onChallenge, onCancel }) {
+        this.showQueue('', 'friendly');
+        const form = el('form', 'sg-challenge', null);
+        const input = el('input', 's-input', form);
+        input.placeholder = 'Player name';
+        input.maxLength = 64;
+        input.autocomplete = 'off';
+        input.setAttribute('aria-label', 'Player to challenge');
+        button('s-btn s-btn-primary s-btn-sm', form, 'Challenge', 'swords').type = 'submit';
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            if (input.value.trim()) onChallenge(input.value.trim());
+        });
+        const withdraw = button('s-btn s-btn-ghost s-btn-sm', null, 'Withdraw challenge', 'close');
+        withdraw.addEventListener('click', onCancel);
+        this.queueBox.insertBefore(form, this.queueBack);
+        this.queueBox.insertBefore(withdraw, this.queueBack);
+        this.challengeForm = { form, input, withdraw };
+        this.challengeIdle();
+    }
+
+    /** The challenge was sent: wait for the answer. */
+    challengeWaiting(name) {
+        if (!this.challengeForm) return;
+        this.challengeForm.form.hidden = true;
+        this.challengeForm.withdraw.hidden = false;
+        this.queueText.textContent = `Waiting for ${name} to answer...`;
+        this.queueStarted = performance.now();
+    }
+
+    /** Ready to challenge (again); `text` says what became of the last challenge. Outside friendly mode: a toast. */
+    challengeIdle(text) {
+        if (!this.challengeForm) {
+            if (text) this.screenMessage(text);
+            return;
+        }
+        this.challengeForm.form.hidden = false;
+        this.challengeForm.withdraw.hidden = true;
+        const name = this.config.profile ? this.config.profile.name : 'your name';
+        this.queueText.textContent = text || `Challenge a player who has the game open, or wait here: others can challenge ${name}.`;
+    }
+
+    /** Someone challenges you: answer(true | false), or it expires. */
+    showInvite(p, answer) {
+        this.hideInvite();
+        const card = el('section', 's-panel sg-invite', this.root);
+        card.setAttribute('role', 'alertdialog');
+        card.setAttribute('aria-label', 'Challenge');
+        const head = el('div', 'sg-invite-head', card);
+        const img = el('img', '', head);
+        img.src = Images.heroPortrait(Number(p.type) || 0);
+        img.alt = '';
+        const who = el('div', '', head);
+        el('b', '', who, `${p.name} challenges you!`);
+        el('div', 's-muted s-small', who, `Friendly game · unranked${p.rating ? ` · ${p.rating}` : ''}`);
+        const bar = progress(card, 1, 's-progress-ember');
+        const actions = el('div', 'sg-invite-actions', card);
+        const decline = button('s-btn s-btn-ghost s-btn-sm', actions, 'Decline', 'close');
+        const accept = button('s-btn s-btn-primary s-btn-sm', actions, 'Accept', 'check');
+        const total = Number(p.expiresIn) || 30000;
+        const ends = performance.now() + total;
+        const timer = setInterval(() => {
+            const left = ends - performance.now();
+            bar.style.setProperty('--p', `${Math.max(0, Math.round(left / total * 100))}%`);
+            if (left <= 0) this.hideInvite();
+        }, 250);
+        const done = ok => {
+            this.hideInvite();
+            answer(ok);
+        };
+        accept.addEventListener('click', () => done(true));
+        decline.addEventListener('click', () => done(false));
+        this.invite = { card, timer };
+        accept.focus({ preventScroll: true });
+    }
+
+    hideInvite() {
+        if (!this.invite) return;
+        clearInterval(this.invite.timer);
+        this.invite.card.remove();
+        this.invite = null;
     }
 
     // ---- HUD: status, power, fuse, banners, toasts ---------------------------------------------------------------
@@ -845,6 +939,61 @@ export class UI {
     toggleSettings(open = this.settings.hidden) {
         this.settings.hidden = !open;
         this.settingsButton.setAttribute('aria-expanded', String(open));
+        if (open) this.toggleEmotes(false);
+    }
+
+    // ---- Emotes --------------------------------------------------------------------------------------------------
+
+    /** The emote button (next to the settings) opens the emotes and the switch that mutes the opponent's. */
+    buildEmotes() {
+        this.emoteButton = button('sg-icon-btn', null, null, 'smile');
+        this.emoteButton.setAttribute('aria-label', 'Emotes');
+        this.emoteButton.setAttribute('aria-expanded', 'false');
+        this.emoteButton.addEventListener('click', () => this.toggleEmotes());
+        this.settingsButton.after(this.emoteButton);
+        const panel = el('section', 's-panel sg-emotes souls3d-emotes', this.root);
+        panel.hidden = true;
+        panel.setAttribute('aria-label', 'Emotes');
+        ((this.config.rules && this.config.rules.emotes) || []).forEach((text, i) => {
+            button('s-btn s-btn-ghost s-btn-sm', panel, text).addEventListener('click', () => {
+                this.toggleEmotes(false);
+                if (this.onEmote) this.onEmote(i);
+            });
+        });
+        this.muteButton = button('s-btn s-btn-ghost s-btn-sm', panel, 'Mute opponent', 'mute');
+        this.muteButton.setAttribute('aria-pressed', 'false');
+        this.muteButton.addEventListener('click', () => {
+            const muted = this.muteButton.getAttribute('aria-pressed') !== 'true';
+            this.muteButton.setAttribute('aria-pressed', String(muted));
+            this.muteButton.replaceChildren(icon(muted ? 'volume' : 'mute'), muted ? 'Unmute opponent' : 'Mute opponent');
+            if (this.onMuteEmotes) this.onMuteEmotes(muted);
+        });
+        this.emotePanel = panel;
+        this.bubbles = {};
+    }
+
+    toggleEmotes(open = this.emotePanel.hidden) {
+        this.emotePanel.hidden = !open;
+        this.emoteButton.setAttribute('aria-expanded', String(open));
+        if (open) this.toggleSettings(false);
+    }
+
+    /** A speech bubble by a hero ('player' or 'opponent') for a few seconds; placeEmote moves it every frame. */
+    emote(side, text) {
+        if (this.bubbles[side]) this.bubbles[side].remove();
+        const bubble = el('div', `sg-bubble ${side === 'player' ? 'mine' : 'theirs'}`, this.root, text);
+        bubble.setAttribute('role', 'status');
+        this.bubbles[side] = bubble;
+        setTimeout(() => {
+            bubble.remove();
+            if (this.bubbles[side] === bubble) delete this.bubbles[side];
+        }, 2800);
+    }
+
+    /** The player's bubble stands above (x, y), the opponent's hangs below it. */
+    placeEmote(side, x, y) {
+        const bubble = this.bubbles[side];
+        if (bubble) bubble.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, ${side === 'player' ? '-100%' : '0'})`;
     }
 
     updateSound() {
@@ -855,10 +1004,11 @@ export class UI {
         }
     }
 
-    /** Shows the in-game controls (camera views, chat and battle log). */
+    /** Shows the in-game controls (camera views, chat and battle log; chat and emotes are for players). */
     showViews(visible, { chat = true } = {}) {
         this.views.hidden = !visible;
         this.chat.hidden = !visible || !chat;
+        this.emoteButton.hidden = !chat;
         this.log.hidden = !visible;
     }
 
@@ -875,7 +1025,7 @@ export class UI {
      * The end screen: the result, coins and rating earned (counting up), daily quest progress, and links to the
      * statistics and the replay. Players are taken to the statistics after a while (spectators stay).
      */
-    showEnd(text, result = {}, { redirect = true, detail } = {}) {
+    showEnd(text, result = {}, { redirect = true, detail, friendly = false } = {}) {
         this.hideTimer();
         this.setPower(null);
         this.setStatus3d('player', null);
@@ -908,9 +1058,9 @@ export class UI {
             this.countUp(value, Math.abs(result.ratingChange), up ? '+' : '-', 1000);
         } else if (typeof result.coins === 'number') {
             const r = el('div', 's-panel sg-reward', rewards);
-            r.appendChild(icon('bot'));
+            r.appendChild(icon(friendly ? 'users' : 'bot'));
             el('b', '', r, '–');
-            el('span', '', r, 'Practice · unrated');
+            el('span', '', r, friendly ? 'Friendly · unranked' : 'Practice · unrated');
         }
         if (!rewards.childElementCount) rewards.remove();
 
@@ -998,7 +1148,8 @@ export class UI {
                 const text = el('span', '', item);
                 const name = p => `${p.name}${p.rating ? ` (${p.rating})` : ''}`;
                 el('div', 'sg-game-names', text, a && b ? `${name(a)} vs ${name(b)}` : `Game ${g.gameId}`);
-                el('div', 'sg-game-meta', text, `${g.practice ? 'Practice' : 'Ranked'} · turn ${(g.turn ?? 0) + 1} · ${g.spectators ?? 0} watching`);
+                const kind = !g.practice ? 'Ranked' : (g.players || []).some(p => p.bot) ? 'Practice' : 'Friendly';
+                el('div', 'sg-game-meta', text, `${kind} · turn ${(g.turn ?? 0) + 1} · ${g.spectators ?? 0} watching`);
                 const watch = button('s-btn s-btn-primary s-btn-sm', item, 'Watch', 'eye');
                 watch.addEventListener('click', () => done(g.gameId));
             }

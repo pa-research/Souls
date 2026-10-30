@@ -109,6 +109,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     private List<Unit> _myBoard = [];
     private List<Unit> _enemyBoard = [];
     private bool _synced;
+    private bool _greet;
     private Message? _mulligan;
 
     /// <summary>The mulligan sends back starting cards that cost more than this (easy bots keep their hand).</summary>
@@ -128,6 +129,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                     if (!Handle(JsonNode.Parse(json)!))
                     {
                         break;
+                    }
+
+                    if (_greet)
+                    {
+                        _greet = false;
+                        await send(Message.Create(GameRequest.Emote, new JsonObject { ["emote"] = 0 }));
                     }
 
                     if (_mulligan is { } mulligan)
@@ -171,6 +178,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             case GameResponse.GameCreate:
                 _ident = (int?)payload!["ident"] ?? 2;
                 _hand.Clear();
+
+                // Now and then the bot says hello (emote 0, "Greetings!").
+                _greet = (bool?)payload["create"] == true && _random.Next(3) == 0;
                 foreach (var (_, node) in payload["player"]!["hand"]!.AsObject())
                 {
                     var card = Card.FromJson(node!);

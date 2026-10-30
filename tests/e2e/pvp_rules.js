@@ -189,7 +189,7 @@ async function turnClassic(s, turn) {
   // C watches from the live games list.
   await C.page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
   await C.page.waitForSelector('.sg-menu', { timeout: 120000 });
-  await C.page.click('.sg-menu-btn >> nth=2');
+  await C.page.click('.sg-menu-btn:has-text("Watch live")');
   await C.page.waitForSelector('.sg-game button', { timeout: 60000 });
   const listed = await C.page.textContent('.sg-games');
   step('live games list shows the game', listed.includes(`ann${id}`) && listed.includes(`ben${id}`), listed.replace(/\s+/g, ' ').slice(0, 160));

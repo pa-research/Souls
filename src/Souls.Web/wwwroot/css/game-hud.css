@@ -837,6 +837,65 @@
 
 .sg-versus-meta { display: flex; justify-content: center; margin-top: 4px; }
 
+/* ---- Emotes and friendly challenges ------------------------------------------------------------------------- */
+
+.sg-emotes { position: absolute; display: grid; gap: 6px; width: min(230px, calc(100vw - 24px)); padding: 10px; }
+.sg-emotes .s-btn { justify-content: flex-start; }
+
+/* A hero's speech bubble: .mine stands above the player's hero, .theirs hangs below the opponent's. */
+.sg-bubble {
+    position: absolute;
+    left: 0;
+    top: 0;
+    max-width: 240px;
+    padding: 9px 16px;
+    border: 2px solid #c9a24a;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff8e6, #ead8ad);
+    box-shadow: var(--s-shadow);
+    color: #2b1d0c;
+    font: 700 1rem/1.25 var(--s-font-body);
+    text-align: center;
+    pointer-events: none;
+    animation: sg-bubble 2.8s var(--s-ease) forwards;
+}
+
+.sg-bubble::after { content: ''; position: absolute; left: 50%; width: 14px; height: 14px; margin-left: -7px; border: 2px solid #c9a24a; transform: rotate(45deg); }
+.sg-bubble.mine { margin-top: -12px; transform-origin: 50% 100%; }
+.sg-bubble.mine::after { bottom: -9px; border-top: 0; border-left: 0; background: #ead8ad; }
+.sg-bubble.theirs { margin-top: 12px; transform-origin: 50% 0; }
+.sg-bubble.theirs::after { top: -9px; border-right: 0; border-bottom: 0; background: #fff8e6; }
+
+@keyframes sg-bubble {
+    0% { opacity: 0; scale: 0.6; }
+    8%, 85% { opacity: 1; scale: 1; }
+    100% { opacity: 0; }
+}
+
+/* An invitation to a friendly game, above everything (also the matchmaking layer). */
+.sg-invite {
+    position: absolute;
+    top: max(70px, 12%);
+    left: 50%;
+    z-index: 45;
+    display: grid;
+    gap: 12px;
+    width: min(380px, calc(100% - 32px));
+    padding: 16px;
+    translate: -50% 0;
+    border-color: var(--s-gold-2);
+    animation: s-rise-in 0.35s var(--s-ease) both;
+}
+
+.sg-invite-head { display: flex; align-items: center; gap: 12px; }
+.sg-invite-head img { width: 56px; height: 56px; border: 2px solid var(--s-gold-2); border-radius: 50%; object-fit: cover; }
+.sg-invite-head b { display: block; font-family: var(--s-font-display); font-size: 1.1rem; color: var(--s-gold-1); overflow-wrap: anywhere; }
+.sg-invite .s-progress { height: 6px; }
+.sg-invite-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.sg-challenge { display: flex; gap: 8px; width: 100%; }
+.sg-challenge .s-input { flex: 1; min-width: 0; min-height: 38px; }
+
 @media (prefers-reduced-motion: reduce) {
     .sg-logo,
     .sg-rings::before,
