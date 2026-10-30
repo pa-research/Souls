@@ -250,6 +250,7 @@ Settings go in a `.env` file next to `compose.yaml`:
 | `SOULS_DOMAIN` | `localhost` | Public host name. A real domain gets a Let's Encrypt certificate. |
 | `CADDY_GLOBAL_OPTIONS` | | e.g. `email you@example.com` for ACME. |
 | `SOULS_HTTP_PORT` / `SOULS_HTTPS_PORT` | `80` / `443` | Published ports. |
+| `SOULS_FRONTEND_SUBNET` | `172.28.10.0/24` | Subnet of the internal Caddy-to-apps network; change it if another Docker network already uses that range. |
 | `SOULS_ADMIN_USERNAME` | `admin` | Bootstrap administrator. |
 | `SOULS_GITHUB_REPOSITORY` | | Show recent commits of `owner/repo` on the home page. |
 | `SOULS_WEB_IMAGE` / `SOULS_SERVER_IMAGE` | `souls-web:latest` / `souls-server:latest` | Use published images instead of building. |
