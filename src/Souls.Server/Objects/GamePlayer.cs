@@ -96,6 +96,7 @@ public sealed class GamePlayer
             HasAttacked = HasAttacked,
             HeroPowerUsed = HeroPowerUsed,
             Fatigue = Fatigue,
+            MulliganDone = MulliganDone,
             GameRoom = room,
         };
         foreach (var (cid, card) in HandCards)

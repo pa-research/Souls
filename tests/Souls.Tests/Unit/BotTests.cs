@@ -113,7 +113,7 @@ public class BotTests
         // Two ready 3/3s against 6 health. Killing the 5/1 scores best after one action, but two hits to the face win.
         GameRoom room = null!;
         var trade = Definition(5, 1, 1).NewInstance();
-        await state.RunExclusiveAsync(() =>
+        await state.RunExclusiveAsync(async () =>
         {
             room = engine.CreateGame(new Pair<Player>(bot, human), practice: true);
             foreach (var slot in new[] { 0, 1 })
@@ -126,7 +126,8 @@ public class BotTests
             human.GPlayer!.BoardCards[0] = trade;
             human.GPlayer.Health = 6;
             room.Sync();
-            return Task.CompletedTask;
+            // The human keeps the starting hand; the bot answers the mulligan when it runs, then its turn starts.
+            await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
         });
 
         var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)),

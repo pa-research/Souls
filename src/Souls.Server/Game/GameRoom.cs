@@ -85,6 +85,8 @@ public sealed class GameRoom
         Round = source.Round;
         IsPractice = source.IsPractice;
         TurnTime = source.TurnTime;
+        MulliganTime = source.MulliganTime;
+        InMulligan = source.InMulligan;
         TurnDeadline = source.TurnDeadline;
         StartedAt = source.StartedAt;
         IsEnded = source.IsEnded;
