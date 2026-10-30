@@ -19,7 +19,7 @@ define('messages', ['conf'], function (Conf) {
                 NORMAL_QUEUE: 100,
                 PRACTICE_QUEUE: 101, // {difficulty: 0 easy, 1 normal, 2 hard}
                 ATTACK: 200, // {source, target, type: 0 card->card, 1 card->hero, 2 hero->card, 3 hero->hero}
-                USECARD: 201,
+                USECARD: 201, // {cid, slotId}; a spell: {cid, target, type} as USE_ABILITY, or {cid} without a target
                 NEXT_TURN: 226,
                 MULLIGAN: 227, // {replace: [cid...]}: the starting hand cards to replace, once
                 NOT_YOUR_TURN: 202,
@@ -48,6 +48,8 @@ define('messages', ['conf'], function (Conf) {
                 RECOVER: 220,
                 NEWCARD: 222,
                 OPPONENT_NEWCARD: 223,
+                USECARD_SPELL: 224, // {card, pInfo, target}: our spell left the hand and is cast
+                OPPONENT_USECARD_SPELL: 225,
                 NEXT_TURN: 226,
                 MULLIGAN: 227,
                 OPPONENT_MULLIGAN: 228,

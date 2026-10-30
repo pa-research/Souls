@@ -8,7 +8,7 @@
 <div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2></div>
 <div class="row">
     <div class="col-lg-3">
-                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, card.AbilityId is { } abilityId ? Souls.Model.GameRules.AbilityLabel(abilityId, card.AbilityValue) : null, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false) { Armor = card.Armor, Rarity = card.Rarity, Flavor = card.Flavor, AbilityText = card.AbilityId is { } a ? Souls.Model.GameRules.AbilityText(a, card.AbilityValue) : null }" />
+                <partial name="_CardTile" model="new CardTile(card.Id ?? 0, card.Name, card.Cost, card.Attack, card.Health, card.AbilityId is { } abilityId ? Souls.Model.GameRules.AbilityLabel(abilityId, card.AbilityValue) : null, raceTexture, card.Portrait ?? CardTile.DefaultPortrait, card.VendorPrice, false) { Armor = card.Armor, Rarity = card.Rarity, Flavor = card.Flavor, AbilityText = card.AbilityId is { } a ? Souls.Model.GameRules.AbilityText(a, card.AbilityValue) : null, Spell = card.Kind == Souls.Model.Entities.CardKind.Spell }" />
     </div>
 
     <div class="col-lg-9">
@@ -35,6 +35,9 @@
                             <option value="@ability.Id">@ability.Name</option>
                         }
                     </select>
+                    <label asp-for="Card.Kind" class="form-label mt-2">Kind</label>
+                    <select asp-for="Card.Kind" class="form-select" asp-items="Html.GetEnumSelectList<Souls.Model.Entities.CardKind>()"></select>
+                    <div class="form-text">Spells are cast from the hand (attack, health and armor are ignored).</div>
                     <label asp-for="Card.RaceId" class="form-label mt-2">Race</label>
                     <select asp-for="Card.RaceId" class="form-select" id="race-select">
                         @foreach (var race in Model.Races)
@@ -72,16 +75,16 @@
 </div>
 
 <table class="table table-sm mt-4">
-    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th></tr></thead>
+    <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th></tr></thead>
     <tbody>
         @foreach (var c in Model.Cards)
         {
             <tr>
                 <td><a asp-action="CardEditor" asp-route-id="@c.Id">@c.Name</a></td>
-                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td>
+                <td>@c.Cost</td><td>@c.Health</td><td>@c.Attack</td><td>@c.VendorPrice</td><td>@c.Level</td><td>@c.Ability?.Name</td><td>@c.Race?.Name</td><td>@c.Kind</td>
             </tr>
         }
-        <tr><td colspan="8"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
+        <tr><td colspan="9"><b><a asp-action="CardEditor" asp-route-id="">[NEW]</a></b></td></tr>
     </tbody>
 </table>
 </section>

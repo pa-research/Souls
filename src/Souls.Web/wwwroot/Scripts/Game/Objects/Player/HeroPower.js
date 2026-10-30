@@ -57,6 +57,7 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
 
     HeroPower.prototype.constructor = HeroPower;
     HeroPower.RADIUS = RADIUS;
+    HeroPower.SwallowTouch = SwallowTouch; // a spell picks its target the same way (Card.OnPick)
 
     function TouchOf(e) {
         var list = (e.changedTouches && e.changedTouches.length) ? e.changedTouches : e.touches;

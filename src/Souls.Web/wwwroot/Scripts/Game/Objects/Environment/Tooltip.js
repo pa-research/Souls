@@ -52,7 +52,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
     Tooltip.prototype.Tap = function (point) {
         var engine = this.engine;
         var player = engine.player;
-        if (!player || engine.ended || player.holdingCard || player.isClicked) return;
+        if (!player || engine.ended || player.holdingCard || player.isClicked || player.armedSpell) return;
         if (player.heroPower && (player.heroPower.armed || player.heroPower.aiming)) return;
         if (this.pinned && Date.now() - this.pinnedAt < 250) return; // pinned by this tap already
         var obj = this.FindAt(point);
@@ -114,20 +114,29 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         if (rarity) sub.push(rarity.charAt(0).toUpperCase() + rarity.slice(1));
         if (raceName) sub.push(raceName);
         if (card.token) sub.push('Token');
+        if (card.spell) sub.push('Spell');
         sub.push('Level ' + level);
         Hud.El('div', 'sg-tip-sub', el, sub.join(' · '));
 
-        Stats(el, card);
+        Stats(el, card.spell ? { cost: card.cost } : card);
 
         if (card.abilityId) {
             // The card's own label and rules text ("Burn 3": "Deals 3 damage ..."), else the generic rules text.
             var ability = Rules.Ability(card.abilityId);
             var abilityText = card.abilityText || (ability ? ability.text : '');
-            if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' (right-drag, or hold and drag on touch)';
+            if (card.spell) {
+                var kinds = card.TargetedSpell() ? Rules.AbilityTargets(card.abilityId) : [];
+                abilityText += kinds.length ? ' (drag it onto ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target)'
+                    : ' (drag it onto the board, or click it and then the board)';
+            }
+            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' (right-drag, or hold and drag on touch)';
             Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || 'Ability')), abilityText);
         }
-        if (race) Block(el, 'race', race.name, race.text);
-        else if (card.raceName) Block(el, 'race', String(card.raceName), '');
+        if (card.spell) Block(el, 'info', '', Rules.Keyword('spell') || 'Spell: cast it from your hand, then it is used up.');
+        // Spells never attack or die: only the Vampiric and Lightbringer passives work for them.
+        var passive = !card.spell || Number(card.race) === 2 || Number(card.race) === 3;
+        if (race && passive) Block(el, 'race', race.name, race.text);
+        else if (card.raceName && passive) Block(el, 'race', String(card.raceName), '');
 
         // The ward (as in the 3D client): unbroken, or broken on a Ward card.
         if (card.ward) Block(el, 'info', '', Rules.Keyword('ward') || 'Ward: the next damage this card would take breaks the ward instead.');
@@ -156,7 +165,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
 
         if (card.token) Block(el, 'info', '', 'Token: summoned, not from a deck.');
         if (card.armor > 0 && Rules.Keyword('armor')) Block(el, 'info', '', Rules.Keyword('armor'));
-        if (level >= 2) Block(el, 'info', '', 'Level ' + level + ': +' + (level - 1) + ' attack and health.');
+        if (level >= 2) Block(el, 'info', '', 'Level ' + level + ': +' + (level - 1) + (card.spell ? ' to its effect.' : ' attack and health.'));
         if (card.flavor) Block(el, 'flavor', '', String(card.flavor));
     }
 
@@ -294,7 +303,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         }
         else {
             this.pinned = null;
-            var busy = !!player.holdingCard || player.isClicked || (power && (power.aiming || power.armed || power.pressed));
+            var busy = !!player.holdingCard || player.isClicked || !!player.armedSpell || (power && (power.aiming || power.armed || power.pressed));
             if (!busy) target = this.FindHovered();
         }
 

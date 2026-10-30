@@ -1,6 +1,9 @@
-﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower", "mulligan"], function (Message, Asset, EventPlayer, Animation, HeroPower, Mulligan) {
+﻿define("gameService", ["messages", "asset", "eventPlayer", "animation", "heropower", "mulligan", "card"], function (Message, Asset, EventPlayer, Animation, HeroPower, Mulligan, Card) {
 
     var that;
+
+    // Where a spell is cast: beside the board, left of the slots, ours a little lower than the opponent's.
+    var SPELL_X = 280, SPELL_Y = { player: 610, opponent: 510 };
     GameService = function (engine, socket) {
 
         that = this;
@@ -28,6 +31,7 @@
         this.RegisterResponseAction(["209"], Response_GameOpponentMove);
         this.RegisterResponseAction(["210", "212"], Response_GameRelease);
         this.RegisterResponseAction(["207", "211"], Response_UseCard);
+        this.RegisterResponseAction(["224", "225"], Response_UseSpell);
         this.RegisterResponseAction(["202"], Repsonse_NotYourTurn);
         this.RegisterResponseAction(["213"], Response_SlotOccupied);
         this.RegisterResponseAction(["226"], Response_NextTurn);
@@ -233,6 +237,40 @@
     }
 
     /// <summary>
+    /// 224 UseCardSpell (ours) / 225 OpponentUseCardSpell: {card, pInfo, target}. The spell leaves the hand (the
+    /// opponent's is revealed) and is cast beside the board. The events that follow come from it (EventPlayer finds
+    /// it by cid in engine.castSpells); the next GameSync uses it up.
+    /// </summary>
+    function Response_UseSpell(json) {
+        var engine = that.engine;
+        if (!engine.player) return 0;
+        var payload = json.Payload || {};
+        var cardData = payload.card;
+        if (!cardData) return 0;
+
+        var hero = (json.Type == 225) ? engine.opponent : engine.player;
+        var manager = hero.cardManager;
+        hero.SetText(payload.pInfo);
+        var card = manager.TakeHandCard(cardData.cid)
+            || manager.CreateCard(cardData, { x: SPELL_X, y: hero === engine.player ? 980 : 200, rotation: 0 });
+        manager.SortHand();
+        hero.handCount = manager.HandCount();
+        hero.RefreshHud();
+
+        if (card._armed) card.Disarm(false);
+        if (hero === engine.player && hero.holdingCard === card) hero.holdingCard = undefined;
+        card.interactive = false;
+        card._awaitRequest = false;
+        card.pickedUp = card.dragging = false;
+        card.UpdateFromJson(cardData);
+        if (card.cardFlipped) card.FlipCard();
+        engine.SwapFromToGroup(card, null, "Card-Focus");
+        engine.castSpells[card.cid] = card;
+        var y = hero === engine.player ? SPELL_Y.player : SPELL_Y.opponent;
+        return Animation.Fx.CastSpell(engine, card, SPELL_X, y, Card.ABILITY_COLOR[card.abilityId]);
+    }
+
+    /// <summary>
     /// Epic and legendary cards make an entrance when they land (after landAfter ms): legendary cards with a golden
     /// flash and their name in a "Legendary" banner, epic cards with a smaller violet flash. Returns the extra time
     /// the next message waits.
@@ -413,6 +451,13 @@
         var state = json.Payload;
         if (!state || !engine.player) return 0;
 
+        // The spells cast in this action are used up (their events have played).
+        for (var cid in engine.castSpells) {
+            var spell = engine.castSpells[cid];
+            Animation.Card.Spend(spell, Card.ABILITY_COLOR[spell.abilityId]);
+        }
+        engine.castSpells = {};
+
         engine.myTurn = Number(state.current) === Number(engine.myIdent);
         if (typeof state.turn === 'number') engine.turnNumber = state.turn;
 
@@ -560,6 +605,25 @@
                 if (card._awaitRequest && !card.inSlot && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
             }, 5000);
         }
+    }
+
+    /// <summary>
+    /// Casts a spell from the hand (UseCard): on a target (type as Request_Ability) or, without a type, on nothing.
+    /// The card waits for the cast (224) or the Release (212) when the server refuses it.
+    /// </summary>
+    GameService.prototype.Request_Spell = function (card, type, targetCid) {
+        var payload = { "cid": card.cid };
+        if (type !== undefined) {
+            payload.type = type;
+            payload.target = targetCid;
+        }
+        card._awaitRequest = true;
+        this.socket.send({ "Type": Message.Type.Game.USECARD, "Payload": payload });
+
+        // Guard: never leave the card stuck if no answer comes (the cast clears _awaitRequest).
+        setTimeout(function () {
+            if (card._awaitRequest && !card.pickedUp && !card.isDead) card.Animation.MoveBack(card);
+        }, 5000);
     }
 
     /// <summary>

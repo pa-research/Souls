@@ -26,8 +26,8 @@ origin, no tokens in JavaScript).
 | Game server | console app, websocket-sharp (vendored DLL) | ASP.NET Core WebSockets, same JSON protocol |
 | Data | NHibernate 3.3, MySQL, schema auto-update | EF Core 10, PostgreSQL 18, EF migrations |
 | Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |
-| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 19 abilities, hero powers, Taunt, turn timer (see below) |
-| Cards | 8 cards | 41 cards in four rarities: the 8 originals plus a 33-card expansion, balanced with 10 000 simulated games (see below) |
+| Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 20 abilities, spells, hero powers, Taunt, turn timer (see below) |
+| Cards | 8 cards | 51 cards in four rarities: the 8 originals, a 33-card expansion and 10 spells, balanced with 10 000 simulated games (see below) |
 | Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
 | Watching | none | live spectating and 3D replays of every game |
 | Look | 2014 light page, bottom navbar, image buttons | one dark-fantasy design system for the site and both game clients (see below) |

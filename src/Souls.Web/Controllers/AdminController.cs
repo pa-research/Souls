@@ -171,6 +171,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
                 Flavor = card.Flavor,
                 RaceId = card.RaceId,
                 Portrait = card.Portrait,
+                Kind = card.Kind,
             };
         }
 
@@ -189,6 +190,16 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         if (model.RaceId is { } raceId && !await db.Races.AnyAsync(r => r.Id == raceId, ct))
         {
             ModelState.AddModelError("Card.RaceId", "Unknown race");
+        }
+
+        if (model.Kind == CardKind.Spell && !GameRules.IsSpellAbility(model.AbilityId))
+        {
+            ModelState.AddModelError("Card.AbilityId", "A spell needs an ability it can cast: Burn, Drain, Heal, Harden, Paralyze, Empower, Insight or Inferno.");
+        }
+
+        if (model.Kind == CardKind.Minion && model.Health < 1)
+        {
+            ModelState.AddModelError("Card.Health", "A card needs at least 1 health.");
         }
 
         if (!await IsValidPortraitAsync(model.Portrait, ct))
@@ -212,11 +223,13 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
             db.Cards.Add(card);
         }
 
+        var spell = model.Kind == CardKind.Spell;
         card.Name = model.Name.Trim();
+        card.Kind = model.Kind;
         card.Cost = model.Cost;
-        card.Attack = model.Attack;
-        card.Health = model.Health;
-        card.Armor = model.Armor;
+        card.Attack = spell ? 0 : model.Attack;
+        card.Health = spell ? 0 : model.Health;
+        card.Armor = spell ? 0 : model.Armor;
         card.Level = model.Level;
         card.VendorPrice = model.VendorPrice;
         card.AbilityId = model.AbilityId;
