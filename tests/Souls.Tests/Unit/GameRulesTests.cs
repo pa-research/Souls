@@ -793,6 +793,23 @@ public class GameRulesTests
         Assert.Equal(3, Ratings.RankOf(1100));
     }
 
+    [Fact]
+    public void SeasonsResetRatingsHalfwayAndRewardTheFinalTier()
+    {
+        Assert.Equal(1200, Seasons.ResetRating(1400));
+        Assert.Equal(950, Seasons.ResetRating(900));
+        Assert.Equal(1000, Seasons.ResetRating(1000));
+        Assert.Equal(1000, Seasons.ResetRating(1001)); // rounds towards the initial rating
+        Assert.Equal(999, Seasons.ResetRating(997));
+
+        Assert.Equal((5, false), Seasons.Reward(Ratings.RankOf(900))); // Bronze
+        Assert.Equal((10, false), Seasons.Reward(Ratings.RankOf(1150))); // Silver III
+        Assert.Equal((20, false), Seasons.Reward(Ratings.RankOf(1449))); // Gold I
+        Assert.Equal((30, false), Seasons.Reward(Ratings.RankOf(1450))); // Platinum III
+        Assert.Equal((40, true), Seasons.Reward(Ratings.RankOf(1600))); // Diamond III
+        Assert.Equal((50, true), Seasons.Reward(Ratings.RankOf(2400))); // Champion
+    }
+
     [Theory]
     [InlineData("  hello  ", "hello")]
     [InlineData("a\u0000b\u0007c", "abc")]

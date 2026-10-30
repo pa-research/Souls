@@ -19,6 +19,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
 
         IReadOnlyList<QuestView>? quests = null;
         HomeProfile? profile = null;
+        SeasonProfile? season = null;
         if (User.Identity?.IsAuthenticated == true && User.GetPlayerId() is { } playerId)
         {
             profile = await db.Players.AsNoTracking()
@@ -32,6 +33,19 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
                 var definition = Quests.Get(q.Kind);
                 return new QuestView(definition.Text, q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
             })];
+
+            if (await Seasons.CurrentAsync(db, ct) is { } current)
+            {
+                var games = db.Games.Where(g => !g.IsPractice && g.Created >= current.StartsAt);
+                var best = await db.SeasonStandings.AsNoTracking().Include(s => s.Season)
+                    .Where(s => s.PlayerId == playerId)
+                    .OrderBy(s => s.Position).ThenByDescending(s => s.Rating)
+                    .FirstOrDefaultAsync(ct);
+                season = new SeasonProfile(current,
+                    await games.CountAsync(g => g.Player1Id == playerId || g.Player2Id == playerId, ct),
+                    await games.CountAsync(g => g.WinnerId == playerId, ct),
+                    best);
+            }
         }
 
         var top = await db.Players.AsNoTracking()
@@ -45,6 +59,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             Profile = profile,
             Quests = quests,
             TopPlayers = [.. top.Select((p, i) => new LeaderboardEntry(i + 1, p.Name, p.Rating, p.Rank, p.Type))],
+            Season = season,
         });
     }
 

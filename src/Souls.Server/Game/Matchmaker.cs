@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Souls.Model;
 using Souls.Model.Security;
 using Souls.Server.Ai;
 using Souls.Server.Network;
@@ -15,9 +16,12 @@ public sealed class MatchmakerOptions
 
     /// <summary>How often open connections are checked against the session store (logout, bans).</summary>
     public TimeSpan SessionRevalidationInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>How often the end of the current season is checked.</summary>
+    public TimeSpan SeasonCheckInterval { get; set; } = TimeSpan.FromMinutes(1);
 }
 
-/// <summary>Pairs queued players, starts practice games against the bot and cleans up abandoned players.</summary>
+/// <summary>Pairs queued players, starts practice games against the bot, cleans up abandoned players and ends seasons.</summary>
 public sealed class Matchmaker(
     ServerState state,
     GameEngine engine,
@@ -28,12 +32,14 @@ public sealed class Matchmaker(
     TimeProvider time,
     IOptions<MatchmakerOptions> options,
     IOptions<AiOptions> aiOptions,
+    IOptions<SeasonOptions> seasonOptions,
     GameMetrics metrics,
     ILoggerFactory loggerFactory) : BackgroundService
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<Matchmaker>();
     private readonly List<Task> _bots = [];
     private DateTimeOffset _lastRevalidation;
+    private DateTimeOffset _lastSeasonCheck;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -85,6 +91,12 @@ public sealed class Matchmaker(
         {
             _lastRevalidation = time.GetUtcNow();
             await RevalidateSessionsAsync(ct);
+        }
+
+        if (time.GetUtcNow() - _lastSeasonCheck >= options.Value.SeasonCheckInterval)
+        {
+            _lastSeasonCheck = time.GetUtcNow();
+            await EndSeasonIfDueAsync(ct);
         }
     }
 
@@ -171,6 +183,23 @@ public sealed class Matchmaker(
             await engine.ForfeitAsync(player);
             state.GameClients.Remove(connection);
         }
+    }
+
+    /// <summary>
+    /// Season rollover happens only here, in the single game server, under the state lock so that no game result is
+    /// stored while ratings reset. <see cref="Seasons.EndIfDueAsync"/> is transactional and runs at most once per season.
+    /// </summary>
+    private async Task EndSeasonIfDueAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
+        await state.RunExclusiveAsync(async () =>
+        {
+            if (await Seasons.EndIfDueAsync(db, time, seasonOptions.Value, ct) is { } season)
+            {
+                _logger.LogInformation("{Season} ended: standings stored, rewards paid, ratings reset", season.Name);
+            }
+        });
     }
 
     /// <summary>Closes connections whose session was revoked (logout, ban, expiry).</summary>

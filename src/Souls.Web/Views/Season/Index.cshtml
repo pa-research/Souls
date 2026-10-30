@@ -1,0 +1,75 @@
+@using System.Globalization
+@using Souls.Model
+@model SeasonViewModel
+@{
+    var season = Model.Season;
+    string Date(DateTimeOffset d) => d.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+}
+<div class="s-page-head">
+    <div>
+        <div class="s-eyebrow">@(Model.IsCurrent ? $"Ranked season · ends {season.EndsAt.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)} UTC" : $"Final standings · {Date(season.StartsAt)} to {Date(season.EndsAt)}")</div>
+        <h1 class="s-h1 s-gold-text">@season.Name</h1>
+        <p>When a season ends, every rating moves halfway back to @Ratings.Initial and everyone who played a ranked game in it is paid for the tier they finished in.</p>
+    </div>
+    @if (Model.Seasons.Count > 1)
+    {
+        <nav class="s-seg" aria-label="Seasons">
+            @foreach (var s in Model.Seasons)
+            {
+                <a asp-action="Index" asp-route-id="@s.Number" class="text-decoration-none @(s.Number == season.Number ? "active" : null)" aria-current="@(s.Number == season.Number ? "page" : null)">@s.Name</a>
+            }
+        </nav>
+    }
+</div>
+
+<section class="s-panel s-rise mb-4" aria-labelledby="rewards-title">
+    <div class="s-panel-head"><s-icon name="award" /><h2 id="rewards-title">Season rewards</h2></div>
+    <div class="d-flex flex-wrap gap-2">
+        @foreach (var rank in new[] { 1, 4, 7, 10, 13, 16 })
+        {
+            var (coins, legendary) = Seasons.Reward(rank);
+            <span class="s-chip"><s-rank rank="@rank" compact="true" />@Ratings.TierOf(rank).Name <s-icon name="coin" />@coins@(legendary ? " + a legendary card" : "")</span>
+        }
+    </div>
+</section>
+
+<section class="s-panel s-rise" aria-labelledby="standings-title">
+    <div class="s-panel-head"><s-icon name="trophy" /><h2 id="standings-title">@(Model.IsCurrent ? "Top players" : "Final standings")</h2></div>
+    @if (Model.Standings.Count == 0)
+    {
+        <p class="s-muted mb-0">@(Model.IsCurrent ? "No ranked games yet this season." : "Nobody played a ranked game this season.")</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="s-table" id="season-standings">
+                <thead>
+                    <tr>
+                        <th>#</th><th>Player</th><th>Rank</th><th class="text-end">Rating</th><th class="text-end">Games</th><th class="text-end">Wins</th>
+                        @if (!Model.IsCurrent)
+                        {
+                            <th>Reward</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Model.Standings)
+                    {
+                        <tr>
+                            <td class="s-num">@entry.Position</td>
+                            <td>@entry.Name</td>
+                            <td><s-rank rank="@entry.Rank" /></td>
+                            <td class="text-end s-num">@entry.Rating</td>
+                            <td class="text-end s-num">@entry.Games</td>
+                            <td class="text-end s-num">@entry.Wins</td>
+                            @if (!Model.IsCurrent)
+                            {
+                                <td class="text-nowrap"><s-icon name="coin" /> @entry.RewardCoins@(entry.RewardCard is null ? "" : $" + {entry.RewardCard}")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

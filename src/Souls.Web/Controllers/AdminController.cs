@@ -98,6 +98,50 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         });
     }
 
+    /// <summary>The current season: rename it, move its end or end it now. The game server starts the next one.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Season(CancellationToken ct)
+    {
+        ViewData["Title"] = "Season";
+        var current = await Seasons.CurrentAsync(db, ct);
+        return current is null ? NotFound() : View(new AdminSeasonViewModel
+        {
+            Current = current,
+            Form = new SeasonEditorModel { Number = current.Number, Name = current.Name, EndsAt = current.EndsAt.UtcDateTime },
+        });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Season([Bind(Prefix = "Form")] SeasonEditorModel model, bool endNow, CancellationToken ct)
+    {
+        if (!ModelState.IsValid)
+        {
+            ViewData["Title"] = "Season";
+            var current = await Seasons.CurrentAsync(db, ct);
+            return current is null ? NotFound() : View(new AdminSeasonViewModel { Current = current, Form = model });
+        }
+
+        var endsAt = endNow ? time.GetUtcNow() : new DateTimeOffset(DateTime.SpecifyKind(model.EndsAt, DateTimeKind.Utc));
+        var name = model.Name.Trim();
+
+        // Only while it is still the current season: a form left open over a rollover must not change an ended one.
+        var updated = await db.Seasons.Where(s => s.Number == model.Number && !db.Seasons.Any(next => next.Number > s.Number))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Name, name).SetProperty(x => x.EndsAt, endsAt), ct);
+        if (updated == 0)
+        {
+            TempData["Error"] = "That season has already ended.";
+        }
+        else
+        {
+            logger.LogInformation("Season {Number} now ends {EndsAt}", model.Number, endsAt);
+            TempData["Message"] = endsAt <= time.GetUtcNow()
+                ? $"{name} has ended. The game server stores the standings, pays the rewards and starts the next season within a minute."
+                : $"Saved {name}.";
+        }
+
+        return RedirectToAction(nameof(Season));
+    }
+
     [HttpGet]
     public async Task<IActionResult> CardEditor(int? id, CancellationToken ct)
     {
