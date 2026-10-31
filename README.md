@@ -101,8 +101,8 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
   damage breaks the ward instead), Fury, Venom (destroys any card it damages); when played: Summon X Lost Souls,
   Rally +X (attack for the neighbours), Insight X (draw), Inferno X (damage to every enemy card); at the start of
   your turn: Regenerate X, Grow +X; when it dies: Haunt (back to the hand once), Brood X (Lost Souls).
-- **Hero classes**: Rabid Soul 3 attack, 33 health; Lurker 2 attack, 33 health, 2 armor, +1 mana; Harrison 5
-  attack, 22 health; Fader 1 attack, 44 health, 6 armor, +2 mana.
+- **Hero classes**: Rabid Soul 3 attack, 34 health; Lurker 2 attack, 33 health, 2 armor, +1 mana; Harrison 5
+  attack, 21 health; Fader 2 attack, 54 health, 6 armor, +2 mana.
 - **Hero powers** (2 mana, once per turn), two per class, picked on the Deck page (the first is the default):
   Rabid Soul: Rabid Bite (1 damage) or Ravage (2 damage to an enemy card, 1 to your hero); Lurker: Drain (1 damage,
   heal 1) or Blood Gift (+1/+2 to a friendly card); Harrison: Holy Light (heal 2) or Aegis (a friendly card gains
@@ -130,11 +130,14 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 
 `tools/Souls.Sim` plays the Hard bot against itself (random classes and hero powers, random one- or two-race decks,
 several hundred games a minute) and reports win rates per card, race, class and hero power; `--tune n` adjusts the
-classes' health towards 50%. The card and class numbers were tuned with it, against the Hard bot before it looked
-ahead. With the lookahead the current report, [docs/balance.md](docs/balance.md), is less even and the classes have
-not been retuned yet: classes win 24-61% (Fader weakest, Harrison strongest), races 49-53%, cards' "drawn" win
-rates spread over 48-62%; the player going first wins 48% and a game lasts about 23 turns. The two hero powers of
-each class are even (48-53% against each other) and the class cards are within 47-51% of decks like them.
+classes' health towards 50%, `--class id:attack,health,armor,mana` and `--card id:attack,health,armor,cost[,value]`
+try other numbers without a rebuild, and `--seed n` draws other classes and decks. The classes and the strongest
+cards were retuned with it against the lookahead Hard bot (three runs of 10 000 games): in the current report,
+[docs/balance.md](docs/balance.md), every class wins 48-51% and no matchup is worse than 42/58, races win 50-53%,
+the two hero powers of each class are within 46-54% against each other, the player going first wins 48.5% and a
+game lasts about 25 turns. Cards' "drawn" win rates spread over 48-60%: the expensive ones (5 mana and up) still
+read 55-60% because they are only drawn in the longer games, which the slower decks that hold them tend to win;
+their "in deck" win rates are 50-54%. The class cards are within 45-53% of decks like them.
 
 ```sh
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md

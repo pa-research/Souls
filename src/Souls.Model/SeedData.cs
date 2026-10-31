@@ -55,7 +55,7 @@ public static class SeedData
             flavor: "Built from a thousand fallen champions. None of them agreed to it."),
         Card(27, "Pesta", Darkness, E, cost: 6, attack: 4, health: 5, armor: 0, Ability.Inferno, value: 2,
             flavor: "Where she rakes, a few survive. Where she sweeps, nobody does."),
-        Card(28, "The Pale Reaper", Darkness, L, cost: 7, attack: 6, health: 6, armor: 0, Ability.Drain, value: 3,
+        Card(28, "The Pale Reaper", Darkness, L, cost: 7, attack: 6, health: 6, armor: 0, Ability.Drain, value: 2,
             flavor: "Every soul in the arena is already on his list."),
 
         // ---- Vampiric: lifesteal ------------------------------------------------------------------------------------
@@ -69,15 +69,15 @@ public static class SeedData
             flavor: "Hers is the last kiss they ever feel twice."),
         Card(33, "Blood Priest", Vampiric, C, cost: 3, attack: 2, health: 3, armor: 0, Ability.Heal, value: 3, starter: true,
             flavor: "Drink, and be whole again."),
-        Card(34, "Crimson Duelist", Vampiric, R, cost: 4, attack: 3, health: 3, armor: 0, Ability.Ward,
+        Card(34, "Crimson Duelist", Vampiric, R, cost: 4, attack: 3, health: 2, armor: 0, Ability.Ward,
             flavor: "First blood is a matter of honour. Hers."),
         Card(35, "Blood Ritualist", Vampiric, R, cost: 4, attack: 3, health: 3, armor: 0, Ability.Summon, value: 2,
             flavor: "A circle of salt, a cup of blood, and something answers."),
-        Card(36, "Sanguine Knight", Vampiric, C, cost: 5, attack: 4, health: 4, armor: 1, Ability.Regenerate, value: 2,
+        Card(36, "Sanguine Knight", Vampiric, C, cost: 5, attack: 4, health: 3, armor: 1, Ability.Regenerate, value: 2,
             flavor: "His wounds close before his enemies can boast of them."),
         Card(37, "Lord Varga", Vampiric, L, cost: 6, attack: 4, health: 5, armor: 0, Ability.Grow, value: 1,
             flavor: "Every night the count grows older. And stronger."),
-        Card(38, "Nosferatu", Vampiric, E, cost: 7, attack: 5, health: 5, armor: 0, Ability.Fury,
+        Card(38, "Nosferatu", Vampiric, E, cost: 7, attack: 5, health: 4, armor: 0, Ability.Fury,
             flavor: "The plague follows him like a loyal dog."),
 
         // ---- Lightbringer: blessing ---------------------------------------------------------------------------------
@@ -117,19 +117,19 @@ public static class SeedData
         Card(53, "Forest Troll", Ferocious, C, cost: 4, attack: 4, health: 5, armor: 0, Ability.Regenerate, value: 2,
             flavor: "Cut it down and it grows back meaner."),
         // "Huy" in the 2014 game data; the 2015 dump renamed it "Anette" (with test stats), restored here.
-        Card(5, "Huy", Ferocious, C, cost: 5, attack: 4, health: 6, armor: 1, Ability.Heal, value: 2, starter: true, portrait: "/Content/Images/Card/Portraits/5.png",
+        Card(5, "Huy", Ferocious, C, cost: 5, attack: 3, health: 6, armor: 1, Ability.Heal, value: 2, starter: true, portrait: "/Content/Images/Card/Portraits/5.png",
             flavor: "Big hands, gentle heart."),
         // Anette (the 2015 card 5) as a card of her own: almost no attack or health, a wall of armor, Haunt.
-        Card(7, "Anette", Ferocious, E, cost: 5, attack: 3, health: 2, armor: 8, Ability.Haunt, portrait: "/Content/Images/Card/Portraits/16.jpg",
+        Card(7, "Anette", Ferocious, E, cost: 5, attack: 3, health: 2, armor: 5, Ability.Haunt, portrait: "/Content/Images/Card/Portraits/16.jpg",
             flavor: "Death is only a short break for Anette."),
-        Card(54, "Troll Chieftain", Ferocious, R, cost: 5, attack: 4, health: 6, armor: 1, Ability.Rally, value: 1,
+        Card(54, "Troll Chieftain", Ferocious, R, cost: 5, attack: 4, health: 5, armor: 1, Ability.Rally, value: 1,
             flavor: "When the chieftain roars, the whole mountain answers."),
         // Card 1 carries its original April 2014 art (a wolf) and the name of the early test card, "Snokulv".
-        Card(1, "Snokulv", Ferocious, R, cost: 6, attack: 6, health: 7, armor: 1, Ability.Heal, value: 2, portrait: "/Content/Images/Card/Portraits/1.png",
+        Card(1, "Snokulv", Ferocious, R, cost: 6, attack: 5, health: 6, armor: 1, Ability.Heal, value: 2, portrait: "/Content/Images/Card/Portraits/1.png",
             flavor: "The snow wolf of the north: the first card ever drawn in Souls."),
-        Card(55, "Frost Jotun", Ferocious, E, cost: 8, attack: 7, health: 7, armor: 1, Ability.Taunt,
+        Card(55, "Frost Jotun", Ferocious, E, cost: 8, attack: 6, health: 7, armor: 1, Ability.Taunt,
             flavor: "Older than the mountains, and twice as patient."),
-        Card(56, "Fenrir", Ferocious, L, cost: 9, attack: 7, health: 8, armor: 0, Ability.Fury,
+        Card(56, "Fenrir", Ferocious, L, cost: 9, attack: 6, health: 8, armor: 0, Ability.Fury,
             flavor: "No chain forged by gods or men holds him for long."),
 
         // ---- Spells: cast from the hand, they never take a board slot. Lightbringer spells bless their hero and
@@ -146,7 +146,7 @@ public static class SeedData
             flavor: "Drink deep, and rise stronger than you fell."),
         Spell(65, "Blood Moon", Vampiric, E, cost: 2, Ability.Inferno, value: 2,
             flavor: "When the moon turns red, every wound bleeds for the count."),
-        Spell(66, "Sacred Shield", Lightbringer, C, cost: 1, Ability.Harden, value: 8,
+        Spell(66, "Sacred Shield", Lightbringer, C, cost: 1, Ability.Harden, value: 6,
             flavor: "The light does not ask whether you deserve it."),
         Spell(67, "Revelation", Lightbringer, R, cost: 2, Ability.Insight, value: 3,
             flavor: "For one blinding moment, every path is clear."),
@@ -186,10 +186,10 @@ public static class SeedData
     /// </summary>
     public static readonly PlayerType[] PlayerTypes =
     [
-        new() { Id = 1, Name = "Rabid Soul", Attack = 3, Armor = 0, Health = 33, Mana = 0, AbilityId = Ability.Heal, RaceId = 1 },
+        new() { Id = 1, Name = "Rabid Soul", Attack = 3, Armor = 0, Health = 34, Mana = 0, AbilityId = Ability.Heal, RaceId = 1 },
         new() { Id = 2, Name = "Lurker", Attack = 2, Armor = 2, Health = 33, Mana = 1, AbilityId = Ability.Sacrifice, RaceId = 2 },
-        new() { Id = 3, Name = "Harrison", Attack = 5, Armor = 0, Health = 22, Mana = 0, AbilityId = Ability.Heal, RaceId = 3 },
-        new() { Id = 4, Name = "Fader", Attack = 1, Armor = 6, Health = 44, Mana = 2, AbilityId = Ability.Sacrifice, RaceId = 4 },
+        new() { Id = 3, Name = "Harrison", Attack = 5, Armor = 0, Health = 21, Mana = 0, AbilityId = Ability.Heal, RaceId = 3 },
+        new() { Id = 4, Name = "Fader", Attack = 2, Armor = 6, Health = 54, Mana = 2, AbilityId = Ability.Sacrifice, RaceId = 4 },
     ];
 
     public static readonly PlayerPermission[] PlayerPermissions =
