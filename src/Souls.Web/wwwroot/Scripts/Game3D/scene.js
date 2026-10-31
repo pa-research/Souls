@@ -518,6 +518,8 @@ export class Stage {
         r.setRenderTarget(this.target);
         try {
             await r.compileAsync(this.scene, this.camera);
+        } catch (e) {
+            console.warn('[Souls3D] could not compile the shaders up front', e); // they compile on first use instead
         } finally {
             r.setRenderTarget(null);
             for (const o of hidden) o.visible = false;
