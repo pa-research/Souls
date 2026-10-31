@@ -32,7 +32,7 @@ Everything is merged into `main`, which is the default branch on GitHub.
 
 | Branch | State |
 |---|---|
-| `main` | Default branch. Holds everything below (pull requests #2 to #31) |
+| `main` | Default branch. Holds everything below (pull requests #2 to #32) |
 | `dev`, `master` | The original 2014/2015 code. Untouched |
 | `modernize/dotnet10`, `feature/*`, `fix/*`, `polish/*` | Merged. Their remote branches were not deleted (the session was not allowed to delete remote branches); they can all go |
 
@@ -69,6 +69,7 @@ Pull requests merged on 30 and 31 October:
 | #29 | Class retune: every class 48-51 % (Fader was 24.5 %) |
 | #30 | Friendly games give no rewards, season on the end screen, game chat restored after a restart, database saves off the game lock |
 | #31 | Client polish: themed leave dialog, toasts off the heroes, classic board keeps 16:9, safe areas, cinematic camera clear of the pillars |
+| #32 | Balance report: class × deck-race table; cards flagged by their in-deck win rate |
 
 ## 3. What has been built
 
@@ -159,9 +160,11 @@ Everything below is also in the README; this is the short version for picking th
 ## 7. Known issues and risks
 
 **Gameplay and balance**
-- A class played with its own race is lopsided: Harrison with Lightbringer decks wins about 70 %, Lurker with Vampiric
-  about 43 % (bot games; the bot picks races at random, people choose them). A follow-up pass on the race passives
-  is in progress.
+- Classes are balanced overall (48-51 %), but not every class and deck race (`docs/balance.md`, "Classes and deck
+  races"): the healing races (Vampiric, Lightbringer) suit frail, hard-hitting heroes and the damage races suit
+  armoured ones, so Harrison wins about 70 % with Lightbringer or Vampiric decks and 36 % with Darkness or Ferocious.
+  Every bot-driven fix tried (Harrison 4 attack, blessing and lifesteal cuts, death curse cuts, Ferocious card nerfs)
+  moved the problem to another class or lengthened games past 25 turns. Decided: keep it, watch real games.
 - The balance comes from the bot playing itself, not from people. The "Card statistics" admin page shows real win
   rates once people play.
 
@@ -203,7 +206,9 @@ Ordered by priority. Done items are struck through.
 3. **Real devices**: test on an iPhone, an Android phone, Safari and Firefox (frame rate, touch, sound, WebGPU and
    its fallback, safe areas).
 4. **Play-test with people** for a week, then compare the "Card statistics" admin page (#5) with `docs/balance.md`.
-5. **Own-race balance**: in progress (see section 7).
+5. **Class × race balance**: decide with real games ("Card statistics" admin page). Ideas with data in
+   `docs/balance.md` and the session's experiments: heals that scale with the hero's health, Harrison 4/27 with
+   race passive cuts.
 6. ~~Browser tests in CI~~ (#18), ~~class retune~~ (#29), ~~AAA polish~~ (#21, #22, #24 to #26, #31),
    ~~art pass~~ (#28): **Done**.
 
@@ -224,7 +229,8 @@ Ordered by priority. Done items are struck through.
 
 The owner delegated the open decisions:
 
-- **Class balance**: retuned now with the simulator (#29); own-race decks next.
+- **Class balance**: retuned with the simulator (#29). The class × race spread is kept and shown in the balance
+  report (#32) until real games say more.
 - **Art**: keep the 2014 originals; improve the generated portraits (#28) instead of commissioning art.
 - **Classic client**: keep it as it is (polished, tested); no port to a current PixiJS.
 - **Friendly games**: no coins, quests, rating or season points (#30).
