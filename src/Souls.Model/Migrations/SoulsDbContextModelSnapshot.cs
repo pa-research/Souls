@@ -391,7 +391,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 2,
                             Name = "Christine",
-                            Portrait = "/Content/Images/Card/Portraits/4.png",
+                            Portrait = "/Content/Images/Card/Portraits/4.jpg",
                             RaceId = 1,
                             Rarity = 3,
                             VendorPrice = 6
@@ -479,7 +479,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 1,
                             Name = "Bobby",
-                            Portrait = "/Content/Images/Card/Portraits/6.png",
+                            Portrait = "/Content/Images/Card/Portraits/6.jpg",
                             RaceId = 2,
                             Rarity = 1,
                             VendorPrice = 2
@@ -670,7 +670,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 2,
                             Name = "Dr. Robotnik",
-                            Portrait = "/Content/Images/Card/Portraits/2.png",
+                            Portrait = "/Content/Images/Card/Portraits/2.jpg",
                             RaceId = 3,
                             Rarity = 4,
                             VendorPrice = 10
@@ -757,7 +757,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 2,
                             Name = "Spirit Wolf",
-                            Portrait = "/Content/Images/Card/Portraits/18.png",
+                            Portrait = "/Content/Images/Card/Portraits/18.jpg",
                             RaceId = 3,
                             Rarity = 4,
                             VendorPrice = 10
@@ -878,7 +878,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 2,
                             Name = "Per",
-                            Portrait = "/Content/Images/Card/Portraits/3.png",
+                            Portrait = "/Content/Images/Card/Portraits/3.jpg",
                             RaceId = 4,
                             Rarity = 2,
                             VendorPrice = 4
@@ -914,7 +914,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 1,
                             Name = "Huy",
-                            Portrait = "/Content/Images/Card/Portraits/5.png",
+                            Portrait = "/Content/Images/Card/Portraits/5.jpg",
                             RaceId = 4,
                             Rarity = 1,
                             VendorPrice = 2
@@ -967,7 +967,7 @@ namespace Souls.Model.Migrations
                             Kind = 0,
                             Level = 2,
                             Name = "Snokulv",
-                            Portrait = "/Content/Images/Card/Portraits/1.png",
+                            Portrait = "/Content/Images/Card/Portraits/1.jpg",
                             RaceId = 4,
                             Rarity = 2,
                             VendorPrice = 4

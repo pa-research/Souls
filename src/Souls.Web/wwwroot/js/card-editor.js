@@ -41,7 +41,7 @@
             headers: { "X-CSRF-TOKEN": token },
             dataType: "json"
         }).done(function (result) {
-            preview.find(".card-portrait").css("background-image", "url('" + result.data + "')");
+            preview.find(".card-portrait").attr("src", result.data);
             $("#Card_Portrait").val(result.data);
             status.text(texts.uploaded);
         }).fail(function (xhr) {

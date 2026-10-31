@@ -125,12 +125,14 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
             // The card's own label and rules text ("Burn 3": "Deals 3 damage ..."), else the generic rules text.
             var ability = Rules.Ability(card.abilityId);
             var abilityText = card.abilityText || (ability ? ability.text : '');
+            var touch = Hud.TouchInput();
             if (card.spell) {
                 var kinds = card.TargetedSpell() ? Rules.AbilityTargets(card.abilityId) : [];
-                abilityText += ' ' + (kinds.length ? T('classic.tooltip.spellTarget', { targets: Rules.DescribeTargets(kinds) })
-                    : T('classic.tooltip.spellBoard'));
+                abilityText += ' ' + (kinds.length
+                    ? (touch ? T('classic.tooltip.spellTargetTouch', { targets: Rules.DescribeTargets(kinds) }) : T('classic.tooltip.spellTarget', { targets: Rules.DescribeTargets(kinds) }))
+                    : (touch ? T('classic.tooltip.spellBoardTouch') : T('classic.tooltip.spellBoard')));
             }
-            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' ' + T('classic.tooltip.activated');
+            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' ' + (touch ? T('classic.tooltip.activatedTouch') : T('classic.tooltip.activated'));
             Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || T('classic.ability'))), abilityText);
         }
         if (card.spell) Block(el, 'info', '', Rules.Keyword('spell') || T('keyword.spell'));
@@ -218,9 +220,10 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
                 Block(el, 'info', '', T('classic.tooltip.pickEscape', { targets: Rules.DescribeTargets(kinds) }));
             }
             else if (!power.used && power.canUse) {
+                var touchPower = Hud.TouchInput();
                 Block(el, 'info', '', kinds.length
-                    ? T('classic.tooltip.dragPower', { targets: Rules.DescribeTargets(kinds) })
-                    : T('classic.tooltip.clickToUse'));
+                    ? (touchPower ? T('classic.tooltip.dragPowerTouch', { targets: Rules.DescribeTargets(kinds) }) : T('classic.tooltip.dragPower', { targets: Rules.DescribeTargets(kinds) }))
+                    : (touchPower ? T('classic.tooltip.tapToUse') : T('classic.tooltip.clickToUse')));
             }
         }
         if (power.used) Block(el, 'info', '', T('classic.tooltip.used'));

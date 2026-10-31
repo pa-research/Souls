@@ -67,7 +67,7 @@ define("mulligan", ["hud"], function (Hud) {
         var box = Hud.El('div', 'sg-mulligan-box', layer);
         Hud.El('div', 's-eyebrow', box, T('classic.mulligan'));
         Hud.El('h2', '', box, T('classic.mulligan.title'));
-        Hud.El('p', '', box, T('classic.mulligan.help'));
+        Hud.El('p', '', box, Hud.TouchInput() ? T('classic.mulligan.help') : T('classic.mulligan.helpClick'));
         var row = Hud.El('div', 'sg-mulligan-cards', box);
         var timer = Hud.El('div', 'sg-mulligan-timer', box);
         var bar = Hud.Progress(timer, 1, 's-progress-ember', T('classic.mulligan.time'));

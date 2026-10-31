@@ -330,7 +330,8 @@ export class Interaction {
         this.mode = 'power';
         this.spell = card;
         this.powerTargets = targets || [];
-        this.game.ui.hint(window.SoulsL10n.t(targets ? 'g3d.hint.target' : 'g3d.hint.cast', { name: card.data.name }));
+        this.game.ui.hint(targets ? window.SoulsL10n.t('g3d.hint.target', { name: card.data.name })
+            : this.touch ? window.SoulsL10n.t('g3d.hint.cast', { name: card.data.name }) : window.SoulsL10n.t('g3d.hint.castClick', { name: card.data.name }));
         this.target = null;
     }
 

@@ -24,7 +24,7 @@
     function setStatus(row, online) {
         row.find(".player-status")
             .toggleClass("text-success", online)
-            .toggleClass("text-danger", !online)
+            .toggleClass("text-body-secondary", !online)
             .text(online ? texts.online : texts.offline);
     }
 

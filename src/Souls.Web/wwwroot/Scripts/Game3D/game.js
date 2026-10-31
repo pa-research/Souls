@@ -32,6 +32,9 @@ const PODIUM_Z = 585; // podiums stand near the arena wall, behind the board
 const BOARD_HEIGHT = 2;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const SCREEN_AXIS = new THREE.Vector3(0, 0, 1);
+// Portrait: the opponent's hand is a fan of card backs (screen pixels: card width, radius of the arc; angle per card, at most).
+const FAN = { card: 30, radius: 70, step: THREE.MathUtils.degToRad(7), spread: THREE.MathUtils.degToRad(24) };
 
 // Colours of abilities (by ability id, see cards.js) and hero powers (by power id: 1-4 the classes' first, 5-8 their second).
 export { ABILITY_COLORS };
@@ -237,6 +240,7 @@ export class Game {
             return { x: HAND_X, spacing: HAND_SPACING, y, scale: 1, hoverY: y - 120, hoverScale: 2.2, hoverX: x => x };
         }
         const n = side.hand.size;
+        if (r.fan) return { ...r, step: Math.min(FAN.step, FAN.spread / Math.max(1, n - 1)) };
         const width = CARD_W * r.scale;
         const spacing = n > 1 ? Math.min(width * 0.92, (r.span - width) / (n - 1)) : 0;
         return {
@@ -269,7 +273,8 @@ export class Game {
                 y: hand.y, scale: b.card / (CARD_W * hand.k), span: (w - left - right + 4) / hand.k,
                 hoverY: hover.y, hoverScale: zoom / (CARD_W * hover.k), hoverRoom: Math.max(0, w / 2 - 8 - zoom / 2) / hover.k,
             },
-            opponent: { y: opponent.y, scale: 30 / (CARD_W * opponent.k), span: w * 0.55 / opponent.k, hoverY: opponent.y, hoverScale: 1, hoverRoom: 0 },
+            opponent: { fan: true, y: opponent.y - FAN.radius * (1 - Math.cos(FAN.spread)) / 2 / opponent.k, scale: FAN.card / (CARD_W * opponent.k), radius: FAN.radius / opponent.k },
+            handCount: { x: w / 2, y: (b.opponentHand[0] + b.opponentHand[1]) / 2 },
             sign: { x: sign.x, y: sign.y, scale: signW / (196 * stage.pixelsPerClassic(sign.y)) },
             fuse: { x: w - right, y: this.spectator ? b.action[0] + 24 : b.action[0] + 48, ax: 1 },
             status: { x: left, y: signPx.y, ax: 0 },
@@ -325,6 +330,12 @@ export class Game {
 
     handPose(side, index, hovered = false, card = null) {
         const row = this.handRow(side);
+        if (row.fan) {
+            const a = (index - (side.hand.size - 1) / 2) * row.step;
+            const pose = this.stage.hudPose(960 + row.radius * Math.sin(a), row.y + row.radius * (1 - Math.cos(a)), HAND_LIFT + index * 0.004, row.scale);
+            pose.quaternion.setFromAxisAngle(SCREEN_AXIS, -a).multiply(TURN_AROUND);
+            return pose;
+        }
         const x = row.x + row.spacing * index;
         if (hovered) return this.stage.hudPose(row.hoverX(x), row.hoverY, HOVER_LIFT, row.hoverScale);
         const pose = this.stage.hudPose(x, row.y, HAND_LIFT + index * 0.004, row.scale);
@@ -541,8 +552,10 @@ export class Game {
     }
 
     inspect(obj, at) {
-        // Portrait: a hand card's rules go above the player's hero, clear of the lifted card.
+        // Portrait: a hand card's rules go above the player's hero, clear of the lifted card; anything else's stay above
+        // the player's hero and hero power too, below the buttons.
         if (this.rows && obj instanceof Card3D && this.player.hand.get(obj.cid) === obj) at = this.tipPoint();
+        else if (this.rows && obj) at = { ...at, top: this.stage.bands.opponentHand[0], floor: this.tipPoint().y };
         this.ui.showTooltip(obj ? this.describe(obj) : null, at);
     }
 
@@ -1788,12 +1801,17 @@ export class Game {
         return this.stage.toScreen(hero.position.clone().addScaledVector(up, (side.isPlayer ? 1 : -1) * 130 * hero.scale.x));
     }
 
-    /** Screen position for the hero power button: beside the player's hero. */
+    /**
+     * Screen position for the hero power button: beside the player's hero, on its right, or on its left where the
+     * screen ends too soon for the button (the portrait cinematic view sways the hero to the edge).
+     */
     powerAnchor() {
         const hero = this.player.hero;
         const center = this.stage.toScreen(hero.position);
         const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x));
-        return { x: edge.x + 70, y: center.y };
+        const half = this.ui.power.offsetWidth / 2;
+        const x = edge.x + 70 + half + 8 > this.stage.width ? 2 * center.x - edge.x - 70 : edge.x + 70;
+        return { x, y: center.y };
     }
 
     // ---- Chat -----------------------------------------------------------------------------------------------------
@@ -1891,6 +1909,11 @@ export class Game {
                 this.ui.placeEmote(side.isPlayer ? 'player' : 'opponent', bubble.x, bubble.y);
             }
         }
+        // Portrait: the opponent's hand count goes right of its fan.
+        const n = this.opponent.hand.size;
+        const fan = n > 1 ? Math.min(FAN.step * (n - 1) / 2, FAN.spread / 2) : 0;
+        if (this.rows && this.active && n > 0) this.ui.placeHandCount(n, this.rows.handCount.x + FAN.radius * Math.sin(fan) + FAN.card * 0.6 + 6, this.rows.handCount.y);
+        else this.ui.placeHandCount(null);
         this.placeToasts();
         // Portrait: the player's status and the fuse step aside for a hand card lifted over their row (game3d.css).
         this.ui.root.classList.toggle('lifted', !!(this.rows && this.hovered));

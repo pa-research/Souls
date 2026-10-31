@@ -23,7 +23,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
     var LIVE_URL = '/Game?live=1'; // spectating is offered by the 3D client only (game-mode.js opens it)
 
     function Portrait(type) {
-        return '/Content/Images/Player/Portraits/' + (Number(type) || 0) + '.png';
+        return '/Content/Images/Player/Portraits/' + (Number(type) || 0) + '.jpg';
     }
 
     /// <summary>

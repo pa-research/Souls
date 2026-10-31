@@ -246,9 +246,7 @@
                 1: Asset.Textures.PLAYER_PORTRAIT_ONE,
                 2: Asset.Textures.PLAYER_PORTRAIT_TWO,
                 3: Asset.Textures.PLAYER_PORTRAIT_THREE,
-                4: Asset.Textures.PLAYER_PORTRAIT_FOUR,
-                5: Asset.Textures.PLAYER_PORTRAIT_FIVE,
-                6: Asset.Textures.PLAYER_PORTRAIT_SIX
+                4: Asset.Textures.PLAYER_PORTRAIT_FOUR
             };
 
         if (portraits[portraitId]) {

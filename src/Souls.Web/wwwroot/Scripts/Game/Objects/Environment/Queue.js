@@ -19,7 +19,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         this.width = this.engine.conf.width;
         this.height = this.engine.conf.height;
         this.engine.addChild("Queue", this);
-        var backdrop = new Pixi.Sprite(Pixi.Texture.fromImage("/Content/Images/bg_faded.png"));
+        var backdrop = new Pixi.Sprite(Pixi.Texture.fromImage("/Content/Images/bg_faded.jpg"));
         backdrop.width = this.engine.conf.width;
         backdrop.height = this.engine.conf.height;
         this.addChild(backdrop);
@@ -155,7 +155,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         card.setAttribute('aria-label', T('classic.invite'));
         var head = Hud.El('div', 'sg-invite-head', card);
         var img = Hud.El('img', '', head);
-        img.src = '/Content/Images/Player/Portraits/' + (Number(p.type) || 0) + '.png';
+        img.src = '/Content/Images/Player/Portraits/' + (Number(p.type) || 0) + '.jpg';
         img.alt = '';
         var who = Hud.El('div', '', head);
         Hud.El('b', '', who, T('classic.invite.title', { name: String(p.name) }));

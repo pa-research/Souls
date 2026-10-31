@@ -1,0 +1,850 @@
+{
+  "_doc": "One entry per painted portrait: file (under src/Souls.Web/wwwroot/Content/Images), size of the shipped image, and the final prompt given to the image model. A prompt is the subject, the race palette, the kind (card, spell or hero) and the style bible of README.md, in that order.",
+  "style": "Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character.",
+  "races": {
+    "darkness": "Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist.",
+    "vampiric": "Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights.",
+    "lightbringer": "Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze.",
+    "ferocious": "Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays.",
+    "frost": "Palette and setting: icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light.",
+    "neutral": "Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light.",
+    "shop": "Palette: warm candle-gold, deep brown, soft crimson and old brass, lit like a cosy shop in a dark-fantasy town."
+  },
+  "kinds": {
+    "card": "Landscape 3:2 composition (1536x1024).",
+    "spell": "This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024).",
+    "hero": "Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024).",
+    "mascot": "Shop mascots: two full-body characters standing side by side, centred, on a fully transparent background (no scenery, no floor, no frame), with clean painted edges. Landscape 3:2 composition (1536x1024). Charming, friendly and a little comical, in a painterly dark-fantasy card-game style with rich colour and warm rim light. Original character designs that do not resemble any existing mascots, cartoon characters or real people. No text, letters, logos, signature or watermark.",
+    "backdrop": "A page background: wide, empty and moody, with no characters and no focal subject, dark and low in contrast so that text and panels can sit on top of it; a finished painterly digital painting. Landscape 16:10 composition (1536x1024). No text, letters, road markings, logos, signature or watermark."
+  },
+  "cards": [
+    {
+      "id": "card-0",
+      "file": "Card/Portraits/0.jpg",
+      "name": "Unknown card",
+      "race": "neutral",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A nameless lost spirit: a faceless hooded figure made of drifting smoke and faint blue light, its hands open, slowly dissolving into mist. Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 1,
+      "file": "Card/Portraits/1.jpg",
+      "name": "Snokulv",
+      "race": "frost",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Snokulv, the great snow wolf of the north: a huge white wolf with frost-rimed fur and pale blue eyes, snarling on a wind-swept snowy ridge, a soft green aurora behind it whose light gathers around the wolf like healing breath. Palette and setting: icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 2,
+      "file": "Card/Portraits/2.jpg",
+      "name": "Dr. Robotnik",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A lean, wild-eyed old inventor with a shock of white hair, brass magnifying goggles pushed up on his forehead and a leather apron over a gold-trimmed ivory coat, one arm a brass clockwork gauntlet, grinning beside a small brass clockwork automaton volunteer whose chest core glows like a sun; a workshop of gears inside a sunlit cathedral. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 3,
+      "file": "Card/Portraits/3.jpg",
+      "name": "Per",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A Nordic forest warden in a wolf-pelt hood and leather armour, a young bearded man with a calm, determined face, seen from the knees up and filling the frame, raising a carved staff while three glowing amber spirit wolves rise around him: he never fights alone. He is lit by a strong warm rim light against a dark, shadowy pine forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 4,
+      "file": "Card/Portraits/4.jpg",
+      "name": "Christine",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A pale enchantress in a high-collared black gown, her luminous violet eyes casting a paralysing gaze; rings of violet light ripple out from her eyes and a crow in front of her is frozen mid-flight, turning to grey stone. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 5,
+      "file": "Card/Portraits/5.jpg",
+      "name": "Huy",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A huge, gentle forest giant with mossy grey-green stone skin, a beard of lichen and kind amber eyes, seen from the chest up and filling the frame, cradling a small wounded fox in his enormous hands while warm golden healing light glows between his fingers; he is lit by that glow and a soft rim light against a dark, misty forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 6,
+      "file": "Card/Portraits/6.jpg",
+      "name": "Bobby",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Bobby, a stubborn, stocky vampire gatekeeper with grey skin, small fangs and a battered iron tower shield, planted in the arched doorway of a candlelit crypt, holding the line with a defiant scowl. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 7,
+      "file": "Card/Portraits/16.jpg",
+      "name": "Anette",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Anette, a Nordic shieldmaiden seen from the waist up and filling the frame, in massive layered armour of iron plates and bark, a cold pale spirit glow around her, rising again out of her stone burial cairn with a round shield raised: death is only a short break. She is lit by a strong rim light against a dark forest at dusk. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 18,
+      "file": "Card/Portraits/18.jpg",
+      "name": "Spirit Wolf",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A radiant spirit wolf made of golden and white light charging straight towards the viewer, its fur streaming like flames of sunlight, glowing trails behind it across a dawn sky. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 20,
+      "file": "Card/Portraits/20.jpg",
+      "name": "Gloom Imp",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A small, spiteful imp with bat ears, little horns and a wide grin full of sharp teeth, crouching on a mossy tombstone with its claws gripping the stone, glowing yellow eyes; a pale full moon and a ruined chapel behind it. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 21,
+      "file": "Card/Portraits/21.jpg",
+      "name": "Grave Rat",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A huge mangy grave rat with glowing green eyes and venom dripping from its yellow fangs, hunched on a sunken grave mound beside a cracked skull. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 22,
+      "file": "Card/Portraits/22.jpg",
+      "name": "Shade",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A shade: a cowled wraith of living shadow with ember-like violet eyes, reaching out of the darkness with long smoky fingers that burn with cold violet flame, past a guttering lantern on the ground. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 23,
+      "file": "Card/Portraits/23.jpg",
+      "name": "Draugr",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A draugr, an undead Norse barrow-king with a horned iron helmet, rotting chain mail, a tattered fur cloak and glowing pale blue eyes, climbing out of a burial mound with a notched sword. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 24,
+      "file": "Card/Portraits/24.jpg",
+      "name": "Mara",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "The Mara, a gaunt nightmare spirit with long tangled white hair and hollow glowing eyes, crouching on the chest of a sleeping figure in a dark bedroom, moonlight falling through a small window behind her. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 25,
+      "file": "Card/Portraits/25.jpg",
+      "name": "Gravecaller",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A gravecaller necromancer in a tattered hooded robe, raising a staff topped with a skull, green-violet soul light pouring into the open graves around him as skeletal hands claw out of the earth. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 26,
+      "file": "Card/Portraits/26.jpg",
+      "name": "Bone Colossus",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A towering colossus built from thousands of bones, skulls and broken shields, with a great ribcage chest glowing faintly violet inside, looming over a misty battlefield graveyard. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 27,
+      "file": "Card/Portraits/27.jpg",
+      "name": "Pesta",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Pesta, the Norse plague hag: a hunched old woman in a ragged black shawl carrying a rake and a broom, walking through a dying village as a sickly green plague mist spreads from her feet. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 28,
+      "file": "Card/Portraits/28.jpg",
+      "name": "The Pale Reaper",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "The Pale Reaper: a towering skeletal figure in tattered bone-white robes holding a huge scythe, glowing soul wisps streaming into its open hand, standing out bright and pale against a very dark night sky and a black graveyard. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 30,
+      "file": "Card/Portraits/30.jpg",
+      "name": "Blood Bat",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A fierce vampire bat diving straight at the viewer, leathery wings spread wide, fangs bared, against a huge blood-red moon over gothic castle spires. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 31,
+      "file": "Card/Portraits/31.jpg",
+      "name": "Blood Thrall",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A blood thrall: a hollow-eyed, pale vampire servant in a torn crimson livery coat, his eyes glazed and obedient, carrying a lit candelabra down a long castle corridor. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 32,
+      "file": "Card/Portraits/32.jpg",
+      "name": "Vampire Bride",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "An elegant vampire bride seen from the waist up, in a modest, opaque Victorian wedding gown of ivory and crimson brocade with a solid high collar up to her chin and long opaque sleeves, a tattered lace veil over her hair, baring her fangs with a cold smile, in a candlelit ruined ballroom with tall gothic windows. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 33,
+      "file": "Card/Portraits/33.jpg",
+      "name": "Blood Priest",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A vampire blood priest in crimson and black vestments raising a golden chalice overflowing with glowing blood, inside a candlelit gothic chapel. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 34,
+      "file": "Card/Portraits/34.jpg",
+      "name": "Crimson Duelist",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A vampire swordswoman in a long crimson coat with a high collar, her rapier raised en garde, a faint shimmering ward of red light around her, on moonlit castle rooftops. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 35,
+      "file": "Card/Portraits/35.jpg",
+      "name": "Blood Ritualist",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A hooded blood ritualist kneeling inside a glowing circle of salt and blood on a crypt floor, holding a curved dagger and a cup of blood, as two red spectral shapes rise from the circle. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 36,
+      "file": "Card/Portraits/36.jpg",
+      "name": "Sanguine Knight",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A sanguine knight in blood-red plate armour and a closed helm with a glowing visor slit, seen from the knees up and filling the frame, his wounds closing in wisps of red mist, a longsword in hand; behind him a dark, foggy cobbled street. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 37,
+      "file": "Card/Portraits/37.jpg",
+      "name": "Lord Varga",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Lord Varga, an ancient vampire count with silver hair, a sharp grey beard and burning red eyes, in a high-collared black cloak shaped like bat wings, standing on castle ramparts under a blood moon. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 38,
+      "file": "Card/Portraits/38.jpg",
+      "name": "Nosferatu",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A gaunt, bald nosferatu with long pointed ears, rat-like front fangs and long clawed fingers, stalking through a plague-ridden street with a swarm of rats at his feet. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 40,
+      "file": "Card/Portraits/40.jpg",
+      "name": "Acolyte of Dawn",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A young acolyte in white and gold robes blowing a long golden horn towards the rising sun on a hilltop, rays of dawn light bursting around them. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 41,
+      "file": "Card/Portraits/41.jpg",
+      "name": "Shieldmaiden",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A shieldmaiden with braided golden hair in gold-trimmed mail, a gilded round shield braced in front of her and a spear ready, standing firm in golden dawn light. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 42,
+      "file": "Card/Portraits/42.jpg",
+      "name": "Lantern Bearer",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A hooded lantern bearer in pale robes holding up a radiant lantern that lights a winding path through a dark misty forest, beams of golden light spreading ahead. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 43,
+      "file": "Card/Portraits/43.jpg",
+      "name": "Templar",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A templar knight in a great helm and a white tabard with a plain golden sun emblem, a kite shield raised and a sword held high, a faint dome of holy light around him. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 44,
+      "file": "Card/Portraits/44.jpg",
+      "name": "Sun Cleric",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A sun cleric in ivory and gold vestments raising a staff crowned with a radiant sun disc, warm healing light pouring down from it inside a cathedral. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 45,
+      "file": "Card/Portraits/45.jpg",
+      "name": "Valkyrie",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A valkyrie with great white wings and a winged golden helmet, diving down from the dawn sky with her spear levelled, her cloak streaming behind her. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 46,
+      "file": "Card/Portraits/46.jpg",
+      "name": "Bastion Guardian",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A massive bastion guardian in heavy stone-grey and gold plate armour, a huge tower shield planted on the ground before him, standing immovable in a fortress gate at sunrise. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 47,
+      "file": "Card/Portraits/47.jpg",
+      "name": "Archangel",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "An archangel with enormous burning golden wings and a flaming sword, descending from parted clouds in judgement, fire streaming from the wingtips. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 50,
+      "file": "Card/Portraits/50.jpg",
+      "name": "Wolf Pup",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A scrappy grey wolf pup leaping forward with a fierce little snarl, ears back, through autumn leaves in an amber forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 51,
+      "file": "Card/Portraits/51.jpg",
+      "name": "Raging Boar",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A massive bristling wild boar with huge curved tusks charging head-on through ferns, dust and flying leaves. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 52,
+      "file": "Card/Portraits/52.jpg",
+      "name": "Huldra",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A huldra, a beautiful Nordic forest spirit with long golden hair woven with leaves, fully clothed in a long moss-green gown and a cloak of leaves, glancing back over her shoulder with a dangerous smile, a cow-like tail curling from under her cloak, poisonous red berries and thorns around her in a birch forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 53,
+      "file": "Card/Portraits/53.jpg",
+      "name": "Forest Troll",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A huge mossy Nordic forest troll with a long crooked nose, small glowing eyes and a tree-trunk club, seen from the waist up and filling the frame, a fresh wound on its arm already closing with new moss and bark; it is lit by a warm rim light against a dark, misty forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 54,
+      "file": "Card/Portraits/54.jpg",
+      "name": "Troll Chieftain",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A troll chieftain with a crude crown of antlers and bones, roaring with a raised war club, a horned beast-skin cloak on his shoulders, seen from the waist up and filling the frame, lit by firelight against dark, stormy mountains. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 55,
+      "file": "Card/Portraits/55.jpg",
+      "name": "Frost Jotun",
+      "race": "frost",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A frost jotun: a towering giant of blue ice and grey rock with a beard of icicles and glowing pale eyes, standing in a blizzard among frozen peaks. Palette and setting: icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 56,
+      "file": "Card/Portraits/56.jpg",
+      "name": "Fenrir",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Fenrir, a colossal black wolf with burning orange eyes roaring as it snaps a glowing magical chain, broken links flying, a stormy sky behind it. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 60,
+      "file": "Card/Portraits/60.jpg",
+      "name": "Soul Rend",
+      "race": "darkness",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Soul Rend: three spectral violet claw slashes tearing through a pale glowing soul shape, ragged fragments of light flying out of the wound. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 61,
+      "file": "Card/Portraits/61.jpg",
+      "name": "Death Grip",
+      "race": "darkness",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Death Grip: a huge spectral skeletal hand bursting out of a grave and gripping a glowing orb of warm life energy, threads of light flowing from the orb into the cold hand. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 62,
+      "file": "Card/Portraits/62.jpg",
+      "name": "Plague Wind",
+      "race": "darkness",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Plague Wind: a rolling wall of sickly green and violet miasma, with faint skull shapes in the swirling wind, sweeping out of barrow mounds across dead fields. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 63,
+      "file": "Card/Portraits/63.jpg",
+      "name": "Blood Lance",
+      "race": "vampiric",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Blood Lance: a sharp spear of crystallised blood flying diagonally through the air, trailing glowing red droplets and streaks, against a dark gothic night. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 64,
+      "file": "Card/Portraits/64.jpg",
+      "name": "Blood Pact",
+      "race": "vampiric",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Blood Pact: two clasped hands above a golden goblet, bound together by glowing ribbons of blood that spiral upward in a crimson aura. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 65,
+      "file": "Card/Portraits/65.jpg",
+      "name": "Blood Moon",
+      "race": "vampiric",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Blood Moon: a huge blood-red moon filling the sky above a gothic castle, a swarm of bats crossing it and red rain falling from crimson clouds. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 66,
+      "file": "Card/Portraits/66.jpg",
+      "name": "Sacred Shield",
+      "race": "lightbringer",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Sacred Shield: a radiant golden shield of pure light shaped like a heater shield, with interlocking sacred geometric patterns, deflecting dark arrows that shatter against it. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 67,
+      "file": "Card/Portraits/67.jpg",
+      "name": "Revelation",
+      "race": "lightbringer",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Revelation: a blinding pillar of golden light breaking through parted storm clouds onto a lone stone altar on a hilltop, shining paths of light branching outward from the altar across the dark land below, every path suddenly clear. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 68,
+      "file": "Card/Portraits/68.jpg",
+      "name": "Troll Blood",
+      "race": "ferocious",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Troll Blood: a crude horn flask overflowing with thick, glowing green troll blood, steaming, on a mossy stone, green healing light swirling around it. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 69,
+      "file": "Card/Portraits/69.jpg",
+      "name": "Frostbite",
+      "race": "frost",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Frostbite: a gauntleted hand and forearm being encased in spreading jagged ice crystals, frost creeping outward in feathery patterns, snowflakes swirling. Palette and setting: icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 70,
+      "file": "Card/Portraits/70.jpg",
+      "name": "Rabid Ghoul",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A rabid ghoul with grey skin and frothing jaws sprinting on all fours between gravestones, violet soul-fire flickering in its eyes and claws. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 71,
+      "file": "Card/Portraits/71.jpg",
+      "name": "Night Terror",
+      "race": "darkness",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A night terror: a looming creature of living shadow with many glowing violet eyes and long clawed arms, rising over an empty bed in a dark room. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 72,
+      "file": "Card/Portraits/72.jpg",
+      "name": "Night Stalker",
+      "race": "vampiric",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A night stalker: a cloaked vampire assassin crouched in the shadows of a narrow gothic alley, only red eyes and a curved dagger catching the moonlight. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 73,
+      "file": "Card/Portraits/73.jpg",
+      "name": "Crimson Feast",
+      "race": "vampiric",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Crimson Feast: streams of glowing crimson life essence flowing through the air from shadowy fallen shapes into an overflowing golden chalice on a candlelit banquet table. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 74,
+      "file": "Card/Portraits/74.jpg",
+      "name": "Sunlance",
+      "race": "lightbringer",
+      "kind": "spell",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "Sunlance: a spear made of pure blazing sunlight streaking down from the sky, leaving a trail of golden fire and light. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 75,
+      "file": "Card/Portraits/75.jpg",
+      "name": "Dawn Paladin",
+      "race": "lightbringer",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A dawn paladin in gleaming gold and white armour riding a white warhorse, holding up a glowing sword against the rising sun. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 76,
+      "file": "Card/Portraits/76.jpg",
+      "name": "Phantom Wolf",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A phantom wolf, translucent and glowing pale gold, half fading into mist as it lunges towards the viewer through a dark night forest, its bright outline standing out against the dark trees. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": 77,
+      "file": "Card/Portraits/77.jpg",
+      "name": "Ironhide Bear",
+      "race": "ferocious",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A huge brown bear wearing riveted iron plate armour on its shoulders and head, rearing up and roaring in an amber forest. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "lost-soul",
+      "file": "Card/Portraits/lost-soul.jpg",
+      "name": "Lost Soul",
+      "race": "neutral",
+      "kind": "card",
+      "size": [
+        708,
+        501
+      ],
+      "prompt": "A Lost Soul: a small, lonely pale blue wisp spirit with a faint sad human face and trailing ghostly tail, drifting through mist. Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light. Landscape 3:2 composition (1536x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "hero-0",
+      "file": "Player/Portraits/0.jpg",
+      "name": "Unknown hero",
+      "race": "neutral",
+      "kind": "hero",
+      "size": [
+        720,
+        600
+      ],
+      "prompt": "A mysterious hooded figure whose face is hidden in deep shadow, only the outline of the hood and shoulders lit by a cold rim light. Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "hero-1",
+      "file": "Player/Portraits/1.jpg",
+      "name": "Rabid Soul",
+      "race": "darkness",
+      "kind": "hero",
+      "size": [
+        720,
+        600
+      ],
+      "prompt": "The Rabid Soul: a feral undead revenant warrior with wild dark hair, grey skin, a snarling mouth and glowing violet eyes, violet soul-fire swirling around his shoulders and torn black armour. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "hero-2",
+      "file": "Player/Portraits/2.jpg",
+      "name": "Lurker",
+      "race": "vampiric",
+      "kind": "hero",
+      "size": [
+        720,
+        600
+      ],
+      "prompt": "The Lurker: a vampire assassin in a dark hood and high-collared crimson cloak, a pale face half in shadow, piercing red eyes and a hint of fangs. Palette and setting: gothic deep crimson, black and candle-gold, blood-red highlights. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "hero-3",
+      "file": "Player/Portraits/3.jpg",
+      "name": "Harrison",
+      "race": "lightbringer",
+      "kind": "hero",
+      "size": [
+        720,
+        600
+      ],
+      "prompt": "Harrison: a fierce angelic swordsman with short golden-brown hair, a scarred determined face, gold armour, a glowing halo and white wings behind his shoulders, a sword hilt over one shoulder. Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "hero-4",
+      "file": "Player/Portraits/4.jpg",
+      "name": "Fader",
+      "race": "ferocious",
+      "kind": "hero",
+      "size": [
+        720,
+        600
+      ],
+      "prompt": "Fader: a hulking horned beast-warrior shaman with a bear-like face, amber eyes and heavy armour of iron plates and bark, a faint amber spirit glow fading around him. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "page-hansel",
+      "file": "Page/hansel.png",
+      "name": "Hansel and his wife",
+      "race": "shop",
+      "kind": "mascot",
+      "size": [
+        560,
+        310
+      ],
+      "prompt": "Hansel, once the champion of souls and now a retired, round-bellied shopkeeper with a big grey moustache, a kind battle-scarred face and a leather apron over his old dented champion breastplate, proudly holding up a fan of glowing cards; beside him his wife, a small, sharp-eyed, cheerful woman with her hair in a bun, a knitted shawl and spectacles, holding a ledger and a ring of brass keys. Palette: warm candle-gold, deep brown, soft crimson and old brass, lit like a cosy shop in a dark-fantasy town. Shop mascots: two full-body characters standing side by side, centred, on a fully transparent background (no scenery, no floor, no frame), with clean painted edges. Landscape 3:2 composition (1536x1024). Charming, friendly and a little comical, in a painterly dark-fantasy card-game style with rich colour and warm rim light. Original character designs that do not resemble any existing mascots, cartoon characters or real people. No text, letters, logos, signature or watermark.",
+      "fit": "contain"
+    },
+    {
+      "id": "page-bg",
+      "file": "Page/bg.jpg",
+      "name": "Site background",
+      "race": "darkness",
+      "kind": "backdrop",
+      "size": [
+        1680,
+        1050
+      ],
+      "prompt": "A lonely dirt road winding through a misty dead forest at night, tall bare trees fading into grey fog, faint cold moonlight far down the road. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. A page background: wide, empty and moody, with no characters and no focal subject, dark and low in contrast so that text and panels can sit on top of it; a finished painterly digital painting. Landscape 16:10 composition (1536x1024). No text, letters, road markings, logos, signature or watermark."
+    },
+    {
+      "id": "bg-faded",
+      "file": "bg_faded.jpg",
+      "name": "Classic client backdrop",
+      "master": "page-bg",
+      "brightness": 0.35,
+      "size": [
+        1680,
+        1050
+      ]
+    }
+  ]
+}
