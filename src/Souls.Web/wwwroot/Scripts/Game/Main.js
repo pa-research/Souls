@@ -318,12 +318,15 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         });
     }
 
+    /// The stage keeps its 16:9 shape at any window size: as large as fits, centred, with the arena picture blurred in
+    /// the bars beside or above it (Game.css). The HUD follows the canvas (Hud.Layout).
     function OnResize() {
         var width = $(window).width();
-        var height = $(window).height();
+        var height = $(window).height() - $(".navbar").outerHeight();
+        var scale = Math.min(width / Conf.width, height / Conf.height);
 
-        this.renderer.view.style.width = $(window).width() + "px";
-        this.renderer.view.style.height = $(window).height() - $(".navbar").outerHeight() + "px";
+        this.renderer.view.style.width = Math.round(Conf.width * scale) + "px";
+        this.renderer.view.style.height = Math.round(Conf.height * scale) + "px";
 
         Hud.Layout();
     }

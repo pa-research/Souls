@@ -2,11 +2,14 @@
 // makes the two burn spells starter cards (and puts them back at the end) so they come up in the hand.
 // Checks the portrait layout in every camera view and after turning the phone (hand cards wide enough, nothing over the
 // board or the hand), then plays: creatures dragged onto slots, a spell tapped and then its target, a spell's arrow
-// dragged from the hand, the hero power, attacks dragged onto the enemy, End Turn tapped; tooltips stay on screen.
-// Usage: node portrait.js <base> <outDir>
+// dragged from the hand, the hero power, attacks dragged onto the enemy, End Turn tapped; tooltips stay on screen. A
+// touched hand card is lifted clear of the player's hero and hero power, its rules below the top buttons; the bands
+// keep clear of a notch and a home indicator (safe area); the leave dialog works by touch (leave_dialog.js).
+// Usage: node portrait.js <base> <outDir> [width height]
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const { checkLeaveDialog } = require('./leave_dialog');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'portrait';
 fs.mkdirSync(out, { recursive: true });
@@ -18,7 +21,7 @@ const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.l
 const RESULT = [230, 231, 233];
 const SPELLS = [60, 63]; // Soul Rend, Blood Lance
 const BURN = 8;
-const PHONE = { width: 412, height: 915 };
+const PHONE = { width: Number(process.argv[4] || 412), height: Number(process.argv[5] || 915) };
 // The card frame art fills about 0.82 of a card's width: 86 px cards show 70 px of card.
 const MIN_CARD = 86;
 
@@ -110,7 +113,7 @@ const MIN_CARD = 86;
       const handBand = { x: 0, y: bands.hand[0], w: width, h: bands.hand[1] - bands.hand[0] };
       const bad = [];
       for (const [i, r] of m.hand.entries()) {
-        if (r.w < MIN_CARD) bad.push(`card ${i} is ${Math.round(r.w)} px wide`);
+        if (r.w < MIN_CARD - 0.5) bad.push(`card ${i} is ${r.w.toFixed(1)} px wide`); // sub-pixel slack: 360 px phones are at the minimum
         if (!inside({ x: r.x, y: r.y }, handBand, 3) || !inside({ x: r.x + r.w, y: r.y + r.h }, handBand, 3)) bad.push(`card ${i} outside the hand band`);
       }
       for (const [i, r] of m.heroes.entries()) if (!inside({ x: r.x + r.w / 2, y: r.y + r.h / 2 }, board)) bad.push(`hero ${i} outside the board band`);
@@ -189,6 +192,10 @@ const MIN_CARD = 86;
         const tip = await tooltipOnScreen();
         step('tap a hand card: it zooms, on the screen, its rules above it', !!zoomed && zoomed.x >= 0 && zoomed.x + zoomed.w <= PHONE.width && zoomed.y >= 0
           && !!tip && tip.on && tip.y + tip.h <= zoomed.y + 2, JSON.stringify({ zoomed, tip }));
+        const hero = await hook('heroRect(false)'), power = await page.$eval('#souls3d .sg-power', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+        const top = await page.$$eval('.souls3d-views, .game-mode-switch', e => e.map(x => { const r = x.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }));
+        step('the zoomed card leaves the hero and the hero power in view, its rules stay below the top buttons', !!zoomed && !overlap(zoomed, hero) && !overlap(zoomed, power)
+          && !!tip && !top.some(r => overlap(r, tip)), JSON.stringify({ zoomed, hero, power, tip }));
         await snap('card-zoom');
         await tap(await hook(`handCard(${i})`)); await sleep(600);
         step('another tap puts it back', (await hook('hovered()')) === null && !(await tooltipOnScreen()));
@@ -200,6 +207,35 @@ const MIN_CARD = 86;
         await touch('touchEnd'); await sleep(500);
       }
     }
+    // A notch and a home indicator (the safe area): the bands make room, nothing is under them, a lifted card too.
+    {
+      const cdp2 = await ctx.newCDPSession(page);
+      const inset = { top: 34, bottom: 28 };
+      const resize = async () => { await page.setViewportSize({ width: PHONE.width, height: PHONE.height - 1 }); await sleep(300); await page.setViewportSize(PHONE); await sleep(1200); };
+      const ok = await cdp2.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: inset.top, topMax: inset.top, bottom: inset.bottom, bottomMax: inset.bottom, left: 0, leftMax: 0, right: 0, rightMax: 0 } }).then(() => true, () => false);
+      if (ok) {
+        await resize();
+        const bands = (await hook('layout()')).bands;
+        const views = await page.$eval('.souls3d-views', e => e.getBoundingClientRect().bottom);
+        const footer = await page.$$eval('.souls3d-log, .souls3d-chat', e => Math.min(...e.map(x => x.getBoundingClientRect().top)));
+        step('with a notch and a home indicator, the buttons and the log stay outside the bands', views >= inset.top && views <= bands.opponentHand[0] && footer >= bands.hand[1]
+          && footer + 34 <= PHONE.height - inset.bottom + 1, JSON.stringify({ views, footer, bands }));
+        await snap('safe-area');
+        await checkLayout('safe area');
+        const i = (await hook('state()')).hand.length - 1;
+        await tap(await hook(`handCard(${i})`)); await sleep(800);
+        const lifted = await hook('hoveredRect()');
+        step('with a notch and a home indicator, the lifted card stays in its bands', !!lifted && lifted.y >= bands.action[0] - 2 && lifted.y + lifted.h <= bands.hand[1] + 2, JSON.stringify(lifted));
+        await snap('safe-area-zoom');
+        await tap(await hook(`handCard(${i})`)); await sleep(500);
+        await cdp2.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
+        await resize();
+      } else {
+        console.log('(no safe area emulation in this browser: skipped)');
+      }
+    }
+    await checkLeaveDialog(page, step, { label: 'portrait', settings: '.souls3d-views [aria-label=Settings]', leave: '.souls3d-settings .s-btn-danger', touch: true });
+
     // A tap on the enemy hero explains it, on the screen.
     await tap(await hook('opponentHero()')); await sleep(700);
     const heroTip = await tooltipOnScreen();

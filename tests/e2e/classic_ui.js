@@ -1,12 +1,18 @@
-// Classic client with the new interface: real practice game against the bot, screenshots of every state.
+// Classic client with the new interface: real practice game against the bot, screenshots of every state. The board
+// keeps its 16:9 shape at any window size with the HUD over it, messages stay off the heroes and hero powers, and the
+// leave dialog works (leave_dialog.js).
 // Usage: node classic_ui.js <base> <outDir> [width height]
 const { chromium } = require('playwright');
 const fs = require('fs');
+const { checkLeaveDialog, leaveWithEnter } = require('./leave_dialog');
 const base = process.argv[2], out = process.argv[3];
 const W = Number(process.argv[4] || 1600), H = Number(process.argv[5] || 900);
 fs.mkdirSync(out, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const RESULT = [230, 231, 233];
+const steps = [];
+const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
+const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave: '.souls-classic-settings .s-btn-danger' };
 (async () => {
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const touch = H < 500;
@@ -59,6 +65,25 @@ const RESULT = [230, 231, 233];
   console.log('mulligan', JSON.stringify((await waitFrame(f => f.dir === 'in' && f.type === 227, 0, 15000))?.p.replaced));
   await sleep(8000);
   await shot('game');
+  // The stage keeps 16:9 (bars beside or above it at other shapes) and the HUD lies exactly over it.
+  const boxes = await page.evaluate(() => [document.querySelector('#game-window canvas'), document.querySelector('.souls-classic-hud')]
+    .map(e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; }));
+  const [canvas, hud] = boxes;
+  step('the board keeps its 16:9 shape, centred, with the HUD over it', Math.abs(canvas.w / canvas.h - 16 / 9) < 0.01
+    && (canvas.w === W || canvas.h === H) && Math.abs(canvas.x * 2 + canvas.w - W) <= 2 && Math.abs(canvas.y * 2 + canvas.h - H) <= 2
+    && JSON.stringify(canvas) === JSON.stringify(hud), JSON.stringify(boxes));
+  // Messages go over the middle of the board, off both heroes (stage 960,955 and 960,125) and the hero powers.
+  await page.evaluate(() => new Promise(done => window.require(['hud'], h => { h.Toast('Not enough mana!'); h.Toast('Not your turn!'); done(); })));
+  await sleep(400);
+  const placed = await page.evaluate(() => [...document.querySelectorAll('.souls-classic-hud .sg-toast, .souls-classic-hud .sg-power')]
+    .map(e => { const r = e.getBoundingClientRect(); return { toast: e.classList.contains('sg-toast'), x: r.left, y: r.top, w: r.width, h: r.height }; }));
+  const heroes = [];
+  for (const y of [955, 125]) { const a = await at(960 - 150, y - 125), b = await at(960 + 150, y + 125); heroes.push({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }); }
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const toasts = placed.filter(r => r.toast);
+  step('messages show over the middle of the board, off the heroes and hero powers', toasts.length === 2
+    && !toasts.some(t => heroes.some(r => hit(t, r)) || placed.some(r => !r.toast && hit(t, r))), JSON.stringify(toasts.map(t => [Math.round(t.y), Math.round(t.h)])));
+  await shot('toasts');
   const counts = { played: 0, powers: 0, attacks: 0 };
   for (let turn = 0; turn < 4; turn++) {
     const mine = await waitFrame(f => f.dir === 'in' && ((f.type === 236 && f.p.current === 1 && f.p.turn === turn * 2) || RESULT.includes(f.type)), 0, 180000);
@@ -96,9 +121,19 @@ const RESULT = [230, 231, 233];
     await sleep(3000);
     if (turn === 1) {
       if (!touch) { const h = await at(956, 141); await page.mouse.move(h.x, h.y, { steps: 3 }); await sleep(1200); await shot('tooltip'); }
-      await page.click('.souls-classic-hud .sg-icon-btn').catch(() => {}); await sleep(800); await shot('settings'); await page.keyboard.press('Escape'); await sleep(400);
+      await page.click('.souls-classic-hud .sg-icon-btn').catch(() => {}); await sleep(800); await shot('settings');
+      await page.click(LEAVE.leave); await sleep(600); await shot('leave-dialog');
+      await page.keyboard.press('Escape'); await sleep(400); await page.keyboard.press('Escape'); await sleep(400);
+      await checkLeaveDialog(page, step, LEAVE);
     }
     if (frames.some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
+    if (turn === 3) {
+      // The last turn here: leave through the dialog with Enter (the hard bot may win soon after).
+      await shot('later');
+      await leaveWithEnter(page, step, LEAVE);
+      await shot('left');
+      break;
+    }
     const end = await at(1608, 550);
     from = frames.length;
     await page.mouse.click(end.x, end.y);
@@ -107,9 +142,7 @@ const RESULT = [230, 231, 233];
     if (turn === 0) await shot('banner');
   }
   console.log('counts', JSON.stringify(counts));
-  await sleep(2000);
-  await shot('later');
   console.log('problems:', problems.length ? problems.slice(0, 6) : 'none');
-  if (problems.length || !created || !counts.played) process.exitCode = 1;
+  if (problems.length || !created || !counts.played || steps.some(s => !s.ok)) process.exitCode = 1;
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

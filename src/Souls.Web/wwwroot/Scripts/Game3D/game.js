@@ -159,11 +159,7 @@ export class Game {
         this.layout(false);
         ui.onPower = () => this.onPowerButton();
         if (!this.spectator) {
-            ui.onLeave = () => {
-                if (this.active && !window.confirm('Leave the game? You lose it if you do not come back within a minute.')) return;
-                this.clearInGame();
-                window.location.href = '/Game';
-            };
+            ui.onLeave = () => window.SoulsGameMode.leave(this.active);
         }
 
         if (mode !== 'replay') {
@@ -258,24 +254,34 @@ export class Game {
             return { y, k: stage.pixelsPerClassic(y) };
         };
         const hand = at(w / 2, (b.hand[0] + b.hand[1]) / 2);
-        // The touched card zooms above the row over the hand (its rules above it), at most about half the screen wide.
-        const zoom = Math.min(w * 0.46, 230);
-        const hoverPx = Math.max(b.board[0] + zoom * 0.7, b.action[0] - zoom * 0.7);
-        const hover = at(w / 2, hoverPx);
+        const left = Math.max(10, b.inset.left), right = Math.max(10, b.inset.right);
+        // The touched card is lifted over the row above the hand and the hand itself (the player's status and the fuse
+        // step aside), clear of the player's hero and hero power on the board; its rules go above them (tipPoint).
+        const zoom = Math.min(w * 0.46, (b.hand[1] - b.action[0] - 4) / 1.4);
+        const hover = at(w / 2, (b.action[0] + b.hand[1]) / 2);
         const opponent = at(w / 2, (b.opponentHand[0] + b.opponentHand[1]) / 2);
-        const signW = 112, signPx = { x: w - 10 - signW / 2, y: b.action[0] + 24 };
+        const signW = 112, signPx = { x: w - right - signW / 2, y: b.action[0] + 24 };
         const sign = stage.classicAtPixel(signPx.x, signPx.y);
         return {
             player: {
-                y: hand.y, scale: b.card / (CARD_W * hand.k), span: (w - 16) / hand.k,
+                y: hand.y, scale: b.card / (CARD_W * hand.k), span: (w - left - right + 4) / hand.k,
                 hoverY: hover.y, hoverScale: zoom / (CARD_W * hover.k), hoverRoom: Math.max(0, w / 2 - 8 - zoom / 2) / hover.k,
             },
             opponent: { y: opponent.y, scale: 30 / (CARD_W * opponent.k), span: w * 0.55 / opponent.k, hoverY: opponent.y, hoverScale: 1, hoverRoom: 0 },
             sign: { x: sign.x, y: sign.y, scale: signW / (196 * stage.pixelsPerClassic(sign.y)) },
-            fuse: { x: w - 10, y: this.spectator ? b.action[0] + 24 : b.action[0] + 48, ax: 1 },
-            status: { x: 10, y: signPx.y, ax: 0 },
-            tip: { x: w / 2, y: hoverPx - zoom * 0.7 - 8, above: true },
+            fuse: { x: w - right, y: this.spectator ? b.action[0] + 24 : b.action[0] + 48, ax: 1 },
+            status: { x: left, y: signPx.y, ax: 0 },
         };
+    }
+
+    /**
+     * Portrait: a lifted hand card's rules go above the player's hero and hero power (where the view has them), but no
+     * higher than the buttons at the top.
+     */
+    tipPoint() {
+        const hero = this.screenRect(this.player.hero);
+        const power = this.ui.power.hidden ? null : this.ui.power.getBoundingClientRect();
+        return { x: this.stage.width / 2, y: Math.min(hero.y, power ? power.top : Infinity) - 8, above: true, top: this.stage.bands.opponentHand[0] };
     }
 
     /** The index of the player's hand card at classic stage point `p` (the visible strip of each card), or -1. */
@@ -296,11 +302,11 @@ export class Game {
         return this.stage.classicToScreen(row.x + row.spacing * index + (last ? 0 : row.spacing / 2 - 75 * row.scale), row.y + 10 * row.scale);
     }
 
-    /** Screen rectangle (CSS pixels) of a card's face or a hero, in the HUD or the arena (test hook). */
+    /** Screen rectangle (CSS pixels) of a card's face, a hero or the End Turn sign, in the HUD or the arena. */
     screenRect(obj) {
         if (!obj) return null;
         const camera = obj.parent === this.stage.hud ? this.stage.hudCamera : this.stage.camera;
-        const box = new THREE.Box3().setFromObject(obj.front || obj.face || obj, true);
+        const box = new THREE.Box3().setFromObject(obj === this.sign ? obj.board : obj.front || obj.face || obj, true);
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (let i = 0; i < 8; i++) {
             const v = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera);
@@ -528,8 +534,8 @@ export class Game {
     }
 
     inspect(obj, at) {
-        // Portrait: a hand card's rules go above its zoomed picture, clear of the hand.
-        if (this.rows && obj instanceof Card3D && this.player.hand.get(obj.cid) === obj) at = this.rows.tip;
+        // Portrait: a hand card's rules go above the player's hero, clear of the lifted card.
+        if (this.rows && obj instanceof Card3D && this.player.hand.get(obj.cid) === obj) at = this.tipPoint();
         this.ui.showTooltip(obj ? this.describe(obj) : null, at);
     }
 
@@ -1840,5 +1846,45 @@ export class Game {
                 this.ui.placeEmote(side.isPlayer ? 'player' : 'opponent', bubble.x, bubble.y);
             }
         }
+        this.placeToasts();
+        // Portrait: the player's status and the fuse step aside for a hand card lifted over their row (game3d.css).
+        this.ui.root.classList.toggle('lifted', !!(this.rows && this.hovered));
+    }
+
+    /**
+     * Landscape: the messages (toasts, the targeting hint) go over the middle of the board, moved up or down as little
+     * as needed to stay clear of the player's hero, hero power, status and hand, End Turn, the battle log and the chat,
+     * and if there is room also of the opponent's hero, wherever the camera puts them. Portrait keeps them over the
+     * opponent's hand (game3d.css).
+     */
+    placeToasts() {
+        const box = this.ui.toasts;
+        if (this.rows) {
+            box.style.transform = '';
+            return;
+        }
+        if (!box.childElementCount) return;
+        const { width, height } = this.stage;
+        const h = box.offsetHeight;
+        const w = Math.max(...[...box.children].map(t => t.offsetWidth));
+        const x0 = (width - w) / 2, x1 = x0 + w;
+        const dom = e => {
+            const r = e.hidden ? null : e.getBoundingClientRect();
+            return r && r.width ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+        };
+        const keep = [this.player.hero, ...this.player.hand.values(), this.sign.visible ? this.sign : null].map(o => this.screenRect(o))
+            .concat([this.ui.power, this.ui.playerStatus, this.ui.log, this.ui.chat].map(dom));
+        const rather = [this.screenRect(this.opponent.hero), dom(this.ui.opponentStatus)];
+        const free = (y, rects) => y >= 8 && y + h <= height - 8 && rects.every(r => !r || r.x >= x1 || r.x + r.w <= x0 || r.y >= y + h || r.y + r.h <= y);
+        const mid = this.stage.toScreen(toWorld(960, 560)).y - h / 2;
+        const nearest = rects => {
+            for (let d = 0; d < height; d += 6) {
+                if (free(mid - d, rects)) return mid - d;
+                if (free(mid + d, rects)) return mid + d;
+            }
+            return null;
+        };
+        const y = nearest(keep.concat(rather)) ?? nearest(keep) ?? mid;
+        box.style.transform = `translateY(${Math.round(y)}px)`;
     }
 }

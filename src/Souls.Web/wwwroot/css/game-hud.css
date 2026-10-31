@@ -309,11 +309,14 @@
 
 /* ---- Toasts ------------------------------------------------------------------------------------------------- */
 
+/* Over the middle of the board, between the two rows of cards (classic stage y 560), clear of the heroes, the hero
+   powers, the hands and End Turn. The 3D client moves them with its camera (Game.placeToasts). */
 .sg-toasts {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 22%;
+    top: 51.85%;
+    transform: translateY(-50%);
     display: grid;
     justify-items: center;
     gap: 8px;
@@ -930,6 +933,14 @@
 .sg-invite-head b { display: block; font-family: var(--s-font-display); font-size: 1.1rem; color: var(--s-gold-1); overflow-wrap: anywhere; }
 .sg-invite .s-progress { height: 6px; }
 .sg-invite-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* "Leave the game?" (Views/Game/Index.cshtml, both clients): a modal <dialog> in the top layer, over everything. */
+.sg-leave { border-color: var(--s-gold-2); text-align: left; }
+.sg-leave::backdrop { background: radial-gradient(ellipse at center, rgba(6, 5, 9, 0.6), rgba(6, 5, 9, 0.88)); backdrop-filter: blur(3px); }
+.sg-leave .s-panel-head h2 { font-size: 1.15rem; }
+.sg-leave p { margin: 0 0 20px; color: var(--s-text-2); }
+.sg-leave-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.sg-leave-actions .s-btn { flex: 1 1 auto; min-height: 44px; }
 
 .sg-challenge { display: flex; gap: 8px; width: 100%; }
 .sg-challenge .s-input { flex: 1; min-width: 0; min-height: 38px; }

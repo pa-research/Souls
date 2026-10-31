@@ -3,7 +3,6 @@
 define("settings", ["hud", "audio"], function (Hud, Sound) {
 
     var PANEL_ID = 'souls-classic-settings';
-    var LEAVE_QUESTION = 'Leave the game? You lose it if you do not come back within a minute.';
 
     function Settings(engine) {
         var that = this;
@@ -55,7 +54,7 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
             button.focus();
         });
 
-        // Escape and a click outside close the panel.
+        // Escape and a click outside close the panel (not one in the leave dialog, which opens from it).
         this.onKey = function (e) {
             if (e.key === 'Escape' && !panel.hidden) {
                 that.Toggle(false);
@@ -65,7 +64,7 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         this.onOutside = function (e) {
             if (panel.hidden) return;
             var target = e.target;
-            if (panel.contains(target) || button.contains(target)) return;
+            if (panel.contains(target) || button.contains(target) || (target.closest && target.closest('dialog'))) return;
             that.Toggle(false);
         };
         window.addEventListener('keydown', this.onKey);
@@ -110,13 +109,9 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         });
     }
 
-    /// Asks first while the game runs, then goes back to the game menu.
+    /// Asks first while the game runs (the dialog shared with the 3D client), then goes back to the game menu.
     Settings.prototype.Leave = function () {
-        var engine = this.engine;
-        if (engine && !engine.ended && !window.confirm(LEAVE_QUESTION)) return;
-        // Forget the running game, or /Game would resume it instead of showing the menu.
-        if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
-        window.location.href = '/Game';
+        window.SoulsGameMode.leave(!this.engine.ended);
     }
 
     Settings.prototype.Destroy = function () {

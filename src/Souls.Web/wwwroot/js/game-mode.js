@@ -1,6 +1,6 @@
 // Chooses between the classic game client (PixiJS) and the modern 3D client (three.js), renders the switch
 // between them and lets either client resume a running game after switching (the server re-sends the game
-// state when a player reconnects within the grace period).
+// state when a player reconnects within the grace period). Both clients leave a running game through it.
 (function () {
     'use strict';
 
@@ -8,6 +8,20 @@
     var IN_GAME_KEY = 'souls.inGame';
     var RESUME_WINDOW_MS = 55000; // a little under the server's 60 s reconnect grace period
     var inGameTimer = null;
+    var leaveDialog = document.getElementById('sg-leave');
+
+    // While the leave dialog is open, the keys are its own (Esc, Enter, Tab), not the camera keys or panels behind it,
+    // and Tab goes round its two buttons (the browser would move on to the page behind it).
+    window.addEventListener('keydown', function (e) {
+        if (!leaveDialog || !leaveDialog.open) return;
+        e.stopPropagation();
+        if (e.key !== 'Tab') return;
+        e.preventDefault();
+        var buttons = leaveDialog.querySelectorAll('button');
+        var at = Array.prototype.indexOf.call(buttons, document.activeElement);
+        var next = at < 0 ? (e.shiftKey ? buttons.length - 1 : 0) : (at + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length;
+        buttons[next].focus();
+    }, true);
 
     function storage(kind) {
         try { return window[kind]; } catch (e) { return null; }
@@ -60,11 +74,31 @@
             inGameTimer = setInterval(function () { writeInGame(normal); }, 5000);
         },
 
-        /** Called by a client when the game is over. */
+        /** Called by a client when the game is over (and so no longer asked about leaving it). */
         clearInGame: function () {
             clearInterval(inGameTimer);
             var session = storage('sessionStorage');
             if (session) session.removeItem(IN_GAME_KEY);
+            if (leaveDialog && leaveDialog.open) leaveDialog.close();
+        },
+
+        /**
+         * Back to the game menu. With `ask` (a game is running: leaving forfeits it unless the player comes back within
+         * the server's grace period) the dialog in Views/Game/Index.cshtml asks first.
+         */
+        leave: function (ask) {
+            var go = function () {
+                api.clearInGame();
+                window.location.href = '/Game';
+            };
+            if (!ask) return go();
+            if (!leaveDialog || typeof leaveDialog.showModal !== 'function') {
+                if (window.confirm('Leave the game? You lose it if you do not come back within a minute.')) go();
+                return;
+            }
+            leaveDialog.returnValue = '';
+            leaveDialog.onclose = function () { if (leaveDialog.returnValue === 'leave') go(); };
+            leaveDialog.showModal();
         },
 
         /** {normal} when this tab was in a game moments ago (so the client should skip its menu), else null. */
