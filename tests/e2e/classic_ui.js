@@ -53,16 +53,38 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
   await page.waitForSelector('.sg-menu', { timeout: 180000 });
   await sleep(1500);
   await shot('menu');
-  await page.click('.sg-menu-row .s-seg button >> nth=2');
-  await page.click('.sg-menu-btn >> nth=1');
+  // On a touch screen the menu is tapped (the hints then speak of taps).
+  const press = sel => (touch ? page.tap(sel) : page.click(sel));
+  await press('.sg-menu-row .s-seg button >> nth=2');
+  await press('.sg-menu-btn >> nth=1');
   await sleep(1000);
   await shot('queue');
   const created = await waitFrame(f => f.dir === 'in' && f.type === 206, 0, 90000);
   console.log('created', !!created, created && created.p.opponent.info.name, 'difficulty sent', JSON.stringify(frames.find(f => f.dir === 'out' && f.type === 101)?.p));
   await waitFrame(f => f.dir === 'in' && f.type === 236, 0, 30000);
   await page.waitForSelector('.sg-mulligan-confirm', { timeout: 30000 }); await sleep(1500); await shot('mulligan');
+  // The hints speak of the input in use: taps on a touch screen, clicks with a mouse.
+  const mulliganHint = await page.$eval('.sg-mulligan p', e => e.textContent);
+  step(`the mulligan hint speaks of ${touch ? 'taps' : 'clicks'}`, (touch ? /^Tap the cards/ : /^Click the cards/).test(mulliganHint), mulliganHint);
   await page.click('.sg-mulligan-confirm');
   console.log('mulligan', JSON.stringify((await waitFrame(f => f.dir === 'in' && f.type === 227, 0, 15000))?.p.replaced));
+  // Every frame of the game has the arena: the stage colour becomes magenta and a few pixels are read back after each
+  // render (the arena picture covers the whole stage): neither magenta nor the black of an uncleared canvas.
+  await page.evaluate(() => {
+    const r = window.renderer, gl = r.gl, px = new Uint8Array(4), render = r.render.bind(r);
+    const probe = window.__arena = { frames: 0, missing: 0 };
+    r.render = stage => {
+      render(stage);
+      const game = window.gameEngine;
+      if (!game || game.stage !== stage) return;
+      if (!probe.tinted) { stage.setBackgroundColor(0xff00ff); probe.tinted = true; return; }
+      probe.frames++;
+      for (const [fx, fy] of [[0.02, 0.5], [0.98, 0.02], [0.5, 0.02]]) {
+        gl.readPixels(Math.round(fx * (r.width - 1)), Math.round(fy * (r.height - 1)), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        if ((px[0] > 240 && px[1] < 15 && px[2] > 240) || Math.max(px[0], px[1], px[2]) < 6) { probe.missing++; break; }
+      }
+    };
+  });
   await sleep(8000);
   await shot('game');
   // The stage keeps 16:9 (bars beside or above it at other shapes) and the HUD lies exactly over it.
@@ -72,6 +94,30 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
   step('the board keeps its 16:9 shape, centred, with the HUD over it', Math.abs(canvas.w / canvas.h - 16 / 9) < 0.01
     && (canvas.w === W || canvas.h === H) && Math.abs(canvas.x * 2 + canvas.w - W) <= 2 && Math.abs(canvas.y * 2 + canvas.h - H) <= 2
     && JSON.stringify(canvas) === JSON.stringify(hud), JSON.stringify(boxes));
+  // The hand: every card whole on the screen, also the one looked at (hovered with a mouse, tapped on a touch screen).
+  const handRects = () => page.evaluate(() => {
+    const c = document.querySelector('#game-window canvas').getBoundingClientRect(), k = c.width / 1920;
+    return Object.values(window.gameEngine.player.cardManager.hand).map(h => {
+      const s = Math.abs(h.scale.y || 1);
+      return { x: c.left + (h.x - 75 * s) * k, y: c.top + (h.y - 105 * s) * k, r: c.left + (h.x + 75 * s) * k, b: c.top + (h.y + 105 * s) * k, scale: s };
+    });
+  });
+  const onCanvas = r => r.x >= canvas.x - 1 && r.y >= canvas.y - 1 && r.r <= canvas.x + canvas.w + 1 && r.b <= canvas.y + canvas.h + 1;
+  const resting = await handRects();
+  step('the hand cards are whole on the screen', resting.length > 0 && resting.every(onCanvas), JSON.stringify(resting.map(r => [Math.round(r.y), Math.round(r.b)])));
+  {
+    const c = resting[0];
+    // A little left of the card's middle: where the classic client looks for the mouse over a hand card.
+    const p = { x: (c.x + c.r) / 2 - 5 * (c.r - c.x) / 150, y: (c.y + c.b) / 2 };
+    // A tap picks the card up and lets it go: it zooms once it is back in the hand (about a second).
+    if (touch) await page.touchscreen.tap(p.x, p.y); else await page.mouse.move(p.x, p.y, { steps: 4 });
+    await sleep(touch ? 2200 : 1200);
+    const zoomed = (await handRects()).find(r => r.scale > 1.5);
+    await shot('hand-look');
+    step(`a ${touch ? 'tapped' : 'hovered'} hand card is zoomed, whole on the screen`, !!zoomed && onCanvas(zoomed), JSON.stringify(zoomed));
+    if (!touch) await page.mouse.move(canvas.x + canvas.w / 2, canvas.y + canvas.h / 2, { steps: 3 });
+    await sleep(touch ? 2500 : 800);
+  }
   // Messages go over the middle of the board, off both heroes (stage 960,955 and 960,125) and the hero powers.
   await page.evaluate(() => new Promise(done => window.require(['hud'], h => { h.Toast('Not enough mana!'); h.Toast('Not your turn!'); done(); })));
   await sleep(400);
@@ -85,6 +131,7 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
     && !toasts.some(t => heroes.some(r => hit(t, r)) || placed.some(r => !r.toast && hit(t, r))), JSON.stringify(toasts.map(t => [Math.round(t.y), Math.round(t.h)])));
   await shot('toasts');
   const counts = { played: 0, powers: 0, attacks: 0 };
+  let arena = null; // the arena probe's count, read before leaving the game
   for (let turn = 0; turn < 4; turn++) {
     const mine = await waitFrame(f => f.dir === 'in' && ((f.type === 236 && f.p.current === 1 && f.p.turn === turn * 2) || RESULT.includes(f.type)), 0, 180000);
     if (!mine || RESULT.includes(mine.type)) break;
@@ -95,7 +142,7 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
     for (let k = 0; k < handSize; k++) {
       from = frames.length;
       const last = k === handSize - 1;
-      await drag(await at(165 + 60 * k + (last ? 0 : -45), 980), await at(520 + 147.7 * (3 + turn % 3), 700));
+      await drag(await at(165 + 60 * k + (last ? 0 : -45), 965), await at(520 + 147.7 * (3 + turn % 3), 700));
       const answer = await waitFrame(f => f.dir === 'in' && [207, 208, 213].includes(f.type), from, 6000);
       if (answer && answer.type === 207) { counts.played++; break; }
       await sleep(800);
@@ -127,6 +174,7 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
       await checkLeaveDialog(page, step, LEAVE);
     }
     if (frames.some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
+    arena = await page.evaluate(() => window.__arena);
     if (turn === 3) {
       // The last turn here: leave through the dialog with Enter (the hard bot may win soon after).
       await shot('later');
@@ -141,6 +189,8 @@ const LEAVE = { label: 'classic', settings: '.souls-classic-settings-btn', leave
     await sleep(1200);
     if (turn === 0) await shot('banner');
   }
+  arena = (await page.evaluate(() => window.__arena).catch(() => null)) || arena;
+  step('every frame of the game has the arena', !!arena && arena.frames > 100 && arena.missing === 0, arena ? `${arena.missing} of ${arena.frames} frames without it` : 'no count');
   console.log('counts', JSON.stringify(counts));
   console.log('problems:', problems.length ? problems.slice(0, 6) : 'none');
   if (problems.length || !created || !counts.played || steps.some(s => !s.ok)) process.exitCode = 1;
