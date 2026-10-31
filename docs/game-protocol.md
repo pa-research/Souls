@@ -4,6 +4,32 @@ Both browser clients (Classic and Modern 3D) and the practice bot talk to the ga
 WebSocket with JSON messages `{"Type": n, "Payload": ...}`. The server is authoritative: clients send requests and
 animate what the server reports.
 
+## Texts and languages
+
+The server does not know the players' languages: in one game the players, the spectators and later the replay may
+each read another language. Every text it sends is the English text **plus its key and arguments** in the game's
+string tables (`src/Souls.Model/Localization/*.{language}.json`), and each client shows it in its page's language
+(`/js/l10n.js`: `SoulsL10n.text(obj, field)`, falling back to the English text). Older clients keep working: the
+English texts are where they always were.
+
+- A text field `x` of an object gets `xKey` (and `xArgs` when the text has arguments) next to it:
+  `{"t": "log", "text": "ann plays Pesta.", "textKey": "log.plays", "textArgs": {"player": "ann", "card": "Pesta"}}`.
+  This covers `text` (log events, Victory/Defeat/Draw, SpectateEnd, quests, emotes), `error` (202), `message` (213,
+  chat), `label` (`trigger` events, `ability` in the card JSON), `name` (`heroPower` events, `ability` and `race` in
+  the card JSON), `tier` (season results) and `name` (a season with its default name).
+- A message whose payload is a string (208, 232, 197, 243, 100, 101, 10, chat) gets `PayloadKey` and `PayloadArgs`
+  next to `Payload`: `{"Type": 208, "Payload": "Not enough mana!", "PayloadKey": "error.mana"}`.
+- An argument is a string or number shown as it is (player and card names, amounts), or a nested text
+  `{"key", "args"}` shown in the reader's language (a hero power's name in `log.heroPower`).
+- Templates use named placeholders (`{player} plays {card}.`). A key with `_one` and `_other` variants
+  (`log.summon_one`, `log.summon_other`) is picked by the `n` argument (`Intl.PluralRules` in the clients).
+- Card JSON: `flavor` has `flavorKey` (`flavor.{card id}`). English flavor texts come from the database (an
+  administrator may edit them), so only the other languages' tables have these keys; a client without the key shows
+  `flavor`. An ability or race the database names differently from the table has no `nameKey`.
+- WebSocket close reasons are fixed English strings (`Server restarting`, `Logged in from another window`, ...); the
+  tables have them as `close.<reason>`.
+- The stored game log (`/Game/Stats/{id}`) keeps the key and arguments too (`game_log.text_key`, `text_args`).
+
 ## Rules in short
 
 - Decks have 20 cards (at most 4 copies of a common card, 3 of a rare, 2 of an epic and 1 of a legendary), shuffled
@@ -186,7 +212,7 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 241 | SpectateStart | like GameCreate from player one's side, with `spectator: true` and player one's hand as `[{cid}]` |
 | 242 | SpectateEnd | `{winner: ident or 0 for a draw, text, statistics}` |
 | 243 | SpectateError | string |
-| 299 | Emote | `{ident, emote, text}`: a player emoted (to both players, spectators and the replay) |
+| 299 | Emote | `{ident, emote, text, textKey}`: a player emoted (to both players, spectators and the replay) |
 
 The legacy 218 Attack and 234 UseAbility responses are no longer sent; attacks and abilities are reported as events.
 
@@ -226,7 +252,8 @@ its id for `/Game/Stats/{id}` and `/Game/Replay/{id}` (0 if storing failed: then
 
 ```json
 {"Type": 230, "Payload": {
-  "statistics": 4711, "text": "ann wins against ben!", "coins": 3, "rating": 1056, "ratingChange": 16,
+  "statistics": 4711, "text": "ann wins against ben!", "textKey": "log.win", "textArgs": {"winner": "ann", "loser": "ben"},
+  "coins": 3, "rating": 1056, "ratingChange": 16,
   "quests": [{"text": "Win 2 normal games", "progress": 1, "target": 2, "reward": 4, "done": false}],
   "season": {"number": 3, "name": "Season 3",
              "before": {"rating": 1040, "rank": 1, "tier": "Bronze III", "css": "tier-bronze"},
@@ -262,7 +289,7 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 | `fatigue` | `id` (ident), `amount` | fatigue damage from an empty deck (a `damage` follows) |
 | `timeout` | `id` (ident) | the turn timer ran out |
 | `heroDeath` | `id` (ident) | a hero died |
-| `log` | `text` | a line for the battle log |
+| `log` | `text`, `textKey`, `textArgs` | a line for the battle log (see [Texts and languages](#texts-and-languages)) |
 
 ### GameSync
 
@@ -286,10 +313,11 @@ your own ident is in GameCreate) and to cards by `cid`. A target `ref` is `{"k":
 {"cid": 12, "id": 27, "name": "Pesta", "kind": "minion", "cost": 6, "attack": 4, "health": 5, "maxHealth": 5, "armor": 0, "level": 1,
  "rarity": 3, "ward": false, "paralyzed": false, "taunt": false, "token": false, "slotId": 2, "isDead": false,
  "hasAttacked": false, "portrait": "/Content/Images/Card/Portraits/27.jpg",
- "flavor": "Where she rakes, a few survive. Where she sweeps, nobody does.",
- "race": {"id": 1, "name": "Darkness", "cardUrl": "/Content/Images/Card/Texture/darkness.png"},
- "ability": {"id": 15, "name": "Inferno", "value": 2, "label": "Inferno 2", "activated": false,
-             "text": "When played, deals 2 damage to every enemy card."}}
+ "flavor": "Where she rakes, a few survive. Where she sweeps, nobody does.", "flavorKey": "flavor.27",
+ "race": {"id": 1, "name": "Darkness", "nameKey": "race.1.name", "cardUrl": "/Content/Images/Card/Texture/darkness.png"},
+ "ability": {"id": 15, "name": "Inferno", "nameKey": "ability.15.name", "value": 2, "activated": false,
+             "label": "Inferno 2", "labelKey": "ability.label.value", "labelArgs": {"name": {"key": "ability.15.name"}, "n": 2},
+             "text": "When played, deals 2 damage to every enemy card.", "textKey": "ability.15.text", "textArgs": {"n": 2}}}
 ```
 
 `ability.label` is what the card face prints and `ability.text` the rules text with the card's numbers filled in.

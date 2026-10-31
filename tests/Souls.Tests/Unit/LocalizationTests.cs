@@ -9,7 +9,7 @@ using Races = Souls.Model.GameRules.Races;
 namespace Souls.Tests.Unit;
 
 /// <summary>
-/// The string tables (Souls.Model/Localization/*.json, the site's Resources/SharedResource.nb.resx) are complete and
+/// The string tables (Souls.Model/Localization/*.json, the site's Resources/SharedResource.*.resx) are complete and
 /// used, and the game server sends a key next to every text a player sees.
 /// </summary>
 public partial class LocalizationTests
@@ -222,7 +222,7 @@ public partial class LocalizationTests
 
     /// <summary>
     /// The site's texts: every literal key of <c>L["..."]</c>, <c>localizer["..."]</c> and <c>ErrorMessage = "..."</c>
-    /// has a Norwegian text in SharedResource.nb.resx with the same placeholders, and every resource is used.
+    /// has a text in every SharedResource.{language}.resx with the same placeholders, and every resource is used.
     /// </summary>
     [Fact]
     public void SiteResourcesMatchTheSources()
@@ -239,22 +239,28 @@ public partial class LocalizationTests
 
         used.Remove("..."); // the example in SharedResource.cs
 
-        var resx = XDocument.Load(Path.Combine(RepoRoot.Value, "src", "Souls.Web", "Resources", "SharedResource.nb.resx"));
-        var entries = resx.Root!.Elements("data").ToDictionary(d => (string)d.Attribute("name")!, d => (string)d.Element("value")!, StringComparer.Ordinal);
-
-        var missing = used.Where(k => !entries.ContainsKey(k)).Order().ToList();
-        Assert.True(missing.Count == 0, "Not in SharedResource.nb.resx: " + string.Join(" | ", missing));
-        var unused = entries.Keys.Where(k => !used.Contains(k)).Order().ToList();
-        Assert.True(unused.Count == 0, "Unused in SharedResource.nb.resx: " + string.Join(" | ", unused));
-
-        // Resource names are case-insensitive: two keys differing only in case would collide.
-        var clashes = entries.Keys.GroupBy(k => k, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
-        Assert.True(clashes.Count == 0, "Keys differing only in case: " + string.Join(" | ", clashes));
-
-        foreach (var (key, value) in entries)
+        // Every site language but English (the keys) has its resx, one per table language.
+        var files = Directory.GetFiles(Path.Combine(RepoRoot.Value, "src", "Souls.Web", "Resources"), "SharedResource.*.resx");
+        Assert.Equal(OtherLanguages.Order(), files.Select(f => Path.GetFileName(f).Split('.')[1]).Order());
+        foreach (var file in files)
         {
-            Assert.True(string.IsNullOrWhiteSpace(value) == false, $"Empty translation for '{key}'");
-            Assert.Equal(FormatItems().Matches(key).Select(m => m.Value).Distinct().Order(), FormatItems().Matches(value).Select(m => m.Value).Distinct().Order());
+            var name = Path.GetFileName(file);
+            var entries = XDocument.Load(file).Root!.Elements("data").ToDictionary(d => (string)d.Attribute("name")!, d => (string)d.Element("value")!, StringComparer.Ordinal);
+
+            var missing = used.Where(k => !entries.ContainsKey(k)).Order().ToList();
+            Assert.True(missing.Count == 0, $"Not in {name}: " + string.Join(" | ", missing));
+            var unused = entries.Keys.Where(k => !used.Contains(k)).Order().ToList();
+            Assert.True(unused.Count == 0, $"Unused in {name}: " + string.Join(" | ", unused));
+
+            // Resource names are case-insensitive: two keys differing only in case would collide.
+            var clashes = entries.Keys.GroupBy(k => k, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            Assert.True(clashes.Count == 0, "Keys differing only in case: " + string.Join(" | ", clashes));
+
+            foreach (var (key, value) in entries)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(value), $"{name}: empty translation for '{key}'");
+                Assert.Equal(FormatItems().Matches(key).Select(m => m.Value).Distinct().Order(), FormatItems().Matches(value).Select(m => m.Value).Distinct().Order());
+            }
         }
     }
 
