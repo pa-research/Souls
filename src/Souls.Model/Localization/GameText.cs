@@ -120,10 +120,7 @@ public static partial class Strings
         Tables.ContainsKey(culture.TwoLetterISOLanguageName) ? culture.TwoLetterISOLanguageName : Default;
 
     /// <summary>The text of a key in a language (English if the language does not have it; the key if nobody has it).</summary>
-    public static string Get(string language, string key) =>
-        (Tables.TryGetValue(language, out var own) && own.TryGetValue(key, out var value)) || Tables[Default].TryGetValue(key, out value)
-            ? value
-            : key;
+    public static string Get(string language, string key) => Table(language).TryGetValue(key, out var value) ? value : key;
 
     public static bool Has(string language, string key) => Tables.TryGetValue(language, out var own) && own.ContainsKey(key);
 
