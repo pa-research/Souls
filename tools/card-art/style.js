@@ -1,5 +1,5 @@
-// The look of the set: race palettes, materials and rarity drama. generate.js merges, in order,
-// race defaults -> material -> rarity -> the card's own "tweak" block, then hands the flat result to the browser.
+// The look of the set: race palettes, moods, materials and rarity drama. generate.js merges, in order,
+// race defaults -> mood -> material -> rarity -> the card's own "tweak" block, then hands the flat result to the browser.
 'use strict';
 
 // sRGB hex -> linear RGB (lighting runs in linear space)
@@ -94,6 +94,101 @@ const RACES = {
   },
 };
 
+// Moods: other lighting set-ups within a race (card "mood"), so a race keeps one palette family (its shadow tint,
+// eye colour, particles) without every card sharing one sky. Same fields as a race; u is merged over the race's u.
+const MOODS = {
+  darkness: {
+    plague: { // Pesta, plague and rot: sickly green-yellow murk
+      lightKind: 'glow', particles: 'motes', particleColor: '#c8e080',
+      u: {
+        SkyTop: '#040604', SkyBot: '#1c2612', GlowCol: '#b4d460', DiscCol: '#e4f0b0', CloudDark: '#080c06', CloudLit: '#56662c',
+        FogCol: '#2c3c1c', SceneFar: '#1e2a14', SceneMid: '#0a0e06', SceneNear: '#020301',
+        RimCol: '#ecffb4', KeyCol: '#8c9c62', AmbCol: '#121a0c', EmitCol: '#d4ff60', AuraCol: '#b4dc70',
+        ShadowTint: '#3a1a4a', HiTint: '#f0ffd0',
+      },
+    },
+    nightmare: { // spirits and terrors: violet void
+      lightKind: 'glow', particles: 'wisps', particleColor: '#c8a8ff',
+      u: {
+        SkyTop: '#06030c', SkyBot: '#26143c', GlowCol: '#a478ff', DiscCol: '#ece0ff', CloudDark: '#0c0618', CloudLit: '#5e3e90',
+        FogCol: '#2c1c46', SceneFar: '#26183c', SceneMid: '#0e0818', SceneNear: '#030106',
+        RimCol: '#ecdcff', KeyCol: '#8c74c4', AmbCol: '#160e24', EmitCol: '#d8b0ff', AuraCol: '#b494ff',
+        ShadowTint: '#2a1050', HiTint: '#f2eaff',
+      },
+    },
+  },
+  vampiric: {
+    moonlit: { // a pale cold moon over the castle; the crimson stays in eyes, blood and the shadows
+      light: [0.5, 0.3], lightKind: 'moon', motif: 'castle', particles: 'ash', particleColor: '#e4d8ff', particleCount: 90,
+      u: {
+        SkyTop: '#05040c', SkyBot: '#201834', GlowCol: '#bcb2dc', DiscCol: '#eee8f6', GlowStr: 0.95, LightR: 0.13,
+        CloudDark: '#0a0812', CloudLit: '#4e4266', FogCol: '#2c2238', SceneFar: '#2c2238', SceneMid: '#100a16', SceneNear: '#040206',
+        RimCol: '#f2e8ff', KeyCol: '#aa9cc4', AmbCol: '#16101e', EmitCol: '#ff2a1a', AuraCol: '#bcace4',
+        ShadowTint: '#4a0c30', HiTint: '#f6eeff', Split: 0.24,
+      },
+    },
+    candle: { // candle-lit crypt: warm amber light, wine-dark stone
+      light: [0.5, 0.4], lightKind: 'glow', motif: 'crypt', particles: 'embers', particleColor: '#ffb060', particleCount: 70,
+      u: {
+        SkyTop: '#070304', SkyBot: '#2c100a', GlowCol: '#ff9c44', GlowStr: 1.0, GlowSize: 0.9,
+        CloudDark: '#0c0405', CloudLit: '#5e2c18', FogCol: '#3a160e', SceneFar: '#3c1610', SceneMid: '#160606', SceneNear: '#050101',
+        RimCol: '#ffc888', KeyCol: '#d49464', AmbCol: '#1a0808', EmitCol: '#ff3a1a', AuraCol: '#ffa056',
+        ShadowTint: '#4a0014', HiTint: '#ffe2b4', Split: 0.24,
+      },
+    },
+    rosewindow: { // a crimson rose window in a dark chapel
+      light: [0.5, 0.3], lightKind: 'glow', motif: 'cathedral', particles: 'motes', particleColor: '#ff7a96', particleCount: 80,
+      u: {
+        SkyTop: '#1c0420', SkyBot: '#6c0c24', GlowCol: '#ec3444', GlowStr: 1.0, CloudStyle: 1, CloudAmt: 0.6,
+        CloudDark: '#2c0618', CloudLit: '#ff7458', FogCol: '#2c0a1a', SceneFar: '#4c1022', SceneMid: '#0e0408', SceneNear: '#030102',
+        RimCol: '#ffb4c4', KeyCol: '#c47494', AmbCol: '#160612', EmitCol: '#ff2a2a', AuraCol: '#ff5474',
+        ShadowTint: '#2c0834', HiTint: '#ffe2ea', Split: 0.22,
+      },
+    },
+    dusk: { // the sun setting behind the hills, violet sky over a blood-orange horizon
+      light: [0.5, 0.76], lightKind: 'sun', motif: 'castle', particles: 'motes', particleColor: '#ffa484', particleCount: 80,
+      u: {
+        SkyTop: '#0c0618', SkyBot: '#8c2c2c', GlowCol: '#ff6c3c', DiscCol: '#ffd4a4', GlowStr: 1.1, LightR: 0.09, GlowSize: 1.1,
+        CloudDark: '#1c0a1c', CloudLit: '#e4643c', FogCol: '#4c1a2c', CloudStyle: 2, CloudAmt: 0.7,
+        SceneFar: '#3c1428', SceneMid: '#140610', SceneNear: '#040104',
+        RimCol: '#ffbc94', KeyCol: '#cc8474', AmbCol: '#180a18', EmitCol: '#ff3020', AuraCol: '#ff7454',
+        ShadowTint: '#3c0a3c', HiTint: '#ffdab4', Split: 0.24,
+      },
+    },
+  },
+  lightbringer: {
+    dawn: { // a low rose-gold sun on the horizon
+      light: [0.5, 0.72], lightKind: 'sun', motif: 'sky', particles: 'sparks', particleColor: '#ffe2b4',
+      u: {
+        SkyTop: '#0a1034', SkyBot: '#b4626a', GlowCol: '#ffb070', DiscCol: '#fff6e0', GlowStr: 1.1, LightR: 0.1, GlowSize: 0.85,
+        CloudDark: '#281e3c', CloudLit: '#ffb488', FogCol: '#84546c', CloudStyle: 2, CloudAmt: 0.7,
+        SceneFar: '#6c5274', SceneMid: '#2c2238', SceneNear: '#0c0a14',
+        RimCol: '#fff2dc', KeyCol: '#ffcca4', AmbCol: '#3c3254', EmitCol: '#fff0b4', AuraCol: '#ffbc84',
+        ShadowTint: '#2c2254', HiTint: '#fff2dc',
+      },
+    },
+  },
+  ferocious: {
+    moonwood: { // a cold moon over the pines
+      light: [0.32, 0.26], lightKind: 'moon', particles: 'fireflies', particleColor: '#b4ffd8', particleCount: 50,
+      u: {
+        SkyTop: '#020810', SkyBot: '#142a3c', GlowCol: '#a0ccdc', DiscCol: '#eaf6f2', GlowStr: 0.9, LightR: 0.11,
+        CloudDark: '#06101a', CloudLit: '#3c5c6c', FogCol: '#22424c', SceneFar: '#16323c', SceneMid: '#061218', SceneNear: '#010406',
+        RimCol: '#dcf6ff', KeyCol: '#8cacbc', AmbCol: '#0e1c24', EmitCol: '#a4f4ff', AuraCol: '#94cce4',
+        ShadowTint: '#0c2c30', HiTint: '#eafff8',
+      },
+    },
+    frost: { // snow and ice under a white sun
+      light: [0.68, 0.2], motif: 'mountains', particles: 'snow', particleColor: '#e8f6ff',
+      u: {
+        SkyTop: '#030a12', SkyBot: '#16303c', GlowCol: '#a8dcf0', DiscCol: '#f0faff', CloudLit: '#5a8494', CloudDark: '#0a1620',
+        FogCol: '#3a5866', SceneFar: '#3a5a6a', SceneMid: '#122028', RimCol: '#e8faff', AuraCol: '#8cd0f0', KeyCol: '#b8d4e8',
+        ShadowTint: '#0c3040', HiTint: '#f0faff', EmitCol: '#c8f4ff', GlowStr: 0.7,
+      },
+    },
+  },
+};
+
 // Materials override the subject's surface. Colours here are race-agnostic; races can override per card.
 const MATERIALS = {
   shadow: { BaseCol: '#1c1628', Base2Col: '#342a48', SpecStr: 0.12, Shin: 18, TexScale: 22, TexAmt: 0.6, Bump: 1.2, KeyStr: 0.55 },
@@ -119,8 +214,13 @@ const RARITY = {
 };
 
 function resolve(card, icons) {
-  const race = RACES[card.race];
+  let race = RACES[card.race];
   if (!race) throw new Error(`card ${card.id}: unknown race ${card.race}`);
+  if (card.mood) {
+    const mood = (MOODS[card.race] || {})[card.mood];
+    if (!mood) throw new Error(`card ${card.id}: unknown mood ${card.mood} for ${card.race}`);
+    race = Object.assign({}, race, mood, { u: Object.assign({}, race.u, mood.u) });
+  }
   const rar = RARITY[card.rarity];
   if (!rar) throw new Error(`card ${card.id}: unknown rarity ${card.rarity}`);
   const material = card.material || race.material;
@@ -164,6 +264,8 @@ function resolve(card, icons) {
     center: card.center || [0.5, 0.53],
     holeMax: card.holeMax != null ? card.holeMax : 0.03,
     blurR: card.blurR || 16,
+    grow: card.grow || 0,
+    dropSpecks: card.dropSpecks || 0,
     closeR: card.closeR != null ? card.closeR : 10,
     domeBlur: card.domeBlur || 28,
     light: card.light || race.light,
@@ -177,4 +279,4 @@ function resolve(card, icons) {
   };
 }
 
-module.exports = { resolve, RACES, MATERIALS, RARITY };
+module.exports = { resolve, RACES, MOODS, MATERIALS, RARITY };

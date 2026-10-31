@@ -21,9 +21,14 @@ render runs headless in WebGL2 (SwiftShader is fine), about 5-15 s per card. Out
 
 ## Files
 
-- `cards.json` - one entry per card: id, name, race, rarity, icon layers and per-card tweaks (light position,
-  motif, particles, material, emissive spots for eyes and flames, raw uniform overrides in `tweak`).
-- `style.js` - the look of the set: race palettes, materials, rarity drama, and how a card resolves to uniforms.
+- `cards.json` - one entry per card: id, name, race, rarity, mood, icon layers and per-card tweaks (light position,
+  motif, particles, material, emissive spots for eyes and flames, `grow` / `dropSpecks` for thin or speckled icons,
+  raw uniform overrides in `tweak`).
+- `style.js` - the look of the set: race palettes, moods, materials, rarity drama, and how a card resolves to uniforms.
+  A mood is another lighting set-up within a race (Vampiric: blood moon, `moonlit`, `candle`, `rosewindow`, `dusk`;
+  Darkness: graveyard moon, `plague`, `nightmare`; Lightbringer: day sky, `dawn`; Ferocious: forest, `moonwood`,
+  `frost`), so a race keeps one palette family without every card sharing one sky. Order of merging: race -> mood ->
+  material -> rarity -> `tweak`.
 - `lib/render.js`, `lib/shaders.js`, `lib/scenery.js` - the in-browser renderer.
 - `icon-authors.json` - author of every icon used (written by `node fetch-authors.js`, only needed when a new
   icon is added: the npm package only names the set author, so it probes the per-author folders of
@@ -33,7 +38,10 @@ render runs headless in WebGL2 (SwiftShader is fine), about 5-15 s per card. Out
 
 1. **Subject.** The icon paths (one or more game-icons, stacked with a knocked-out gap between layers) are drawn
    with Canvas 2D at 2x and auto-fitted to ~74% of the height. Small enclosed holes are filled and narrow slits are
-   closed (morphological closing) so the silhouette is solid; the icon's cut-out details become grooves. Exact
+   closed (morphological closing) so the silhouette is solid; the icon's cut-out details become grooves. Optional
+   per card: `dropSpecks` removes loose debris islands, `grow` thickens thin limbs and blades so they survive the
+   ~150 px shop tile. The knocked-out gap between stacked layers (and a `cut` layer, e.g. claw marks carved into a
+   ghost) stays part of the figure as a dark groove, so the rim light never draws thin bright outlines through it. Exact
    signed distance fields (Felzenszwalb EDT) of the silhouette and of the detail mask, plus a wide blur for the
    overall volume, give a relief height field: rounded bevels, grooves and a soft dome, plus material noise
    (stone, bone, fur, bark with moss, iron, gold, ice, cloth, ethereal). It is lit in linear light by a key light
