@@ -208,7 +208,12 @@ async function turnClassic(s, turn) {
   const keepC = process.argv[4] === 'keep';
   if (!keepC) {
     const from = C.frames.length;
-    const lived = await waitFrame(C, f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t !== 'log'), from, 240000);
+    const livedP = waitFrame(C, f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t !== 'log'), from, 240000);
+    // Nothing happens until someone acts (turns are long with compose.ci.yaml): the player on turn plays it now.
+    const now = (await hook(A, 'sync()').catch(() => null))?.current;
+    if (now === identA) await turn3d(A, identA);
+    else if (now === identB) await turnClassic(B, 0);
+    const lived = await livedP;
     step('spectator receives live events', !!lived, lived ? lived.p.events.map(e => e.t).join(',') : 'none');
     step('no console errors (Cwatch)', C.problems.length === 0, C.problems.slice(0, 4).join(' || '));
     await snap(C, 'watching');
