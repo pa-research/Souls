@@ -248,7 +248,8 @@ class SoundBoard {
         }
         this.current = null;
         if (!want) return;
-        const deck = this.decks.find(d => d !== old);
+        // A track that was paused (muted, or after the end of a game) carries on where it stopped.
+        const deck = this.decks.find(d => d !== old && d.name === want.name) || this.decks.find(d => d !== old);
         if (deck.name !== want.name) {
             deck.name = want.name;
             deck.el.src = Sounds[want.name];
