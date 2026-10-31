@@ -222,6 +222,7 @@
   "chat.left": "You left room {room}",
   "chat.memberLeft": "{name} left the room",
   "chat.madeLeader": "You are now the leader of room {room}",
+  "chat.disconnected": "Player \"{name}\" disconnected!",
 
   "deck.notOwned": "You can only put cards you own in your deck.",
   "deck.size": "A deck has exactly {size} cards (this one has {count}).",

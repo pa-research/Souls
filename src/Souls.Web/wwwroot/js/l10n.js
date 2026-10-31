@@ -1,7 +1,7 @@
 // Game texts in the page's language for both game clients (window.SoulsL10n). The string table comes with the page
 // config (GameConfig.strings: Souls.Model/Localization/*.{language}.json, the page's language over English).
 //
-//   SoulsL10n.t('g3d.endTurn')                          -> "Avslutt tur"
+//   SoulsL10n.t('g3d.yourTurn')                         -> "Din tur"
 //   SoulsL10n.t('log.plays', {player: 'ann', card: 'Pesta'})
 //   SoulsL10n.text(event)            -> event.text in the page's language, from event.textKey / event.textArgs
 //   SoulsL10n.text(msg, 'Payload')   -> a text payload: msg.PayloadKey / msg.PayloadArgs (docs/game-protocol.md)

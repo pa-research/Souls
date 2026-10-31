@@ -194,10 +194,11 @@ public sealed class Card
     {
         var json = new JsonObject { ["id"] = abilityId };
         GameRules.AbilityName(abilityId).WriteTo(json, "name");
-        if (AbilityName is not null)
+        if (AbilityName is not null && AbilityName != (string?)json["name"])
         {
-            // The database's name (the same as the English one unless an administrator renamed it).
+            // An ability the database names differently: its name as it is, in every language.
             json["name"] = AbilityName;
+            json.Remove("nameKey");
         }
 
         json["parameter"] = AbilityParameter;
@@ -212,7 +213,12 @@ public sealed class Card
     {
         var json = new JsonObject { ["id"] = raceId };
         GameRules.RaceName(raceId).WriteTo(json, "name");
-        json["name"] = RaceName;
+        if (RaceName is not null && RaceName != (string?)json["name"])
+        {
+            json["name"] = RaceName;
+            json.Remove("nameKey");
+        }
+
         json["cardUrl"] = RaceCardUrl;
         return json;
     }

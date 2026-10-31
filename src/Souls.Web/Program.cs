@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
@@ -6,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.WebEncoders;
 using Souls.Model;
 using Souls.Model.Hosting;
 using Souls.Model.Localization;
@@ -65,6 +68,7 @@ builder.Services.AddControllersWithViews(options =>
 // The page language: the one the player picked (cookie), else the browser's (Accept-Language), else English. The
 // site's texts are in Resources/SharedResource.{language}.resx, the game's in Souls.Model/Localization.
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+builder.Services.Configure<WebEncoderOptions>(options => options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All)); // "på", not "p&#xE5;"
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     var secure = SoulsHostingExtensions.UseSecureCookies(builder.Configuration, builder.Environment);

@@ -222,6 +222,7 @@
   "chat.left": "Du forlot rom {room}",
   "chat.memberLeft": "{name} forlot rommet",
   "chat.madeLeader": "Du er nå leder for rom {room}",
+  "chat.disconnected": "Spilleren «{name}» koblet fra!",
 
   "deck.notOwned": "Du kan bare legge kort du eier, i kortstokken din.",
   "deck.size": "En kortstokk har nøyaktig {size} kort (denne har {count}).",

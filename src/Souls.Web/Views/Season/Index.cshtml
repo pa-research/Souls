@@ -28,7 +28,7 @@
         @foreach (var rank in new[] { 1, 4, 7, 10, 13, 16 })
         {
             var (coins, legendary) = Seasons.Reward(rank);
-            <span class="s-chip"><s-rank rank="@rank" compact="true" />@T(new Souls.Model.Localization.GameText("tier." + Ratings.TierOf(rank).Name.ToLowerInvariant())) <s-icon name="coin" />@coins@(legendary ? " + " + L["a legendary card"] : "")</span>
+            <span class="s-chip"><s-rank rank="@rank" compact="true" />@T(Ratings.TierOf(rank).NameText) <s-icon name="coin" />@coins@(legendary ? " + " + L["a legendary card"] : "")</span>
         }
     </div>
 </section>

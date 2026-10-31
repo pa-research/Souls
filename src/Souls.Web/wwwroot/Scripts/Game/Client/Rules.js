@@ -76,7 +76,7 @@ define('rules', ['conf'], function (Conf) {
     };
 
     /// Whether an ability is used by dragging from the card to a target. cardActivated: the card JSON's own
-    /// "ability.activated", used when the page config does not know the ability.
+    /// ability.activated, used when the page config does not know the ability.
     Rules.prototype.IsActivated = function (abilityId, cardActivated) {
         var ability = this.Ability(abilityId);
         if (ability) return !!ability.activated;
