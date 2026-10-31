@@ -17,11 +17,11 @@ import { buildStadium, WALL_R, SCREEN_W, SCREEN_H, STANDS_OUT } from './stadium.
 import { CONTACTS, MOON, fireSprites, groundMaterial, hillsGeometry, sandMaterial, skyMaterial, stadiumMaterials, stadiumUniforms, rise } from './surfaces.js';
 import { Crowd } from './spectators.js';
 
+const { t } = window.SoulsL10n;
+
 // The screen is drawn in 1024x576 units onto a half-size canvas: it is never shown larger than that on screen, and a
 // WebGPU canvas upload (ten a second) costs CPU time in proportion to its pixels.
 const SCREEN_SCALE = 0.5;
-/** Words the stadium screens show by themselves (the rest comes from the game). */
-const SCREEN_TEXT = { title: 'SOULS', versus: 'VS' };
 /** How long a Mexican wave takes to go once around the stands. */
 const WAVE_MS = 9000;
 
@@ -164,7 +164,7 @@ class StadiumScreen {
                 g.textAlign = 'center';
                 g.textBaseline = 'middle';
                 g.fillStyle = '#f4f4f4';
-                g.fillText(SCREEN_TEXT.title, W / 2, H / 2);
+                g.fillText(t('g3d.screen.title'), W / 2, H / 2);
             }
             g.restore();
             if (this.scoreboard) {
@@ -181,7 +181,7 @@ class StadiumScreen {
                 g.fillText(`\u2665${opponent.health}  ${opponent.name}`, W - 30, H - 75, W / 2 - 90);
                 g.fillStyle = '#f1c40f';
                 g.textAlign = 'center';
-                g.fillText(SCREEN_TEXT.versus, W / 2, H - 75);
+                g.fillText(t('g3d.screen.versus'), W / 2, H - 75);
             }
         }
         g.drawImage(this.grid, 0, 0);

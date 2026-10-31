@@ -1619,7 +1619,7 @@ export class Game {
         card.setReady(false);
         card.setGlow(0xff2020, 1);
         this.cheer(0.6);
-        this.arena.screenFlash('KO!');
+        this.arena.screenFlash(t('g3d.screen.ko'));
         this.flameJets(0.7, 2);
         const center = card.center();
         this.effects.burst(center, { color: 0x9b59b6, count: 40, speed: 220, size: 46, life: 1000, gravity: 120 });
