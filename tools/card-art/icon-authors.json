@@ -43,6 +43,10 @@
     "slug": "lorc",
     "name": "Lorc"
   },
+  "cloak-dagger": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
   "closed-barbute": {
     "slug": "delapouite",
     "name": "Delapouite"
@@ -60,6 +64,10 @@
     "name": "Delapouite"
   },
   "crown": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
+  "direwolf": {
     "slug": "lorc",
     "name": "Lorc"
   },
@@ -87,9 +95,9 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
-  "floating-ghost": {
-    "slug": "delapouite",
-    "name": "Delapouite"
+  "ghost": {
+    "slug": "lorc",
+    "name": "Lorc"
   },
   "goblin": {
     "slug": "caro-asercion",
@@ -103,25 +111,17 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
-  "hooded-assassin": {
-    "slug": "darkzaitzev",
-    "name": "DarkZaitzev"
-  },
   "horned-helm": {
     "slug": "lorc",
     "name": "Lorc"
   },
-  "hound": {
-    "slug": "lorc",
-    "name": "Lorc"
-  },
-  "ice-golem": {
-    "slug": "delapouite",
-    "name": "Delapouite"
-  },
   "imp-laugh": {
     "slug": "lorc",
     "name": "Lorc"
+  },
+  "kneeling": {
+    "slug": "delapouite",
+    "name": "Delapouite"
   },
   "lantern-flame": {
     "slug": "lorc",
@@ -151,10 +151,6 @@
     "slug": "lorc",
     "name": "Lorc"
   },
-  "prayer": {
-    "slug": "lorc",
-    "name": "Lorc"
-  },
   "raise-zombie": {
     "slug": "skoll",
     "name": "Skoll"
@@ -170,6 +166,10 @@
   "robe": {
     "slug": "lorc",
     "name": "Lorc"
+  },
+  "rock-golem": {
+    "slug": "delapouite",
+    "name": "Delapouite"
   },
   "sacrificial-dagger": {
     "slug": "lorc",
@@ -195,6 +195,10 @@
     "slug": "delapouite",
     "name": "Delapouite"
   },
+  "spear-hook": {
+    "slug": "lorc",
+    "name": "Lorc"
+  },
   "spectre": {
     "slug": "lorc",
     "name": "Lorc"
@@ -212,10 +216,6 @@
     "name": "Delapouite"
   },
   "terror": {
-    "slug": "lorc",
-    "name": "Lorc"
-  },
-  "thrown-spear": {
     "slug": "lorc",
     "name": "Lorc"
   },
@@ -244,10 +244,6 @@
     "name": "Lorc"
   },
   "woman-elf-face": {
-    "slug": "delapouite",
-    "name": "Delapouite"
-  },
-  "wood-club": {
     "slug": "delapouite",
     "name": "Delapouite"
   }

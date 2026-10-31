@@ -35,8 +35,23 @@
     spec.layers.forEach((layer, i) => {
       const path = new Path2D(layer.d);
       const m = layerMatrix(group, layer);
-      const gap = layer.gap != null ? layer.gap : (i > 0 ? 12 : 0);
-      for (const [c, white] of [[cu, true], [ca, !!layer.accent]]) {
+      const cut = !!layer.cut; // a cut layer carves its shape into the layers below (claw marks, rents) instead of adding one
+      const gap = layer.gap != null ? layer.gap : (i > 0 && !cut ? 12 : 0);
+      if (gap > 0 || cut) {
+        // where the gap (or cut) runs through the layers below it stays part of the figure (plug), so it renders as a
+        // dark groove instead of a see-through slit that the rim light turns into thin bright outlines
+        const g = canvas(W, H), cg = g.getContext('2d');
+        cg.drawImage(union, 0, 0);
+        cg.globalCompositeOperation = 'multiply';
+        const s = canvas(W, H), cs = s.getContext('2d');
+        cs.fillStyle = '#000'; cs.fillRect(0, 0, W, H);
+        cs.setTransform(m); cs.fillStyle = cs.strokeStyle = '#fff'; cs.lineJoin = 'round';
+        if (gap > 0) { cs.lineWidth = gap * 2 / (layer.s || 1); cs.stroke(path); }
+        if (cut) cs.fill(path);
+        cg.drawImage(s, 0, 0);
+        cp.globalCompositeOperation = 'lighter'; cp.drawImage(g, 0, 0); cp.globalCompositeOperation = 'source-over';
+      }
+      for (const [c, white] of [[cu, !cut], [ca, !!layer.accent && !cut]]) {
         c.setTransform(m);
         if (gap > 0) { // knock a gap around the new layer so stacked icons stay readable
           c.fillStyle = '#000'; c.strokeStyle = '#000'; c.lineJoin = 'round';
@@ -72,10 +87,10 @@
   }
 
   // Fill the icon's small enclosed holes (eyes, engraved lines) so the silhouette is solid; large enclosed holes stay open.
-  function fillHoles(cov, holeMax) {
+  function fillHoles(cov, holeMax, lo = 0.5) {
     const N = W * H, state = new Uint8Array(N); // 0 unvisited, 1 outside, 2 hole (filled), 3 big hole (open)
     const queue = new Int32Array(N);
-    const low = i => cov[i] < 0.5;
+    const low = i => cov[i] < lo;
     let qh = 0, qt = 0;
     const push = i => { if (!state[i] && low(i)) { state[i] = 1; queue[qt++] = i; } };
     for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
@@ -179,10 +194,19 @@
     group = { k, ox: spec.center[0] * W - (gx0 + gx1) / 2 * k, oy: spec.center[1] * H - (gy0 + gy1) / 2 * k };
     m = drawMasks(spec, group);
 
-    const cov = coverage(m.union);
+    let cov = coverage(m.union);
+    if (spec.dropSpecks) { // remove small loose islands (debris, sparkles) that turn into noise at card size
+      cov = fillHoles(cov.map(v => 1 - v), spec.dropSpecks * W * H, 0.999).map(v => 1 - v); // islands incl. their soft edges
+    }
+    if (spec.grow) { // thicken thin limbs and blades (icon units) so they hold up at small sizes; fine cut-outs close up
+      const s = sdf(cov), g = spec.grow * group.k;
+      cov = cov.map((_, i) => Math.min(1, Math.max(0, s[i] + g + 0.5)));
+      cov = fillHoles(cov, 0.0005 * W * H, 0.999); // cut-outs squeezed almost shut would leave soft pinpoints
+    }
     const plugCov = coverage(m.plug);
     for (let i = 0; i < W * H; i++) plugCov[i] = Math.max(plugCov[i], cov[i]);
-    let filled = fillHoles(plugCov, spec.holeMax * W * H);
+    // lo 0.999: a hole includes its soft rim, so a filled hole leaves no faint edge for the rim light to outline
+    let filled = fillHoles(plugCov, spec.holeMax * W * H, 0.999);
     if (spec.closeR > 0) {
       // morphological closing (dilate, then erode by closeR px): narrow channels that reach the outside become
       // grooves instead of see-through slits, so the silhouette stays solid
@@ -190,7 +214,7 @@
       for (let i = 0; i < W * H; i++) grown[i] = Math.min(1, Math.max(0, dil[i] + spec.closeR + 0.5));
       const back = sdf(grown);
       for (let i = 0; i < W * H; i++) filled[i] = Math.max(filled[i], Math.min(1, Math.max(0, back[i] - spec.closeR + 0.5)));
-      filled = fillHoles(filled, spec.holeMax * W * H);
+      filled = fillHoles(filled, spec.holeMax * W * H, 0.999);
     }
     const sSil = sdf(filled), sDet = sdf(cov);
     const accCov = coverage(m.acc);
