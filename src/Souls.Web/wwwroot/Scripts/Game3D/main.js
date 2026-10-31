@@ -63,8 +63,8 @@ async function main() {
         if (VIEWS[name].key) storeView(name);
     });
     ui.onView = name => stage.setView(name);
-    // Browsers only allow audio after a user gesture.
-    window.addEventListener('pointerdown', () => crowd.start(), { once: true });
+    // The sound effects load in the background (the music when it plays); audio starts at the first gesture.
+    sound.preload();
 
     let last = performance.now();
     const frame = now => {
@@ -101,10 +101,10 @@ async function main() {
     } else if (query.get('challenge')) {
         choice = { mode: 'friendly', challenge: query.get('challenge') };
     } else {
-        sound.playMusic('MENU', 0.1);
+        // The menu music plays on while looking for a match; the game crossfades to the battle music.
+        sound.playMusic('music_menu');
         choice = await ui.showMenu();
     }
-    sound.stopMusic();
 
     game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge });
     new Interaction(stage, game, effects);

@@ -1114,7 +1114,7 @@
 
                 this.engine.player.holdingCard = this;
 
-                Animation.PlaySound(asset.Sound.CARD_PICKUP, 0.6);
+                Animation.PlaySound(asset.Sound.CARD_PICKUP, 0.7);
 
                 if (this.inSlot) {
                     this.engine.SwapFromToGroup(this, "Card-Player", "Card-Focus");
@@ -1250,10 +1250,10 @@
                 // Check if the card is owned by the player
                 if (this.owner == this.engine.player) {
                     this.interactive = !this.isDead;
-                    Animation.PlaySound(asset.Sound.CARD_MOUNT, 0.6);
+                    Animation.PlaySound(asset.Sound.CARD_PLAY, 0.8);
                 }
                 else {
-                    Animation.PlaySound(asset.Sound.CARD_MOUNT, 0.6);
+                    Animation.PlaySound(asset.Sound.CARD_PLAY, 0.8);
                     if (!this.cardFlipped) return;
 
                     // Flip effect

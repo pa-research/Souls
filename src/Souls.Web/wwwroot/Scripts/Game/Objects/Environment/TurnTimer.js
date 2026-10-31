@@ -1,6 +1,6 @@
 // The turn timer: a burning fuse (.sg-fuse) under the End Turn button that counts down the current turn (75 s on
 // the server), "Your turn · 0:42" / "Enemy turn · 0:42". It turns red and pulses in the last 15 seconds.
-define("turntimer", ["hud", "conf"], function (Hud, Conf) {
+define("turntimer", ["hud", "conf", "asset"], function (Hud, Conf, Asset) {
 
     var T = window.SoulsL10n.t;
 
@@ -73,6 +73,10 @@ define("turntimer", ["hud", "conf"], function (Hud, Conf) {
 
         var urgent = left <= URGENT_MS;
         if (urgent !== this.urgent) {
+            // The fuse starts to hiss when it gets short on our turn.
+            if (urgent && this.urgent === false && this.mine && left > 0) {
+                try { Asset.GetSound(Asset.Sound.TIMER_WARNING).play({ volume: 0.7 }); } catch (e) { /* sound is optional */ }
+            }
             this.urgent = urgent;
             this.el.classList.toggle('urgent', urgent);
         }

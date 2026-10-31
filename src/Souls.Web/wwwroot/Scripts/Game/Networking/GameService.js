@@ -143,6 +143,7 @@
         hero.handCount = hero.cardManager.HandCount();
         hero.RefreshHud();
         if (created.length === 0) return 0;
+        Animation.PlaySound(Asset.Sound.CARD_DRAW, hero === engine.player ? 0.55 : 0.35);
         return 420 + 160 * (created.length - 1);
     }
 
@@ -152,6 +153,7 @@
         if (!engine.player) return 0;
         var payload = json.Payload || {};
         var hero = (json.Type == 227) ? engine.player : engine.opponent;
+        if (hero === engine.player) Animation.PlaySound(Asset.Sound.CARD_SHUFFLE, 0.8);
         hero.cardManager.ReplaceHand(payload.hand || []);
         hero.handCount = hero.cardManager.HandCount();
         hero.RefreshHud();
@@ -180,6 +182,8 @@
 
         var kind = type == 230 ? "victory" : type == 231 ? "defeat" : "draw";
         var title = kind === "victory" ? T('classic.end.victory') : kind === "defeat" ? T('classic.end.defeat') : T('classic.end.draw');
+        Asset.StopMusic();
+        if (type != 233) Animation.PlaySound(type == 230 ? Asset.Sound.VICTORY : Asset.Sound.DEFEAT, 0.9);
         if (engine.battleLog) engine.battleLog.Add(title, "system");
         engine.queue.FadeInGameEnd(title, payload.statistics, payload, kind);
         return 0;
@@ -311,6 +315,7 @@
         var rarity = Number(cardData.rarity) || 0;
         if (rarity < 3 || cardData.token) return 0;
         var legendary = rarity === 4;
+        Animation.PlaySound(legendary ? Asset.Sound.LEGENDARY : Asset.Sound.INSIGHT, legendary ? 0.85 : 0.5);
         if (legendary) engine.hud.Legendary(String(cardData.name === undefined || cardData.name === null ? '' : cardData.name), enemy);
         setTimeout(function () {
             if (engine.ended) return;
@@ -334,10 +339,8 @@
         ResetGame(engine);
         CloseMulligan(engine);
 
-        if (!engine.musicStarted) {
-            engine.musicStarted = true;
-            try { Asset.GetSound(Asset.Sound.GAME_MUSIC).play({ loop: 9999, volume: 0.1 }); } catch (e) { }
-        }
+        try { Asset.PlayMusic(Asset.Music.GAME, 0.4); } catch (e) { /* sound is optional */ }
+        if (payload.create) Animation.PlaySound(Asset.Sound.VERSUS, 0.8);
 
         engine.myIdent = Number(payload.ident) || 1;
         engine.myTurn = !!payload.yourTurn;
@@ -449,6 +452,7 @@
         var firstTurn = CloseMulligan(engine);
 
         var button = engine.background.endTurnButton;
+        if (engine.myTurn) Animation.PlaySound(Asset.Sound.TURN_START, 0.7);
         if (button.spinning || button.active !== engine.myTurn) button.Spin(engine.myTurn);
         else button.SetPlayerTurn(engine.myTurn);
 
