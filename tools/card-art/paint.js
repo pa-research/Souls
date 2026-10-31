@@ -60,23 +60,36 @@ async function gen(args, selected) {
     await Promise.all(Array.from({ length: args.jobs }, async () => { while (queue.length) await run(queue.shift()); }));
 }
 
+// Largest JPEG per kind (the shop loads every card, a phone too); quality steps down from 80 until it fits, floor 62.
+const BUDGET_KB = { card: 70, spell: 70, hero: 90 };
+
 async function out(args, selected) {
     for (const c of selected) {
         const [w, h] = c.size;
         const dst = path.join(IMAGES, c.file);
         // Every client stretches the whole image into a fixed box (cards 236x167, heroes 300x250), so the master is
         // cropped to that aspect around its centre, never stretched.
-        let img = sharp(path.join(args.masters, `${c.id}.png`)).removeAlpha().toColorspace('srgb')
-            .resize(w, h, { fit: 'cover', position: c.position || 'centre', kernel: 'lanczos3' });
-        img = dst.endsWith('.png') ? img.png({ compressionLevel: 9, palette: true, quality: 95, dither: 0.6 })
-            : img.jpeg({ quality: 85, mozjpeg: true, chromaSubsampling: '4:4:4' });
-        const buf = await img.toBuffer();
+        // fit "contain" (cut-outs on a transparent background): trim the empty border, then fit inside the box.
+        const src = path.join(args.masters, `${c.master || c.id}.png`);
+        let img = sharp(c.fit === 'contain' ? await sharp(src).trim().toBuffer() : src).toColorspace('srgb')
+            .resize(w, h, { fit: c.fit || 'cover', position: c.position || 'centre', kernel: 'lanczos3', background: { r: 0, g: 0, b: 0, alpha: 0 } });
+        if (c.brightness) img = img.modulate({ brightness: c.brightness });
+        let buf, q = 80;
+        if (dst.endsWith('.png')) buf = await img.png({ compressionLevel: 9, palette: true, quality: 90, dither: 0.6 }).toBuffer();
+        else for (;;) {
+            buf = await img.clone().removeAlpha()
+                .jpeg({ quality: q, mozjpeg: true, progressive: true, chromaSubsampling: '4:2:0' }).toBuffer();
+            if (buf.length <= (BUDGET_KB[c.kind] || Infinity) * 1024 || q <= 62) break;
+            q -= 2;
+        }
         fs.writeFileSync(dst, buf);
-        console.log(`${String(c.id).padEnd(10)} ${c.file.padEnd(28)} ${w}x${h} ${(buf.length / 1024).toFixed(0)} KB`);
+        console.log(`${String(c.id).padEnd(12)} ${c.file.padEnd(28)} ${w}x${h} q${q} ${(buf.length / 1024).toFixed(0)} KB`);
     }
 }
 
 const args = parseArgs(process.argv.slice(2));
-const selected = args.ids.length ? cards.filter(c => args.ids.includes(String(c.id))) : cards;
+// gen only paints entries with a prompt; the others are made by out from another entry's master.
+const selected = (args.ids.length ? cards.filter(c => args.ids.includes(String(c.id))) : cards)
+    .filter(c => args.cmd === 'out' || c.prompt);
 if (!selected.length) throw new Error('no entries selected');
 (args.cmd === 'gen' ? gen : out)(args, selected).catch(e => { console.error(e); process.exit(1); });

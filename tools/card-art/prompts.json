@@ -7,17 +7,20 @@
     "lightbringer": "Palette and setting: radiant gold, ivory and dawn blue, warm sunrise light, cathedral light shafts, polished gold-trimmed armour and white feathers, glowing haze.",
     "ferocious": "Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays.",
     "frost": "Palette and setting: icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light.",
-    "neutral": "Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light."
+    "neutral": "Palette and setting: cold pale blue, silver and grey, an empty misty void with soft light.",
+    "shop": "Palette: warm candle-gold, deep brown, soft crimson and old brass, lit like a cosy shop in a dark-fantasy town."
   },
   "kinds": {
     "card": "Landscape 3:2 composition (1536x1024).",
     "spell": "This is a spell card: the subject is the magical effect itself (its shape, energy and light), not a character portrait. Landscape 3:2 composition (1536x1024).",
-    "hero": "Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024)."
+    "hero": "Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024).",
+    "mascot": "Shop mascots: two full-body characters standing side by side, centred, on a fully transparent background (no scenery, no floor, no frame), with clean painted edges. Landscape 3:2 composition (1536x1024). Charming, friendly and a little comical, in a painterly dark-fantasy card-game style with rich colour and warm rim light. Original character designs that do not resemble any existing mascots, cartoon characters or real people. No text, letters, logos, signature or watermark.",
+    "backdrop": "A page background: wide, empty and moody, with no characters and no focal subject, dark and low in contrast so that text and panels can sit on top of it; a finished painterly digital painting. Landscape 16:10 composition (1536x1024). No text, letters, road markings, logos, signature or watermark."
   },
   "cards": [
     {
       "id": "card-0",
-      "file": "Card/Portraits/0.png",
+      "file": "Card/Portraits/0.jpg",
       "name": "Unknown card",
       "race": "neutral",
       "kind": "card",
@@ -29,7 +32,7 @@
     },
     {
       "id": 1,
-      "file": "Card/Portraits/1.png",
+      "file": "Card/Portraits/1.jpg",
       "name": "Snokulv",
       "race": "frost",
       "kind": "card",
@@ -41,7 +44,7 @@
     },
     {
       "id": 2,
-      "file": "Card/Portraits/2.png",
+      "file": "Card/Portraits/2.jpg",
       "name": "Dr. Robotnik",
       "race": "lightbringer",
       "kind": "card",
@@ -53,7 +56,7 @@
     },
     {
       "id": 3,
-      "file": "Card/Portraits/3.png",
+      "file": "Card/Portraits/3.jpg",
       "name": "Per",
       "race": "ferocious",
       "kind": "card",
@@ -65,7 +68,7 @@
     },
     {
       "id": 4,
-      "file": "Card/Portraits/4.png",
+      "file": "Card/Portraits/4.jpg",
       "name": "Christine",
       "race": "darkness",
       "kind": "card",
@@ -77,7 +80,7 @@
     },
     {
       "id": 5,
-      "file": "Card/Portraits/5.png",
+      "file": "Card/Portraits/5.jpg",
       "name": "Huy",
       "race": "ferocious",
       "kind": "card",
@@ -89,7 +92,7 @@
     },
     {
       "id": 6,
-      "file": "Card/Portraits/6.png",
+      "file": "Card/Portraits/6.jpg",
       "name": "Bobby",
       "race": "vampiric",
       "kind": "card",
@@ -113,7 +116,7 @@
     },
     {
       "id": 18,
-      "file": "Card/Portraits/18.png",
+      "file": "Card/Portraits/18.jpg",
       "name": "Spirit Wolf",
       "race": "lightbringer",
       "kind": "card",
@@ -749,7 +752,7 @@
     },
     {
       "id": "hero-0",
-      "file": "Player/Portraits/0.png",
+      "file": "Player/Portraits/0.jpg",
       "name": "Unknown hero",
       "race": "neutral",
       "kind": "hero",
@@ -761,7 +764,7 @@
     },
     {
       "id": "hero-1",
-      "file": "Player/Portraits/1.png",
+      "file": "Player/Portraits/1.jpg",
       "name": "Rabid Soul",
       "race": "darkness",
       "kind": "hero",
@@ -773,7 +776,7 @@
     },
     {
       "id": "hero-2",
-      "file": "Player/Portraits/2.png",
+      "file": "Player/Portraits/2.jpg",
       "name": "Lurker",
       "race": "vampiric",
       "kind": "hero",
@@ -785,7 +788,7 @@
     },
     {
       "id": "hero-3",
-      "file": "Player/Portraits/3.png",
+      "file": "Player/Portraits/3.jpg",
       "name": "Harrison",
       "race": "lightbringer",
       "kind": "hero",
@@ -797,7 +800,7 @@
     },
     {
       "id": "hero-4",
-      "file": "Player/Portraits/4.png",
+      "file": "Player/Portraits/4.jpg",
       "name": "Fader",
       "race": "ferocious",
       "kind": "hero",
@@ -806,6 +809,42 @@
         600
       ],
       "prompt": "Fader: a hulking horned beast-warrior shaman with a bear-like face, amber eyes and heavy armour of iron plates and bark, a faint amber spirit glow fading around him. Palette and setting: amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. Hero portrait: a head-and-shoulders bust facing the viewer, the face in the exact centre of the image with generous space around the head so that it reads inside a circular crop; a simple dark atmospheric background. Square composition (1024x1024). Dark-fantasy collectible card game art: a finished painterly digital painting with visible brushwork, rich saturated colour, dramatic rim light that separates the subject from the background, volumetric atmosphere and depth. One single clear subject, large and centred, entirely inside the middle 80% of the frame with nothing important touching the edges; a strong, simple silhouette that still reads at thumbnail size (150 pixels wide); the background is darker and less detailed than the subject. No text, letters, numbers, runes or writing, no logos, no signature, no watermark, no border, frame or card template. An original design that does not resemble any real person or any existing franchise character."
+    },
+    {
+      "id": "page-hansel",
+      "file": "Page/hansel.png",
+      "name": "Hansel and his wife",
+      "race": "shop",
+      "kind": "mascot",
+      "size": [
+        560,
+        310
+      ],
+      "prompt": "Hansel, once the champion of souls and now a retired, round-bellied shopkeeper with a big grey moustache, a kind battle-scarred face and a leather apron over his old dented champion breastplate, proudly holding up a fan of glowing cards; beside him his wife, a small, sharp-eyed, cheerful woman with her hair in a bun, a knitted shawl and spectacles, holding a ledger and a ring of brass keys. Palette: warm candle-gold, deep brown, soft crimson and old brass, lit like a cosy shop in a dark-fantasy town. Shop mascots: two full-body characters standing side by side, centred, on a fully transparent background (no scenery, no floor, no frame), with clean painted edges. Landscape 3:2 composition (1536x1024). Charming, friendly and a little comical, in a painterly dark-fantasy card-game style with rich colour and warm rim light. Original character designs that do not resemble any existing mascots, cartoon characters or real people. No text, letters, logos, signature or watermark.",
+      "fit": "contain"
+    },
+    {
+      "id": "page-bg",
+      "file": "Page/bg.jpg",
+      "name": "Site background",
+      "race": "darkness",
+      "kind": "backdrop",
+      "size": [
+        1680,
+        1050
+      ],
+      "prompt": "A lonely dirt road winding through a misty dead forest at night, tall bare trees fading into grey fog, faint cold moonlight far down the road. Palette and setting: moonlit night in cold violet, indigo and blue-grey with pale moonlight and touches of sickly green; graveyards, barrow mounds, dead trees and drifting mist. A page background: wide, empty and moody, with no characters and no focal subject, dark and low in contrast so that text and panels can sit on top of it; a finished painterly digital painting. Landscape 16:10 composition (1536x1024). No text, letters, road markings, logos, signature or watermark."
+    },
+    {
+      "id": "bg-faded",
+      "file": "bg_faded.jpg",
+      "name": "Classic client backdrop",
+      "master": "page-bg",
+      "brightness": 0.35,
+      "size": [
+        1680,
+        1050
+      ]
     }
   ]
 }

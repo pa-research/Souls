@@ -854,6 +854,8 @@ a:hover { color: #fff0c2; }
     background-size: 100% 100%;
     background-position: center;
 }
+/* The site's card tiles use an <img> (lazy); the in-game ones a background. No placeholder behind the image. */
+img.s-card-portrait { background: none; }
 
 .s-card-title,
 .s-card-ability {

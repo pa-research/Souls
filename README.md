@@ -66,11 +66,11 @@ copies in a deck), a flavor line and, where it has one, an ability with its own 
 
 ### Card art
 
-Every card, the Lost Soul token and the four hero portraits are dark-fantasy paintings made for Souls in 2026 with
-OpenAI image generation (the image tool of the Codex CLI), in one art direction for the whole set. The style bible
-and the prompt of every portrait are in `tools/card-art` (`README.md`, `prompts.json`); `paint.js` paints a card
-again. The 2014 art of the original cards and heroes (photos and third-party images) is kept in the
-`original-2014/` folders next to the portraits and is no longer used. Credits and licensing notes:
+Every card, the Lost Soul token, the four hero portraits, the shop mascots (Hansel and his wife) and the page
+backgrounds are dark-fantasy paintings made for Souls in 2026 with OpenAI image generation (the image tool of the
+Codex CLI), in one art direction for the whole set. The style bible and the prompt of every image are in
+`tools/card-art` (`README.md`, `prompts.json`); `paint.js` paints one again. The 2014 art they replace (photos and
+third-party images) is kept in `original-2014/` folders next to the new files and is no longer used. Credits and licensing notes:
 `wwwroot/Content/Images/Card/Portraits/CREDITS.md`.
 
 ## Interface

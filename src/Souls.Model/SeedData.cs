@@ -28,8 +28,8 @@ public static class SeedData
     private const int L = Rarity.Legendary;
 
     /// <summary>
-    /// The card set: the eight cards of the original game (ids 1-7 and 18, with their original art) and the 2026
-    /// expansion. Stats follow the budget in <see cref="CardPower"/> and were tuned with bot-versus-bot simulations
+    /// The card set: the eight cards of the original game (ids 1-7 and 18, painted anew in 2026; their 2014 art is in
+    /// Portraits/original-2014) and the 2026 expansion. Stats follow the budget in <see cref="CardPower"/> and were tuned with bot-versus-bot simulations
     /// (tools/Souls.Sim, docs/balance.md). Starter cards (all common, so five of them fill a deck) can be picked on
     /// registration.
     /// </summary>
@@ -47,7 +47,7 @@ public static class SeedData
         Card(24, "Mara", Darkness, R, cost: 3, attack: 2, health: 4, armor: 0, Ability.Paralyze,
             flavor: "She rides the chest of the sleeper until dawn."),
         // Christine's ability as the 2015 database assigned it.
-        Card(4, "Christine", Darkness, E, cost: 4, attack: 3, health: 4, armor: 1, Ability.Paralyze, portrait: "/Content/Images/Card/Portraits/4.png",
+        Card(4, "Christine", Darkness, E, cost: 4, attack: 3, health: 4, armor: 1, Ability.Paralyze,
             flavor: "One look, and you forget how to move."),
         Card(25, "Gravecaller", Darkness, R, cost: 4, attack: 2, health: 5, armor: 0, Ability.Brood, value: 2,
             flavor: "Every grave is a door, if you know how to knock."),
@@ -59,7 +59,7 @@ public static class SeedData
             flavor: "Every soul in the arena is already on his list."),
 
         // ---- Vampiric: lifesteal ------------------------------------------------------------------------------------
-        Card(6, "Bobby", Vampiric, C, cost: 1, attack: 1, health: 3, armor: 0, Ability.Taunt, starter: true, portrait: "/Content/Images/Card/Portraits/6.png",
+        Card(6, "Bobby", Vampiric, C, cost: 1, attack: 1, health: 3, armor: 0, Ability.Taunt, starter: true,
             flavor: "Bobby holds the line. Bobby has always held the line."),
         Card(30, "Blood Bat", Vampiric, C, cost: 1, attack: 2, health: 1, armor: 0, Ability.Charge,
             flavor: "The first drop is always the sweetest."),
@@ -83,8 +83,8 @@ public static class SeedData
         // ---- Lightbringer: blessing ---------------------------------------------------------------------------------
         Card(40, "Acolyte of Dawn", Lightbringer, C, cost: 1, attack: 1, health: 1, armor: 0, Ability.Rally, value: 1, starter: true,
             flavor: "One horn call, and the faithful stand taller."),
-        // Card 2 carries its original April 2014 art (Dr. Robotnik) and the 2014 ability.
-        Card(2, "Dr. Robotnik", Lightbringer, L, cost: 2, attack: 2, health: 2, armor: 1, Ability.Sacrifice, portrait: "/Content/Images/Card/Portraits/2.png",
+        // Card 2 keeps the name and ability of the 2014 prototype card (its art is now an inventor of our own).
+        Card(2, "Dr. Robotnik", Lightbringer, L, cost: 2, attack: 2, health: 2, armor: 1, Ability.Sacrifice,
             flavor: "Every great plan needs a volunteer."),
         Card(41, "Shieldmaiden", Lightbringer, C, cost: 2, attack: 2, health: 2, armor: 0, Ability.Taunt, starter: true,
             flavor: "Behind her shield, the line does not break."),
@@ -95,7 +95,7 @@ public static class SeedData
         Card(44, "Sun Cleric", Lightbringer, R, cost: 3, attack: 2, health: 3, armor: 0, Ability.Heal, value: 3,
             flavor: "The sun asks nothing in return. The cleric does."),
         // "Spirit wolf coming to Souls" (news banner, May 2014): card 18 of the live database.
-        Card(18, "Spirit Wolf", Lightbringer, L, cost: 4, attack: 4, health: 4, armor: 0, Ability.Charge, portrait: "/Content/Images/Card/Portraits/18.png",
+        Card(18, "Spirit Wolf", Lightbringer, L, cost: 4, attack: 4, health: 4, armor: 0, Ability.Charge,
             flavor: "Promised in 2014. Worth the wait."),
         Card(45, "Valkyrie", Lightbringer, E, cost: 5, attack: 4, health: 5, armor: 0, Ability.Fury,
             flavor: "She chooses who falls. Today she chose your army."),
@@ -112,20 +112,20 @@ public static class SeedData
         Card(52, "Huldra", Ferocious, R, cost: 3, attack: 2, health: 3, armor: 0, Ability.Venom,
             flavor: "Lovely from the front. Never look behind her."),
         // Per's ability as the 2015 database assigned it.
-        Card(3, "Per", Ferocious, R, cost: 4, attack: 4, health: 4, armor: 1, Ability.Summon, value: 1, portrait: "/Content/Images/Card/Portraits/3.png",
+        Card(3, "Per", Ferocious, R, cost: 4, attack: 4, health: 4, armor: 1, Ability.Summon, value: 1,
             flavor: "Per never fights alone."),
         Card(53, "Forest Troll", Ferocious, C, cost: 4, attack: 4, health: 5, armor: 0, Ability.Regenerate, value: 2,
             flavor: "Cut it down and it grows back meaner."),
         // "Huy" in the 2014 game data; the 2015 dump renamed it "Anette" (with test stats), restored here.
-        Card(5, "Huy", Ferocious, C, cost: 5, attack: 3, health: 6, armor: 1, Ability.Heal, value: 2, starter: true, portrait: "/Content/Images/Card/Portraits/5.png",
+        Card(5, "Huy", Ferocious, C, cost: 5, attack: 3, health: 6, armor: 1, Ability.Heal, value: 2, starter: true,
             flavor: "Big hands, gentle heart."),
         // Anette (the 2015 card 5) as a card of her own: almost no attack or health, a wall of armor, Haunt.
         Card(7, "Anette", Ferocious, E, cost: 5, attack: 3, health: 2, armor: 5, Ability.Haunt, portrait: "/Content/Images/Card/Portraits/16.jpg",
             flavor: "Death is only a short break for Anette."),
         Card(54, "Troll Chieftain", Ferocious, R, cost: 5, attack: 4, health: 5, armor: 1, Ability.Rally, value: 1,
             flavor: "When the chieftain roars, the whole mountain answers."),
-        // Card 1 carries its original April 2014 art (a wolf) and the name of the early test card, "Snokulv".
-        Card(1, "Snokulv", Ferocious, R, cost: 6, attack: 5, health: 6, armor: 1, Ability.Heal, value: 2, portrait: "/Content/Images/Card/Portraits/1.png",
+        // Card 1 (a wolf in the April 2014 art) carries the name of the early test card, "Snokulv".
+        Card(1, "Snokulv", Ferocious, R, cost: 6, attack: 5, health: 6, armor: 1, Ability.Heal, value: 2,
             flavor: "The snow wolf of the north: the first card ever drawn in Souls."),
         Card(55, "Frost Jotun", Ferocious, E, cost: 8, attack: 6, health: 7, armor: 1, Ability.Taunt,
             flavor: "Older than the mountains, and twice as patient."),

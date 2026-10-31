@@ -1,7 +1,7 @@
 # Card art
 
-Every card portrait (`src/Souls.Web/wwwroot/Content/Images/Card/Portraits/`), the Lost Soul token and the hero
-portraits (`Player/Portraits/0.png`-`4.png`) are paintings made with OpenAI image generation through the Codex CLI.
+Every card portrait (`src/Souls.Web/wwwroot/Content/Images/Card/Portraits/`), the Lost Soul token, the hero
+portraits (`Player/Portraits/0.jpg`-`4.jpg`) and the shop mascots and page backgrounds are paintings made with OpenAI image generation through the Codex CLI.
 This folder holds the art direction (below), the prompt of every image (`prompts.json`) and `paint.js`, which paints
 them again. The older procedural "emblem" generator is kept as a fallback (last section).
 
@@ -24,6 +24,7 @@ then its kind, then the common style, in that order.
 | Ferocious | amber, moss green and earthy brown, an ancient Nordic forest and mountains, warm firelight and golden god rays. |
 | Frost (Ferocious ice cards: Snokulv, Frost Jotun, Frostbite) | icy cyan, white and steel blue, snowstorm, glaciers and frozen mountain passes, cold rim light. |
 | Neutral (Lost Soul, unknown card and hero) | cold pale blue, silver and grey, an empty misty void with soft light. |
+| Shop (mascots) | warm candle-gold, deep brown, soft crimson and old brass, lit like a cosy shop in a dark-fantasy town. |
 
 **Kinds**
 
@@ -34,6 +35,9 @@ then its kind, then the common style, in that order.
   sunlight and sword (Sunlance, Dawn Paladin), Fader's fading and armoured beasts (Phantom Wolf, Ironhide Bear).
 - Heroes: a head-and-shoulders bust facing the viewer, face in the exact centre with room around the head, so it
   reads in the circle crops of the site and the ellipse of the game clients; square.
+- Site art has its own style line instead of the common one (that one asks for a single subject in a scene):
+  - Shop mascots: two full-body characters standing side by side, centred, on a fully transparent background (no scenery, no floor, no frame), with clean painted edges. Landscape 3:2 composition (1536x1024). Charming, friendly and a little comical, in a painterly dark-fantasy card-game style with rich colour and warm rim light. Original character designs that do not resemble any existing mascots, cartoon characters or real people. No text, letters, logos, signature or watermark.
+  - Backdrops: a page background, wide, empty and moody, with no characters and no focal subject, dark and low in contrast so that text and panels can sit on top of it; a finished painterly digital painting. Landscape 16:10 composition (1536x1024). No text, letters, road markings, logos, signature or watermark.
 - The original 2014 cards keep their names and abilities, with new original designs: no real people's likenesses,
   no existing characters (card 2 "Dr. Robotnik" is a white-haired clockwork inventor of our own), no logos or text.
 
@@ -43,16 +47,23 @@ needed) when it is muddy, off-palette or cropped badly.
 
 ## Sizes and crops
 
-All clients stretch the whole image into a fixed box (`background-size: 100% 100%` on the site, `drawImage` into
-the box in the 3D client, a sprite of fixed size in the classic client), so every image is shipped at the aspect of
-its box and nothing is stretched:
+All clients stretch the whole image into a fixed box (an `<img>` or `background-size: 100% 100%` on the site,
+`drawImage` into the box in the 3D client, a sprite of fixed size in the classic client), so every image is shipped
+at the aspect of its box and nothing is stretched:
 
-- Cards: 708x501, the 236x167 portrait window at 3x. The rarity gem overlaps the bottom centre of the window.
-  `{id}.jpg` and `lost-soul.jpg` are JPEG q85 (mozjpeg, 4:4:4); the original cards keep their file names
-  (`0.png`-`6.png`, `16.jpg` for card 7, `18.png`), so the database needs no change.
-- Heroes: 720x600, the 300x250 hero box of both clients (clipped to an ellipse); the site crops them to a circle and,
-  on the Register page, to a wide band through the face (`object-fit: cover`), so the face sits in the centre.
-- PNG names are written as palette PNGs (libimagequant, light dither) to keep them small.
+- Cards: 708x501, the 236x167 portrait window at 3x, `{id}.jpg` (card 7 is `16.jpg`, its 2014 name) and
+  `lost-soul.jpg`. The rarity gem overlaps the bottom centre of the window.
+- Heroes: 720x600, `Player/Portraits/{class}.jpg`, the 300x250 hero box of both clients (clipped to an ellipse); the
+  site crops them to a circle and, on the Register page, to a wide band through the face (`object-fit: cover`), so
+  the face sits in the centre.
+- Weight: the shop and the deck builder list every card (lazy-loaded), so cards are at most 70 KB and heroes 90 KB.
+  `out` writes progressive JPEG (mozjpeg, 4:2:0) and steps the quality down from 80 until the image fits (floor 62;
+  the set lands at q70-80, which stays clean at 3x).
+- Site art: the shop mascots (`Page/hansel.png`, a cut-out on a transparent background: `fit: contain` trims the empty
+  border, palette PNG with alpha, 560x310 = 280 CSS px at 2x), the page background `Page/bg.jpg` and the classic
+  client's backdrop `bg_faded.jpg` (the same painting at 35% brightness, an entry without a prompt). The home page's
+  news banner `NewsPosts/post3.jpg` is card 18's master with the 2014 banner's text ("Spirit wolf coming to Souls",
+  Liberation Serif Bold, red) set on the left with ImageMagick.
 
 `paint.js out` crops each master around its centre to that aspect (an entry may set `position`, any sharp
 position such as `north`, to move the crop) and resizes it with Lanczos.

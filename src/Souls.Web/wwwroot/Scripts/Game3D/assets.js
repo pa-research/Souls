@@ -11,7 +11,7 @@ export const Images = {
     cardBack: IMG + 'Card/cardback.png',
     cardSlot: IMG + 'Card/cardslot.png',
     cardError: IMG + 'Card/Texture/card_error.png',
-    cardUnknown: IMG + 'Card/Portraits/0.png',
+    cardUnknown: IMG + 'Card/Portraits/0.jpg',
     raceTextures: {
         1: IMG + 'Card/Texture/darkness.png',
         2: IMG + 'Card/Texture/vampiric.png',
@@ -32,7 +32,7 @@ export const Images = {
     normalFocus: IMG + 'normal_game_focus.png',
     audioOn: IMG + 'audio_on.png',
     audioOff: IMG + 'audio_off.png',
-    heroPortrait: type => IMG + `Player/Portraits/${type}.png`,
+    heroPortrait: type => IMG + `Player/Portraits/${type}.jpg`,
 };
 
 export const Sounds = {
@@ -79,7 +79,7 @@ export async function preload(cardPortraits, onProgress) {
         Images.arena, Images.cardBack, Images.cardSlot, Images.cardError, Images.playerFrame, Images.opponentFrame,
         Images.playerNone, Images.mana, Images.endTurn, Images.endTurnDisabled, Images.target, Images.particle,
         ...Object.values(Images.raceTextures),
-        ...[0, 1, 2, 3, 4, 5, 6].map(Images.heroPortrait),
+        ...[0, 1, 2, 3, 4].map(Images.heroPortrait),
         ...cardPortraits.map(c => c.portrait),
     ];
     let done = 0;

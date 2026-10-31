@@ -141,7 +141,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         // Create a stage and the renderer
         this.stage = new Pixi.Stage(0x000000, true);
 
-        var textureBg = Pixi.Texture.fromImage("/Content/Images/bg_faded.png");
+        var textureBg = Pixi.Texture.fromImage("/Content/Images/bg_faded.jpg");
         var backdrop = new Pixi.Sprite(textureBg);
         backdrop.anchor = { x: 0, y: 0 }
         backdrop.x = 0;
