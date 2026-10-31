@@ -1,7 +1,7 @@
 ﻿// Matchmaking and the end of the game, as DOM layers over the canvas (shared components from css/game-hud.css).
 // While queueing, the classic backdrop stays on the canvas under a panel with spinning rings, the status, the time
 // waited, the mode (and rank) and a Cancel button. The end screen shows the result, the coins and rating earned,
-// the daily quests, links to the statistics and the replay, and moves on to the statistics after 25 seconds.
+// the season rank before and after a ranked game (a friendly game earns nothing), the daily quests, links to the statistics and the replay, and moves on to the statistics after 25 seconds.
 // Server strings are always set as text.
 define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Conf) {
 
@@ -222,7 +222,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     /// </summary>
     /// <param name="text">Victory! / Defeat! / Draw!</param>
     /// <param name="statisticsId">The game id (statistics page)</param>
-    /// <param name="payload">{statistics, text, coins, rating, ratingChange, quests}</param>
+    /// <param name="payload">{statistics, text, coins, rating, ratingChange, quests, season, friendly}</param>
     Queue.prototype.FadeInGameEnd = function (text, statisticsId, payload) {
         clearInterval(this.clock);
         Hud.Remove(this.layer);
@@ -256,9 +256,10 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         heading.id = 'souls-classic-end-title';
         if (payload.text) Hud.El('div', 'sg-end-sub', end, payload.text);
 
-        // Rewards: coins and rating (or "unrated" in practice), counting up.
+        // Rewards: coins and rating (or "unrated" in practice, nothing in a friendly game), counting up.
+        var friendly = payload.friendly === true || !!this.engine.friendlyGame;
         var rewards = Hud.El('div', 'sg-rewards', end);
-        if (typeof payload.coins === 'number') {
+        if (typeof payload.coins === 'number' && !friendly) {
             var coins = Hud.El('div', 's-panel sg-reward', rewards);
             coins.appendChild(Hud.Icon('coin'));
             var coinValue = Hud.El('b', '', coins, '+0');
@@ -279,14 +280,14 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             }
             Hud.CountUp(ratingValue, Math.abs(change), up ? '+' : '-', 1000);
         }
-        else if (!this.engine.normalGame || this.engine.friendlyGame) {
-            var friendly = this.engine.friendlyGame;
+        else if (!this.engine.normalGame || friendly) {
             var practice = Hud.El('div', 's-panel sg-reward', rewards);
             practice.appendChild(Hud.Icon(friendly ? 'users' : 'bot'));
             Hud.El('b', '', practice, '–');
-            Hud.El('span', '', practice, friendly ? 'Friendly · unranked' : 'Practice · unrated');
+            Hud.El('span', '', practice, friendly ? 'Friendly game: no rewards' : 'Practice · unrated');
         }
         if (!rewards.firstChild) Hud.Remove(rewards);
+        if (payload.season) SeasonResult(end, payload.season);
 
         if (payload.quests && payload.quests.length) {
             var quests = Hud.El('section', 's-panel sg-end-quests', end);
@@ -332,6 +333,28 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
 
         try { first.focus({ preventScroll: true }); } catch (e) { /* focus is optional */ }
         return layer;
+    }
+
+    /// A ranked game's season: the rank emblem before and after, and a promotion or demotion.
+    function SeasonResult(parent, season) {
+        var change = season.promoted ? 'promoted' : season.demoted ? 'demoted' : '';
+        var panel = Hud.El('section', 's-panel sg-end-season' + (change ? ' ' + change : ''), parent);
+        var head = Hud.El('div', 's-panel-head', panel);
+        head.appendChild(Hud.Icon('trophy'));
+        Hud.El('h3', '', head, String(season.name || 'Season'));
+        if (change) {
+            var label = Hud.El('span', 'sg-season-change', head);
+            label.appendChild(Hud.Icon(season.promoted ? 'arrow-up' : 'chevron-down'));
+            Hud.Text(label, season.promoted ? 'Promoted' : 'Demoted');
+        }
+        var ranks = Hud.El('div', 'sg-season-ranks', panel);
+        function Badge(r, which) {
+            r = r || {};
+            Hud.RankBadge(ranks, Number(r.rating), String(r.tier || ''), String(r.css || '')).classList.add(which);
+        }
+        Badge(season.before, 'before');
+        ranks.appendChild(Hud.Icon('chevron-right', 's-icon sg-season-arrow'));
+        Badge(season.after, 'after');
     }
 
     return Queue;

@@ -9,12 +9,12 @@ namespace Souls.Server.Game;
 
 public sealed partial class GameEngine
 {
-    private sealed record Reward(int Coins, int RatingChange, int Rating, JsonArray Quests);
+    private sealed record Reward(int Coins, int RatingChange, int Rating, JsonArray Quests, JsonObject? Season);
 
     /// <summary>
-    /// Ends a game: stores it with its log and replay, updates ratings, coins and daily quests, notifies players and
-    /// spectators and removes the players from the server (clients navigate to the statistics page and reconnect for
-    /// the next game).
+    /// Ends a game: stores it with its log and replay, updates ratings, coins and daily quests (not for a friendly
+    /// game), notifies players and spectators and removes the players from the server (clients navigate to the
+    /// statistics page and reconnect for the next game).
     /// </summary>
     public async Task EndGameAsync(GameRoom room, bool isDraw)
     {
@@ -60,12 +60,22 @@ public sealed partial class GameEngine
         Response Result(Player p)
         {
             var payload = new JsonObject { ["statistics"] = room.GameId, ["text"] = text };
-            if (rewards.TryGetValue(p, out var reward))
+            if (room.IsFriendly)
+            {
+                payload["friendly"] = true;
+                payload["coins"] = 0;
+                payload["ratingChange"] = null;
+            }
+            else if (rewards.TryGetValue(p, out var reward))
             {
                 payload["coins"] = reward.Coins;
                 payload["ratingChange"] = room.IsPractice ? null : reward.RatingChange;
                 payload["rating"] = reward.Rating;
                 payload["quests"] = reward.Quests;
+                if (reward.Season is { } season)
+                {
+                    payload["season"] = season;
+                }
             }
 
             return new Response(isDraw ? GameResponse.GameDraw : winner == p ? GameResponse.GameVictory : GameResponse.GameDefeat, payload);
@@ -132,7 +142,12 @@ public sealed partial class GameEngine
 
         // The saved running game goes first (see GameStore). If storing the result fails after that, the game is lost
         // as it was before games were saved; but a game whose result is stored can never be restored and count twice.
-        await db.RunningGames.Where(g => g.GameId == room.GameId).ExecuteDeleteAsync();
+        if (store is not null)
+        {
+            await store.DeleteAsync(room.GameId);
+        }
+
+        var season = rated ? await Seasons.CurrentAsync(db) : null;
 
         var game = new Model.Entities.Game
         {
@@ -152,7 +167,8 @@ public sealed partial class GameEngine
         var rewards = new Dictionary<Player, Reward>();
         foreach (var (p, change) in new[] { (player, change1), (opponent, change2) })
         {
-            if (p.IsBot || p.GPlayer is not { } gp)
+            // A friendly game earns nothing: no coins, quests, rating or season points.
+            if (p.IsBot || p.GPlayer is not { } gp || room.IsFriendly)
             {
                 continue;
             }
@@ -166,6 +182,7 @@ public sealed partial class GameEngine
             var (questCoins, quests) = await Quests.ApplyAsync(db, p.Id, counters, time);
 
             var entity = await db.Players.SingleAsync(x => x.Id == p.Id);
+            var before = entity.Rating;
             entity.Money += coins + questCoins;
             entity.Rating += change;
             entity.Rank = Ratings.RankOf(entity.Rating);
@@ -180,12 +197,36 @@ public sealed partial class GameEngine
                     ["reward"] = definition.Reward,
                     ["done"] = q.CompletedAt is not null,
                 };
-            })]));
+            })]), season is null ? null : SeasonResult(season, before, entity.Rating));
         }
 
         await db.SaveChangesAsync();
         room.GameId = game.Id;
         return rewards;
+    }
+
+    /// <summary>
+    /// A ranked game in the season: its standings go by rating (the season points) and the rank of the rating is the
+    /// tier (see <see cref="Seasons"/>), so the end screen shows both before and after the game.
+    /// </summary>
+    private static JsonObject SeasonResult(Season season, int before, int after)
+    {
+        var (from, to) = (Ratings.RankOf(before), Ratings.RankOf(after));
+        return new JsonObject
+        {
+            ["number"] = season.Number,
+            ["name"] = season.Name,
+            ["before"] = Rank(before, from),
+            ["after"] = Rank(after, to),
+            ["promoted"] = to > from,
+            ["demoted"] = to < from,
+        };
+
+        static JsonObject Rank(int rating, int rank)
+        {
+            var tier = Ratings.TierOf(rank);
+            return new JsonObject { ["rating"] = rating, ["rank"] = rank, ["tier"] = tier.ToString(), ["css"] = tier.Css };
+        }
     }
 
     /// <summary>Ends the game of a player who left, the opponent wins.</summary>
