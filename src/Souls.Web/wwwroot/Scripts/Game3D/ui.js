@@ -175,6 +175,10 @@ export class UI {
         this.tooltip = el('div', 'sg-tip s-tip', this.root);
         this.tooltip.hidden = true;
         this.tooltip.setAttribute('role', 'tooltip');
+        // A click on any button of the interface.
+        this.root.addEventListener('click', e => {
+            if (e.target.closest && e.target.closest('button, a[href]')) sound.play('ui_click', 0.5);
+        });
         window.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;
             if (!this.settings.hidden) this.toggleSettings(false);
@@ -603,7 +607,10 @@ export class UI {
             this.timerSeconds = text;
             this.timerText.textContent = text;
         }
-        this.timer.classList.toggle('urgent', left < 15000 && this.timerMine);
+        const urgent = left < 15000 && this.timerMine;
+        // The fuse starts to hiss when it gets short.
+        if (urgent && left > 0 && !this.timer.classList.contains('urgent')) sound.play('timer_warning', 0.7);
+        this.timer.classList.toggle('urgent', urgent);
         if (x !== undefined) this.follow(this.timer, x, y, ax, 0);
     }
 
@@ -1116,6 +1123,7 @@ export class UI {
             const value = el('b', '', r, '+0');
             el('span', '', r, 'Soul coins');
             this.countUp(value, result.coins, '+', 900);
+            if (result.coins > 0) setTimeout(() => sound.play('coins', 0.7), 900);
         }
         if (typeof result.ratingChange === 'number') {
             const up = result.ratingChange >= 0;
@@ -1142,6 +1150,11 @@ export class UI {
             head.appendChild(icon('quest'));
             el('h3', '', head, 'Daily quests');
             this.questList(quests, result.quests, { animate: true });
+            // A quest this game completed (not done in the profile the page started with) gets a jingle.
+            const before = (this.config.profile && this.config.profile.quests) || [];
+            if (result.quests.some(q => q.done && !before.some(b => b.text === q.text && b.done))) {
+                setTimeout(() => sound.play('quest_complete', 0.8), 1500);
+            }
         }
 
         const actions = el('div', 'sg-end-actions', end);
