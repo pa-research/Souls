@@ -856,7 +856,7 @@
     GameService.prototype.TrafficHandler = function (event) {
         var json;
         try {
-            json = JSON.parse(event.data);
+            json = window.SoulsL10n.localizeMessage(JSON.parse(event.data));
         }
         catch (e) {
             return;

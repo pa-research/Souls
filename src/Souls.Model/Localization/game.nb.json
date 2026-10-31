@@ -98,6 +98,10 @@
 
   "season.name": "Sesong {n}",
 
+  "difficulty.easy": "Lett",
+  "difficulty.normal": "Normal",
+  "difficulty.hard": "Vanskelig",
+
   "quest.winGames": "Vinn {n} rangerte kamper",
   "quest.playCards": "Spill {n} kort",
   "quest.destroyCards": "Ødelegg {n} fiendtlige kort",
@@ -244,6 +248,9 @@
   "close.Session ended": "Økten er avsluttet",
   "close.Not logged in": "Ikke logget inn",
   "close.Kicked by an administrator": "Kastet ut av en administrator",
+
+  "art.endTurn": "endturn.nb.png",
+  "art.endTurnDisabled": "endturn_disabled.nb.png",
 
   "mode.home": "Hjem",
   "mode.client": "Spillklient",

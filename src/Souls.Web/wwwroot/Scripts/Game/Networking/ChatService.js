@@ -211,7 +211,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
 
 
     ChatService.prototype.TrafficHandler = function (json) {
-        ChatService.prototype.networkBuffer.push(JSON.parse(json.data));
+        ChatService.prototype.networkBuffer.push(window.SoulsL10n.localizeMessage(JSON.parse(json.data)));
     }
 
 

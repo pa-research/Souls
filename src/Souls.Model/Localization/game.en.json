@@ -98,6 +98,10 @@
 
   "season.name": "Season {n}",
 
+  "difficulty.easy": "Easy",
+  "difficulty.normal": "Normal",
+  "difficulty.hard": "Hard",
+
   "quest.winGames": "Win {n} normal games",
   "quest.playCards": "Play {n} cards",
   "quest.destroyCards": "Destroy {n} enemy cards",
@@ -244,6 +248,9 @@
   "close.Session ended": "Session ended",
   "close.Not logged in": "Not logged in",
   "close.Kicked by an administrator": "Kicked by an administrator",
+
+  "art.endTurn": "endturn.png",
+  "art.endTurnDisabled": "endturn_disabled.png",
 
   "mode.home": "Home",
   "mode.client": "Game client",

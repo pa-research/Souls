@@ -124,7 +124,9 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
     {
         if (entry.TextKey is { } key)
         {
-            return new StatsLine(GameText.FromJson(key, entry.TextArgs).In(Localized.Language), key);
+            var stored = GameText.FromJson(key, entry.TextArgs);
+            var args = stored.Args?.ToDictionary(a => a.Key, a => a.Value is string name ? Localized.PlayerName(name) : a.Value);
+            return new StatsLine(new GameText(key, args).In(Localized.Language), key);
         }
 
         return new StatsLine(DescribeLegacy(entry, players, cards), null);

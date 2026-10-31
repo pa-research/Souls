@@ -1744,7 +1744,7 @@ export class Game {
         let records;
         try {
             const response = await fetch(this.config.replayUrl, { credentials: 'same-origin' });
-            records = await response.json();
+            records = window.SoulsL10n.localizeMessage(await response.json());
         } catch (err) {
             this.ui.showQueue(t('g3d.status.replayFailed'));
             return;

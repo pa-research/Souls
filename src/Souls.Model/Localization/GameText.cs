@@ -145,6 +145,23 @@ public static partial class Strings
         });
     }
 
+    private static readonly string[] Difficulties = ["Easy", "Normal", "Hard"];
+
+    /// <summary>
+    /// The name of a practice bot: "[BOT] Satan (Hard)". The difficulty stays English in the name (it is stored with the
+    /// games); <see cref="PlayerName"/> and the clients (<c>SoulsL10n.localizeMessage</c>) show it in the reader's language.
+    /// </summary>
+    public static string BotName(string name, int difficulty) => $"[BOT] {name} ({Difficulties[Math.Clamp(difficulty, 0, 2)]})";
+
+    /// <summary>A player's name in a language: a bot's difficulty translated ("[BOT] Satan (Vanskelig)"), anyone else's as it is.</summary>
+    public static string PlayerName(string name, string language) =>
+        BotNamePattern().Match(name) is { Success: true } bot
+            ? $"{bot.Groups[1].Value} ({Get(language, "difficulty." + bot.Groups[2].Value.ToLowerInvariant())})"
+            : name;
+
+    [GeneratedRegex(@"^(\[BOT\] .+) \((Easy|Normal|Hard)\)$")]
+    private static partial Regex BotNamePattern();
+
     [GeneratedRegex(@"\{(\w+)\}")]
     private static partial Regex Placeholder();
 

@@ -22,8 +22,9 @@ export const Images = {
     opponentFrame: IMG + 'Player/opponent_frame.png',
     playerNone: IMG + 'Player/player_none.png',
     mana: IMG + 'Player/player_mana.png',
-    endTurn: IMG + 'endturn.png',
-    endTurnDisabled: IMG + 'endturn_disabled.png',
+    // The sign is lettered: the picture in the page's language (art.* in the string tables).
+    endTurn: IMG + window.SoulsL10n.t('art.endTurn'),
+    endTurnDisabled: IMG + window.SoulsL10n.t('art.endTurnDisabled'),
     target: IMG + 'target.png',
     particle: IMG + 'particle.png',
     practice: IMG + 'practice_game.png',

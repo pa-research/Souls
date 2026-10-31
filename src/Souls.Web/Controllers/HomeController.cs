@@ -76,7 +76,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             .Take(20)
             .Select(g => new { gameId = g.Id, player1 = g.Player1!.Name, player2 = g.Player2!.Name, practice = g.IsPractice })
             .ToListAsync(ct);
-        return Json(games);
+        return Json(games.Select(g => g with { player1 = Localized.PlayerName(g.player1), player2 = Localized.PlayerName(g.player2) }));
     }
 
     [HttpGet]

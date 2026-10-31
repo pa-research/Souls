@@ -50,6 +50,29 @@
         return key ? t(key, obj[field + 'Args'], english) : english;
     }
 
+    // Practice bots are named "[BOT] <name> (<Easy|Normal|Hard>)" by the server (Matchmaker).
+    var BOT_NAME = /^(\[BOT\] .+) \((Easy|Normal|Hard)\)$/;
+
+    /**
+     * A message from the server with the bots' difficulty in the page's language: every string that is a whole bot
+     * name (hero names, live games, text arguments) is rewritten in place. Returns the message.
+     */
+    function localizeMessage(node) {
+        if (node && typeof node === 'object') {
+            for (var k in node) {
+                if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+                var value = node[k];
+                if (typeof value === 'string') {
+                    var bot = BOT_NAME.exec(value);
+                    if (bot) node[k] = bot[1] + ' (' + t('difficulty.' + bot[2].toLowerCase(), null, bot[2]) + ')';
+                } else if (value && typeof value === 'object') {
+                    localizeMessage(value);
+                }
+            }
+        }
+        return node;
+    }
+
     /** Switches the language: the page reloads in it (posts the #sg-language form, see HomeController.Language). */
     function setLanguage(language) {
         var form = document.getElementById('sg-language');
@@ -65,6 +88,7 @@
         t: t,
         text: text,
         has: function (key) { return key in table; },
+        localizeMessage: localizeMessage,
         setLanguage: setLanguage
     };
 })();

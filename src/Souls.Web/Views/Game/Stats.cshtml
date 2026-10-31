@@ -61,7 +61,7 @@
             <div class="s-fighter @state">
                 <div class="s-fighter-portrait" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).png');"></div>
                 <span class="s-fighter-result">@(Model.IsDraw ? L["Draw"] : won ? L["Victorious"] : L["Defeated"])</span>
-                <h2>@(Model.IsDraw ? L["{0} the Undefeated", player.Name] : won ? L["{0} the Victorious", player.Name] : L["{0} the Defeated", player.Name])</h2>
+                <h2>@(Model.IsDraw ? L["{0} the Undefeated", PlayerName(player.Name)] : won ? L["{0} the Victorious", PlayerName(player.Name)] : L["{0} the Defeated", PlayerName(player.Name)])</h2>
                 <div class="s-fighter-meta">
                     @if (!player.IsSystem)
                     {

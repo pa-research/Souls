@@ -116,7 +116,7 @@ const RUNS = [
 
     if (run.client === '3d') {
       // The end screen as the server sends it (a real ending takes many turns), with keys for every text.
-      await page.evaluate(() => window.__souls3d.ui.showEnd('Victory!', {
+      await page.evaluate(() => window.__souls3d.ui.showEnd(window.SoulsL10n.t('g3d.end.victory'), {
         statistics: 1, text: 'ann wins against ben!', textKey: 'log.win', textArgs: { winner: 'ann', loser: 'ben' }, coins: 5, rating: 1032, ratingChange: 16,
         quests: [
           { text: 'Win 2 normal games', textKey: 'quest.winGames', textArgs: { n: 2 }, progress: 1, target: 2, reward: 4, done: false },

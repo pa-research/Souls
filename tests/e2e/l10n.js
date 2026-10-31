@@ -62,6 +62,9 @@ async function leftovers(page, phrases, skip = '.news-wrapper, #github-feed') {
   return page.evaluate(({ long, short, key, skip }) => {
     const shown = el => {
       if (skip && el.closest(skip)) return false;
+      // Text marked as another language on purpose (the language switch says "English").
+      const marked = el.closest('[lang]');
+      if (marked && marked.lang !== document.documentElement.lang) return false;
       for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
         const cs = getComputedStyle(n);
         if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;

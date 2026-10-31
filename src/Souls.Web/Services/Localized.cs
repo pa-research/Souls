@@ -20,6 +20,9 @@ public static class Localized
 
     public static string T(GameText text) => text.In(Language);
 
+    /// <summary>A player name, with a practice bot's difficulty in the reader's language.</summary>
+    public static string PlayerName(string name) => Strings.PlayerName(name, Language);
+
     /// <summary>A season's name: the default name in the reader's language, a custom one as it is.</summary>
     public static string SeasonName(Season season) => Seasons.NameText(season)?.In(Language) ?? season.Name;
 
