@@ -20,6 +20,9 @@
         // Spells: a targeted spell is lifted this far out of the hand while the player aims from it; a spell without a
         // target is cast by dropping it (or, after a click, clicking) anywhere in this part of the stage, the board.
         var SPELL_LIFT = 150;
+        var HOVER_SCALE = 2.2;
+        // A zoomed hand card stays whole on the screen: no further left than this (its half width at HOVER_SCALE).
+        var HOVER_MIN_X = FACE_WIDTH / 2 * HOVER_SCALE + 6;
         var BOARD = { left: 300, right: 1620, top: 260, bottom: 860 };
 
         // Colours of the abilities (by id): the effects of the events, and the gem of a spell.
@@ -1167,23 +1170,27 @@
 
                 // Check if the mouse intersects the card
                 var mouseIntersects = Toolbox.Rectangle.intersectsYAxis(this, mouse, { x: 0, y: 0 }, { x: 0, y: 0 });
+                // Touch has no hover: a tapped hand card (its rules pinned, Tooltip.Pin) zooms the same way.
+                var tip = this.engine.tooltip;
+                var tapped = !!tip && tip.pinned === this && Date.now() < tip.pinnedUntil;
 
 
                 // If the mouse intersects
-                if (mouseIntersects && !(mouse.y < (this.engine.conf.height - 200))) {
+                if (tapped || (mouseIntersects && !(mouse.y < (this.engine.conf.height - 200)))) {
 
                     if (this.owner._chover != this) {
                         this.OrderOriginalPosition();
                         this.owner._chover = this;
                         this._reset = false;
                         // Scale up
-                        this.scale = { x: 2.2, y: 2.2 };
+                        this.scale = { x: HOVER_SCALE, y: HOVER_SCALE };
 
                         // Run tween (x too: a hover may interrupt the tween that sorts the hand). The card stays
                         // pressable: another tween (a card let go goes back to the hand) may override this one, and a
-                        // card left non-interactive would hand the next press to the card under it.
+                        // card left non-interactive would hand the next press to the card under it. Lifted so that the
+                        // zoomed card ends above the bottom of the screen.
                         this.engine.CreateJS.Tween.get(this, { override: true })
-                            .to({ x: this.position.originX, y: this.position.originY - 120 }, 200, this.engine.CreateJS.Ease.elasticOut);
+                            .to({ x: Math.max(this.position.originX, HOVER_MIN_X), y: this.position.originY - 120 }, 200, this.engine.CreateJS.Ease.elasticOut);
 
                         this.OrderLast();
                     }
@@ -1371,7 +1378,7 @@
                 .to({ x: this.position.originX, y: this.position.originY - SPELL_LIFT }, 220, this.engine.CreateJS.Ease.quadOut);
             this.SetTargetMark(ABILITY_COLOR[this.abilityId] || 0xffffff);
             var kinds = this.TargetedSpell() ? Rules.AbilityTargets(this.abilityId) : [];
-            this.engine.ScreenMessage([this.name + ": " + (kinds.length ? "pick " + Rules.DescribeTargets(kinds) : "click the board to cast it")], 'info');
+            this.engine.ScreenMessage([this.name + ": " + (kinds.length ? "pick " + Rules.DescribeTargets(kinds) : this.touchInput ? "tap the board to cast it" : "click the board to cast it")], 'info');
 
             this._onPick = function (e) { that.OnPick(e); };
             this._onKey = function (e) { if (e.key === 'Escape') that.Disarm(true); };
