@@ -1,6 +1,12 @@
-// Crowd ambience, synthesized with Web Audio (no sound files): a constant murmur that gets louder in the
-// stadium views, and cheers that swell up on hits, kills and the end of the game. Follows the sound toggle.
+// The crowd and the spells: a looping crowd bed that gets louder in the stadium views and swells on hits, cheers and
+// gasps on the big moments, fireworks, and a sample for each spell. Everything plays on the sound board's graph, so
+// it follows the sound switch. A spell whose sample did not load falls back to the synthesized sound below.
 import { sound } from './assets.js';
+
+const SPELLS = {
+    fire: 'fire', ice: 'ice', ward: 'ward', shatter: 'shatter', venom: 'venom', rally: 'rally', insight: 'insight',
+    drain: 'drain', grow: 'grow', heal: 'heal', summon: 'summon', curse: 'curse', whoosh: 'spell_whoosh', legendary: 'legendary',
+};
 
 function noiseBuffer(ctx, seconds) {
     const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
@@ -16,67 +22,62 @@ function noiseBuffer(ctx, seconds) {
 
 export class CrowdAudio {
     constructor() {
-        this.ctx = null;
         this.presence = 0; // 0 in the classic view, 1 down in the stadium
+        this.swell = 0; // how excited the crowd is (cheers add to it, it settles by itself)
+        this.bed = null;
+        this.ctx = null;
     }
 
-    /** Starts the audio graph; must be called from a user gesture (browsers block audio before that). */
+    /** Starts the crowd bed once the audio is unlocked and its loop decoded (update calls it every frame). */
     start() {
-        if (this.ctx) return;
-        const Context = window.AudioContext || window.webkitAudioContext;
-        if (!Context) return;
-        const ctx = new Context();
-        this.ctx = ctx;
-        const buffer = noiseBuffer(ctx, 4);
-        this.buffer = buffer;
-        this.sfx = ctx.createGain();
-        this.sfx.gain.value = 0;
-        this.sfx.connect(ctx.destination);
-
-        this.master = ctx.createGain();
-        this.master.gain.value = 0;
-        this.master.connect(ctx.destination);
-
-        const murmur = ctx.createBufferSource();
-        murmur.buffer = buffer;
-        murmur.loop = true;
-        const murmurFilter = ctx.createBiquadFilter();
-        murmurFilter.type = 'bandpass';
-        murmurFilter.frequency.value = 520;
-        murmurFilter.Q.value = 0.6;
-        this.murmur = ctx.createGain();
-        this.murmur.gain.value = 0.5;
-        murmur.connect(murmurFilter).connect(this.murmur).connect(this.master);
-        murmur.start();
-
-        const roar = ctx.createBufferSource();
-        roar.buffer = buffer;
-        roar.loop = true;
-        roar.playbackRate.value = 1.7;
-        const roarFilter = ctx.createBiquadFilter();
-        roarFilter.type = 'bandpass';
-        roarFilter.frequency.value = 1100;
-        roarFilter.Q.value = 0.9;
-        this.roar = ctx.createGain();
-        this.roar.gain.value = 0;
-        roar.connect(roarFilter).connect(this.roar).connect(this.master);
-        roar.start(0, 1.3);
+        const buffer = sound.buffers.get('crowd_loop');
+        if (this.bed || !sound.ctx || !buffer) return;
+        this.bed = sound.ctx.createGain();
+        this.bed.gain.value = 0;
+        this.bed.connect(sound.sfx);
+        const loop = sound.ctx.createBufferSource();
+        loop.buffer = buffer;
+        loop.loop = true;
+        loop.connect(this.bed);
+        loop.start();
     }
 
-    /** A cheer of the given strength (0..1). */
+    /** The crowd reacts with the given strength (0..1): the bed swells, a big moment gets a cheer. */
     cheer(strength = 0.5) {
-        if (!this.ctx) return;
-        const t = this.ctx.currentTime;
-        const g = this.roar.gain;
-        g.cancelScheduledValues(t);
-        g.setValueAtTime(g.value, t);
-        g.linearRampToValueAtTime(Math.min(1.6, g.value + strength * 1.4), t + 0.25);
-        g.exponentialRampToValueAtTime(0.001, t + 1.2 + strength * 2.5);
+        this.swell = Math.min(1.5, this.swell + strength);
+        if (strength >= 0.5) sound.play('crowd_cheer', 0.3 + 0.4 * strength, { gap: 2500 });
     }
 
-    /** A deep boom (fireworks, flame jets). */
+    /** The crowd gasps (a heavy blow to a hero, a hero falls). */
+    gasp() {
+        sound.play('crowd_gasp', 0.6, { gap: 1500 });
+    }
+
+    /** A firework bursting over the stadium (a dozen at once share a few sounds). */
+    firework() {
+        if (!sound.play('fireworks', 0.4, { gap: 700, rate: 0.9 + Math.random() * 0.2 }) && sound.unavailable('fireworks')) this.boom(0.6);
+    }
+
+    /** The whoosh of the flame jets on the gate towers. */
+    flames(strength = 1) {
+        if (!sound.play('fire', Math.min(0.5, 0.3 * strength), { gap: 250, rate: 0.8 }) && sound.unavailable('fire')) this.boom(0.5 * strength);
+    }
+
+    /** The synthesized sounds' output (the fallback when a sample is missing). */
+    synth() {
+        if (!this.ctx && sound.ctx) {
+            this.ctx = sound.ctx;
+            this.buffer = noiseBuffer(this.ctx, 4);
+            this.sfx = this.ctx.createGain();
+            this.sfx.gain.value = 0.5;
+            this.sfx.connect(sound.sfx);
+        }
+        return !!this.ctx && sound.running && !sound.muted;
+    }
+
+    /** A deep boom (synthesized). */
     boom(strength = 1) {
-        if (!this.ctx) return;
+        if (!this.synth()) return;
         const ctx = this.ctx, t = ctx.currentTime;
         const source = ctx.createBufferSource();
         source.buffer = this.buffer;
@@ -139,9 +140,14 @@ export class CrowdAudio {
         source.start(t, Math.random() * 1.2, duration + 0.1);
     }
 
-    /** A short synthesized sound for a spell or ability (no sound files). */
+    /** The sound of a spell or ability: its sample, or a synthesized sound if the sample did not load. */
     spell(kind, strength = 1) {
-        if (!this.ctx || sound.muted) return;
+        const name = SPELLS[kind];
+        if (name && !sound.unavailable(name)) {
+            sound.play(name, Math.min(0.85, 0.6 * strength), { gap: 120 });
+            return;
+        }
+        if (!this.synth()) return;
         const s = strength;
         switch (kind) {
             case 'fire':
@@ -207,11 +213,12 @@ export class CrowdAudio {
         }
     }
 
+    /** Every frame: the bed follows the camera (louder down in the stadium) and the crowd's excitement. */
     update() {
-        if (!this.ctx) return;
-        this.sfx.gain.setTargetAtTime(sound.muted ? 0 : 0.5, this.ctx.currentTime, 0.05);
-        if (this.ctx.state === 'suspended' && !sound.muted) this.ctx.resume().catch(() => { });
-        const target = sound.muted ? 0 : 0.05 + 0.13 * this.presence;
-        this.master.gain.setTargetAtTime(target, this.ctx.currentTime, 0.4);
+        this.start();
+        const now = performance.now();
+        this.swell *= Math.exp(-(now - (this.lastUpdate ?? now)) / 1400);
+        this.lastUpdate = now;
+        if (this.bed) this.bed.gain.setTargetAtTime((0.12 + 0.38 * this.presence) * (1 + 0.8 * this.swell), sound.ctx.currentTime, 0.25);
     }
 }

@@ -13,6 +13,30 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
     // Hits that land at the same moment (Inferno on every enemy card) are shown together.
     var SIMULTANEOUS = { damage: true, ward: true, venom: true };
 
+    // The sound of each event and of each ability (by id), as the 3D client plays them. Attacks, deaths and spells
+    // being cast have theirs in Animation.
+    var EVENT_SOUND = {
+        heal: 'HEAL', armor: 'WARD', buff: 'RALLY', lifesteal: 'DRAIN', blessing: 'HEAL', heroPower: 'HERO_POWER',
+        paralyze: 'ICE', summon: 'SUMMON', curse: 'CURSE', haunt: 'CURSE', burned: 'FIRE', fatigue: 'FATIGUE', venom: 'VENOM'
+    };
+    var ABILITY_SOUND = {
+        1: 'HEAL', 2: 'DRAIN', 4: 'SUMMON', 5: 'ICE', 7: 'WARD', 8: 'FIRE', 13: 'RALLY', 14: 'INSIGHT', 15: 'FIRE',
+        16: 'HEAL', 17: 'GROW', 18: 'DRAIN', 19: 'SUMMON'
+    };
+    var lastSound = {};
+
+    function EventSound(player, e) {
+        var key = e.t === 'ability' || e.t === 'trigger' ? ABILITY_SOUND[e.abilityId] || 'SPELL_WHOOSH'
+            : e.t === 'damage' ? (IsHero(player.Resolve(e.to)) ? 'HERO_HIT' : 'BLOCK')
+            : e.t === 'ward' ? (e.on === true ? 'WARD' : 'SHATTER')
+            : EVENT_SOUND[e.t];
+        // The heal after a healing ability, the second hit of Inferno: not twice in a row.
+        var now = Date.now();
+        if (!key || now - (lastSound[key] || 0) < 400) return;
+        lastSound[key] = now;
+        Animation.PlaySound(Asset.Sound[key], key === 'HERO_HIT' ? 0.85 : 0.6);
+    }
+
     function EventPlayer(engine) {
         this.engine = engine;
     }
@@ -102,7 +126,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
                 while (Next(i) && (SIMULTANEOUS[Next(i).t] || Next(i).t === 'log')) {
                     group.push(events[++i]);
                 }
-                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.handlers[e.t], [e]));
+                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.Run, [e]));
             }
             else if (e.t === 'buff' && e.src) {
                 // A card rallying its neighbours buffs them together.
@@ -110,10 +134,10 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
                 while (Next(i) && ((Next(i).t === 'buff' && SameRef(Next(i).src, e.src)) || Next(i).t === 'log')) {
                     group.push(events[++i]);
                 }
-                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.handlers.buff, [e]));
+                steps.push(group.length > 1 ? this.Bind(this.Together, [group]) : this.Bind(this.Run, [e]));
             }
             else if (this.handlers.hasOwnProperty(e.t)) {
-                steps.push(this.Bind(this.handlers[e.t], [e]));
+                steps.push(this.Bind(this.Run, [e]));
             }
         }
 
@@ -124,9 +148,8 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
     EventPlayer.prototype.Together = function (group) {
         var ms = 0;
         for (var i = 0; i < group.length; i++) {
-            var handler = this.handlers[group[i].t];
-            if (!handler) continue;
-            try { ms = Math.max(ms, handler.call(this, group[i]) || 0); }
+            if (!this.handlers[group[i].t]) continue;
+            try { ms = Math.max(ms, this.Run(group[i]) || 0); }
             catch (err) { console.error('[EVENTS] ' + group[i].t, err); }
         }
         return ms;
@@ -145,11 +168,16 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         return function () { return fn.apply(self, args); };
     }
 
+    /// Plays one event: its sound and its animation; returns how long the next step waits.
+    EventPlayer.prototype.Run = function (e) {
+        EventSound(this, e);
+        return this.handlers[e.t].call(this, e);
+    }
+
     /// Runs one event at once (inside an attack).
     EventPlayer.prototype.Apply = function (e) {
-        var handler = this.handlers[e.t];
-        if (!handler) return;
-        try { handler.call(this, e); } catch (err) { console.error('[EVENTS] ' + e.t, err); }
+        if (!this.handlers[e.t]) return;
+        try { this.Run(e); } catch (err) { console.error('[EVENTS] ' + e.t, err); }
     }
 
     EventPlayer.prototype.Attack = function (e, hits) {
@@ -205,7 +233,6 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
         Fx.Burst(engine, at.x, at.y, color, 70);
         Fx.Glow(engine, at, color);
-        Animation.PlaySound(Asset.Sound.ABILITY_SACRIFICE, 0.25);
 
         var targets = [];
         for (var cid in enemy.cardManager.board) {
@@ -348,9 +375,6 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var dst = this.Resolve(e.dst);
             var ability = Rules.Ability(e.abilityId);
             var color = ABILITY_COLOR[e.abilityId] || 0xffffff;
-
-            if (Number(e.abilityId) === 1) Animation.PlaySound(Asset.Sound.ABILITY_HEAL, 0.3);
-            if (Number(e.abilityId) === 2) Animation.PlaySound(Asset.Sound.ABILITY_SACRIFICE, 0.3);
 
             if (src) {
                 Fx.Glow(engine, src, color);
