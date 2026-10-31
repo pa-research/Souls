@@ -50,7 +50,8 @@ its box and nothing is stretched:
 - Cards: 708x501, the 236x167 portrait window at 3x. The rarity gem overlaps the bottom centre of the window.
   `{id}.jpg` and `lost-soul.jpg` are JPEG q85 (mozjpeg, 4:4:4); the original cards keep their file names
   (`0.png`-`6.png`, `16.jpg` for card 7, `18.png`), so the database needs no change.
-- Heroes: 720x600, the 300x250 hero box of both clients; the site crops them to a circle (`object-fit: cover`).
+- Heroes: 720x600, the 300x250 hero box of both clients (clipped to an ellipse); the site crops them to a circle and,
+  on the Register page, to a wide band through the face (`object-fit: cover`), so the face sits in the centre.
 - PNG names are written as palette PNGs (libimagequant, light dither) to keep them small.
 
 `paint.js out` crops each master around its centre to that aspect (an entry may set `position`, any sharp
