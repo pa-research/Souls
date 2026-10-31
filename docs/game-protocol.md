@@ -130,8 +130,9 @@ it runs) and GameSync instead of being queued. A spectator sends Spectate with t
 Running games survive a restart of the game server, with the same game ids, cids and state. When it stops, the
 server closes every connection with the reason `Server restarting`; the next instance accepts connections once the
 games are restored. The clients reconnect as above, retrying for about a minute. The turn (or the mulligan) keeps the
-time it had left, but at least 15 seconds; the grace period starts again when the server starts. There are no new
-messages.
+time it had left, but at least 15 seconds; the grace period starts again when the server starts. The game's chat
+room comes back with the same id: a player who logs in to the chat again is a member, and gets ChatClientConnect
+(1094, `{name, room}`) like after any reconnect. There are no new messages.
 
 ## Requests (client to server)
 
@@ -178,7 +179,7 @@ Unchanged from the original game: 10 LoginOk, 100 QueueOk, 101 QueueAlreadyIn, 2
 | 226 | NextTurn | `{yourTurn, playerInfo, opponentInfo, turnEndsIn: ms}` (also when the first turn starts after the mulligan) |
 | 227 | Mulligan | `{hand: [card...], replaced: n}`: your whole starting hand after the mulligan, in order, all with new cids. Spectators get `{hand: [{cid}], replaced, hidden: true}` |
 | 228 | OpponentMulligan | `{hand: [{cid}...], replaced: n}`: the opponent's starting hand after their mulligan (all new cids) |
-| 230/231/233 | Victory/Defeat/Draw | `{statistics: gameId, text, coins, rating, ratingChange (null in practice), quests: [{text, progress, target, reward, done}]}` |
+| 230/231/233 | Victory/Defeat/Draw | `{statistics: gameId, text, coins, rating, ratingChange (null in practice), quests: [{text, progress, target, reward, done}], season}` (`season` in ranked games only); a friendly game: `{statistics, text, friendly: true, coins: 0, ratingChange: null}` (see [End of the game](#end-of-the-game)) |
 | 235 | GameEvents | `{events: [event...]}`: what happened, in order (below) |
 | 236 | GameSync | the full public state after every action (below) |
 | 240 | LiveGames | `{games: [{gameId, practice, turn, round, spectators, startedAt, players: [{name, type, rating, health, bot}]}]}` |
@@ -208,6 +209,30 @@ UseCardSpell/OpponentUseCardSpell, NextTurn), then
 GameEvents (events up to a draw), NewCard/OpponentNewCard, more GameEvents, and finally GameSync. If a hero died, the
 result (Victory/Defeat/Draw) follows the GameSync. Clients should process messages in order (queue them and finish
 each animation before the next) and treat GameSync as the truth for all numbers.
+
+### End of the game
+
+Each player gets Victory, Defeat or Draw (spectators get SpectateEnd). The game is stored first, so `statistics` is
+its id for `/Game/Stats/{id}` and `/Game/Replay/{id}` (0 if storing failed: then there are no rewards either).
+
+- `coins`: the soul coins earned, daily quests included. `quests`: today's daily quests after the game.
+- `rating` and `ratingChange`: the rating after the game and the change (`ratingChange` is `null` in practice games).
+- `season` (ranked games only): the current season, and the player's rank before and after the game. A season's
+  standings go by rating (its points); the rank follows from the rating (`rank` 1 is Bronze III up to 15 Diamond I,
+  then 16 Champion, 50 points each, see the Season page). `tier` is the rank's name and `css` its emblem class in
+  `theme.css` (`tier-bronze` ... `tier-champion`). `promoted`/`demoted`: the rank went up or down.
+- `friendly: true`: a friendly challenge earns nothing (no coins, quests, rating or season points). The game is still
+  stored with its statistics and replay; the clients say "Friendly game: no rewards".
+
+```json
+{"Type": 230, "Payload": {
+  "statistics": 4711, "text": "ann wins against ben!", "coins": 3, "rating": 1056, "ratingChange": 16,
+  "quests": [{"text": "Win 2 normal games", "progress": 1, "target": 2, "reward": 4, "done": false}],
+  "season": {"number": 3, "name": "Season 3",
+             "before": {"rating": 1040, "rank": 1, "tier": "Bronze III", "css": "tier-bronze"},
+             "after": {"rating": 1056, "rank": 2, "tier": "Bronze II", "css": "tier-bronze"},
+             "promoted": true, "demoted": false}}}
+```
 
 ### Events
 
@@ -280,8 +305,9 @@ after 30 seconds (`Souls:Game:ChallengeTimeout`). A challenge also ends when eit
 another game.
 
 Accepting starts the game at once (GameCreate to both, the first player is picked at random). Friendly games are
-**unranked**: they are stored, rewarded and listed like practice games (`practice: true`, no rating change, 2 coins
-for a win and nothing for a loss, daily quests count except the two "win" quests).
+**unranked and earn nothing**: they are stored and listed like practice games (`practice: true`, with statistics and a
+replay), but give no coins, no daily quest progress, no rating and no season points, so two accounts cannot farm them.
+The result says `friendly: true` (see [End of the game](#end-of-the-game)).
 
 ## Emotes
 

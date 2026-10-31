@@ -12,7 +12,7 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
     public const int MaxMessageLength = 500;
 
     /// <summary>Creates the static chat room for the two players of a game.</summary>
-    public void RequestNewGameRoom(Pair<ChatPlayer> clients)
+    public ChatRoom RequestNewGameRoom(Pair<ChatPlayer> clients)
     {
         var room = new ChatRoom(state.ChatRoomCounter++, clients);
         state.ChatRooms[room.Id] = room;
@@ -28,6 +28,21 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         clients.First.Send(new Response(ChatResponse.ChatRoomMade, payload.DeepClone()));
         clients.Second.Send(new Response(ChatResponse.ChatRoomMade, payload));
         logger.LogDebug("Game chat {Room} made for {First} and {Second}", room.Id, clients.First.Name, clients.Second.Name);
+        return room;
+    }
+
+    /// <summary>
+    /// Makes the chat room of a game restored after a restart again, with the same id. Its players are members, and
+    /// are back in it when they log in to the chat (see <see cref="ChatPlayer.AnnounceConnect"/>).
+    /// </summary>
+    public void RestoreGameRoom(int id, Pair<Player> players)
+    {
+        var members = new Pair<ChatPlayer>(players.First.ChPlayer ??= new ChatPlayer(players.First.Name), players.Second.ChPlayer ??= new ChatPlayer(players.Second.Name));
+        var room = new ChatRoom(id, members);
+        state.ChatRooms[id] = room;
+        state.ChatRoomCounter = Math.Max(state.ChatRoomCounter, id + 1);
+        members.First.AddRoom(room);
+        members.Second.AddRoom(room);
     }
 
     /// <summary>Creates a dynamic room led by the client.</summary>

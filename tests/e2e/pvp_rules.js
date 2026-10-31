@@ -252,6 +252,14 @@ async function turnClassic(s, turn) {
   const classicEvents = B.frames.filter(f => f.dir === 'in' && f.type === 235).length;
   step('classic client got events and syncs', classicEvents > 3 && B.frames.some(f => f.dir === 'in' && f.type === 236), `${classicEvents} event batches`);
   await sleep(3000);
+  // Both end screens show the season: the rank before and after (the rating the season goes by).
+  const seasonOf = async (s, r) => {
+    const panel = await s.page.$eval('.sg-end-season', e => e.textContent).catch(() => null);
+    const season = r && r.p.season;
+    return { ok: !!season && season.after.rating === r.p.rating && season.before.rating === r.p.rating - r.p.ratingChange && !!panel && panel.includes(season.name) && panel.includes(season.after.tier), panel };
+  };
+  const [seasonA, seasonB] = [await seasonOf(A, resultA), await seasonOf(B, resultB)];
+  step('ranked end screens show the season', seasonA.ok && seasonB.ok, `3D: ${seasonA.panel} | classic: ${seasonB.panel}`);
   await snap(A, 'end'); await snap(B, 'end');
   for (const s of [A, B, C].filter(x => !x.closed)) step(`no console errors (${s.label})`, s.problems.length === 0, s.problems.slice(0, 4).join(' || '));
   if (resultA && resultA.p.statistics) {

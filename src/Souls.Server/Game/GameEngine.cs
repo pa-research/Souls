@@ -34,17 +34,18 @@ public sealed partial class GameEngine(
     TimeProvider time,
     IOptions<GameOptions> options,
     GameMetrics metrics,
-    ILogger<GameEngine> logger)
+    ILogger<GameEngine> logger,
+    GameStore? store = null)
 {
     /// <summary>Starts a game between two players with the mulligan (see <see cref="RequestMulliganAsync"/>).</summary>
-    public GameRoom CreateGame(Pair<Player> players, bool practice = false)
+    public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false)
     {
         DropChallenge(players.First, $"{players.First.Name} started another game.");
         DropChallenge(players.Second, $"{players.Second.Name} started another game.");
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
-        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice);
+        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice || friendly, friendly);
         state.Rooms[room.GameId] = room;
 
         var response = room.GenerateGameUpdate(create: true);
@@ -61,11 +62,17 @@ public sealed partial class GameEngine(
 
     /// <summary>
     /// Takes over a game restored from the database after a restart (see <see cref="GameStore"/>). Its human players
-    /// count as disconnected until they log in again (with the usual grace period); the matchmaker seats the bot.
+    /// count as disconnected until they log in again (with the usual grace period); the matchmaker seats the bot. The
+    /// game's chat room is made again; the players rejoin it when they log in to the chat.
     /// </summary>
     public void Resume(GameRoom room)
     {
         state.Rooms[room.GameId] = room;
+        if (room.ChatRoomId is { } chatRoom)
+        {
+            chat.RestoreGameRoom(chatRoom, room.Players);
+        }
+
         foreach (var player in new[] { room.Players.First, room.Players.Second }.Where(p => !p.IsBot))
         {
             // A closed connection stands in, like the dropped socket of a player who lost the connection.
