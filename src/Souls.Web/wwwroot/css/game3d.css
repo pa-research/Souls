@@ -296,15 +296,31 @@
     .souls3d-status { font-size: 0.72rem; padding: 4px 8px; }
 }
 
-@media (max-width: 700px) and (orientation: portrait) {
-    /* Portrait phones: the camera buttons go below the settings and emotes, clear of the client switch... */
+@media (orientation: portrait) {
+    /* Portrait screens are split into bands (scene.js, portraitBands). The camera buttons go below the settings and
+       emotes, clear of the client switch... */
     .souls3d-views { display: grid; grid-template-columns: auto auto 1fr; }
     .souls3d-views .s-seg { grid-column: 1 / -1; }
     .souls3d-settings,
     .souls3d-emotes { top: calc(max(12px, env(safe-area-inset-top)) + 100px); }
-    /* ...and the battle log and the chat take half of the bottom edge each. */
-    .souls3d-log { left: max(10px, env(safe-area-inset-left)); transform: none; width: calc(50% - 15px); }
+    /* ...the battle log and the chat take half of the bottom edge each, below the hand... */
+    .souls3d-log { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); transform: none; width: calc(50% - 15px); }
     .souls3d-chat { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); width: calc(50% - 15px); }
+    /* ...spectators have no chat, so their bar takes its place... */
+    .souls3d-banner { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: auto; right: max(10px, env(safe-area-inset-right)); transform: none; max-width: calc(50% - 15px); }
+    /* ...and messages and a replay's controls go over the opponent's hand, below the buttons. */
+    .souls3d-ui .sg-toasts { top: 108px; bottom: auto; }
+    .souls3d-replay { top: 106px; bottom: auto; flex-wrap: nowrap; gap: 8px; padding: 2px 8px; }
+    .souls3d-replay .sg-icon-btn { width: 34px; height: 34px; }
+    .souls3d-replay .s-progress { width: min(90px, 20vw); }
+    /* The turn fuse sits under End Turn, at the right edge, on one line. */
+    #souls3d .sg-fuse { width: 170px; }
+}
+
+@media (max-width: 400px) {
+    /* Narrow phones: a tighter client switch, clear of the settings and emote buttons. */
+    .game-mode-switch { gap: 6px; }
+    .game-mode-switch .s-seg > button { padding: 6px 9px; letter-spacing: 0.06em; }
 }
 
 @media (max-height: 560px), (max-width: 760px) {
