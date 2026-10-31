@@ -163,11 +163,14 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   it, left-drag from your card or hero to attack, right-drag from a card to use its ability, click End Turn),
   and adds camera views (buttons top left, or keys 1-4):
   - **Classic**: the original top-down arena picture, 1:1 with the classic client.
-  - **Arena**, **Field**, **Cinematic**: a 3D stadium rises out of the ground around the sand, with terraces
-    full of spectators who jump, roar and do the Mexican wave, the two "Souls" pillars with stadium screens
-    (the SOULS logo, a live score ticker and flashes for hits, KOs and the result), tunnel gates, torch-lit
-    gate towers, floodlights, flags and a dusk sky. Board cards stand up to face you in the low views; heroes
-    move onto podiums.
+  - **Arena**, **Field**, **Cinematic**: a fantasy stadium rises out of the ground around the sand: an arena
+    wall with banners and torches, three rings of stone terraces with wooden benches and stairways, packed with
+    spectators who sit, jump up and cheer, roar and do the Mexican wave, round gate towers with braziers, two
+    gatehouses with vaulted tunnels and the stadium screens (the SOULS logo, a live score ticker and flashes for
+    hits, KOs and the result) under spires of green soul fire, a colonnaded gallery, an arcaded façade with
+    flags, beacon spires and a night sky with a moon. The building is procedural (`stadium.js`, materials in
+    `surfaces.js`, the crowd in `spectators.js`; `?stadiumDebug=ao|light|rise|variant|blocks` shows its baked
+    fields). Board cards stand up to face you in the low views; heroes move onto podiums.
 
   Hand cards and the End Turn sign are a HUD, so they stay where the classic client has them in every view.
   The new rules have their own UI: a burning rope under End Turn (the turn timer), a hero power button next to
@@ -198,8 +201,8 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   | Zoom | mouse wheel | pinch |
   | Camera views | buttons top left, or keys 1-4 | buttons |
 
-  Graphics quality adapts to the device (software rendering: no bloom and a thinner crowd; phones and tablets:
-  a lighter stadium). `?fx=low|medium|high` overrides it.
+  Graphics quality adapts to the device (software rendering: no bloom, no shadows, flat stone and a thinner,
+  simpler crowd; phones and tablets: a lighter stadium). `?fx=low|medium|high` overrides it.
 
 **Watch live games** (menu, 3D) lists the running games and lets anyone watch one from the stands; every
 finished game has a **3D replay** (play/pause, 1x/2x/4x) linked from its statistics page and the end screen.

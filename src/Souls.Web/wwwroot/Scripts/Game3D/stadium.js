@@ -524,7 +524,7 @@ function gateTower(w, center, segs, fires, torches) {
     w.geometry('metal', brazier, new THREE.Matrix4().makeTranslation(x, 166, z), { color: C(TINT.bronze), delay: 0.25 });
     const fire = new THREE.Vector3(x, 232, z);
     fires.push({ p: fire.toArray(), size: 120, hue: 0, phase: x * 0.01 + z * 0.003, main: true });
-    torches.push(fire.clone().setY(200));
+    torches.push(fire.clone().setY(222)); // embers and flame jets start at the bowl's rim
     w.light([x, 240, z], 2.2, 230);
     // A long team banner facing the sand.
     const face = Math.atan2(-x, -z);

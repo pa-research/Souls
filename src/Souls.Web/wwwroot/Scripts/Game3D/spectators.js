@@ -173,11 +173,12 @@ export class Crowd {
                 const n = Math.floor((a1 - a0) * r0 / spacing);
                 for (let i = 0; i < n; i++) {
                     const t = a0 + (i + 0.5 + (rnd() - 0.5) * 0.3) * (a1 - a0) / n;
-                    if (aisleAt(t, a0, a1) !== null || Math.abs(t - (aisleAt(t + 0.012, a0, a1) ?? aisleAt(t - 0.012, a0, a1) ?? 99)) < 0.03 || rnd() < 0.1) continue;
+                    // Not in (or right beside) a stairway; a few empty seats.
+                    if ([t - 0.012, t, t + 0.012].some(x => aisleAt(x, a0, a1) !== null) || rnd() < 0.1) continue;
                     const r = r0 + (rnd() - 0.5) * 8;
                     const x = Math.cos(t) * r, z = Math.sin(t) * r;
                     if (GATE_TOWERS.some(g => Math.hypot(x - g.x, z - g.z) < 200)) continue;
-                    places.push({ x, y, z, t, a0, a1 });
+                    places.push({ x, y, z, t });
                 }
             }
         }
