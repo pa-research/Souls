@@ -124,12 +124,19 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
             // The card's own label and rules text ("Burn 3": "Deals 3 damage ..."), else the generic rules text.
             var ability = Rules.Ability(card.abilityId);
             var abilityText = card.abilityText || (ability ? ability.text : '');
+            var touch = Hud.TouchInput();
             if (card.spell) {
                 var kinds = card.TargetedSpell() ? Rules.AbilityTargets(card.abilityId) : [];
-                abilityText += kinds.length ? ' (drag it onto ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target)'
-                    : ' (drag it onto the board, or click it and then the board)';
+                if (touch) {
+                    abilityText += kinds.length ? ' (drag it onto ' + Rules.DescribeTargets(kinds) + ', or tap it and then the target)'
+                        : ' (drag it onto the board, or tap it and then the board)';
+                }
+                else {
+                    abilityText += kinds.length ? ' (drag it onto ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target)'
+                        : ' (drag it onto the board, or click it and then the board)';
+                }
             }
-            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' (right-drag, or hold and drag on touch)';
+            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += touch ? ' (hold it, then drag)' : ' (right-drag)';
             Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || 'Ability')), abilityText);
         }
         if (card.spell) Block(el, 'info', '', Rules.Keyword('spell') || 'Spell: cast it from your hand, then it is used up.');
@@ -217,9 +224,12 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
                 Block(el, 'info', '', 'Pick ' + Rules.DescribeTargets(kinds) + '. Escape cancels.');
             }
             else if (!power.used && power.canUse) {
-                Block(el, 'info', '', kinds.length
-                    ? 'Drag to ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target.'
-                    : 'Click to use.');
+                if (Hud.TouchInput()) {
+                    Block(el, 'info', '', kinds.length ? 'Drag to ' + Rules.DescribeTargets(kinds) + ', or tap it and then the target.' : 'Tap to use.');
+                }
+                else {
+                    Block(el, 'info', '', kinds.length ? 'Drag to ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target.' : 'Click to use.');
+                }
             }
         }
         if (power.used) Block(el, 'info', '', 'Used this turn.');

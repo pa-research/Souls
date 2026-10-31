@@ -139,6 +139,17 @@ define("hud", ["conf"], function (Conf) {
         catch (e) { return false; }
     }
 
+    // The pointer the player uses: the last one pressed (touch or pen, or a mouse), before that the device's main one.
+    var lastPointer = null;
+    window.addEventListener('pointerdown', function (e) { lastPointer = e.pointerType; }, true);
+
+    /// Whether hints should speak of taps (touch) rather than clicks (mouse).
+    function TouchInput() {
+        if (lastPointer) return lastPointer !== 'mouse';
+        try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); }
+        catch (e) { return false; }
+    }
+
     function SmallScreen() {
         try { return !!(window.matchMedia && window.matchMedia('(max-width: 900px), (max-height: 560px)').matches); }
         catch (e) { return false; }
@@ -187,6 +198,7 @@ define("hud", ["conf"], function (Conf) {
     Hud.prototype.Classify = Classify;
     Hud.prototype.ReducedMotion = ReducedMotion;
     Hud.prototype.SmallScreen = SmallScreen;
+    Hud.prototype.TouchInput = TouchInput;
     Hud.prototype.ReadStorage = ReadStorage;
     Hud.prototype.WriteStorage = WriteStorage;
     Hud.prototype.Contains = Contains;

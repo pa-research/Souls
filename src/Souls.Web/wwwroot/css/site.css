@@ -575,8 +575,13 @@ a:hover { color: #fff0c2; }
 .s-card-actions { display: grid; gap: 6px; width: 100%; margin-top: auto; }
 .s-card-actions form { margin: 0; }
 
+.s-shop-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.s-shop-bar form { margin: 0; }
+
 @media (max-width: 991.98px) {
     .s-shop-layout { grid-template-columns: 1fr; }
+    /* The cards first (under .s-shop-bar), the player panel and the pack's details after them. */
+    .s-shop-layout > aside { order: 1; }
 }
 
 /* ---- Card packs: a fan of card backs in the shop, then five cards turned over one by one ------------------ */
@@ -854,6 +859,8 @@ a:hover { color: #fff0c2; }
     background-size: 100% 100%;
     background-position: center;
 }
+/* The site's card tiles use an <img> (lazy); the in-game ones a background. No placeholder behind the image. */
+img.s-card-portrait { background: none; }
 
 .s-card-title,
 .s-card-ability {

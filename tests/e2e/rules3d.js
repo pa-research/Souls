@@ -106,7 +106,9 @@ const RESULT = [230, 231, 233];
   await waitFrame(f => f.dir === 'in' && f.type === 236, 0, 20000);
   await sleep(5000);
   await snap('start');
-  // Mulligan: replace the first starting card; the game then starts with the same hand size.
+  // Mulligan: replace the first starting card; the game then starts with the same hand size. Its hint speaks of clicks.
+  const mulliganHint = await page.$eval('.sg-mulligan-box p', e => e.textContent);
+  step('the mulligan hint speaks of clicks with a mouse', /^Click the cards/.test(mulliganHint), mulliganHint);
   await page.click('.sg-mulligan-card >> nth=0');
   await snap('mulligan');
   const mulliganFrom = frames.length;

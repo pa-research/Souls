@@ -591,8 +591,11 @@
     width: max-content;
     max-width: 300px;
     pointer-events: none;
+    transform-origin: 0 0; /* scaled down where it would not fit (UI.showTooltip) */
     animation: s-fade-in 0.15s ease-out;
 }
+
+.sg-tip.compact .sg-tip-block.flavor { display: none; }
 
 .sg-tip-stats { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 4px; }
 .sg-tip-stats span { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.45); font-weight: 700; font-size: 0.78rem; }

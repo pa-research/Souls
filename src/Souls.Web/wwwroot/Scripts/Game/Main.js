@@ -141,7 +141,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         // Create a stage and the renderer
         this.stage = new Pixi.Stage(0x000000, true);
 
-        var textureBg = Pixi.Texture.fromImage("/Content/Images/bg_faded.png");
+        var textureBg = Pixi.Texture.fromImage("/Content/Images/bg_faded.jpg");
         var backdrop = new Pixi.Sprite(textureBg);
         backdrop.anchor = { x: 0, y: 0 }
         backdrop.x = 0;
@@ -150,7 +150,10 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         backdrop.height = Conf.height;
         this.stage.addChild(backdrop);
 
-        this.renderer = new Pixi.autoDetectRenderer(Conf.width, Conf.height, null, false, true);
+        // No multisampling (antialias, the last argument): with a multisampled drawing buffer, hardware GL now and then
+        // (about 1 frame in 2000) lost the first draw of a frame, the arena picture, which showed a frame of the bare
+        // stage colour under everything else. The 1920 x 1080 stage is scaled to the window, which smooths it anyway.
+        this.renderer = new Pixi.autoDetectRenderer(Conf.width, Conf.height, null, false, false);
 
         var gameWindow = $("#game-window").clone();
         gameWindow.html(this.renderer.view);

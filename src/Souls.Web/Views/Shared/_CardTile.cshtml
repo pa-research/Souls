@@ -2,7 +2,8 @@
 @* A card laid out like the in-game card face (330x450 race texture), scaled to any width with container units. *@
 <div class="s-card card-container rarity-@Model.RarityCss @(Model.Owned ? "owned" : null) @(Model.Spell ? "spell" : null)" id="card_@Model.Id" title="@Model.Description"
      style="background-image: url('@(Model.RaceTexture ?? "/Content/Images/Card/Texture/card_error.png")');">
-    <div class="s-card-portrait card-portrait" style="background-image: url('@Model.Portrait');"></div>
+    @* Lazy: the shop and the deck builder list every card. 708x501 is the portrait's own size (the box at 3x). *@
+    <img class="s-card-portrait card-portrait" src="@Model.Portrait" alt="" width="708" height="501" loading="lazy" decoding="async" />
     <div class="s-card-cost" aria-label="Cost @Model.Cost">@Model.Cost</div>
     @* --len shrinks long names to fit the name band, between the cost gem and the race emblem. *@
     <div class="s-card-title" style="--len: @Model.Name.Length">@Model.Name</div>

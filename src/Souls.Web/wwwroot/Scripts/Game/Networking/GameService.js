@@ -361,7 +361,7 @@
         engine.opponent.heroPower.SetType(engine.opponent.power);
 
         // Give cards to hand
-        engine.player.cardManager.JSONToHandCards(payload.player && payload.player.hand, { x: 165, y: 980 });
+        engine.player.cardManager.JSONToHandCards(payload.player && payload.player.hand, { x: 165, y: 965 });
         engine.opponent.cardManager.JSONToHandCards(payload.opponent && payload.opponent.hand, { x: 165, y: 200 });
 
         engine.player.cardManager.JSONToBoardCards(payload.player && payload.player.board);

@@ -183,7 +183,7 @@ async function waitTurn3d(s, ident, timeout = 150000) {
 
 // B's turn in the classic client: play the first hand card, hero attacks the enemy hero, end turn.
 async function turnClassic(s, turn, { keep = false } = {}) {
-  await classicDrag(s, [175, 980], [520 + 147.7 * (3 + (turn % 3)), 700]);
+  await classicDrag(s, [175, 965], [520 + 147.7 * (3 + (turn % 3)), 700]);
   await sleep(1500);
   if (keep) return;
   await classicDrag(s, [956, 960], [956, 141]);

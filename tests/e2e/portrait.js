@@ -99,7 +99,7 @@ const MIN_CARD = 86;
         slots: [0, 1, 2, 3, 4, 5, 6].map(i => h.slot(i)),
         endTurn: h.endTurn(),
         dom: ['.souls3d-log', '.souls3d-chat', '.souls3d-views', '.game-mode-switch', '.souls3d-status', '#souls3d .sg-fuse', '#souls3d .sg-power',
-          '.souls3d-banner', '.souls3d-replay'].map(rect).filter(Boolean),
+          '.souls3d-banner', '.souls3d-replay', '.souls3d-hand-count'].map(rect).filter(Boolean),
       };
     });
     const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -129,6 +129,14 @@ const MIN_CARD = 86;
       const widths = m.hand.map(r => Math.round(r.w)).join('/');
       step(`${label}: hand cards ${widths} px, board and hand clear of the controls`, bad.length === 0, bad.slice(0, 5).join('; '));
     };
+    /** The tooltip shown for a tap at `p`: on the screen, and clear of the player's hero and hero power. */
+    const tipClear = async p => {
+      await tap(p); await sleep(800);
+      const tip = await tooltipOnScreen();
+      const hero = await hook('heroRect(false)');
+      const power = await page.$eval('#souls3d .sg-power', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+      return { ok: !!tip && tip.on && !overlap(tip, hero) && !overlap(tip, power), tip, hero, power };
+    };
     const tooltipOnScreen = () => page.evaluate(() => {
       const t = document.querySelector('.sg-tip');
       if (!t || t.hidden) return null;
@@ -151,13 +159,15 @@ const MIN_CARD = 86;
     await page.goto(`${base}/Game?mode=3d`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.sg-menu', { timeout: 180000 });
     await sleep(800);
-    await page.click('.sg-menu-row .s-seg button >> nth=0'); // Easy
-    await page.click('.sg-menu-btn >> nth=1');
+    await page.tap('.sg-menu-row .s-seg button >> nth=0'); // Easy
+    await page.tap('.sg-menu-btn >> nth=1');
     const created = await waitFrame(f => f.dir === 'in' && f.type === 206, 0, 90000);
     const ident = created ? created.p.ident : 1;
     await page.waitForSelector('.sg-mulligan-confirm', { timeout: 60000 }); await sleep(1500);
     await snap('mulligan');
-    await page.click('.sg-mulligan-confirm');
+    const mulliganHint = await page.$eval('.sg-mulligan-box p', e => e.textContent);
+    step('the mulligan hint speaks of taps on a touch screen', /^Tap the cards/.test(mulliganHint), mulliganHint);
+    await page.tap('.sg-mulligan-confirm');
 
     const myTurn = async from => {
       const f = await waitFrame(x => x.dir === 'in' && ((x.type === 236 && x.p.current === ident) || RESULT.includes(x.type)), from, 240000);
@@ -172,6 +182,13 @@ const MIN_CARD = 86;
       await checkLayout(`${view} view`);
     }
     await hook(`view('arena')`); await sleep(2200);
+    {
+      // The opponent's hand: a fan of card backs in its band with the count beside it.
+      const count = await page.$eval('.souls3d-hand-count', e => { const r = e.getBoundingClientRect(); return { n: Number(e.textContent), hidden: e.hidden, y: r.top, b: r.bottom }; });
+      const { bands } = await hook('layout()');
+      const n = (await hook('state()')).opponentHand;
+      step('the opponent\'s hand: its count beside the fan, in its band', !count.hidden && count.n === n && count.y >= bands.opponentHand[0] - 2 && count.b <= bands.opponentHand[1] + 2, JSON.stringify({ count, n, band: bands.opponentHand }));
+    }
 
     // Turning the phone: the landscape layout, then the portrait one again.
     await page.setViewportSize({ width: PHONE.height, height: PHONE.width }); await sleep(1500);
@@ -179,6 +196,26 @@ const MIN_CARD = 86;
     const sign = await hook('endTurn()');
     step('turned sideways: the landscape layout', !turned.portrait && turned.width === PHONE.height && sign.x > PHONE.height * 0.6, JSON.stringify({ portrait: turned.portrait, sign }));
     await snap('landscape');
+    {
+      // Sideways with a notch at a side and the home indicator at the bottom: the hand, End Turn, the status pills, the
+      // fuse, the log and chat and the camera buttons stay inside the safe area.
+      const cdp3 = await ctx.newCDPSession(page);
+      const inset = { left: 47, right: 47, bottom: 21 };
+      const W = PHONE.height, H = PHONE.width;
+      const sized = async () => { await page.setViewportSize({ width: W, height: H - 1 }); await sleep(300); await page.setViewportSize({ width: W, height: H }); await sleep(1500); };
+      if (await cdp3.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, topMax: 0, left: inset.left, leftMax: inset.left, right: inset.right, rightMax: inset.right, bottom: inset.bottom, bottomMax: inset.bottom } }).then(() => true, () => false)) {
+        await sized();
+        const m = await measure();
+        const safe = { x: inset.left - 1, y: 0, w: W - inset.left - inset.right + 2, h: H - inset.bottom + 1 };
+        const inSafe = r => r.x >= safe.x && r.y >= safe.y && r.x + r.w <= safe.x + safe.w && r.y + r.h <= safe.y + safe.h;
+        const out = [...m.hand.map((r, i) => ({ ...r, name: 'hand card ' + i })), { ...(await hook('signRect()')), name: 'End Turn' }, ...m.dom].filter(r => !inSafe(r));
+        const covered = m.dom.filter(d => ['.souls3d-views', '.souls3d-log', '.souls3d-chat'].includes(d.name) && m.hand.some(r => overlap(d, r))).map(d => ({ ...d, name: d.name + ' over the hand' }));
+        step('sideways with a notch and a home indicator, the controls stay in the safe area, off the hand', out.length + covered.length === 0,
+          out.concat(covered).slice(0, 4).map(r => `${r.name} ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}x${Math.round(r.h)}`).join('; '));
+        await snap('landscape-safe-area');
+        await cdp3.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
+      }
+    }
     await page.setViewportSize(PHONE); await sleep(1500);
     await checkLayout('upright again');
 
@@ -236,11 +273,15 @@ const MIN_CARD = 86;
     }
     await checkLeaveDialog(page, step, { label: 'portrait', settings: '.souls3d-views [aria-label=Settings]', leave: '.souls3d-settings .s-btn-danger', touch: true });
 
-    // A tap on the enemy hero explains it, on the screen.
-    await tap(await hook('opponentHero()')); await sleep(700);
-    const heroTip = await tooltipOnScreen();
-    step('tap the enemy hero: its tooltip is on the screen', !!heroTip && heroTip.on, JSON.stringify(heroTip));
-    await tap({ x: PHONE.width / 2, y: (await hook('layout()')).bands.board[0] + 20 }); await sleep(400);
+    // A tap on the enemy hero explains it, on the screen, clear of the player's hero and hero power (every view; the
+    // field view has the player's hero highest).
+    for (const view of ['arena', 'field']) {
+      await hook(`view('${view}')`); await sleep(2400);
+      const t = await tipClear(await hook('opponentHero()'));
+      step(`${view} view: tap the enemy hero, its tooltip is on the screen, clear of your hero and hero power`, t.ok, JSON.stringify(t));
+      await tap({ x: PHONE.width / 2, y: (await hook('layout()')).bands.board[0] + 20 }); await sleep(400);
+    }
+    await hook(`view('arena')`); await sleep(2200);
 
     // ---- Play by touch until the game ends ----------------------------------------------------------------------
     const done = { turns: 0, played: 0, tapCast: false, dragCast: false, power: false, attacks: 0, ended: null };
@@ -271,6 +312,17 @@ const MIN_CARD = 86;
           step('drag a spell\'s arrow from the hand onto the enemy hero: it is cast', done.dragCast, cast ? JSON.stringify(cast.p.target) : 'no 224');
         }
         await sleep(1500);
+      }
+      // An enemy card's rules (a tall tooltip) in the field view stay clear of your hero and hero power.
+      const enemy = (await hook('state()')).opponentBoard[0];
+      if (!done.enemyTip && enemy) {
+        done.enemyTip = true;
+        await hook(`view('field')`); await sleep(2400);
+        const t = await tipClear(await hook(`opponentCard(${enemy.cid})`));
+        await snap('field-enemy-tip');
+        step('field view: tap an enemy card, its rules stay clear of your hero and hero power', t.ok, JSON.stringify(t));
+        await tap({ x: PHONE.width / 2, y: (await hook('layout()')).bands.board[0] + 20 }); await sleep(400);
+        await hook(`view('arena')`); await sleep(2200);
       }
       // Creatures: dragged onto free slots while the mana lasts.
       for (let k = 0; k < 4; k++) {

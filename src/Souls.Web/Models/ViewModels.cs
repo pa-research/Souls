@@ -54,7 +54,7 @@ public sealed class RegisterPageModel
 /// <summary>Display data for a card.</summary>
 public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Health, string? Ability, string? RaceTexture, string Portrait, int VendorPrice, bool Owned)
 {
-    public const string DefaultPortrait = "/Content/Images/Card/Portraits/0.png";
+    public const string DefaultPortrait = "/Content/Images/Card/Portraits/0.jpg";
 
     public int Armor { get; init; }
 
