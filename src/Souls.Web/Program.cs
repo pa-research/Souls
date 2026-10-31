@@ -1,12 +1,18 @@
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.WebEncoders;
 using Souls.Model;
 using Souls.Model.Hosting;
+using Souls.Model.Localization;
+using Souls.Web;
 using Souls.Web.Services;
 
 if (await SoulsCommands.TryRunHealthCheckAsync(args) is { } exitCode)
@@ -57,6 +63,19 @@ builder.Services.AddControllersWithViews(options =>
     // Every page requires a login unless marked [AllowAnonymous]; every unsafe request needs an antiforgery token.
     options.Filters.Add(new AuthorizeFilter(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()));
     options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+}).AddDataAnnotationsLocalization(options => options.DataAnnotationLocalizerProvider = (_, factory) => factory.Create(typeof(SharedResource)));
+
+// The page language: the one the player picked (cookie), else the browser's (Accept-Language), else English. The
+// site's texts are in Resources/SharedResource.{language}.resx, the game's in Souls.Model/Localization.
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+builder.Services.Configure<WebEncoderOptions>(options => options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All)); // "på", not "p&#xE5;"
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var secure = SoulsHostingExtensions.UseSecureCookies(builder.Configuration, builder.Environment);
+    options.DefaultRequestCulture = new RequestCulture(Strings.Default);
+    options.SupportedCultures = [.. Localized.Cultures];
+    options.SupportedUICultures = [.. Localized.Cultures];
+    options.RequestCultureProviders = [new CookieRequestCultureProvider { CookieName = Localized.CookieName(secure) }, new AcceptLanguageHeaderRequestCultureProvider()];
 });
 
 // Per client IP: login/registration attempts and image uploads. Limits are read from configuration
@@ -100,6 +119,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseRequestLocalization();
 app.UseStatusCodePagesWithReExecute("/Home/Status/{0}");
 app.UseRouting();
 app.UseRateLimiter();

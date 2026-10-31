@@ -188,8 +188,9 @@
             GAME_LOAD_BG: Asset.Path.Textures + "bg_faded.jpg",
 
             // End turn
-            END_TURN: Asset.Path.Textures + "endturn.png",
-            END_TURN_DISABLED: Asset.Path.Textures + "endturn_disabled.png",
+            // The sign is lettered: the picture in the page's language (art.* in the string tables).
+            END_TURN: Asset.Path.Textures + window.SoulsL10n.t("art.endTurn"),
+            END_TURN_DISABLED: Asset.Path.Textures + window.SoulsL10n.t("art.endTurnDisabled"),
 
             // Card
             CARD_NONE: Asset.Path.Textures + "Card/CARD_NONE.png",

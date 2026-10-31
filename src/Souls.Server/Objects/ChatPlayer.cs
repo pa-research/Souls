@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Souls.Model.Localization;
 using Souls.Server.Chat;
 using Souls.Server.Network;
 
@@ -19,7 +20,7 @@ public sealed class ChatPlayer(string name)
     {
         foreach (var room in MemberRooms.Values)
         {
-            room.Broadcast(new Response(ChatResponse.ChatClientDisconnect, $"Player \"{Name}\" disconnected!"));
+            room.Broadcast(new Response(ChatResponse.ChatClientDisconnect, new GameText("chat.disconnected", ("name", Name))));
         }
     }
 

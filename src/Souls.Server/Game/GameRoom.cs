@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Souls.Model;
+using Souls.Model.Localization;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 
@@ -212,7 +213,13 @@ public sealed partial class GameRoom
         _events.Add(data);
     }
 
-    public void LogLine(string text) => Event("log", new JsonObject { ["text"] = text });
+    /// <summary>A line for the battle log: the English text with its key and arguments (see <see cref="GameText.WriteTo"/>).</summary>
+    public void LogLine(GameText text)
+    {
+        var data = new JsonObject();
+        text.WriteTo(data, "text");
+        Event("log", data);
+    }
 
     /// <summary>Sends the collected events to both players (and, through player one, to spectators).</summary>
     public void FlushEvents()

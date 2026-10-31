@@ -5,6 +5,8 @@
     // Where a spell is cast: beside the board, left of the slots, ours a little lower than the opponent's.
     var SPELL_X = 280, SPELL_Y = { player: 610, opponent: 510 };
     var MULLIGAN_FADE = 900; // the mulligan layer fades out (sg-fade-out) before the first turn banner
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
     GameService = function (engine, socket) {
 
         that = this;
@@ -62,10 +64,12 @@
     //////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////
 
-    function Text(payload, fallback) {
-        if (typeof payload === 'string') return payload;
-        if (payload && typeof payload.error === 'string') return payload.error;
-        if (payload && typeof payload.message === 'string') return payload.message;
+    /// The text of a message in the page's language: a text payload (PayloadKey), or its error / message field.
+    function Text(json, fallback) {
+        var payload = json.Payload;
+        if (typeof payload === 'string') return L10n.text(json, 'Payload');
+        if (payload && typeof payload.error === 'string') return L10n.text(payload, 'error');
+        if (payload && typeof payload.message === 'string') return L10n.text(payload, 'message');
         return fallback;
     }
 
@@ -84,18 +88,18 @@
 
     function Response_UseCard_OOM(json) {
         ClearPendingPower();
-        that.engine.ScreenMessage([Text(json.Payload, "Not enough mana!")], false);
+        that.engine.ScreenMessage([Text(json, T('error.mana'))], false);
         return 0;
     }
 
     function Response_GeneralMessage(json) {
         ClearPendingPower();
-        that.engine.ScreenMessage([Text(json.Payload, "")], false);
+        that.engine.ScreenMessage([Text(json, "")], false);
         return 0;
     }
 
     function Response_SpectateError(json) {
-        that.engine.ScreenMessage([Text(json.Payload, "Cannot watch that game.")], false);
+        that.engine.ScreenMessage([Text(json, T('classic.error.watch'))], false);
         return 0;
     }
 
@@ -115,12 +119,12 @@
         }
         else {
             queue.HideInvite();
-            queue.ChallengeIdle(Text(json.Payload, ""));
+            queue.ChallengeIdle(Text(json, ""));
         }
         return 0;
     }
 
-    /// 299 Emote {ident, emote, text}
+    /// 299 Emote {ident, emote, text, textKey}
     function Response_Emote(json) {
         that.engine.emotes.Say(json.Payload || {});
         return 0;
@@ -176,11 +180,12 @@
         engine.OnEnd();
         if (window.SoulsGameMode) window.SoulsGameMode.clearInGame();
 
-        var title = type == 230 ? "Victory!" : type == 231 ? "Defeat!" : "Draw!";
+        var kind = type == 230 ? "victory" : type == 231 ? "defeat" : "draw";
+        var title = kind === "victory" ? T('classic.end.victory') : kind === "defeat" ? T('classic.end.defeat') : T('classic.end.draw');
         Asset.StopMusic();
         if (type != 233) Animation.PlaySound(type == 230 ? Asset.Sound.VICTORY : Asset.Sound.DEFEAT, 0.9);
         if (engine.battleLog) engine.battleLog.Add(title, "system");
-        engine.queue.FadeInGameEnd(title, payload.statistics, payload);
+        engine.queue.FadeInGameEnd(title, payload.statistics, payload, kind);
         return 0;
     }
 
@@ -190,14 +195,14 @@
 
         //"11", "12", "13", "14"
         if (type == 11 || type == 13) {
-            that.engine.queue.SetError("You are not logged in!");
+            that.engine.queue.SetError(T('classic.error.notLoggedIn'));
         }
         else if (type == 12) {
-            that.engine.queue.SetError("Authentication Failure!");
+            that.engine.queue.SetError(T('classic.error.auth'));
         }
         else if (type == 14) // LOGIN_BANNED
         {
-            that.engine.queue.SetError("You are banned!");
+            that.engine.queue.SetError(T('classic.error.banned'));
         }
         return 0;
     }
@@ -217,13 +222,13 @@
 
     function Response_QueueAlreadyIn(json) // 101
     {
-        that.engine.queue.SetText(Text(json.Payload, "You are already in queue!"));
+        that.engine.queue.SetText(Text(json, T('queue.already')));
         return 0;
     }
 
     function Response_SlotOccupied(json) // 213 GAME_SLOTOCCUPIED
     {
-        that.engine.ScreenMessage([Text(json.Payload, "Slot is already occupied!")], false);
+        that.engine.ScreenMessage([Text(json, T('error.slotOccupied'))], false);
         return 0;
     }
 
@@ -432,7 +437,7 @@
     function Repsonse_NotYourTurn(json) // 202 NOT YOUR TURN
     {
         ClearPendingPower();
-        that.engine.ScreenMessage(["Not your turn!"], false);
+        that.engine.ScreenMessage([T('error.notYourTurn')], false);
         return 0;
     }
 
@@ -462,9 +467,9 @@
         // The turn number: GameSync sends it (0 for the first turn); the next sync confirms it.
         if (typeof engine.turnNumber === 'number' && !firstTurn) engine.turnNumber++;
         engine.RefreshAll();
-        var sub = typeof engine.turnNumber === 'number' ? "Turn " + (engine.turnNumber + 1) : null;
+        var sub = typeof engine.turnNumber === 'number' ? T('classic.turn.number', { n: engine.turnNumber + 1 }) : null;
         var mine = engine.myTurn;
-        var banner = function () { if (!engine.ended) engine.hud.Banner(mine ? "Your turn" : "Enemy turn", sub, !mine); };
+        var banner = function () { if (!engine.ended) engine.hud.Banner(mine ? T('classic.turn.mine') : T('classic.turn.enemy'), sub, !mine); };
         // The first turn: once the mulligan screen has faded out (0.9 s), not over its cards.
         if (firstTurn && !engine.hud.ReducedMotion()) {
             setTimeout(banner, MULLIGAN_FADE);
@@ -834,10 +839,10 @@
         if (engine.ended || /another window/i.test(reason)) return;
         this.reconnects = (this.reconnects || 0) + 1;
         if (this.reconnects > 12) {
-            engine.ScreenMessage(['Connection lost. Reload the page to continue.']);
+            engine.ScreenMessage([T('classic.connection.lost')]);
             return;
         }
-        engine.ScreenMessage([/restarting/i.test(reason) ? 'The server is restarting, reconnecting…' : 'Connection lost, reconnecting…'], 'info');
+        engine.ScreenMessage([/restarting/i.test(reason) ? T('classic.connection.restarting') : T('classic.connection.reconnecting')], 'info');
         setTimeout(function () {
             if (engine.ended) return;
             self.Connect();
@@ -851,7 +856,7 @@
     GameService.prototype.TrafficHandler = function (event) {
         var json;
         try {
-            json = JSON.parse(event.data);
+            json = window.SoulsL10n.localizeMessage(JSON.parse(event.data));
         }
         catch (e) {
             return;

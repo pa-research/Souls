@@ -35,7 +35,7 @@ export class Socket {
         this.ws.onopen = () => this.flush();
         this.ws.onmessage = e => {
             let message;
-            try { message = JSON.parse(e.data); } catch (err) { return; }
+            try { message = window.SoulsL10n.localizeMessage(JSON.parse(e.data)); } catch (err) { return; }
             this.onMessage(message);
         };
         this.ws.onclose = e => this.onClose && this.onClose(e);

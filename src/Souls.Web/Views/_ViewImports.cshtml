@@ -2,5 +2,8 @@
 @using Souls.Web.Models
 @using Souls.Web.Services
 @using Souls.Model.Security
+@using Microsoft.Extensions.Localization
+@using static Souls.Web.Services.Localized
+@inject IStringLocalizer<SharedResource> L
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @addTagHelper *, Souls.Web

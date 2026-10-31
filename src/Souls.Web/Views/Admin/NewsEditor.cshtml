@@ -1,32 +1,32 @@
 @model NewsEditorViewModel
 <div class="s-admin">
 <section class="s-panel">
-<div class="s-panel-head"><s-icon name="news" /><h2>News Editor</h2><a class="s-btn s-btn-ghost s-btn-sm" asp-action="NewsEditor" asp-route-id=""><s-icon name="plus" />New post</a></div>
+<div class="s-panel-head"><s-icon name="news" /><h2>@L["News Editor"]</h2><a class="s-btn s-btn-ghost s-btn-sm" asp-action="NewsEditor" asp-route-id=""><s-icon name="plus" />@L["New post"]</a></div>
 
 <form asp-action="NewsEditor" method="post" class="mb-4">
     <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
     <input type="hidden" asp-for="Post.Id" />
     <div class="mb-3">
-        <label asp-for="Post.Title" class="form-label">Title</label>
+        <label asp-for="Post.Title" class="form-label">@L["Title"]</label>
         <input asp-for="Post.Title" class="form-control" />
     </div>
     <div class="mb-3">
-        <label asp-for="Post.Text" class="form-label">Text</label>
+        <label asp-for="Post.Text" class="form-label">@L["Text"]</label>
         <textarea asp-for="Post.Text" class="form-control" rows="10"></textarea>
-        <div class="form-text">Basic HTML is allowed: p, br, b, strong, i, em, u, ul, ol, li, a, h3, h4, blockquote, img. Everything else is removed.</div>
+        <div class="form-text">@L["Basic HTML is allowed: p, br, b, strong, i, em, u, ul, ol, li, a, h3, h4, blockquote, img. Everything else is removed."]</div>
     </div>
-    <button type="submit" class="s-btn s-btn-primary"><s-icon name="save" />@(Model.Post.Id is null ? "Create" : "Update")</button>
+    <button type="submit" class="s-btn s-btn-primary"><s-icon name="save" />@(Model.Post.Id is null ? L["Create"] : L["Update"])</button>
 </form>
 
 @if (Model.News.Count == 0)
 {
-    <div class="s-empty"><s-icon name="news" /><p>No posts yet. Posts you create here appear on the home page.</p></div>
+    <div class="s-empty"><s-icon name="news" /><p>@L["No posts yet. Posts you create here appear on the home page."]</p></div>
 }
 else
 {
 <div class="table-responsive">
 <table class="table table-sm align-middle">
-    <thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Shown</th><th></th></tr></thead>
+    <thead><tr><th>@L["Title"]</th><th>@L["Author"]</th><th>@L["Date"]</th><th>@L["Shown"]</th><th></th></tr></thead>
     <tbody>
         @foreach (var post in Model.News)
         {
@@ -36,12 +36,12 @@ else
                 <td>@post.Date.ToString("yyyy-MM-dd HH:mm")</td>
                 <td>
                     <form asp-action="NewsToggle" asp-route-id="@post.Id" method="post">
-                        <button type="submit" class="s-btn s-btn-ghost s-btn-sm" title="@(post.Enabled ? "Hide it from the home page" : "Show it on the home page")">@(post.Enabled ? "Shown" : "Hidden")</button>
+                        <button type="submit" class="s-btn s-btn-ghost s-btn-sm" title="@(post.Enabled ? L["Hide it from the home page"] : L["Show it on the home page"])">@(post.Enabled ? L["Shown"] : L["Hidden"])</button>
                     </form>
                 </td>
                 <td>
-                    <form asp-action="NewsDelete" asp-route-id="@post.Id" method="post" data-confirm="Delete this post?">
-                        <button type="submit" class="s-btn s-btn-danger s-btn-sm">Delete</button>
+                    <form asp-action="NewsDelete" asp-route-id="@post.Id" method="post" data-confirm="@L["Delete this post?"]">
+                        <button type="submit" class="s-btn s-btn-danger s-btn-sm">@L["Delete"]</button>
                     </form>
                 </td>
             </tr>

@@ -27,7 +27,10 @@
         var data = new FormData();
         data.append("file", file);
         var token = $("#card-form input[name='__RequestVerificationToken']").val();
-        var status = $("#upload-status").text("Uploading...");
+        // The texts in the page's language are on the status line (data-*).
+        var status = $("#upload-status");
+        var texts = status[0].dataset;
+        status.text(texts.uploading);
 
         $.ajax({
             url: "/Admin/Upload",
@@ -40,9 +43,9 @@
         }).done(function (result) {
             preview.find(".card-portrait").attr("src", result.data);
             $("#Card_Portrait").val(result.data);
-            status.text("Uploaded.");
+            status.text(texts.uploaded);
         }).fail(function (xhr) {
-            var error = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : "Upload failed.";
+            var error = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : texts.failed;
             status.text(error);
         });
     });

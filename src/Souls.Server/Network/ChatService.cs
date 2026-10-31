@@ -1,3 +1,4 @@
+using Souls.Model.Localization;
 using Souls.Server.Chat;
 using Souls.Server.Game;
 using Souls.Server.Objects;
@@ -68,7 +69,7 @@ public sealed class ChatService(ServerState state, ChatEngine chat) : IClientSer
         var player = state.FindPlayer(user.Id);
         if (player is null)
         {
-            connection.Send(new Response(ServiceResponse.LoginNotLoggedIn, "Log in to the game first"));
+            connection.Send(new Response(ServiceResponse.LoginNotLoggedIn, new GameText("service.chatLogin")));
             return;
         }
 

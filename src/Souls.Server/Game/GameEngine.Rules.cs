@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Souls.Model;
+using Souls.Model.Localization;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 using Ability = Souls.Model.Entities.Ability;
@@ -80,7 +81,7 @@ public sealed partial class GameEngine
             case Card { Ward: true } warded:
                 warded.Ward = false;
                 room.Event("ward", new JsonObject { ["to"] = Ref(warded), ["on"] = false });
-                room.LogLine($"{warded.Name}'s ward breaks.");
+                room.LogLine(new GameText("log.wardBreaks", ("card", warded.Name)));
                 return;
             case Card c:
                 absorbed = Math.Min(c.Armor, amount);
@@ -91,7 +92,7 @@ public sealed partial class GameEngine
                 {
                     c.Health = 0;
                     room.Event("venom", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(c) });
-                    room.LogLine($"{sourceCard.Name}'s venom kills {c.Name}.");
+                    room.LogLine(new GameText("log.venom", ("card", sourceCard.Name), ("target", c.Name)));
                 }
 
                 break;
@@ -114,7 +115,7 @@ public sealed partial class GameEngine
             if (healed > 0)
             {
                 room.Event("lifesteal", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(sourceSide), ["amount"] = healed, ["health"] = sourceSide.Health });
-                room.LogLine($"{sourceCard.Name} drains {healed} health for {sourceSide.Name}.");
+                room.LogLine(new GameText("log.lifesteal", ("card", sourceCard.Name), ("n", healed), ("player", sourceSide.Name)));
             }
         }
     }
@@ -189,7 +190,7 @@ public sealed partial class GameEngine
                 side.RemoveBoardCard(card);
                 room.Other(side).CardsDestroyed++;
                 room.Event("death", new JsonObject { ["cid"] = card.Cid, ["owner"] = side.Ident });
-                room.LogLine($"{card.Name} dies.");
+                room.LogLine(new GameText("log.dies", ("card", card.Name)));
             }
 
             foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Haunt && !d.card.Haunted && !d.card.IsToken))
@@ -209,7 +210,7 @@ public sealed partial class GameEngine
                 var targets = enemy.BoardCards.Values.Where(c => c.Health >= 1).Cast<object>().Append(enemy).ToList();
                 var target = targets[room.Random.Next(targets.Count)];
                 room.Event("curse", new JsonObject { ["src"] = card.Cid, ["owner"] = side.Ident, ["dst"] = Ref(target) });
-                var text = $"{card.Name}'s death curse hits {NameOf(target)}.";
+                var text = new GameText("log.deathCurse", ("card", card.Name), ("target", NameOf(target)));
                 room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);
                 room.LogLine(text);
                 Damage(room, target, GameRules.DeathCurseDamage, side, null);
@@ -223,7 +224,7 @@ public sealed partial class GameEngine
         var copy = card.NewInstance();
         copy.Haunted = true;
         var owner = room.PlayerOf(side.Ident);
-        var text = $"{card.Name} haunts the arena and returns to {side.Name}'s hand.";
+        var text = new GameText("log.haunt", ("card", card.Name), ("player", side.Name));
         room.Logger.Add(GameLogKind.Haunt, card.Id, owner.Id, "Card", "Player", text);
         room.Event("haunt", new JsonObject { ["cid"] = card.Cid, ["newCid"] = copy.Cid, ["owner"] = side.Ident });
         room.LogLine(text);
@@ -247,7 +248,7 @@ public sealed partial class GameEngine
             if (gp.Deck.Count == 0)
             {
                 gp.Fatigue++;
-                var text = $"{gp.Name}'s deck is empty: {gp.Fatigue} fatigue damage.";
+                var text = new GameText("log.fatigue", ("player", gp.Name), ("n", gp.Fatigue));
                 var player = room.PlayerOf(gp.Ident);
                 room.Logger.Add(GameLogKind.Fatigue, player.Id, player.Id, "Player", "Player", text);
                 room.Event("fatigue", new JsonObject { ["id"] = gp.Ident, ["amount"] = gp.Fatigue });
@@ -292,7 +293,7 @@ public sealed partial class GameEngine
 
     private static void Burn(GameRoom room, GamePlayer gp, Card card)
     {
-        var text = $"{gp.Name}'s hand is full: {card.Name} burns.";
+        var text = new GameText("log.burned", ("player", gp.Name), ("card", card.Name));
         room.Logger.Add(GameLogKind.CardBurned, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card", text);
         room.Event("burned", new JsonObject { ["owner"] = gp.Ident, ["card"] = card.ToJson() });
         room.LogLine(text);
@@ -301,12 +302,18 @@ public sealed partial class GameEngine
     /// <summary>A card ability fires on its own (on play, at the start of the turn, on death): shown by the clients.</summary>
     private static void Trigger(GameRoom room, Card card)
     {
-        room.Event("trigger", new JsonObject
+        var trigger = new JsonObject
         {
             ["abilityId"] = card.AbilityId,
             ["src"] = Ref(card),
-            ["label"] = card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValueOverride) : null,
-        });
+            ["label"] = null,
+        };
+        if (card.AbilityId is { } id)
+        {
+            GameRules.AbilityLabelText(id, card.AbilityValueOverride).WriteTo(trigger, "label");
+        }
+
+        room.Event("trigger", trigger);
     }
 
     /// <summary>
@@ -334,7 +341,7 @@ public sealed partial class GameEngine
 
         if (summoned > 0)
         {
-            var text = $"{source.Name} summons {(summoned == 1 ? "a Lost Soul" : $"{summoned} Lost Souls")}.";
+            var text = new GameText("log.summon", ("card", source.Name), ("n", summoned));
             room.Logger.Add(GameLogKind.Summon, source.Id, source.Id, "Card", "Card", text);
             room.LogLine(text);
         }
@@ -349,7 +356,7 @@ public sealed partial class GameEngine
             var healed = Heal(room, gp, GameRules.LightbringerBlessing);
             if (healed > 0)
             {
-                room.LogLine($"{card.Name} blesses {gp.Name} for {healed} health.");
+                room.LogLine(new GameText("log.blessing", ("card", card.Name), ("player", gp.Name), ("n", healed)));
             }
         }
 
@@ -381,13 +388,15 @@ public sealed partial class GameEngine
                     room.Event("buff", new JsonObject { ["to"] = Ref(n), ["src"] = Ref(card), ["attack"] = n.Attack, ["health"] = n.Health, ["maxHealth"] = n.MaxHealth, ["armor"] = n.Armor });
                 }
 
-                LogTrigger(room, card, $"{card.Name} rallies {string.Join(" and ", neighbours.Select(n => n.Name))} (+{value} attack).");
+                LogTrigger(room, card, neighbours.Count == 1
+                    ? new GameText("log.rally", ("card", card.Name), ("target", neighbours[0].Name), ("n", value))
+                    : new GameText("log.rally2", ("card", card.Name), ("target", neighbours[0].Name), ("target2", neighbours[1].Name), ("n", value)));
                 break;
             }
 
             case Ability.Insight:
                 Trigger(room, card);
-                LogTrigger(room, card, $"{card.Name} reveals {(value == 1 ? "a card" : $"{value} cards")}.");
+                LogTrigger(room, card, new GameText("log.insight", ("card", card.Name), ("n", value)));
                 Draw(room, gp, value);
                 break;
 
@@ -396,7 +405,7 @@ public sealed partial class GameEngine
                 var enemy = room.Other(gp);
                 var targets = enemy.BoardCards.Values.OrderBy(c => c.SlotId).ToList();
                 Trigger(room, card);
-                LogTrigger(room, card, $"{card.Name} sets the enemy line ablaze ({value} damage to every enemy card).");
+                LogTrigger(room, card, new GameText("log.inferno", ("card", card.Name), ("n", value)));
                 foreach (var target in targets)
                 {
                     Damage(room, target, value, gp, card);
@@ -420,7 +429,7 @@ public sealed partial class GameEngine
                 {
                     Trigger(room, card);
                     var healed = Heal(room, card, card.AbilityValue);
-                    LogTrigger(room, card, $"{card.Name} regenerates {healed} health.");
+                    LogTrigger(room, card, new GameText("log.regenerate", ("card", card.Name), ("n", healed)));
                     break;
                 }
 
@@ -432,14 +441,14 @@ public sealed partial class GameEngine
                     card.Health += value;
                     card.MaxHealth += value;
                     room.Event("buff", new JsonObject { ["to"] = Ref(card), ["src"] = Ref(card), ["attack"] = card.Attack, ["health"] = card.Health, ["maxHealth"] = card.MaxHealth, ["armor"] = card.Armor });
-                    LogTrigger(room, card, $"{card.Name} grows stronger (+{value}/+{value}).");
+                    LogTrigger(room, card, new GameText("log.grow", ("card", card.Name), ("n", value)));
                     break;
                 }
             }
         }
     }
 
-    private static void LogTrigger(GameRoom room, Card card, string text)
+    private static void LogTrigger(GameRoom room, Card card, GameText text)
     {
         room.Logger.Add(GameLogKind.AbilityTriggered, card.Id, card.Id, "Card", "Card", text);
         room.LogLine(text);
@@ -471,7 +480,7 @@ public sealed partial class GameEngine
         var room = gp.GameRoom!;
         if (!gp.HasEnoughMana(card))
         {
-            player.Send(new Response(GameResponse.GameUseCardOom, "Not enough mana!"));
+            player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
             RequestReleaseCard(player, message);
             return;
         }
@@ -498,7 +507,9 @@ public sealed partial class GameEngine
         player.Send(new Response(GameResponse.GameUseCardSpell, Payload()));
         opponent.Send(new Response(GameResponse.GameOpponentUseCardSpell, Payload()));
 
-        var text = target is null ? $"{gp.Name} casts {card.Name}." : $"{gp.Name} casts {card.Name} on {NameOf(target)}.";
+        var text = target is null
+            ? new GameText("log.cast", ("player", gp.Name), ("card", card.Name))
+            : new GameText("log.castOn", ("player", gp.Name), ("card", card.Name), ("target", NameOf(target)));
         room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
         room.LogLine(text);
         OnPlay(room, gp, card);
@@ -512,7 +523,7 @@ public sealed partial class GameEngine
     }
 
     /// <summary>The target of an activated ability (or spell), or <c>null</c> and why it cannot be used there.</summary>
-    private static object? AbilityTarget(GameRoom room, GamePlayer gp, Card card, TargetType type, int targetCid, out string? error)
+    private static object? AbilityTarget(GameRoom room, GamePlayer gp, Card card, TargetType type, int targetCid, out GameText? error)
     {
         var enemy = room.Other(gp);
         object? target = type switch
@@ -533,20 +544,20 @@ public sealed partial class GameEngine
         };
         error = card.AbilityId switch
         {
-            var id when !GameRules.IsActivated(id) => "This card has no ability to use!",
-            _ when target is null => "Pick a valid target!",
+            var id when !GameRules.IsActivated(id) => new GameText("error.noAbility"),
+            _ when target is null => new GameText("error.pickTarget"),
             { } id when !GameRules.AbilityTargets(id).Contains(targetName) => id switch
             {
-                Ability.Heal => "Cannot heal the enemy!",
-                Ability.Harden => "Can only harden friendly targets!",
-                Ability.Sacrifice => "Can only target friendly!",
-                Ability.Paralyze => "Can only paralyze enemy cards!",
-                Ability.Burn => "Can only burn enemies!",
-                Ability.Drain => "Can only drain enemies!",
-                Ability.Empower => "Can only empower friendly cards!",
-                _ => "Pick a valid target!",
+                Ability.Heal => new GameText("error.healEnemy"),
+                Ability.Harden => new GameText("error.hardenFriendly"),
+                Ability.Sacrifice => new GameText("error.sacrificeFriendly"),
+                Ability.Paralyze => new GameText("error.paralyzeEnemy"),
+                Ability.Burn => new GameText("error.burnEnemy"),
+                Ability.Drain => new GameText("error.drainEnemy"),
+                Ability.Empower => new GameText("error.empowerFriendly"),
+                _ => new GameText("error.pickTarget"),
             },
-            Ability.Sacrifice when target == card => "Cannot cast on itself!",
+            Ability.Sacrifice when target == card => new GameText("error.notItself"),
             _ => null,
         };
         return error is null ? target : null;
@@ -563,7 +574,7 @@ public sealed partial class GameEngine
             {
                 var amount = card.AbilityValue + (card.RaceId == Races.Lightbringer ? GameRules.LightbringerHealBonus : 0);
                 var healed = Heal(room, target, amount);
-                var text = $"{card.Name} heals {NameOf(target)} for {healed}.";
+                var text = new GameText("log.heal", ("card", card.Name), ("target", NameOf(target)), ("n", healed));
                 if (target is Card healedCard)
                 {
                     foreach (var slot in new[] { healedCard.SlotId - 1, healedCard.SlotId + 1 })
@@ -582,7 +593,7 @@ public sealed partial class GameEngine
 
             case Ability.Sacrifice:
             {
-                var text = $"{card.Name} sacrifices itself, strengthening {NameOf(target)} (+{card.Attack} attack, +{Math.Max(0, card.Health)} health, +{card.Armor} armor).";
+                var text = new GameText("log.sacrifice", ("card", card.Name), ("target", NameOf(target)), ("attack", card.Attack), ("health", Math.Max(0, card.Health)), ("armor", card.Armor));
                 switch (target)
                 {
                     case Card t:
@@ -612,7 +623,7 @@ public sealed partial class GameEngine
                 var t = (Card)target;
                 t.Paralyzed = true;
                 room.Event("paralyze", new JsonObject { ["cid"] = t.Cid, ["on"] = true });
-                var text = $"{card.Name} paralyzes {t.Name}.";
+                var text = new GameText("log.paralyze", ("card", card.Name), ("target", t.Name));
                 room.Logger.Add(GameLogKind.AbilityParalyze, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 break;
@@ -621,7 +632,7 @@ public sealed partial class GameEngine
             case Ability.Harden:
             {
                 GainArmor(room, target, card.AbilityValue);
-                var text = $"{card.Name} hardens {NameOf(target)} (+{card.AbilityValue} armor).";
+                var text = new GameText("log.harden", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
                 room.Logger.Add(GameLogKind.AbilityHarden, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 break;
@@ -629,7 +640,7 @@ public sealed partial class GameEngine
 
             case Ability.Burn:
             {
-                var text = $"{card.Name} burns {NameOf(target)} for {card.AbilityValue}.";
+                var text = new GameText("log.burn", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
                 room.Logger.Add(GameLogKind.AbilityBurn, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 Damage(room, target, card.AbilityValue, gp, card);
@@ -638,7 +649,7 @@ public sealed partial class GameEngine
 
             case Ability.Drain:
             {
-                var text = $"{card.Name} drains {NameOf(target)} for {card.AbilityValue}.";
+                var text = new GameText("log.drain", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
                 room.Logger.Add(GameLogKind.AbilityDrain, card.Id, targetDbId, "Card", targetType, text);
                 room.LogLine(text);
                 Damage(room, target, card.AbilityValue, gp, card);
@@ -658,7 +669,7 @@ public sealed partial class GameEngine
                 t.Health += card.AbilityValue;
                 t.MaxHealth += card.AbilityValue;
                 room.Event("buff", new JsonObject { ["to"] = Ref(t), ["src"] = Ref(card), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
-                LogTrigger(room, card, $"{card.Name} empowers {t.Name} (+{card.AbilityValue}/+{card.AbilityValue}).");
+                LogTrigger(room, card, new GameText("log.empower", ("card", card.Name), ("target", t.Name), ("n", card.AbilityValue)));
                 break;
             }
         }
@@ -671,7 +682,7 @@ public sealed partial class GameEngine
     {
         if (!GameRules.HeroPowers.TryGetValue(gp.Power, out var power))
         {
-            Tell(player, "Your hero has no power!");
+            Tell(player, new GameText("error.noPower"));
             return false;
         }
 
@@ -689,25 +700,28 @@ public sealed partial class GameEngine
         {
             Tell(player, power.Target switch
             {
-                "enemy" => $"{power.Name} targets an enemy!",
-                "enemyCard" => $"{power.Name} targets an enemy card!",
-                "friendlyCard" => $"{power.Name} targets a friendly card!",
-                _ => $"{power.Name} targets a friendly card or your hero!",
+                "enemy" => new GameText("error.powerTargetEnemy", ("power", power.Name)),
+                "enemyCard" => new GameText("error.powerTargetEnemyCard", ("power", power.Name)),
+                "friendlyCard" => new GameText("error.powerTargetFriendlyCard", ("power", power.Name)),
+                _ => new GameText("error.powerTargetFriendly", ("power", power.Name)),
             });
             return false;
         }
 
         if (gp.Power == GameRules.Powers.Aegis && target is Card { Ward: true })
         {
-            Tell(player, "That card already has a ward!");
+            Tell(player, new GameText("error.hasWard"));
             return false;
         }
 
         gp.Mana -= GameRules.HeroPowerCost;
         gp.HeroPowerUsed = true;
         gp.AbilitiesUsed++;
-        room.Event("heroPower", new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Power, ["name"] = power.Name, ["dst"] = Ref(target) });
-        var text = $"{gp.Name} uses {power.Name} on {NameOf(target)}.";
+        var used = new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Power };
+        power.Name.WriteTo(used, "name");
+        used["dst"] = Ref(target);
+        room.Event("heroPower", used);
+        var text = new GameText("log.heroPower", ("player", gp.Name), ("power", power.Name), ("target", NameOf(target)));
         room.Logger.Add(GameLogKind.HeroPower, player.Id, target is Card c ? c.Id : room.PlayerOf(((GamePlayer)target).Ident).Id, "Player", target is Card ? "Card" : "Player", text);
         room.LogLine(text);
         switch (gp.Power)

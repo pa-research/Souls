@@ -40,7 +40,7 @@ async function main() {
     if (!webgl2Available()) {
         const message = document.createElement('div');
         message.className = 'souls3d-unsupported';
-        message.textContent = 'Your browser does not support WebGL 2, which the 3D arena needs. Switch to the classic client (top left).';
+        message.textContent = window.SoulsL10n.t('g3d.noWebgl');
         host.appendChild(message);
         return;
     }

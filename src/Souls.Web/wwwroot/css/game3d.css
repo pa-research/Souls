@@ -366,6 +366,8 @@
     /* The panels open beside the buttons, not over them. */
     .souls3d-settings,
     .souls3d-emotes { top: 12px; left: calc(max(12px, env(safe-area-inset-left)) + 52px); }
+    /* Sound, graphics and language: scroll rather than run off a short screen. */
+    .souls3d-settings { max-height: calc(100% - 24px); overflow-y: auto; }
 }
 
 @media (max-height: 380px) and (pointer: coarse) {

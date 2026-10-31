@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using Souls.Model;
+using Souls.Model.Localization;
 using GameLogKind = Souls.Model.Entities.GameLogKind;
 using Souls.Server.Chat;
 using Souls.Server.Network;
@@ -40,8 +41,8 @@ public sealed partial class GameEngine(
     /// <summary>Starts a game between two players with the mulligan (see <see cref="RequestMulliganAsync"/>).</summary>
     public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false)
     {
-        DropChallenge(players.First, $"{players.First.Name} started another game.");
-        DropChallenge(players.Second, $"{players.Second.Name} started another game.");
+        DropChallenge(players.First, new GameText("challenge.otherGame", ("name", players.First.Name)));
+        DropChallenge(players.Second, new GameText("challenge.otherGame", ("name", players.Second.Name)));
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
@@ -52,7 +53,7 @@ public sealed partial class GameEngine(
         players.First.Send(response.First);
         players.Second.Send(response.Second);
 
-        var text = $"The battle begins, {players.First.Name} starts against {players.Second.Name}.";
+        var text = new GameText("log.gameStart", ("first", players.First.Name), ("second", players.Second.Name));
         room.Logger.Add(GameLogKind.GameCreated, players.First.Id, players.Second.Id, "Player", "Player", text);
         room.LogLine(text);
         room.Sync();
@@ -98,7 +99,7 @@ public sealed partial class GameEngine(
         StopSpectating(player);
         if (player.InQueue)
         {
-            player.Send(new Response(GameResponse.QueueAlreadyIn, "You are already in queue!"));
+            player.Send(new Response(GameResponse.QueueAlreadyIn, new GameText("queue.already")));
             return;
         }
 
@@ -106,7 +107,7 @@ public sealed partial class GameEngine(
         player.QueuedAt = time.GetUtcNow();
         player.PracticeDifficulty = Math.Clamp(difficulty, 0, 2);
         (normal ? state.NormalQueue : state.PracticeQueue).AddLast(player);
-        player.Send(new Response(GameResponse.QueueOk, "You are now in queue!"));
+        player.Send(new Response(GameResponse.QueueOk, new GameText("queue.joined")));
         logger.LogDebug("{Player} queued ({Mode})", player.Name, normal ? "normal" : "practice");
     }
 
@@ -176,7 +177,7 @@ public sealed partial class GameEngine(
 
         if (!gp.IsPlayerTurn())
         {
-            player.Send(new Response(GameResponse.GameNotYourTurn, new JsonObject { ["card"] = cid, ["error"] = "Not your turn!" }));
+            player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn(cid)));
             RequestReleaseCard(player, message);
             return;
         }
@@ -191,13 +192,15 @@ public sealed partial class GameEngine(
         if (slot is < 0 or >= GamePlayer.BoardSlots || gp.BoardCards.ContainsKey(slot))
         {
             RequestReleaseCard(player, message);
-            player.Send(new Response(GameResponse.GameUseCardOccupied, new JsonObject { ["slot"] = slot, ["message"] = "Slot is already occupied!" }));
+            var occupied = new JsonObject { ["slot"] = slot };
+            new GameText("error.slotOccupied").WriteTo(occupied, "message");
+            player.Send(new Response(GameResponse.GameUseCardOccupied, occupied));
             return;
         }
 
         if (!gp.HasEnoughMana(card))
         {
-            player.Send(new Response(GameResponse.GameUseCardOom, "Not enough mana!"));
+            player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
             RequestReleaseCard(player, message);
             return;
         }
@@ -216,7 +219,7 @@ public sealed partial class GameEngine(
         player.Send(new Response(GameResponse.GameUseCardOk, Payload()));
         opponent.Send(new Response(GameResponse.GameOpponentUseCardOk, Payload()));
 
-        var text = $"{gp.Name} plays {card.Name}.";
+        var text = new GameText("log.plays", ("player", gp.Name), ("card", card.Name));
         room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
         room.LogLine(text);
         OnPlay(room, gp, card);
@@ -236,7 +239,7 @@ public sealed partial class GameEngine(
         }
 
         var room = gp.GameRoom!;
-        var text = $"{gp.Name} gives the turn to {opponent.Name}.";
+        var text = new GameText("log.turn", ("player", gp.Name), ("opponent", opponent.Name));
         room.Logger.Add(GameLogKind.NextTurn, player.Id, opponent.Id, "Player", "Player", text);
         room.LogLine(text);
         room.NextTurn();
@@ -245,7 +248,7 @@ public sealed partial class GameEngine(
 
         if (room.Turn == 1)
         {
-            room.LogLine($"{opponent.Name} goes second and gets 1 extra mana this turn.");
+            room.LogLine(new GameText("log.secondExtraMana", ("player", opponent.Name)));
         }
 
         // Start-of-turn abilities, then the player whose turn starts draws a card.
@@ -269,7 +272,7 @@ public sealed partial class GameEngine(
         var replace = message.GetInts("replace").ToHashSet();
         if (!replace.IsSubsetOf(gp.HandCards.Keys))
         {
-            Tell(player, "Those cards are not in your starting hand.");
+            Tell(player, new GameText("error.notInStartingHand"));
             return;
         }
 
@@ -319,8 +322,8 @@ public sealed partial class GameEngine(
             ["hand"] = GameRoom.HiddenHand(gp),
             ["replaced"] = returned.Count,
         }));
-        room.LogLine(returned.Count == 0 ? $"{gp.Name} keeps their starting hand."
-            : $"{gp.Name} replaces {returned.Count} starting card{(returned.Count == 1 ? "" : "s")}.");
+        room.LogLine(returned.Count == 0 ? new GameText("log.mulliganKeep", ("player", gp.Name))
+            : new GameText("log.mulliganReplace", ("player", gp.Name), ("n", returned.Count)));
         room.FlushEvents();
     }
 
@@ -363,7 +366,7 @@ public sealed partial class GameEngine(
 
         if (!gp.IsPlayerTurn())
         {
-            player.Send(new Response(GameResponse.GameNotYourTurn, new JsonObject { ["error"] = "Not your turn!" }));
+            player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
             return;
         }
 
@@ -388,19 +391,19 @@ public sealed partial class GameEngine(
 
         if (sourceIsHero && (gp.HasAttacked || gp.Attack <= 0))
         {
-            Tell(player, gp.Attack <= 0 ? "Your hero has no attack!" : "Your hero already attacked this turn!");
+            Tell(player, new GameText(gp.Attack <= 0 ? "error.heroNoAttack" : "error.heroAttacked"));
             return;
         }
 
         if (opponent.HasTaunt && targetCard is not { HasTaunt: true })
         {
-            Tell(player, "A card with Taunt is in the way!");
+            Tell(player, new GameText("error.taunt"));
             return;
         }
 
         object attacker = sourceIsHero ? gp : sourceCard!;
         object defender = targetIsHero ? opponent : targetCard!;
-        var text = $"{NameOf(attacker)} attacks {NameOf(defender)}.";
+        var text = new GameText("log.attack", ("attacker", NameOf(attacker)), ("defender", NameOf(defender)));
         var kind = (sourceIsHero, targetIsHero) switch
         {
             (false, false) => GameLogKind.CardAttackCard,
@@ -424,7 +427,7 @@ public sealed partial class GameEngine(
 
         if (!gp.IsPlayerTurn())
         {
-            player.Send(new Response(GameResponse.GameNotYourTurn, new JsonObject { ["error"] = "Not your turn!" }));
+            player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
             return;
         }
 
@@ -450,19 +453,19 @@ public sealed partial class GameEngine(
 
         if (!gp.IsPlayerTurn())
         {
-            player.Send(new Response(GameResponse.GameNotYourTurn, new JsonObject { ["error"] = "Not your turn!" }));
+            player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
             return;
         }
 
         if (gp.HeroPowerUsed)
         {
-            Tell(player, "Your hero power was already used this turn!");
+            Tell(player, new GameText("error.powerUsed"));
             return;
         }
 
         if (gp.Mana < GameRules.HeroPowerCost)
         {
-            player.Send(new Response(GameResponse.GameUseCardOom, "Not enough mana!"));
+            player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
             return;
         }
 
@@ -494,13 +497,13 @@ public sealed partial class GameEngine(
             var player = room.CurrentPlaying;
             var gp = player.GPlayer!;
             gp.TimeoutsInARow++;
-            var text = $"{gp.Name} ran out of time.";
+            var text = new GameText("log.timeout", ("player", gp.Name));
             room.Logger.Add(GameLogKind.TurnTimedOut, player.Id, player.Id, "Player", "Player", text);
             room.Event("timeout", new JsonObject { ["id"] = gp.Ident });
             room.LogLine(text);
             if (gp.TimeoutsInARow >= options.Value.MaxTimeoutsInARow)
             {
-                room.LogLine($"{gp.Name} is idle and forfeits the game.");
+                room.LogLine(new GameText("log.idleForfeit", ("player", gp.Name)));
                 room.FlushEvents();
                 room.Winner = player.GetOpponent();
                 await EndGameAsync(room, isDraw: false);
@@ -520,7 +523,7 @@ public sealed partial class GameEngine(
         {
             hero.IsDead = true;
             room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
-            room.LogLine($"{hero.Name} has fallen!");
+            room.LogLine(new GameText("log.heroFallen", ("hero", hero.Name)));
         }
 
         room.Sync();
@@ -536,20 +539,28 @@ public sealed partial class GameEngine(
     {
         if (card.Paralyzed)
         {
-            Tell(player, "This card is paralyzed!");
+            Tell(player, new GameText("error.paralyzed"));
             return false;
         }
 
         if (card.HasAttacked)
         {
-            Tell(player, "Cannot do that yet!");
+            Tell(player, new GameText("error.notYet"));
             return false;
         }
 
         return true;
     }
 
-    private static void Tell(Player p, string text) => p.Send(new Response(GameResponse.GameGeneralMessage, text));
+    private static void Tell(Player p, GameText text) => p.Send(new Response(GameResponse.GameGeneralMessage, text));
+
+    /// <summary>NotYourTurn: <c>{"error"}</c> (and <c>"card"</c>, the cid of a card that goes back to the hand).</summary>
+    private static JsonObject NotYourTurn(int? cid = null)
+    {
+        var payload = cid is null ? new JsonObject() : new JsonObject { ["card"] = cid };
+        new GameText("error.notYourTurn").WriteTo(payload, "error");
+        return payload;
+    }
 
     private static bool TryGetGame(Player player, out GamePlayer gamePlayer, out Player opponent)
     {

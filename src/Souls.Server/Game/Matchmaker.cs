@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Souls.Model;
+using Souls.Model.Localization;
 using Souls.Model.Security;
 using Souls.Server.Ai;
 using Souls.Server.Network;
@@ -116,7 +117,7 @@ public sealed class Matchmaker(
             foreach (var difficulty in practiceWaiting)
             {
                 var name = names.Count > 0 ? names[Random.Shared.Next(names.Count)] : "Bot";
-                bots.Add(await players.CreateBotAsync($"[BOT] {name} ({DifficultyNames[difficulty]})", difficulty, ct));
+                bots.Add(await players.CreateBotAsync(Strings.BotName(name, difficulty), difficulty, ct));
             }
         }
 
@@ -160,8 +161,6 @@ public sealed class Matchmaker(
             engine.RemoveFromQueues(player);
         }
     }
-
-    private static readonly string[] DifficultyNames = ["Easy", "Normal", "Hard"];
 
     /// <summary>
     /// Pairs players by rating: the longest waiting player gets the closest rated opponent within a window that

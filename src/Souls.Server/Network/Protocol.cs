@@ -1,24 +1,48 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Souls.Model.Localization;
 
 namespace Souls.Server.Network;
 
 /// <summary>Thrown when a client sends a malformed message. The connection stays open.</summary>
 public sealed class ProtocolException(string message) : Exception(message);
 
-/// <summary>A message sent to a client: <c>{"Type": n, "Payload": ...}</c>.</summary>
+/// <summary>
+/// A message sent to a client: <c>{"Type": n, "Payload": ...}</c>. A text payload (<see cref="Text"/>) is the
+/// English text, with its key and arguments next to it: <c>{"Type", "Payload", "PayloadKey", "PayloadArgs"}</c>.
+/// </summary>
 public readonly record struct Response(int Type, JsonNode? Payload)
 {
     public Response(Enum type, JsonNode? payload) : this(Convert.ToInt32(type, CultureInfo.InvariantCulture), payload)
     {
     }
 
-    public string ToJson() => new JsonObject
+    public Response(Enum type, GameText text) : this(type, JsonValue.Create(text.ToString()))
     {
-        ["Type"] = Type,
-        ["Payload"] = Payload?.DeepClone(),
-    }.ToJsonString();
+        Text = text;
+    }
+
+    public GameText? Text { get; init; }
+
+    public string ToJson()
+    {
+        var json = new JsonObject
+        {
+            ["Type"] = Type,
+            ["Payload"] = Payload?.DeepClone(),
+        };
+        if (Text is { } text)
+        {
+            json["PayloadKey"] = text.Key;
+            if (text.ArgsJson() is { } args)
+            {
+                json["PayloadArgs"] = args;
+            }
+        }
+
+        return json.ToJsonString();
+    }
 }
 
 /// <summary>A message received from a client: <c>{"Type": n, "Payload": {...}}</c>.</summary>

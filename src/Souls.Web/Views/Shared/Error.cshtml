@@ -1,12 +1,12 @@
 @{
-    ViewData["Title"] = "Error";
+    ViewData["Title"] = L["Error"].Value;
     var status = ViewData["StatusCode"] as int?;
     var (title, text) = status switch
     {
-        404 => ("Lost in the arena", "The page you are looking for does not exist."),
-        429 => ("Slow down", "Too many requests. Please wait a minute and try again."),
-        >= 400 and < 500 => ($"Request failed", $"The request could not be completed ({status})."),
-        _ => ("Something broke", "An error occurred while processing your request."),
+        404 => (L["Lost in the arena"], L["The page you are looking for does not exist."]),
+        429 => (L["Slow down"], L["Too many requests. Please wait a minute and try again."]),
+        >= 400 and < 500 => (L["Request failed"], L["The request could not be completed ({0}).", status]),
+        _ => (L["Something broke"], L["An error occurred while processing your request."]),
     };
 }
 <section class="s-panel s-error s-rise">
@@ -15,7 +15,7 @@
     <p class="s-muted">@text</p>
     @if (status is null or >= 500 && ViewData["RequestId"] is string requestId)
     {
-        <p class="s-muted s-small">Request id: <code>@requestId</code></p>
+        <p class="s-muted s-small">@L["Request id:"] <code>@requestId</code></p>
     }
-    <a asp-controller="Home" asp-action="Index" class="s-btn s-btn-gold mt-2"><s-icon name="home" />Back to the home page</a>
+    <a asp-controller="Home" asp-action="Index" class="s-btn s-btn-gold mt-2"><s-icon name="home" />@L["Back to the home page"]</a>
 </section>

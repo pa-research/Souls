@@ -60,14 +60,15 @@ public sealed class RankTagHelper : TagHelper
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         var tier = Ratings.TierOf(Rank);
-        var name = HtmlEncoder.Default.Encode(tier.ToString());
+        var tierName = Localized.T(tier.Text);
+        var name = HtmlEncoder.Default.Encode(tierName);
         output.TagName = "span";
         output.TagMode = TagMode.StartTagAndEndTag;
         output.Attributes.SetAttribute("class", $"s-rank {tier.Css}{(Class is null ? string.Empty : " " + Class)}");
         var emblem = $"<svg class=\"s-emblem\" focusable=\"false\" {(Compact ? $"role=\"img\" aria-label=\"{name}\"" : "aria-hidden=\"true\"")}><use href=\"/img/icons.svg#emblem\"></use></svg>";
         if (Compact)
         {
-            output.Attributes.SetAttribute("title", Rating is { } r ? $"{tier} · {r.ToString(CultureInfo.InvariantCulture)}" : tier.ToString());
+            output.Attributes.SetAttribute("title", Rating is { } r ? $"{tierName} · {r.ToString(CultureInfo.InvariantCulture)}" : tierName);
             output.Content.SetHtmlContent(emblem);
             return;
         }

@@ -223,7 +223,7 @@
                 .wait(delay)
                 .to({ alpha: 1, y: targetY }, 650, engine.CreateJS.Ease.quadOut);
             setTimeout(function () {
-                Animation.Fx.Float(engine, card, "Returned!", "#c9a8ff", 34, this.isPlayer ? -130 : 130);
+                Animation.Fx.Float(engine, card, window.SoulsL10n.t('classic.fx.returned'), "#c9a8ff", 34, this.isPlayer ? -130 : 130);
             }.bind(this), delay + 200);
             return;
         }

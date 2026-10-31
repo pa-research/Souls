@@ -66,6 +66,8 @@
             4: { glow: 0xffb02e, edge: 0xd99a1e, light: 0xfff0b8 }
         };
         var WARD_COLOR = 0xffd36b;
+        var L10n = window.SoulsL10n;
+        var T = L10n.t;
 
         /// The race whose frame a card wears: its own, or Darkness for a token without one (the Lost Soul), as the 3D
         /// client paints it; 0 (the error frame) otherwise.
@@ -311,20 +313,21 @@
 
             if (json.id !== undefined && json.id !== null) this.id = json.id;
             if (json.race !== undefined) this.race = json.race ? json.race.id : 0;
-            if (json.race) this.raceName = json.race.name;
+            if (json.race) this.raceName = L10n.text(json.race, 'name');
             if (json.ability !== undefined) {
-                // {id, name, value, label ("Burn 3", printed on the face), text (rules text with the card's numbers), activated}
+                // {id, name, value, label ("Burn 3", printed on the face), text (rules text with the card's numbers), activated};
+                // the texts come with their keys (nameKey, labelKey, textKey) and are shown in the page's language.
                 var ability = json.ability;
                 var rules = ability ? Rules.Ability(ability.id) : null;
                 this.abilityId = ability ? ability.id : undefined;
-                this.abilityName = ability ? (ability.name || (rules && rules.name) || undefined) : undefined;
-                this.abilityLabel = ability ? (ability.label || this.abilityName) : undefined;
-                this.abilityText = ability && typeof ability.text === 'string' ? ability.text : undefined;
+                this.abilityName = ability ? (L10n.text(ability, 'name') || (rules && rules.name) || undefined) : undefined;
+                this.abilityLabel = ability ? (L10n.text(ability, 'label') || this.abilityName) : undefined;
+                this.abilityText = ability && typeof ability.text === 'string' ? L10n.text(ability, 'text') : undefined;
                 this.abilityActivated = ability && ability.activated !== undefined && ability.activated !== null ? !!ability.activated : undefined;
             }
             if (json.portrait) this.portraitUrl = json.portrait;
             if (json.rarity !== undefined && json.rarity !== null) this.rarity = ToNumber(json.rarity, 0);
-            if (json.flavor !== undefined) this.flavor = json.flavor ? String(json.flavor) : '';
+            if (json.flavor !== undefined) this.flavor = json.flavor ? L10n.text(json, 'flavor') : '';
             if (json.kind !== undefined) this.spell = json.kind === 'spell';
             if (json.ward !== undefined) this.ward = !!json.ward;
             if (json.maxHealth !== undefined && json.maxHealth !== null) this.maxHealth = ToNumber(json.maxHealth, this.maxHealth);
@@ -486,7 +489,7 @@
             }
             else {
                 // Vanilla card without flavor text, or a token.
-                this.ability = this.token ? 'Token' : ' ';
+                this.ability = this.token ? T('classic.card.token') : ' ';
                 Render(txtLabel, this.ability, { font: "34px Arial", fill: "#1b130b", align: "center" });
                 txtLabel.anchor = { x: 0.5, y: 0.5 };
                 txtLabel.position.y = BOX_Y;
@@ -1378,7 +1381,8 @@
                 .to({ x: this.position.originX, y: this.position.originY - SPELL_LIFT }, 220, this.engine.CreateJS.Ease.quadOut);
             this.SetTargetMark(ABILITY_COLOR[this.abilityId] || 0xffffff);
             var kinds = this.TargetedSpell() ? Rules.AbilityTargets(this.abilityId) : [];
-            this.engine.ScreenMessage([this.name + ": " + (kinds.length ? "pick " + Rules.DescribeTargets(kinds) : this.touchInput ? "tap the board to cast it" : "click the board to cast it")], 'info');
+            this.engine.ScreenMessage([kinds.length ? T('classic.aim.pickFor', { name: this.name, targets: Rules.DescribeTargets(kinds) })
+                : this.touchInput ? T('classic.aim.castOnBoardTouch', { name: this.name }) : T('classic.aim.castOnBoard', { name: this.name })], 'info');
 
             this._onPick = function (e) { that.OnPick(e); };
             this._onKey = function (e) { if (e.key === 'Escape') that.Disarm(true); };
@@ -1485,7 +1489,7 @@
                         that.rightClick = true;
                         var ability = Rules.Ability(that.abilityId);
                         Animation.Fx.Glow(that.engine, that, 0x5aa9ff);
-                        Animation.Fx.Float(that.engine, that, ability ? ability.name : (that.abilityName || "Ability"), "#8fc8ff", 30, -120);
+                        Animation.Fx.Float(that.engine, that, ability ? ability.name : (that.abilityName || T('classic.ability')), "#8fc8ff", 30, -120);
                     }, LONG_PRESS_MS);
                 }
             }

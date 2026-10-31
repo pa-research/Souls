@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Souls.Model;
+using Souls.Model.Localization;
 using AbilityIds = Souls.Model.Entities.Ability;
 using CardKind = Souls.Model.Entities.CardKind;
 
@@ -156,7 +157,11 @@ public sealed class Card
     /// <summary>The same instance (same <see cref="Cid"/>) as a separate object, for a copy of the game.</summary>
     public Card Copy() => (Card)MemberwiseClone();
 
-    /// <summary>The JSON shape the browser clients expect (property names from the original Json.NET serialization).</summary>
+    /// <summary>
+    /// The JSON shape the browser clients expect (property names from the original Json.NET serialization). The texts
+    /// (ability name, label and rules, race name, flavor) carry their keys for the clients' languages (see
+    /// <see cref="GameText.WriteTo"/>); flavor keys of database cards are only in the tables of other languages.
+    /// </summary>
     public JsonObject ToJson() => new()
     {
         ["isDead"] = IsDead,
@@ -164,22 +169,8 @@ public sealed class Card
         ["slotId"] = SlotId,
         ["hasAttacked"] = HasAttacked,
         ["id"] = Id,
-        ["ability"] = AbilityId is not { } abilityId ? null : new JsonObject
-        {
-            ["id"] = abilityId,
-            ["name"] = AbilityName ?? (GameRules.AbilityTexts.TryGetValue(abilityId, out var t) ? t.Name : null),
-            ["parameter"] = AbilityParameter,
-            ["value"] = AbilityValue,
-            ["label"] = GameRules.AbilityLabel(abilityId, AbilityValueOverride),
-            ["text"] = GameRules.AbilityText(abilityId, AbilityValueOverride, RaceId),
-            ["activated"] = GameRules.IsActivated(abilityId),
-        },
-        ["race"] = RaceId is null ? null : new JsonObject
-        {
-            ["id"] = RaceId,
-            ["name"] = RaceName,
-            ["cardUrl"] = RaceCardUrl,
-        },
+        ["ability"] = AbilityId is not { } abilityId ? null : AbilityJson(abilityId),
+        ["race"] = RaceId is not { } raceId ? null : RaceJson(raceId),
         ["name"] = Name,
         ["attack"] = Attack,
         ["health"] = Health,
@@ -195,8 +186,42 @@ public sealed class Card
         ["ward"] = Ward,
         ["rarity"] = Rarity,
         ["flavor"] = Flavor,
+        ["flavorKey"] = Flavor is null ? null : $"flavor.{Id}",
         ["kind"] = IsSpell ? "spell" : "minion",
     };
+
+    private JsonObject AbilityJson(int abilityId)
+    {
+        var json = new JsonObject { ["id"] = abilityId };
+        GameRules.AbilityName(abilityId).WriteTo(json, "name");
+        if (AbilityName is not null && AbilityName != (string?)json["name"])
+        {
+            // An ability the database names differently: its name as it is, in every language.
+            json["name"] = AbilityName;
+            json.Remove("nameKey");
+        }
+
+        json["parameter"] = AbilityParameter;
+        json["value"] = AbilityValue;
+        GameRules.AbilityLabelText(abilityId, AbilityValueOverride).WriteTo(json, "label");
+        GameRules.AbilityRules(abilityId, AbilityValueOverride, RaceId).WriteTo(json, "text");
+        json["activated"] = GameRules.IsActivated(abilityId);
+        return json;
+    }
+
+    private JsonObject RaceJson(int raceId)
+    {
+        var json = new JsonObject { ["id"] = raceId };
+        GameRules.RaceName(raceId).WriteTo(json, "name");
+        if (RaceName is not null && RaceName != (string?)json["name"])
+        {
+            json["name"] = RaceName;
+            json.Remove("nameKey");
+        }
+
+        json["cardUrl"] = RaceCardUrl;
+        return json;
+    }
 
     /// <summary>Reads a card sent by the server (used by the bot).</summary>
     public static Card FromJson(JsonNode node) => new()

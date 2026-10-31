@@ -5,30 +5,35 @@ import { Images, sound } from './assets.js';
 import { QUALITY_KEY, VIEWS } from './scene.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+// Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
+const { t, text: serverText } = window.SoulsL10n;
 
 const TIPS = [
-    ['Armor', 'absorbs damage before health, on cards and heroes.'],
-    ['Taunt', 'cards must be attacked before anything else.'],
-    ['Charge', 'lets a card attack the turn it is played; the others arrive exhausted.'],
-    ['Hero powers', 'cost 2 mana and can be used once per turn.'],
-    ['Darkness', 'cards curse a random enemy for 2 when they die.'],
-    ['Vampiric', 'cards heal your hero by the damage they deal.'],
-    ['Haunt', 'brings a card back to your hand the first time it dies.'],
-    ['Fatigue', 'hurts more with every draw once your deck is empty.'],
-    ['The turn timer', 'ends your turn after 75 seconds. Three timeouts in a row lose the game.'],
-    ['Ranked', 'games move your rating; practice games do not.'],
+    [t('g3d.loadingTip.armor'), t('g3d.loadingTip.armorText')],
+    [t('g3d.loadingTip.taunt'), t('g3d.loadingTip.tauntText')],
+    [t('g3d.loadingTip.charge'), t('g3d.loadingTip.chargeText')],
+    [t('g3d.loadingTip.heroPowers'), t('g3d.loadingTip.heroPowersText')],
+    [t('g3d.loadingTip.darkness'), t('g3d.loadingTip.darknessText')],
+    [t('g3d.loadingTip.vampiric'), t('g3d.loadingTip.vampiricText')],
+    [t('g3d.loadingTip.haunt'), t('g3d.loadingTip.hauntText')],
+    [t('g3d.loadingTip.fatigue'), t('g3d.loadingTip.fatigueText')],
+    [t('g3d.loadingTip.timer'), t('g3d.loadingTip.timerText')],
+    [t('g3d.loadingTip.ranked'), t('g3d.loadingTip.rankedText')],
 ];
 
-const TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'];
+const DIFFICULTIES = [t('g3d.difficulty.easy'), t('g3d.difficulty.normal'), t('g3d.difficulty.hard')];
+// Tooltip stat names (showTooltip has its own `t`, the tooltip element).
+const STATS = { cost: t('g3d.stat.cost'), attack: t('g3d.stat.attack'), health: t('g3d.stat.health'), armor: t('g3d.stat.armor') };
+const TIERS = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
 const DIVISIONS = ['III', 'II', 'I'];
 
 /** Rank tier of a rating (same rules as Souls.Model.Ratings). */
 export function tierOf(rating) {
     const rank = Math.max(1, 1 + Math.trunc((Number(rating) - 1000) / 50));
     const index = rank - 1;
-    if (index >= TIER_NAMES.length * DIVISIONS.length) return { name: 'Champion', css: 'tier-champion' };
-    const name = TIER_NAMES[Math.floor(index / 3)];
-    return { name: `${name} ${DIVISIONS[index % 3]}`, css: `tier-${name.toLowerCase()}` };
+    if (index >= TIERS.length * DIVISIONS.length) return { name: t('tier.champion'), css: 'tier-champion' };
+    const tier = TIERS[Math.floor(index / 3)];
+    return { name: t('tier.division', { tier: { key: `tier.${tier}` }, division: DIVISIONS[index % 3] }), css: `tier-${tier}` };
 }
 
 const POWER_ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus', 5: 'skull', 6: 'heart-pulse', 7: 'shield', 8: 'castle' }; // by hero power id
@@ -94,16 +99,16 @@ function cardFace(parent, d) {
     if (Number(d.level) > 1) el('div', 's-card-stars', card, '★'.repeat(Number(d.level) - 1));
     el('span', 's-card-gem', card);
     if (d.ability) {
-        el('div', 's-card-ability', card, String(d.ability.label || d.ability.name || ''));
-        el('div', 's-card-rules', card, String(d.ability.text ?? ''));
+        el('div', 's-card-ability', card, serverText(d.ability, 'label') || serverText(d.ability, 'name'));
+        el('div', 's-card-rules', card, serverText(d.ability));
     } else if (d.flavor) {
-        el('div', 's-card-flavor', card, String(d.flavor));
+        el('div', 's-card-flavor', card, serverText(d, 'flavor'));
     }
     if (d.kind === 'spell') {
         card.classList.add('spell');
         const plate = el('div', 's-card-spell', card);
-        el('span', '', plate, 'Spell');
-        el('span', '', plate, 'Spell');
+        el('span', '', plate, t('g3d.card.spell'));
+        el('span', '', plate, t('g3d.card.spell'));
     } else {
         el('div', 's-card-attack', card, String(d.attack ?? ''));
         el('div', 's-card-health', card, String(d.health ?? ''));
@@ -140,8 +145,22 @@ const clock = ms => {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-/** Icon and class of a battle log line, from its wording. */
-function classify(line) {
+// Icon and class of a battle log line by its text key (log.* in Souls.Model/Localization/game.*.json); other keys: a flag.
+const LOG_KINDS = {
+    'log.win': ['trophy', 'end'], 'log.draw': ['trophy', 'end'],
+    'log.dies': ['skull', 'death'], 'log.heroFallen': ['skull', 'death'],
+    'log.attack': ['sword', 'attack'], 'log.burn': ['sword', 'attack'], 'log.deathCurse': ['sword', 'attack'],
+    'log.heal': ['heart-pulse', 'heal'], 'log.drain': ['heart-pulse', 'heal'], 'log.lifesteal': ['heart-pulse', 'heal'],
+    'log.blessing': ['heart-pulse', 'heal'], 'log.regenerate': ['heart-pulse', 'heal'], 'log.sacrifice': ['heart-pulse', 'heal'],
+    'log.turn': ['hourglass', 'turn'], 'log.timeout': ['hourglass', 'turn'],
+    'log.haunt': ['ghost', 'death'],
+    'log.plays': ['deck', ''], 'log.summon': ['deck', ''],
+    'log.heroPower': ['wand', ''], 'log.paralyze': ['wand', ''], 'log.harden': ['wand', ''],
+};
+
+/** Icon and class of a battle log line: by its key, or from its (English) wording in replays recorded without keys. */
+function classify(line, key) {
+    if (key) return LOG_KINDS[key] || ['flag', ''];
     if (/ wins against | play a draw/.test(line)) return ['trophy', 'end'];
     if (/ dies| has fallen/.test(line)) return ['skull', 'death'];
     if (/ attacks | burns |curse/.test(line)) return ['sword', 'attack'];
@@ -203,7 +222,7 @@ export class UI {
         const logo = el('img', 'sg-logo', box);
         logo.src = Images.logo;
         logo.alt = 'Souls';
-        this.status = el('div', 'sg-loading-text', box, 'Loading');
+        this.status = el('div', 'sg-loading-text', box, t('g3d.loading'));
         this.progress = progress(box, 0);
         this.tip = el('div', 'sg-loading-tip', box);
         this.nextTip();
@@ -220,7 +239,7 @@ export class UI {
 
     setProgress(p) {
         this.progress.style.setProperty('--p', `${Math.round(p * 100)}%`);
-        this.status.textContent = `Loading · ${Math.round(p * 100)}%`;
+        this.status.textContent = t('g3d.loadingProgress', { percent: Math.round(p * 100) });
     }
 
     menuButton(parent, iconName, title, subtitle, primary = false) {
@@ -238,7 +257,7 @@ export class UI {
         const list = el('ul', 'sg-quest-list', parent);
         for (const q of quests || []) {
             const item = el('li', q.done ? 'done' : '', list);
-            el('span', '', item, `${q.done ? '✔ ' : ''}${q.text}`);
+            el('span', '', item, `${q.done ? '✔ ' : ''}${serverText(q)}`);
             const chip = el('span', 's-chip s-chip-coin', item);
             chip.append(icon('coin'), String(q.reward));
             const fraction = q.target ? q.progress / q.target : 0;
@@ -254,28 +273,28 @@ export class UI {
         this.overlay.replaceChildren();
         const menu = el('div', 'sg-menu', this.overlay);
         const nav = el('nav', 'sg-menu-nav', menu);
-        nav.setAttribute('aria-label', 'Game menu');
+        nav.setAttribute('aria-label', t('g3d.menu.label'));
         const logo = el('img', 'sg-logo', nav);
         logo.src = Images.logo;
         logo.alt = 'Souls';
-        const ranked = this.menuButton(nav, 'swords', 'Ranked', 'Fight a player of your rank', true);
-        const practice = this.menuButton(nav, 'bot', 'Practice', 'Against the bot');
+        const ranked = this.menuButton(nav, 'swords', t('g3d.mode.ranked'), t('g3d.menu.rankedSub'), true);
+        const practice = this.menuButton(nav, 'bot', t('g3d.mode.practice'), t('g3d.menu.practiceSub'));
         const row = el('div', 'sg-menu-row', nav);
-        el('span', 's-label', row, 'Bot');
+        el('span', 's-label', row, t('g3d.menu.bot'));
         const seg = el('div', 's-seg', row);
         seg.setAttribute('role', 'radiogroup');
-        seg.setAttribute('aria-label', 'Practice difficulty');
-        this.difficultyButtons = ['Easy', 'Normal', 'Hard'].map((label, level) => {
+        seg.setAttribute('aria-label', t('g3d.menu.difficulty'));
+        this.difficultyButtons = DIFFICULTIES.map((label, level) => {
             const b = button('', seg, label);
             b.setAttribute('role', 'radio');
             b.addEventListener('click', () => this.setDifficulty(level));
             return b;
         });
         this.setDifficulty(this.difficulty);
-        const friendly = this.menuButton(nav, 'users', 'Friendly', 'Challenge a player by name, unranked');
-        const watch = this.menuButton(nav, 'eye', 'Watch live', 'Take a seat in the stands');
+        const friendly = this.menuButton(nav, 'users', t('g3d.mode.friendly'), t('g3d.menu.friendlySub'));
+        const watch = this.menuButton(nav, 'eye', t('g3d.menu.watch'), t('g3d.menu.watchSub'));
         const small = el('div', 'sg-menu-small', nav);
-        for (const [href, iconName, label] of [['/Deck', 'deck', 'Deck'], ['/Shop', 'shop', 'Shop'], ['/', 'home', 'Home']]) {
+        for (const [href, iconName, label] of [['/Deck', 'deck', t('g3d.menu.deck')], ['/Shop', 'shop', t('g3d.menu.shop')], ['/', 'home', t('mode.home')]]) {
             const a = el('a', 's-btn s-btn-ghost s-btn-sm', small);
             a.href = href;
             a.append(icon(iconName), label);
@@ -285,7 +304,7 @@ export class UI {
         if (profile) {
             const side = el('aside', 'sg-menu-side', menu);
             const card = el('section', 's-panel', side);
-            card.setAttribute('aria-label', 'Your champion');
+            card.setAttribute('aria-label', t('g3d.menu.champion'));
             const p = el('div', 'sg-profile', card);
             const img = el('img', '', p);
             img.src = Images.heroPortrait(profile.type);
@@ -302,7 +321,7 @@ export class UI {
                 const quests = el('section', 's-panel', side);
                 const head = el('div', 's-panel-head', quests);
                 head.appendChild(icon('quest'));
-                el('h3', '', head, 'Daily quests');
+                el('h3', '', head, t('g3d.dailyQuests'));
                 this.questList(quests, profile.quests);
             }
         }
@@ -339,7 +358,7 @@ export class UI {
             this.queueText = el('p', '', box);
             this.queueTime = el('div', 'sg-time', box, '0:00');
             this.queueChip = el('span', 's-chip', box);
-            this.queueBack = button('s-btn s-btn-ghost s-btn-sm', box, 'Back to the menu', 'arrow-left');
+            this.queueBack = button('s-btn s-btn-ghost s-btn-sm', box, t('g3d.backToMenu'), 'arrow-left');
             this.queueBack.addEventListener('click', () => { window.location.href = '/Game'; });
             this.queueBox = box;
             this.queueStarted = performance.now();
@@ -351,16 +370,17 @@ export class UI {
             this.queueMode = mode;
             const iconName = { practice: 'bot', normal: 'swords', friendly: 'users' }[mode] || 'eye';
             this.queueRings.replaceChildren(icon(iconName));
-            this.queueTitle.textContent = { normal: 'Finding an opponent', practice: 'Preparing the arena', friendly: 'Friendly challenge' }[mode] || 'Joining the stands';
+            this.queueTitle.textContent = { normal: t('g3d.queue.normal'), practice: t('g3d.queue.practice'), friendly: t('g3d.queue.friendly') }[mode] || t('g3d.queue.watch');
             this.queueChip.replaceChildren();
             if (mode === 'normal' && this.config.profile) {
-                this.queueChip.append(icon('crown'), `Ranked · ${tierOf(this.config.profile.rating).name} · ${this.config.profile.rating}`);
+                const rating = this.config.profile.rating;
+                this.queueChip.append(icon('crown'), t('g3d.queue.rankedChip', { tier: tierOf(rating).name, rating }));
             } else if (mode === 'practice') {
-                this.queueChip.append(icon('bot'), `Practice · ${['Easy', 'Normal', 'Hard'][this.difficulty] || 'Normal'}`);
+                this.queueChip.append(icon('bot'), t('g3d.queue.practiceChip', { difficulty: DIFFICULTIES[this.difficulty] || DIFFICULTIES[1] }));
             } else if (mode === 'friendly') {
-                this.queueChip.append(icon('users'), 'Friendly · unranked');
+                this.queueChip.append(icon('users'), t('g3d.queue.friendlyChip'));
             } else {
-                this.queueChip.append(icon('eye'), 'Spectator');
+                this.queueChip.append(icon('eye'), t('g3d.queue.spectatorChip'));
             }
         }
         this.queueText.textContent = text;
@@ -374,7 +394,7 @@ export class UI {
     /** "Prepare!" then fade the overlay out (`fade` false: at once, when the VS splash takes its place). */
     hideQueue(fade = true) {
         clearInterval(this.queueTimer);
-        if (this.queueTitle) this.queueTitle.textContent = 'Prepare!';
+        if (this.queueTitle) this.queueTitle.textContent = t('g3d.queue.prepare');
         if (this.challengeForm) {
             // A challenge was accepted: no more challenging.
             this.challengeForm.form.hidden = this.challengeForm.withdraw.hidden = true;
@@ -403,16 +423,16 @@ export class UI {
         this.showQueue('', 'friendly');
         const form = el('form', 'sg-challenge', null);
         const input = el('input', 's-input', form);
-        input.placeholder = 'Player name';
+        input.placeholder = t('g3d.challenge.placeholder');
         input.maxLength = 64;
         input.autocomplete = 'off';
-        input.setAttribute('aria-label', 'Player to challenge');
-        button('s-btn s-btn-primary s-btn-sm', form, 'Challenge', 'swords').type = 'submit';
+        input.setAttribute('aria-label', t('g3d.challenge.inputLabel'));
+        button('s-btn s-btn-primary s-btn-sm', form, t('g3d.challenge.send'), 'swords').type = 'submit';
         form.addEventListener('submit', e => {
             e.preventDefault();
             if (input.value.trim()) onChallenge(input.value.trim());
         });
-        const withdraw = button('s-btn s-btn-ghost s-btn-sm', null, 'Withdraw challenge', 'close');
+        const withdraw = button('s-btn s-btn-ghost s-btn-sm', null, t('g3d.challenge.withdraw'), 'close');
         withdraw.addEventListener('click', onCancel);
         this.queueBox.insertBefore(form, this.queueBack);
         this.queueBox.insertBefore(withdraw, this.queueBack);
@@ -425,7 +445,7 @@ export class UI {
         if (!this.challengeForm) return;
         this.challengeForm.form.hidden = true;
         this.challengeForm.withdraw.hidden = false;
-        this.queueText.textContent = `Waiting for ${name} to answer...`;
+        this.queueText.textContent = t('g3d.challenge.waiting', { name });
         this.queueStarted = performance.now();
     }
 
@@ -437,8 +457,8 @@ export class UI {
         }
         this.challengeForm.form.hidden = false;
         this.challengeForm.withdraw.hidden = true;
-        const name = this.config.profile ? this.config.profile.name : 'your name';
-        this.queueText.textContent = text || `Challenge a player who has the game open, or wait here: others can challenge ${name}.`;
+        const name = this.config.profile ? this.config.profile.name : t('g3d.challenge.yourName');
+        this.queueText.textContent = text || t('g3d.challenge.idle', { name });
     }
 
     /** Someone challenges you: answer(true | false), or it expires. */
@@ -446,18 +466,18 @@ export class UI {
         this.hideInvite();
         const card = el('section', 's-panel sg-invite', this.root);
         card.setAttribute('role', 'alertdialog');
-        card.setAttribute('aria-label', 'Challenge');
+        card.setAttribute('aria-label', t('g3d.invite.label'));
         const head = el('div', 'sg-invite-head', card);
         const img = el('img', '', head);
         img.src = Images.heroPortrait(Number(p.type) || 0);
         img.alt = '';
         const who = el('div', '', head);
-        el('b', '', who, `${p.name} challenges you!`);
-        el('div', 's-muted s-small', who, `Friendly game · unranked${p.rating ? ` · ${p.rating}` : ''}`);
+        el('b', '', who, t('g3d.invite.title', { name: p.name }));
+        el('div', 's-muted s-small', who, `${t('g3d.invite.meta')}${p.rating ? ` · ${p.rating}` : ''}`);
         const bar = progress(card, 1, 's-progress-ember');
         const actions = el('div', 'sg-invite-actions', card);
-        const decline = button('s-btn s-btn-ghost s-btn-sm', actions, 'Decline', 'close');
-        const accept = button('s-btn s-btn-primary s-btn-sm', actions, 'Accept', 'check');
+        const decline = button('s-btn s-btn-ghost s-btn-sm', actions, t('g3d.invite.decline'), 'close');
+        const accept = button('s-btn s-btn-primary s-btn-sm', actions, t('g3d.invite.accept'), 'check');
         const total = Number(p.expiresIn) || 30000;
         const ends = performance.now() + total;
         const timer = setInterval(() => {
@@ -531,21 +551,21 @@ export class UI {
         box.replaceChildren();
         if (side === 'player') {
             const mana = el('span', 'sg-mana', box);
-            mana.title = 'Mana';
+            mana.title = t('g3d.status.mana');
             const max = Math.max(0, Math.min(10, Number(info.maxMana) || 0));
             const now = Math.max(0, Math.min(max, Number(info.mana) || 0));
             for (let i = 0; i < Math.max(max, 1) && i < 10; i++) el('i', i < now ? 'full' : i < max ? 'spent' : '', mana);
             el('b', '', mana, `${now}/${max}`);
         }
         const deck = el('span', '', box);
-        deck.title = 'Cards left in the deck';
+        deck.title = t('g3d.status.deck');
         deck.append(icon('deck'), String(info.deck ?? 0));
         const hand = el('span', '', box);
-        hand.title = 'Cards in hand';
+        hand.title = t('g3d.status.hand');
         hand.append(icon('hand'), String(info.hand ?? 0));
         if (Number(info.fatigue) > 0 || Number(info.deck) === 0) {
             const fatigue = el('span', 'warn', box);
-            fatigue.title = 'Fatigue: the deck is empty';
+            fatigue.title = t('g3d.status.fatigue');
             fatigue.append(icon('skull'), `${(Number(info.fatigue) || 0) + 1}`);
         }
     }
@@ -590,11 +610,11 @@ export class UI {
         this.power.disabled = !power.canUse;
         this.power.classList.toggle('used', !!power.used);
         this.power.classList.toggle('ready', !!power.canUse);
-        this.power.setAttribute('aria-label', `Hero power: ${power.name} (${power.cost} mana)`);
+        this.power.setAttribute('aria-label', t('g3d.power.label', { name: power.name, cost: power.cost }));
         this.powerInfo = {
             title: power.name,
-            sub: `Hero power · ${power.cost} mana · once per turn`,
-            blocks: [{ text: power.text }, power.used ? { kind: 'info', text: 'Already used this turn.' } : null],
+            sub: t('g3d.power.sub', { cost: power.cost }),
+            blocks: [{ text: power.text }, power.used ? { kind: 'info', text: t('g3d.power.used') } : null],
         };
     }
 
@@ -625,7 +645,7 @@ export class UI {
         if (this.timerEndsAt === null || this.timerEndsAt === undefined) return;
         const left = Math.max(0, this.timerEndsAt - now);
         this.timerBar.style.width = `${(left / this.timerTotal) * 100}%`;
-        const text = `${this.turnLabel || (this.timerMine ? 'Your turn' : 'Enemy turn')} · ${clock(left)}`;
+        const text = `${this.turnLabel || (this.timerMine ? t('g3d.yourTurn') : t('g3d.enemyTurn'))} · ${clock(left)}`;
         if (this.timerSeconds !== text) {
             this.timerSeconds = text;
             this.timerText.textContent = text;
@@ -659,7 +679,7 @@ export class UI {
     /** A legendary card enters the arena: its name in gold across the screen. */
     legendary(name, enemy = null) {
         const b = el('div', `sg-legend${enemy ? ' enemy' : ''}`);
-        el('small', '', b, 'Legendary');
+        el('small', '', b, t('rarity.legendary'));
         el('b', '', b, name);
         this.centre(b, LEGEND_MS);
     }
@@ -735,16 +755,16 @@ export class UI {
         this.hideMulligan(false);
         const layer = el('div', 'sg-layer sg-shade sg-mulligan', this.root);
         layer.setAttribute('role', 'dialog');
-        layer.setAttribute('aria-label', 'Mulligan');
+        layer.setAttribute('aria-label', t('g3d.mulligan.label'));
         const box = el('div', 'sg-mulligan-box', layer);
-        el('div', 's-eyebrow', box, 'Mulligan');
-        el('h2', '', box, 'Your starting hand');
-        el('p', '', box, touchInput() ? 'Tap the cards you want to replace. You can do this once.' : 'Click the cards you want to replace. You can do this once.');
+        el('div', 's-eyebrow', box, t('g3d.mulligan.eyebrow'));
+        el('h2', '', box, t('g3d.mulligan.title'));
+        el('p', '', box, touchInput() ? t('g3d.mulligan.help') : t('g3d.mulligan.helpClick'));
         const row = el('div', 'sg-mulligan-cards', box);
         const timer = el('div', 'sg-mulligan-timer', box);
         const bar = progress(timer, 1, 's-progress-ember');
         const time = el('span', 'sg-time', timer);
-        const confirm = button('s-btn s-btn-gold s-btn-lg sg-mulligan-confirm', box, 'Keep hand', 'check');
+        const confirm = button('s-btn s-btn-gold s-btn-lg sg-mulligan-confirm', box, t('g3d.mulligan.keep'), 'check');
         const status = el('p', 'sg-mulligan-status s-muted', box);
         status.setAttribute('aria-live', 'polite');
         const m = this.mulligan = { layer, status, opponent, buttons: [], opponentDone: false };
@@ -759,27 +779,27 @@ export class UI {
             b.type = 'button';
             b.setAttribute('aria-pressed', 'false');
             cardFace(b, card);
-            el('span', 'sg-mulligan-mark', b).append(icon('refresh'), 'Replace');
+            el('span', 'sg-mulligan-mark', b).append(icon('refresh'), t('g3d.mulligan.replace'));
             b.addEventListener('click', () => {
                 b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
                 const n = m.buttons.filter(x => x.getAttribute('aria-pressed') === 'true').length;
-                confirm.replaceChildren(icon(n ? 'refresh' : 'check'), n ? `Replace ${n} card${n > 1 ? 's' : ''}` : 'Keep hand');
+                confirm.replaceChildren(icon(n ? 'refresh' : 'check'), n ? t('g3d.mulligan.replaceCards', { n }) : t('g3d.mulligan.keep'));
             });
             b.cid = card.cid;
             m.buttons.push(b);
         }
         confirm.addEventListener('click', () => {
-            lock(`Waiting for ${opponent}...`);
+            lock(t('g3d.mulligan.waiting', { name: opponent }));
             onConfirm(m.buttons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.cid));
         });
-        if (done) lock(`Waiting for ${opponent}...`);
+        if (done) lock(t('g3d.mulligan.waiting', { name: opponent }));
         const tick = () => {
             const left = Math.max(0, endsAt - performance.now());
             bar.style.setProperty('--p', `${Math.round((left / Math.max(1, total)) * 100)}%`);
             time.textContent = clock(left);
             if (left > 0 || m.locked) return;
             for (const b of m.buttons) b.setAttribute('aria-pressed', 'false');
-            lock('Time is up: you keep your hand.');
+            lock(t('g3d.mulligan.timeUp'));
         };
         tick();
         m.timer = setInterval(tick, 250);
@@ -792,7 +812,7 @@ export class UI {
         if (!m) return;
         if (!mine) {
             m.opponentDone = true;
-            m.status.textContent = replaced ? `${m.opponent} replaced ${replaced} card${replaced > 1 ? 's' : ''}.` : `${m.opponent} kept their hand.`;
+            m.status.textContent = replaced ? t('g3d.mulligan.replaced', { name: m.opponent, n: replaced }) : t('g3d.mulligan.kept', { name: m.opponent });
             return;
         }
         hand.forEach((card, i) => {
@@ -804,10 +824,10 @@ export class UI {
             b.classList.toggle('new', isNew);
             b.replaceChildren();
             cardFace(b, card);
-            el('span', 'sg-mulligan-mark', b).append(icon(isNew ? 'sparkles' : 'check'), isNew ? 'New' : 'Kept');
+            el('span', 'sg-mulligan-mark', b).append(icon(isNew ? 'sparkles' : 'check'), isNew ? t('g3d.mulligan.new') : t('g3d.mulligan.keptCard'));
         });
         m.locked = true;
-        m.status.textContent = m.opponentDone ? 'The battle begins!' : `Waiting for ${m.opponent}...`;
+        m.status.textContent = m.opponentDone ? t('g3d.mulligan.begins') : t('g3d.mulligan.waiting', { name: m.opponent });
     }
 
     hideMulligan(fade = true) {
@@ -850,10 +870,10 @@ export class UI {
                 s.title = label;
                 s.append(icon(iconName), String(value));
             };
-            add('cost', 'gem', info.stats.cost, 'Cost');
-            add('atk', 'sword', info.stats.attack, 'Attack');
-            add('hp', 'heart', info.stats.maxHealth && Number(info.stats.health) < Number(info.stats.maxHealth) ? `${info.stats.health}/${info.stats.maxHealth}` : info.stats.health, 'Health');
-            if (Number(info.stats.armor) > 0) add('arm', 'shield', info.stats.armor, 'Armor');
+            add('cost', 'gem', info.stats.cost, STATS.cost);
+            add('atk', 'sword', info.stats.attack, STATS.attack);
+            add('hp', 'heart', info.stats.maxHealth && Number(info.stats.health) < Number(info.stats.maxHealth) ? `${info.stats.health}/${info.stats.maxHealth}` : info.stats.health, STATS.health);
+            if (Number(info.stats.armor) > 0) add('arm', 'shield', info.stats.armor, STATS.armor);
         }
         for (const block of info.blocks || []) {
             if (!block || !block.text) continue;
@@ -902,8 +922,8 @@ export class UI {
 
     buildLog() {
         const log = el('section', 'sg-log souls3d-log', this.root);
-        log.setAttribute('aria-label', 'Battle log');
-        const head = button('sg-log-head', log, 'Battle log', 'list');
+        log.setAttribute('aria-label', t('g3d.log'));
+        const head = button('sg-log-head', log, t('g3d.log'), 'list');
         this.logBadge = el('span', 'sg-log-badge', head);
         head.appendChild(icon('chevron-down', 's-icon sg-chevron'));
         head.addEventListener('click', () => {
@@ -924,9 +944,10 @@ export class UI {
         this.names = { me, foe };
     }
 
-    logLine(text) {
+    /** A battle log line; `key` (its text key) picks the icon. */
+    logLine(text, key) {
         const line = String(text);
-        const [iconName, cls] = classify(line);
+        const [iconName, cls] = classify(line, key);
         const item = el('li', cls, this.logList);
         item.appendChild(icon(iconName));
         const span = el('span', '', item);
@@ -965,36 +986,35 @@ export class UI {
         const bar = el('div', 'sg-views souls3d-views', this.root);
         bar.hidden = true;
         this.settingsButton = button('sg-icon-btn', bar, null, 'settings');
-        this.settingsButton.setAttribute('aria-label', 'Settings');
+        this.settingsButton.setAttribute('aria-label', t('g3d.settings'));
         this.settingsButton.setAttribute('aria-expanded', 'false');
         this.settingsButton.addEventListener('click', () => this.toggleSettings());
         const seg = el('div', 's-seg', bar);
         seg.setAttribute('role', 'group');
-        seg.setAttribute('aria-label', 'Camera');
+        seg.setAttribute('aria-label', t('g3d.camera'));
         this.viewButtons = {};
+        const labels = { classic: t('g3d.view.classic'), arena: t('g3d.view.arena'), field: t('g3d.view.field'), cinematic: t('g3d.view.cinematic') };
         for (const [name, view] of Object.entries(VIEWS)) {
             if (!view.key) continue;
             const b = button('', seg);
             el('kbd', '', b, view.key);
-            b.append(view.label);
+            b.append(labels[name] || view.label);
             b.addEventListener('click', () => { if (this.onView) this.onView(name); });
             this.viewButtons[name] = b;
         }
-        el('span', 'souls3d-views-hint', bar, touchInput()
-            ? 'Pinch: zoom · Drag the arena: rotate · Hold a card: ability'
-            : 'Wheel: zoom · Right-drag: rotate');
+        el('span', 'souls3d-views-hint', bar, touchInput() ? t('g3d.views.touchHint') : t('g3d.views.mouseHint'));
         this.views = bar;
     }
 
     buildSettings() {
         const panel = el('section', 's-panel sg-settings souls3d-settings', this.root);
         panel.hidden = true;
-        panel.setAttribute('aria-label', 'Settings');
+        panel.setAttribute('aria-label', t('g3d.settings'));
         const head = el('div', 's-panel-head', panel);
         head.appendChild(icon('settings'));
-        el('h3', '', head, 'Settings');
+        el('h3', '', head, t('g3d.settings'));
         const close = button('sg-icon-btn', head, null, 'close');
-        close.setAttribute('aria-label', 'Close settings');
+        close.setAttribute('aria-label', t('g3d.settings.close'));
         close.style.width = close.style.height = '32px';
         close.addEventListener('click', () => this.toggleSettings(false));
 
@@ -1005,8 +1025,8 @@ export class UI {
             return seg;
         };
 
-        const soundSeg = row('Sound');
-        this.soundButtons = [['On', false], ['Off', true]].map(([label, muted]) => {
+        const soundSeg = row(t('g3d.settings.sound'));
+        this.soundButtons = [[t('g3d.settings.on'), false], [t('g3d.settings.off'), true]].map(([label, muted]) => {
             const b = button('', soundSeg, label, muted ? 'mute' : 'volume');
             b.addEventListener('click', () => {
                 if (sound.muted !== muted) sound.toggle();
@@ -1017,10 +1037,11 @@ export class UI {
         });
         this.updateSound();
 
-        const qualitySeg = row('Graphics');
+        const qualitySeg = row(t('g3d.settings.graphics'));
         const current = new URLSearchParams(location.search).get('fx') || 'auto';
-        for (const q of ['auto', 'low', 'medium', 'high']) {
-            const b = button(current === q ? 'active' : '', qualitySeg, q[0].toUpperCase() + q.slice(1));
+        const qualities = { auto: t('g3d.quality.auto'), low: t('g3d.quality.low'), medium: t('g3d.quality.medium'), high: t('g3d.quality.high') };
+        for (const [q, label] of Object.entries(qualities)) {
+            const b = button(current === q ? 'active' : '', qualitySeg, label);
             b.setAttribute('aria-pressed', String(current === q));
             b.addEventListener('click', () => {
                 const url = new URL(location.href);
@@ -1033,7 +1054,19 @@ export class UI {
             });
         }
 
-        this.leaveButton = button('s-btn s-btn-danger s-btn-sm', panel, 'Leave game', 'logout');
+        // The page reloads in the language picked; a running game goes on after it (SoulsGameMode.resume, main.js).
+        const l10n = window.SoulsL10n;
+        if (l10n.languages.length > 1) {
+            const languageSeg = row(t('g3d.settings.language'));
+            for (const { code, name } of l10n.languages) {
+                const b = button(code === l10n.lang ? 'active' : '', languageSeg, name);
+                b.lang = code;
+                b.setAttribute('aria-pressed', String(code === l10n.lang));
+                b.addEventListener('click', () => l10n.setLanguage(code));
+            }
+        }
+
+        this.leaveButton = button('s-btn s-btn-danger s-btn-sm', panel, t('g3d.leaveGame'), 'logout');
         this.leaveButton.addEventListener('click', () => {
             if (this.onLeave) this.onLeave();
             else window.location.href = '/Game';
@@ -1052,25 +1085,25 @@ export class UI {
     /** The emote button (next to the settings) opens the emotes and the switch that mutes the opponent's. */
     buildEmotes() {
         this.emoteButton = button('sg-icon-btn', null, null, 'smile');
-        this.emoteButton.setAttribute('aria-label', 'Emotes');
+        this.emoteButton.setAttribute('aria-label', t('g3d.emotes'));
         this.emoteButton.setAttribute('aria-expanded', 'false');
         this.emoteButton.addEventListener('click', () => this.toggleEmotes());
         this.settingsButton.after(this.emoteButton);
         const panel = el('section', 's-panel sg-emotes souls3d-emotes', this.root);
         panel.hidden = true;
-        panel.setAttribute('aria-label', 'Emotes');
+        panel.setAttribute('aria-label', t('g3d.emotes'));
         ((this.config.rules && this.config.rules.emotes) || []).forEach((text, i) => {
             button('s-btn s-btn-ghost s-btn-sm', panel, text).addEventListener('click', () => {
                 this.toggleEmotes(false);
                 if (this.onEmote) this.onEmote(i);
             });
         });
-        this.muteButton = button('s-btn s-btn-ghost s-btn-sm', panel, 'Mute opponent', 'mute');
+        this.muteButton = button('s-btn s-btn-ghost s-btn-sm', panel, t('g3d.emotes.mute'), 'mute');
         this.muteButton.setAttribute('aria-pressed', 'false');
         this.muteButton.addEventListener('click', () => {
             const muted = this.muteButton.getAttribute('aria-pressed') !== 'true';
             this.muteButton.setAttribute('aria-pressed', String(muted));
-            this.muteButton.replaceChildren(icon(muted ? 'volume' : 'mute'), muted ? 'Unmute opponent' : 'Mute opponent');
+            this.muteButton.replaceChildren(icon(muted ? 'volume' : 'mute'), muted ? t('g3d.emotes.unmute') : t('g3d.emotes.mute'));
             if (this.onMuteEmotes) this.onMuteEmotes(muted);
         });
         this.emotePanel = panel;
@@ -1129,9 +1162,10 @@ export class UI {
     /**
      * The end screen: the result, coins and rating earned (counting up), the season rank before and after a ranked
      * game, daily quest progress, and links to the statistics and the replay. A friendly game earns nothing. Players
-     * are taken to the statistics after a while (spectators stay).
+     * are taken to the statistics after a while (spectators stay). `kind` ('victory' | 'defeat' | 'draw') sets the look;
+     * without it, it comes from an English `text` ("Victory!", "<name> wins!").
      */
-    showEnd(text, result = {}, { redirect = true, detail, friendly = false } = {}) {
+    showEnd(text, result = {}, { redirect = true, detail, friendly = false, kind } = {}) {
         friendly = friendly || result.friendly === true;
         this.hideTimer();
         this.setPower(null);
@@ -1141,21 +1175,21 @@ export class UI {
         this.toggleEmotes(false);
         this.hint(null);
         if (this.currentBanner) this.currentBanner.remove();
-        const kind = /^Victory/.test(text) ? 'victory' : /^Draw/.test(text) ? 'draw' : /wins!$/.test(text) ? 'victory' : 'defeat';
+        kind = kind || (/^Victory/.test(text) ? 'victory' : /^Draw/.test(text) ? 'draw' : /wins!$/.test(text) ? 'victory' : 'defeat');
         const layer = el('div', 'sg-layer sg-shade souls3d-end', this.root);
         layer.style.animation = 's-fade-in 1.2s ease-out both';
         const end = el('div', `sg-end ${kind}`, layer);
         const title = text.replace(/!$/, '');
         // Longer than "Victory" ("<name> wins" for spectators): smaller, so a long name fits a phone.
         el('h1', `sg-end-title${title.length > 7 ? ' long' : ''}`, end, title);
-        if (result.text || detail) el('div', 'sg-end-sub', end, detail || result.text);
+        if (result.text || detail) el('div', 'sg-end-sub', end, detail || serverText(result));
 
         const rewards = el('div', 'sg-rewards', end);
         if (typeof result.coins === 'number' && !friendly) {
             const r = el('div', 's-panel sg-reward', rewards);
             r.appendChild(icon('coin'));
             const value = el('b', '', r, '+0');
-            el('span', '', r, 'Soul coins');
+            el('span', '', r, t('g3d.end.coins'));
             this.countUp(value, result.coins, '+', 900);
             if (result.coins > 0) setTimeout(() => sound.play('coins', 0.7), 900);
         }
@@ -1173,7 +1207,7 @@ export class UI {
             const r = el('div', 's-panel sg-reward', rewards);
             r.appendChild(icon(friendly ? 'users' : 'bot'));
             el('b', '', r, '–');
-            el('span', '', r, friendly ? 'Friendly game: no rewards' : 'Practice · unrated');
+            el('span', '', r, friendly ? t('g3d.end.friendly') : t('g3d.end.practice'));
         }
         if (!rewards.childElementCount) rewards.remove();
         if (result.season) this.seasonResult(end, result.season);
@@ -1182,11 +1216,12 @@ export class UI {
             const quests = el('section', 's-panel sg-end-quests', end);
             const head = el('div', 's-panel-head', quests);
             head.appendChild(icon('quest'));
-            el('h3', '', head, 'Daily quests');
+            el('h3', '', head, t('g3d.dailyQuests'));
             this.questList(quests, result.quests, { animate: true });
             // A quest this game completed (not done in the profile the page started with) gets a jingle.
             const before = (this.config.profile && this.config.profile.quests) || [];
-            if (result.quests.some(q => q.done && !before.some(b => b.text === q.text && b.done))) {
+            // The profile's texts are in the page language, like serverText of the server's.
+            if (result.quests.some(q => q.done && !before.some(b => b.text === serverText(q) && b.done))) {
                 setTimeout(() => sound.play('quest_complete', 0.8), 1500);
             }
         }
@@ -1196,24 +1231,24 @@ export class UI {
         if (statisticsId) {
             const stats = el('a', 's-btn s-btn-gold', actions);
             stats.href = `/Game/Stats/${encodeURIComponent(statisticsId)}`;
-            stats.append(icon('list'), 'Statistics');
+            stats.append(icon('list'), t('g3d.end.statistics'));
             const replay = el('a', 's-btn s-btn-ghost', actions);
             replay.href = `/Game/Replay/${encodeURIComponent(statisticsId)}`;
-            replay.append(icon('play'), 'Watch replay');
+            replay.append(icon('play'), t('g3d.end.replay'));
         }
         const again = el('a', 's-btn s-btn-primary', actions);
         again.href = '/Game';
-        again.append(icon(redirect ? 'swords' : 'arrow-left'), redirect ? 'Play again' : 'Back to the menu');
+        again.append(icon(redirect ? 'swords' : 'arrow-left'), redirect ? t('g3d.end.again') : t('g3d.backToMenu'));
 
         if (statisticsId && redirect) {
             const note = el('div', 'sg-end-redirect', end);
             let left = 20;
-            note.textContent = `Statistics in ${left} s`;
-            const t = setInterval(() => {
+            note.textContent = t('g3d.end.redirect', { seconds: left });
+            const timer = setInterval(() => {
                 left--;
-                note.textContent = `Statistics in ${left} s`;
+                note.textContent = t('g3d.end.redirect', { seconds: left });
                 if (left <= 0) {
-                    clearInterval(t);
+                    clearInterval(timer);
                     window.location.replace(`/Game/Stats/${encodeURIComponent(statisticsId)}`);
                 }
             }, 1000);
@@ -1227,13 +1262,13 @@ export class UI {
         const panel = el('section', `s-panel sg-end-season ${change}`.trim(), parent);
         const head = el('div', 's-panel-head', panel);
         head.appendChild(icon('trophy'));
-        el('h3', '', head, String(season.name ?? 'Season'));
+        el('h3', '', head, season.name === undefined || season.name === null ? t('g3d.end.season') : serverText(season, 'name'));
         if (change) {
             const label = el('span', 'sg-season-change', head);
-            label.append(icon(season.promoted ? 'arrow-up' : 'chevron-down'), season.promoted ? 'Promoted' : 'Demoted');
+            label.append(icon(season.promoted ? 'arrow-up' : 'chevron-down'), season.promoted ? t('g3d.end.promoted') : t('g3d.end.demoted'));
         }
         const ranks = el('div', 'sg-season-ranks', panel);
-        const badge = r => rankBadge(ranks, Number(r.rating), { tier: { name: String(r.tier ?? ''), css: String(r.css ?? '') } });
+        const badge = r => rankBadge(ranks, Number(r.rating), { tier: { name: serverText(r, 'tier'), css: String(r.css ?? '') } });
         badge(season.before || {}).classList.add('before');
         ranks.appendChild(icon('chevron-right', 's-icon sg-season-arrow'));
         badge(season.after || {}).classList.add('after');
@@ -1262,14 +1297,14 @@ export class UI {
         const panel = el('section', 's-panel sg-games souls3d-live', this.overlay);
         const head = el('div', 's-panel-head', panel);
         head.appendChild(icon('eye'));
-        el('h2', '', head, 'Live games');
-        el('span', 'sg-live', head, 'LIVE');
+        el('h2', '', head, t('g3d.live.title'));
+        el('span', 'sg-live', head, t('g3d.live.badge'));
         return new Promise(resolve => {
             const done = value => resolve(value);
             if (games.length === 0) {
                 const empty = el('div', 'sg-empty', panel);
                 empty.appendChild(icon('hourglass', 's-icon s-icon-lg'));
-                el('p', '', empty, 'Nobody is playing right now. Check back in a moment.');
+                el('p', '', empty, t('g3d.live.empty'));
             }
             const list = el('ul', '', panel);
             for (const g of games) {
@@ -1284,16 +1319,16 @@ export class UI {
                 }
                 const text = el('span', '', item);
                 const name = p => `${p.name}${p.rating ? ` (${p.rating})` : ''}`;
-                el('div', 'sg-game-names', text, a && b ? `${name(a)} vs ${name(b)}` : `Game ${g.gameId}`);
-                const kind = !g.practice ? 'Ranked' : (g.players || []).some(p => p.bot) ? 'Practice' : 'Friendly';
-                el('div', 'sg-game-meta', text, `${kind} · turn ${(g.turn ?? 0) + 1} · ${g.spectators ?? 0} watching`);
-                const watch = button('s-btn s-btn-primary s-btn-sm', item, 'Watch', 'eye');
+                el('div', 'sg-game-names', text, a && b ? t('g3d.versus', { a: name(a), b: name(b) }) : t('g3d.live.game', { id: g.gameId }));
+                const kind = !g.practice ? t('g3d.mode.ranked') : (g.players || []).some(p => p.bot) ? t('g3d.mode.practice') : t('g3d.mode.friendly');
+                el('div', 'sg-game-meta', text, t('g3d.live.meta', { kind, turn: (g.turn ?? 0) + 1, watching: g.spectators ?? 0 }));
+                const watch = button('s-btn s-btn-primary s-btn-sm', item, t('g3d.live.watch'), 'eye');
                 watch.addEventListener('click', () => done(g.gameId));
             }
             const actions = el('div', 'd-flex gap-2 justify-content-end mt-3', panel);
-            const back = button('s-btn s-btn-ghost s-btn-sm', actions, 'Back', 'arrow-left');
+            const back = button('s-btn s-btn-ghost s-btn-sm', actions, t('g3d.back'), 'arrow-left');
             back.addEventListener('click', () => done(null));
-            const refresh = button('s-btn s-btn-gold s-btn-sm', actions, 'Refresh', 'refresh');
+            const refresh = button('s-btn s-btn-gold s-btn-sm', actions, t('g3d.live.refresh'), 'refresh');
             refresh.addEventListener('click', () => { done(undefined); onRefresh(); });
         });
     }
@@ -1304,29 +1339,29 @@ export class UI {
             this.banner3d = el('div', 'sg-watching souls3d-banner', this.root);
             this.bannerBadge = el('span', 'sg-live', this.banner3d);
             this.bannerText = el('span', 'sg-watching-text', this.banner3d);
-            this.bannerLeave = button('s-btn s-btn-ghost s-btn-sm', this.banner3d, 'Leave', 'logout');
+            this.bannerLeave = button('s-btn s-btn-ghost s-btn-sm', this.banner3d, t('g3d.leave'), 'logout');
         }
-        this.bannerBadge.textContent = replay ? 'REPLAY' : 'LIVE';
+        this.bannerBadge.textContent = replay ? t('g3d.replay.badge') : t('g3d.live.badge');
         this.bannerBadge.classList.toggle('replay', replay);
         this.bannerText.textContent = text;
         this.bannerLeave.onclick = onLeave;
         this.banner3d.hidden = false;
         this.onLeave = onLeave;
-        this.leaveButton.lastChild.textContent = replay ? 'Close replay' : 'Stop watching';
+        this.leaveButton.lastChild.textContent = replay ? t('g3d.replay.close') : t('g3d.spectate.stop');
     }
 
     /** Play/pause, speed and restart for replays. */
     showReplay({ onToggle, onSpeed, onRestart }) {
         const bar = el('div', 's-panel sg-transport souls3d-replay', this.root);
         const toggle = button('sg-icon-btn', bar, null, 'pause');
-        toggle.setAttribute('aria-label', 'Pause');
+        toggle.setAttribute('aria-label', t('g3d.replay.pause'));
         toggle.addEventListener('click', () => {
             const playing = onToggle();
             toggle.replaceChildren(icon(playing ? 'pause' : 'play'));
-            toggle.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+            toggle.setAttribute('aria-label', playing ? t('g3d.replay.pause') : t('g3d.replay.play'));
         });
         const seg = el('div', 's-seg', bar);
-        seg.setAttribute('aria-label', 'Speed');
+        seg.setAttribute('aria-label', t('g3d.replay.speed'));
         for (const speed of [1, 2, 4]) {
             const b = button(speed === 1 ? 'active' : '', seg, `${speed}x`);
             b.addEventListener('click', () => {
@@ -1337,7 +1372,7 @@ export class UI {
         }
         this.replayProgress = progress(bar, 0, 's-progress-ember');
         const restart = button('sg-icon-btn', bar, null, 'skip-back');
-        restart.setAttribute('aria-label', 'Restart');
+        restart.setAttribute('aria-label', t('g3d.replay.restart'));
         restart.addEventListener('click', onRestart);
     }
 
@@ -1349,8 +1384,8 @@ export class UI {
 
     buildChat() {
         const chat = el('section', 'souls3d-chat collapsed', this.root);
-        chat.setAttribute('aria-label', 'Chat');
-        const header = button('souls3d-chat-header', chat, 'Chat', 'chat');
+        chat.setAttribute('aria-label', t('g3d.chat'));
+        const header = button('souls3d-chat-header', chat, t('g3d.chat'), 'chat');
         this.chatBadge = el('span', 'souls3d-chat-badge', header);
         header.addEventListener('click', () => {
             chat.classList.toggle('collapsed');
@@ -1361,10 +1396,10 @@ export class UI {
         this.chatLog = el('div', 'souls3d-chat-log', body);
         this.chatMembers = el('div', 'souls3d-chat-members', body);
         this.chatInput = el('textarea', 'souls3d-chat-input', chat);
-        this.chatInput.placeholder = 'Say something...';
+        this.chatInput.placeholder = t('g3d.chat.placeholder');
         this.chatInput.rows = 1;
         this.chatInput.maxLength = 500;
-        this.chatInput.setAttribute('aria-label', 'Chat message');
+        this.chatInput.setAttribute('aria-label', t('g3d.chat.inputLabel'));
         this.chatInput.addEventListener('keydown', e => {
             e.stopPropagation();
             if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {

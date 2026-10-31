@@ -88,6 +88,25 @@ The game page is full-screen (no site navigation; a home button sits next to the
 from phone to desktop, keep WCAG AA text contrast, show focus outlines for keyboard users and respect
 "reduce motion".
 
+### Languages
+
+The site and both game clients are in English and Norwegian Bokmål. The page language is the one picked in the
+EN | NB switch (top bar, profile panel, the clients' settings; kept in a cookie for a year), else the browser's
+(Accept-Language), else English. Dates and numbers follow it.
+
+- Site texts: `src/Souls.Web/Resources/SharedResource.nb.resx`, read with `IStringLocalizer<SharedResource>`
+  (`@L["..."]` in views). The keys are the English texts, so English has no file.
+- Game texts (rules, cards, ranks, quests, battle log, server messages) and the clients' texts:
+  `src/Souls.Model/Localization/{game,cards,game3d,classic}.{language}.json`, flat key/template tables. The web site
+  renders rules text from them, sends the page's table to the clients (`/js/l10n.js`), and the game server sends a key
+  with every text (see [Texts and languages](docs/game-protocol.md#texts-and-languages)), so players and spectators
+  in one game can each read their own language. Card, class and player names stay as they are.
+
+A third language is more files: copy `game.nb.json`, `cards.nb.json`, `game3d.nb.json`, `classic.nb.json` and
+`SharedResource.nb.resx` with the new code (`de`, `sv`, ...) and translate them. The languages are found from the
+JSON tables (`Strings.Languages`), so the switch, the request culture and the clients pick it up; `LocalizationTests`
+fail until every key is translated.
+
 ## Rules and progression
 
 The full rules and the protocol are in [docs/game-protocol.md](docs/game-protocol.md). In short:

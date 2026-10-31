@@ -19,7 +19,14 @@ public static class Ratings
 
     public sealed record Tier(string Name, string Division, string Css)
     {
-        public override string ToString() => Division.Length == 0 ? Name : $"{Name} {Division}";
+        /// <summary>"Bronze" (without the division) in the reader's language.</summary>
+        public Localization.GameText NameText => new("tier." + Name.ToLowerInvariant());
+
+        /// <summary>"Bronze III", "Champion" in the reader's language.</summary>
+        public Localization.GameText Text =>
+            Division.Length == 0 ? NameText : new Localization.GameText("tier.division", ("tier", NameText), ("division", Division));
+
+        public override string ToString() => Text.ToString();
     }
 
     private static readonly string[] TierNames = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];

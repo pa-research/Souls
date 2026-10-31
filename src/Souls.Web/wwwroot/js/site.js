@@ -2,6 +2,12 @@
 (function ($) {
     "use strict";
 
+    // A text from the page (data-* attributes, in the page's language) with its {0}, {1}... filled in.
+    window.soulsFormat = function (text) {
+        var args = arguments;
+        return String(text).replace(/\{(\d+)\}/g, function (match, i) { return String(args[Number(i) + 1]); });
+    };
+
     // Forms with data-confirm ask before submitting.
     $(document).on("submit", "form[data-confirm]", function (e) {
         if (!window.confirm($(this).data("confirm"))) {

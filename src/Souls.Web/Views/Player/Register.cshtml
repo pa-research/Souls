@@ -2,9 +2,9 @@
 @model RegisterPageModel
 <div class="s-page-head">
     <div>
-        <div class="s-eyebrow">A few steps from the arena</div>
-        <h1 class="s-h1 s-gold-text">Register a Champion</h1>
-        <p>Pick a name, choose the hero you fight as and the five cards you start with.</p>
+        <div class="s-eyebrow">@L["A few steps from the arena"]</div>
+        <h1 class="s-h1 s-gold-text">@L["Register a Champion"]</h1>
+        <p>@L["Pick a name, choose the hero you fight as and the five cards you start with."]</p>
     </div>
 </div>
 
@@ -12,26 +12,26 @@
 
 <form asp-controller="Player" asp-action="Register" method="post" id="register-form" class="s-steps">
     <section class="s-panel">
-        <h2 class="s-step-title"><span class="s-step-num">1</span>Credentials</h2>
+        <h2 class="s-step-title"><span class="s-step-num">1</span>@L["Credentials"]</h2>
         <div class="row g-3">
             <div class="col-md-4 s-field mb-0">
-                <label asp-for="Form.Username" class="s-label">Username</label>
-                <input asp-for="Form.Username" class="s-input" placeholder="3-20 letters or digits" autocomplete="username" />
+                <label asp-for="Form.Username" class="s-label">@L["Username"]</label>
+                <input asp-for="Form.Username" class="s-input" placeholder="@L["3-20 letters or digits"]" autocomplete="username" />
             </div>
             <div class="col-md-4 s-field mb-0">
-                <label asp-for="Form.Password" class="s-label">Password</label>
-                <input asp-for="Form.Password" class="s-input" placeholder="At least 8 characters" autocomplete="new-password" />
+                <label asp-for="Form.Password" class="s-label">@L["Password"]</label>
+                <input asp-for="Form.Password" class="s-input" placeholder="@L["At least 8 characters"]" autocomplete="new-password" />
             </div>
             <div class="col-md-4 s-field mb-0">
-                <label asp-for="Form.ConfirmPassword" class="s-label">Confirm Password</label>
-                <input asp-for="Form.ConfirmPassword" class="s-input" placeholder="Repeat the password" autocomplete="new-password" />
+                <label asp-for="Form.ConfirmPassword" class="s-label">@L["Confirm Password"]</label>
+                <input asp-for="Form.ConfirmPassword" class="s-input" placeholder="@L["Repeat the password"]" autocomplete="new-password" />
             </div>
         </div>
     </section>
 
     <section class="s-panel">
-        <h2 class="s-step-title"><span class="s-step-num">2</span>Choose your hero</h2>
-        <div class="s-grid s-classes" role="radiogroup" aria-label="Hero class">
+        <h2 class="s-step-title"><span class="s-step-num">2</span>@L["Choose your hero"]</h2>
+        <div class="s-grid s-classes" role="radiogroup" aria-label="@L["Hero class"]">
             @foreach (var group in Model.Classes)
             {
                 GameRules.RaceTexts.TryGetValue(group.Race.Id, out var race);
@@ -43,27 +43,27 @@
                         <span class="s-class-card">
                             <img src="/Content/Images/Player/Portraits/@(type.Id).jpg" alt="" loading="lazy" />
                             <span class="s-class-body">
-                                <span class="s-class-race">@group.Race.Name</span>
+                                <span class="s-class-race">@T(GameRules.RaceName(group.Race.Id))</span>
                                 <span class="s-class-name d-block">@type.Name</span>
                                 <span class="s-class-stats">
-                                    <span class="s-chip" title="Attack"><s-icon name="sword" />@type.Attack</span>
-                                    <span class="s-chip" title="Health"><s-icon name="heart" />@type.Health</span>
+                                    <span class="s-chip" title="@L["Attack"]"><s-icon name="sword" />@type.Attack</span>
+                                    <span class="s-chip" title="@L["Health"]"><s-icon name="heart" />@type.Health</span>
                                     @if (type.Armor > 0)
                                     {
-                                        <span class="s-chip" title="Armor"><s-icon name="shield" />@type.Armor</span>
+                                        <span class="s-chip" title="@L["Armor"]"><s-icon name="shield" />@type.Armor</span>
                                     }
                                     @if (type.Mana > 0)
                                     {
-                                        <span class="s-chip s-chip-mana" title="Bonus mana every turn"><s-icon name="gem" />+@type.Mana</span>
+                                        <span class="s-chip s-chip-mana" title="@L["Bonus mana every turn"]"><s-icon name="gem" />+@type.Mana</span>
                                     }
                                 </span>
                                 @foreach (var power in powers)
                                 {
-                                    <span class="s-class-text d-block"><b class="text-white-50">@(power == powers[0] ? "" : "Or ")@power.Name:</b> @power.Text</span>
+                                    <span class="s-class-text d-block"><b class="text-white-50">@(power == powers[0] ? "" : L["Or"] + " ")@T(power.Name):</b> @T(power.Text)</span>
                                 }
                                 @if (race is not null)
                                 {
-                                    <span class="s-class-text d-block mt-1">@race.Text</span>
+                                    <span class="s-class-text d-block mt-1">@T(race.Text)</span>
                                 }
                             </span>
                         </span>
@@ -74,7 +74,7 @@
     </section>
 
     <section class="s-panel">
-        <h2 class="s-step-title"><span class="s-step-num">3</span>Starter cards <span class="s-chip ms-2"><b class="num-cards-selected">0</b>&nbsp;/ 5</span></h2>
+        <h2 class="s-step-title"><span class="s-step-num">3</span>@L["Starter cards"] <span class="s-chip ms-2"><b class="num-cards-selected">0</b>&nbsp;/ 5</span></h2>
         <div class="s-grid s-deck-grid">
             @foreach (var card in Model.StarterCards)
             {
@@ -92,8 +92,8 @@
     </section>
 
     <div class="d-flex flex-wrap align-items-center gap-3">
-        <button type="submit" class="s-btn s-btn-primary s-btn-xl"><s-icon name="flame" />Register</button>
-        <span class="s-muted">Already a champion? <a asp-controller="Player" asp-action="Login">Login</a></span>
+        <button type="submit" class="s-btn s-btn-primary s-btn-xl"><s-icon name="flame" />@L["Register"]</button>
+        <span class="s-muted">@L["Already a champion?"] <a asp-controller="Player" asp-action="Login">@L["Login"]</a></span>
     </div>
 </form>
 

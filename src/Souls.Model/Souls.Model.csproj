@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The game's string tables (Localization/GameText.cs). WithCulture=false keeps game.nb.json out of a satellite assembly. -->
+    <EmbeddedResource Include="Localization\*.json" WithCulture="false" LogicalName="Souls.Model.Localization.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />

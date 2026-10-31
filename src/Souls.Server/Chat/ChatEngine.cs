@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Souls.Server.Game;
+using Souls.Model.Localization;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 
@@ -19,12 +20,9 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         clients.First.AddRoom(room);
         clients.Second.AddRoom(room);
 
-        var payload = new JsonObject
-        {
-            ["name"] = "Server",
-            ["message"] = $"Made chatroom \"{room.Id}\"",
-            ["chRoomId"] = room.Id,
-        };
+        var payload = new JsonObject { ["name"] = "Server" };
+        new GameText("chat.roomCreated", ("room", room.Id)).WriteTo(payload, "message");
+        payload["chRoomId"] = room.Id;
         clients.First.Send(new Response(ChatResponse.ChatRoomMade, payload.DeepClone()));
         clients.Second.Send(new Response(ChatResponse.ChatRoomMade, payload));
         logger.LogDebug("Game chat {Room} made for {First} and {Second}", room.Id, clients.First.Name, clients.Second.Name);
@@ -51,7 +49,7 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         var room = new ChatRoom(state.ChatRoomCounter++, client);
         state.ChatRooms[room.Id] = room;
         client.AddRoom(room);
-        client.Send(new Response(ChatResponse.ChatRoomMade, $"You made a new chat room with id {room.Id}"));
+        client.Send(new Response(ChatResponse.ChatRoomMade, new GameText("chat.roomMade", ("room", room.Id))));
     }
 
     public void Invite(ChatPlayer inviter, Message message)
@@ -61,26 +59,26 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
 
         if (!state.ChatRooms.TryGetValue(roomId, out var room) || !room.IsLeader(inviter) || room.IsStatic)
         {
-            inviter.Send(new Response(ChatResponse.NotLeader, $"You are not the leader of room {roomId}"));
+            inviter.Send(new Response(ChatResponse.NotLeader, new GameText("chat.notLeader", ("room", roomId))));
             return;
         }
 
         var toInvite = state.GameClients.Values.FirstOrDefault(p => !p.IsBot && p.Name == name)?.ChPlayer;
         if (toInvite?.ChatContext is null)
         {
-            inviter.Send(new Response(ChatResponse.ClientNotFound, $"Problem adding {name} to room {roomId}. Is the player online?"));
+            inviter.Send(new Response(ChatResponse.ClientNotFound, new GameText("chat.inviteFailed", ("name", name), ("room", roomId))));
             return;
         }
 
         if (room.AddClient(toInvite))
         {
             toInvite.AddRoom(room);
-            inviter.Send(new Response(ChatResponse.InvitedClient, $"You invited {toInvite.Name} to room {roomId}"));
-            toInvite.Send(new Response(ChatResponse.GotInvited, $"You got invited to room {roomId} by {inviter.Name}"));
+            inviter.Send(new Response(ChatResponse.InvitedClient, new GameText("chat.invited", ("name", toInvite.Name), ("room", roomId))));
+            toInvite.Send(new Response(ChatResponse.GotInvited, new GameText("chat.gotInvited", ("room", roomId), ("name", inviter.Name))));
         }
         else
         {
-            inviter.Send(new Response(ChatResponse.ClientNotFound, $"{name} is already in room {roomId}"));
+            inviter.Send(new Response(ChatResponse.ClientNotFound, new GameText("chat.alreadyMember", ("name", name), ("room", roomId))));
         }
     }
 
@@ -91,7 +89,7 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
 
         if (!state.ChatRooms.TryGetValue(roomId, out var room) || !room.IsLeader(kicker) || room.IsStatic)
         {
-            kicker.Send(new Response(ChatResponse.NotLeader, $"You are not leader of room {roomId}"));
+            kicker.Send(new Response(ChatResponse.NotLeader, new GameText("chat.notLeader", ("room", roomId))));
             return;
         }
 
@@ -99,12 +97,12 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         if (toKick is not null && toKick != kicker && room.RemoveClient(toKick))
         {
             toKick.MemberRooms.Remove(roomId);
-            kicker.Send(new Response(ChatResponse.KickedClient, $"You kicked {toKick.Name} from room {roomId}"));
-            toKick.Send(new Response(ChatResponse.GotKicked, $"You got kicked from room {roomId} by {kicker.Name}"));
+            kicker.Send(new Response(ChatResponse.KickedClient, new GameText("chat.kicked", ("name", toKick.Name), ("room", roomId))));
+            toKick.Send(new Response(ChatResponse.GotKicked, new GameText("chat.gotKicked", ("room", roomId), ("name", kicker.Name))));
         }
         else
         {
-            kicker.Send(new Response(ChatResponse.ClientNotFound, $"{name} is not in room {roomId}"));
+            kicker.Send(new Response(ChatResponse.ClientNotFound, new GameText("chat.notInRoom", ("name", name), ("room", roomId))));
         }
     }
 
@@ -113,14 +111,14 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         var roomId = message.GetInt("room");
         if (!state.ChatRooms.TryGetValue(roomId, out var room) || !room.Clients.Contains(client))
         {
-            client.Send(new Response(ChatResponse.ChatNotMember, "You are not a member of that room!"));
+            client.Send(new Response(ChatResponse.ChatNotMember, new GameText("chat.notMember")));
             return;
         }
 
         var wasLeader = room.IsLeader(client);
         room.RemoveClient(client);
         client.MemberRooms.Remove(roomId);
-        client.Send(new Response(ChatResponse.LeftRoom, $"You left room {roomId}"));
+        client.Send(new Response(ChatResponse.LeftRoom, new GameText("chat.left", ("room", roomId))));
 
         if (room.Clients.Count == 0)
         {
@@ -128,15 +126,14 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
             return;
         }
 
-        room.Broadcast(new Response(ChatResponse.ChatMessage, new JsonObject
-        {
-            ["message"] = $"{client.Name} left the room",
-            ["room"] = roomId,
-            ["name"] = "Server",
-        }));
+        var left = new JsonObject();
+        new GameText("chat.memberLeft", ("name", client.Name)).WriteTo(left, "message");
+        left["room"] = roomId;
+        left["name"] = "Server";
+        room.Broadcast(new Response(ChatResponse.ChatMessage, left));
         if (wasLeader)
         {
-            room.Clients.First!.Value.Send(new Response(ChatResponse.MadeLeader, $"You are now the leader of room {roomId}"));
+            room.Clients.First!.Value.Send(new Response(ChatResponse.MadeLeader, new GameText("chat.madeLeader", ("room", roomId))));
         }
     }
 
@@ -145,7 +142,7 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
         var roomId = message.GetInt("room");
         if (!client.MemberRooms.TryGetValue(roomId, out var room))
         {
-            client.Send(new Response(ChatResponse.ChatNotMember, "You are not a member of that room!"));
+            client.Send(new Response(ChatResponse.ChatNotMember, new GameText("chat.notMember")));
             return;
         }
 
@@ -164,7 +161,7 @@ public sealed class ChatEngine(ServerState state, ILogger<ChatEngine> logger)
 
         if (!client.MemberRooms.TryGetValue(roomId, out var room))
         {
-            client.Send(new Response(ChatResponse.ChatNotMember, "You are not a member of that room!"));
+            client.Send(new Response(ChatResponse.ChatNotMember, new GameText("chat.notMember")));
             return;
         }
 

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Souls.Model;
+using Souls.Model.Localization;
 using Souls.Server.Network;
 using Souls.Server.Objects;
 
@@ -40,12 +41,14 @@ public sealed partial class GameEngine
 
         if (Throttle(gp.EmoteClock, time.GetUtcNow(), EmoteInterval, Burst) is not { } clock)
         {
-            Tell(player, "You are sending emotes too fast.");
+            Tell(player, new GameText("error.emoteTooFast"));
             return;
         }
 
         gp.EmoteClock = clock;
-        var response = new Response(GameResponse.Emote, new JsonObject { ["ident"] = gp.Ident, ["emote"] = emote, ["text"] = GameRules.Emotes[emote] });
+        var payload = new JsonObject { ["ident"] = gp.Ident, ["emote"] = emote };
+        GameRules.Emotes[emote].WriteTo(payload, "text");
+        var response = new Response(GameResponse.Emote, payload);
         player.Send(response);
         if (!opponent.GPlayer!.EmotesMuted)
         {
@@ -74,7 +77,7 @@ public sealed partial class GameEngine
     {
         if (player.GPlayer is not null || player.Spectating is not null || state.ChallengeOf(player) is not null)
         {
-            ChallengeClosed(player, "Finish your game or your pending challenge first.");
+            ChallengeClosed(player, new GameText("challenge.busySelf"));
             return;
         }
 
@@ -82,7 +85,7 @@ public sealed partial class GameEngine
         var now = time.GetUtcNow();
         if (Throttle(state.ChallengeClocks.GetValueOrDefault(player.Id), now, ChallengeInterval, Burst) is not { } clock)
         {
-            ChallengeClosed(player, "You are sending challenges too fast. Wait a few seconds.");
+            ChallengeClosed(player, new GameText("challenge.tooFast"));
             return;
         }
 
@@ -91,13 +94,13 @@ public sealed partial class GameEngine
         var target = state.GameClients.Values.FirstOrDefault(p => !p.IsBot && p.DisconnectedAt is null && Model.Entities.Player.Normalize(p.Name) == normalized);
         if (target is null)
         {
-            ChallengeClosed(player, $"{name.Trim()} is not online.");
+            ChallengeClosed(player, new GameText("challenge.offline", ("name", name.Trim())));
             return;
         }
 
-        var problem = target == player ? "You cannot challenge yourself."
-            : target.GPlayer is not null || target.Spectating is not null ? $"{target.Name} is busy in another game."
-            : state.ChallengeOf(target) is not null ? $"{target.Name} already has a pending challenge."
+        var problem = target == player ? new GameText("challenge.self")
+            : target.GPlayer is not null || target.Spectating is not null ? new GameText("challenge.busy", ("name", target.Name))
+            : state.ChallengeOf(target) is not null ? new GameText("challenge.pending", ("name", target.Name))
             : null;
         if (problem is not null)
         {
@@ -123,13 +126,13 @@ public sealed partial class GameEngine
     {
         if (state.ChallengeOf(player) is not { } challenge || challenge.To != player)
         {
-            ChallengeClosed(player, "That challenge is no longer open.");
+            ChallengeClosed(player, new GameText("challenge.notOpen"));
             return;
         }
 
         if (!accept)
         {
-            Close(challenge, $"{player.Name} declined your challenge.", null);
+            Close(challenge, new GameText("challenge.declined", ("name", player.Name)), null);
             return;
         }
 
@@ -149,12 +152,12 @@ public sealed partial class GameEngine
     {
         if (state.ChallengeOf(player) is { } challenge && challenge.From == player)
         {
-            Close(challenge, "Challenge withdrawn.", $"{player.Name} withdrew the challenge.");
+            Close(challenge, new GameText("challenge.withdrawn"), new GameText("challenge.withdrawnBy", ("name", player.Name)));
         }
     }
 
     /// <summary>Ends the pending challenge of a player who left or started another game, telling the other player why.</summary>
-    public void DropChallenge(Player player, string reason)
+    public void DropChallenge(Player player, GameText reason)
     {
         if (state.ChallengeOf(player) is { } challenge)
         {
@@ -168,7 +171,7 @@ public sealed partial class GameEngine
         var now = time.GetUtcNow();
         foreach (var challenge in state.Challenges.Where(c => now >= c.ExpiresAt).ToList())
         {
-            Close(challenge, $"{challenge.To.Name} did not answer.", $"The challenge from {challenge.From.Name} expired.");
+            Close(challenge, new GameText("challenge.noAnswer", ("name", challenge.To.Name)), new GameText("challenge.expired", ("name", challenge.From.Name)));
         }
 
         foreach (var (id, clock) in state.ChallengeClocks)
@@ -180,7 +183,7 @@ public sealed partial class GameEngine
         }
     }
 
-    private void Close(Challenge challenge, string? toChallenger, string? toChallenged)
+    private void Close(Challenge challenge, GameText? toChallenger, GameText? toChallenged)
     {
         state.Challenges.Remove(challenge);
         if (toChallenger is not null)
@@ -194,5 +197,5 @@ public sealed partial class GameEngine
         }
     }
 
-    private static void ChallengeClosed(Player player, string text) => player.Send(new Response(GameResponse.ChallengeClosed, text));
+    private static void ChallengeClosed(Player player, GameText text) => player.Send(new Response(GameResponse.ChallengeClosed, text));
 }

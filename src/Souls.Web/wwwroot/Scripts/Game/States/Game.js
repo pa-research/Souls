@@ -23,6 +23,7 @@ define("game",
     'emotes'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud, Emotes) {
 
         var that;
+        var T = window.SoulsL10n.t;
         /// normalGame: ranked match (true) or practice against the bot (false); difficulty: 0 easy, 1 normal, 2 hard;
         /// resuming: going back into a running game (after switching from the 3D client); friendly: {challenge: name
         /// or undefined} to challenge a player by name or wait to be challenged instead of queueing.
@@ -96,12 +97,12 @@ define("game",
             // The board is landscape: held upright, a phone gets this instead (CSS shows it, see Game.css).
             var rotate = Hud.Layer('souls-classic-rotate');
             rotate.setAttribute('role', 'dialog');
-            rotate.setAttribute('aria-label', 'Turn to landscape');
+            rotate.setAttribute('aria-label', T('classic.rotate'));
             var box = Hud.El('div', 's-panel', rotate);
             box.appendChild(Hud.Icon('rotate', 's-icon s-icon-lg'));
-            Hud.El('h2', 's-h3', box, 'Turn to landscape');
-            Hud.El('p', 's-muted', box, 'The classic board needs a wide screen: turn your device sideways, or play on in the 3D client.');
-            Hud.Button('s-btn s-btn-gold', box, 'Play in Modern 3D', 'monitor').addEventListener('click', function () {
+            Hud.El('h2', 's-h3', box, T('classic.rotate'));
+            Hud.El('p', 's-muted', box, T('classic.rotate.text'));
+            Hud.Button('s-btn s-btn-gold', box, T('classic.rotate.play'), 'monitor').addEventListener('click', function () {
                 var other = document.querySelector('.game-mode-switch .s-seg button:not(.active)');
                 if (other) other.click();
             });

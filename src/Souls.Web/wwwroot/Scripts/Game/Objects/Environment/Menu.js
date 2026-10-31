@@ -3,20 +3,23 @@
 // the deck and the shop, the player's champion card with rank and the daily quests from the page config.
 define("menu", ["hud", "conf"], function (Hud, Conf) {
 
-    var TIPS = [
-        ['Armor', 'absorbs damage before health, on cards and heroes.'],
-        ['Taunt', 'cards must be attacked before anything else.'],
-        ['Charge', 'lets a card attack the turn it is played; the others arrive exhausted.'],
-        ['Hero powers', 'cost 2 mana and can be used once per turn.'],
-        ['Darkness', 'cards curse a random enemy for 2 when they die.'],
-        ['Vampiric', 'cards heal your hero by the damage they deal.'],
-        ['Haunt', 'brings a card back to your hand the first time it dies.'],
-        ['Fatigue', 'hurts more with every draw once your deck is empty.'],
-        ['The turn timer', 'ends your turn after 75 seconds. Three timeouts in a row lose the game.'],
-        ['Ranked', 'games move your rating; practice games do not.']
-    ];
+    var T = window.SoulsL10n.t;
 
-    var DIFFICULTIES = ['Easy', 'Normal', 'Hard'];
+    // Gameplay tips: a bold start and the rest of the sentence (classic.json string tables).
+    var TIPS = [
+        ['classic.hint.armor', 'classic.hint.armor.text'],
+        ['classic.hint.taunt', 'classic.hint.taunt.text'],
+        ['classic.hint.charge', 'classic.hint.charge.text'],
+        ['classic.hint.heroPowers', 'classic.hint.heroPowers.text'],
+        ['classic.hint.darkness', 'classic.hint.darkness.text'],
+        ['classic.hint.vampiric', 'classic.hint.vampiric.text'],
+        ['classic.hint.haunt', 'classic.hint.haunt.text'],
+        ['classic.hint.fatigue', 'classic.hint.fatigue.text'],
+        ['classic.hint.timer', 'classic.hint.timer.text'],
+        ['classic.hint.ranked', 'classic.hint.ranked.text']
+    ].map(function (keys) { return [T(keys[0]), T(keys[1])]; });
+
+    var DIFFICULTIES = [T('classic.difficulty.easy'), T('classic.difficulty.normal'), T('classic.difficulty.hard')];
     var LIVE_URL = '/Game?live=1'; // spectating is offered by the 3D client only (game-mode.js opens it)
 
     function Portrait(type) {
@@ -33,8 +36,8 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         var logo = Hud.El('img', 'sg-logo', box);
         logo.src = '/Content/Images/logo.png';
         logo.alt = 'Souls';
-        var text = Hud.El('div', 'sg-loading-text', box, 'Loading');
-        var bar = Hud.Progress(box, 0, '', 'Loading');
+        var text = Hud.El('div', 'sg-loading-text', box, T('classic.loading'));
+        var bar = Hud.Progress(box, 0, '', T('classic.loading'));
         var tip = Hud.El('div', 'sg-loading-tip', box);
 
         var last = -1;
@@ -57,7 +60,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
                 if (percent === shown) return;
                 shown = percent;
                 Hud.SetProgress(bar, percent / 100);
-                text.textContent = 'Loading · ' + percent + '%';
+                text.textContent = T('classic.loading.progress', { n: percent });
             },
             Close: function () {
                 clearInterval(tipTimer);
@@ -81,7 +84,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
     /// The champion card: portrait, name, rank emblem, class and coins, progress to the next rank.
     function ProfilePanel(parent, profile) {
         var panel = Hud.El('section', 's-panel', parent);
-        panel.setAttribute('aria-label', 'Your champion');
+        panel.setAttribute('aria-label', T('classic.menu.champion'));
         var box = Hud.El('div', 'sg-profile', panel);
         var img = Hud.El('img', '', box);
         img.alt = '';
@@ -95,21 +98,21 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         var meta = Hud.El('div', 's-muted s-small', who);
         if (profile.typeName) Hud.Text(meta, profile.typeName + ' · ');
         var coins = Hud.El('span', 's-chip s-chip-coin', meta);
-        coins.title = 'Soul coins';
+        coins.title = T('classic.soulCoins');
         coins.appendChild(Hud.Icon('coin'));
         Hud.Text(coins, Number(profile.money) || 0);
 
         var progress = typeof profile.rankProgress === 'number' ? profile.rankProgress : Hud.RankProgress(rating);
-        Hud.Progress(box, progress, '', 'Progress to the next rank');
+        Hud.Progress(box, progress, '', T('classic.rankProgress'));
         return panel;
     }
 
     function QuestPanel(parent, quests) {
         var panel = Hud.El('section', 's-panel', parent);
-        panel.setAttribute('aria-label', 'Daily quests');
+        panel.setAttribute('aria-label', T('classic.dailyQuests'));
         var head = Hud.El('div', 's-panel-head', panel);
         head.appendChild(Hud.Icon('quest'));
-        Hud.El('h3', '', head, 'Daily quests');
+        Hud.El('h3', '', head, T('classic.dailyQuests'));
         Hud.QuestList(panel, quests, false);
         return panel;
     }
@@ -127,17 +130,17 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         var menu = Hud.El('div', 'sg-menu', layer);
 
         var nav = Hud.El('nav', 'sg-menu-nav', menu);
-        nav.setAttribute('aria-label', 'Game menu');
+        nav.setAttribute('aria-label', T('classic.menu.nav'));
         var logo = Hud.El('img', 'sg-logo', nav);
         logo.src = '/Content/Images/logo.png';
         logo.alt = 'Souls';
 
-        var ranked = MenuButton(nav, 'swords', 'Ranked', 'Fight a player of your rank', true);
-        var practice = MenuButton(nav, 'bot', 'Practice', 'Against the bot');
+        var ranked = MenuButton(nav, 'swords', T('classic.menu.ranked'), T('classic.menu.ranked.sub'), true);
+        var practice = MenuButton(nav, 'bot', T('classic.menu.practice'), T('classic.menu.practice.sub'));
 
         // Bot difficulty: a radio group (arrow keys move the choice).
         var row = Hud.El('div', 'sg-menu-row', nav);
-        var label = Hud.El('span', 's-label', row, 'Bot');
+        var label = Hud.El('span', 's-label', row, T('classic.menu.bot'));
         label.id = 'souls-classic-difficulty-label';
         var seg = Hud.El('div', 's-seg', row);
         seg.setAttribute('role', 'radiogroup');
@@ -177,11 +180,11 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
             e.stopPropagation();
         });
 
-        var friendly = MenuButton(nav, 'users', 'Friendly', 'Challenge a player by name, unranked');
-        var watch = MenuButton(nav, 'eye', 'Watch live', 'Take a seat in the stands (3D)');
+        var friendly = MenuButton(nav, 'users', T('classic.menu.friendly'), T('classic.menu.friendly.sub'));
+        var watch = MenuButton(nav, 'eye', T('classic.menu.watch'), T('classic.menu.watch.sub'));
 
         var small = Hud.El('div', 'sg-menu-small', nav);
-        [['/Deck', 'deck', 'Deck'], ['/Shop', 'shop', 'Shop'], ['/', 'home', 'Home']].forEach(function (link) {
+        [['/Deck', 'deck', T('classic.menu.deck')], ['/Shop', 'shop', T('classic.menu.shop')], ['/', 'home', T('mode.home')]].forEach(function (link) {
             var a = Hud.El('a', 's-btn s-btn-ghost s-btn-sm', small);
             a.href = link[0];
             a.appendChild(Hud.Icon(link[1]));
@@ -203,7 +206,7 @@ define("menu", ["hud", "conf"], function (Hud, Conf) {
         var profile = options.profile;
         if (profile) {
             var side = Hud.El('aside', 'sg-menu-side', menu);
-            side.setAttribute('aria-label', 'Your profile');
+            side.setAttribute('aria-label', T('classic.menu.profile'));
             ProfilePanel(side, profile);
             if (profile.quests && profile.quests.length) QuestPanel(side, profile.quests);
         }
