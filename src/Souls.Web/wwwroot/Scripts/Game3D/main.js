@@ -166,16 +166,18 @@ function exposeTestHooks(stage, game, ui) {
         tooltip: () => (ui.tooltip.hidden ? null : ui.tooltip.textContent),
         timer: () => (ui.timer.hidden ? null : ui.timerLeft),
         // The visible strip of a hand card (the next card covers the rest of it, as in the classic client).
-        handCard: index => {
-            const last = index === game.player.hand.size - 1;
-            return stage.classicToScreen(165 + 60 * index + (last ? 0 : -45), 990);
-        },
+        handCard: index => game.handScreenPoint(index),
+        // Screen rectangles of a hand card, the zoomed hand card and the heroes; the portrait bands (null in landscape).
+        handRect: index => game.screenRect([...game.player.hand.values()][index]),
+        hoveredRect: () => game.screenRect(game.hovered),
+        heroRect: (opponent = false) => game.screenRect((opponent ? game.opponent : game.player).hero),
+        layout: () => ({ portrait: stage.portrait, bands: stage.bands, width: stage.width, height: stage.height }),
         slot: slotId => stage.toScreen(game.slots[slotId].position),
         boardCard: cid => screen(game.player.board.get(cid)),
         opponentCard: cid => screen(game.opponent.board.get(cid)),
         hero: () => screen(game.player.hero),
         opponentHero: () => screen(game.opponent.hero),
-        endTurn: () => stage.classicToScreen(1610, 550),
+        endTurn: () => { const at = game.signPoint(); return stage.classicToScreen(at.x, at.y); },
         view: name => (name ? stage.setView(name) : stage.view),
         hovered: () => (game.hovered ? game.hovered.cid : null),
         camera: () => stage.camera.position.toArray().map(v => Math.round(v)),

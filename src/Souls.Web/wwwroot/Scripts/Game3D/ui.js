@@ -532,8 +532,8 @@ export class UI {
         }
     }
 
-    placeStatus(side, x, y) {
-        this.follow(side === 'player' ? this.playerStatus : this.opponentStatus, x, y);
+    placeStatus(side, x, y, ax = 0.5) {
+        this.follow(side === 'player' ? this.playerStatus : this.opponentStatus, x, y, ax);
     }
 
     /**
@@ -594,7 +594,7 @@ export class UI {
     }
 
     /** Every frame: the fuse burns down; red and pulsing in the last 15 seconds. */
-    updateTimer(now, x, y) {
+    updateTimer(now, x, y, ax = 0.5) {
         if (this.timerEndsAt === null || this.timerEndsAt === undefined) return;
         const left = Math.max(0, this.timerEndsAt - now);
         this.timerBar.style.width = `${(left / this.timerTotal) * 100}%`;
@@ -604,7 +604,7 @@ export class UI {
             this.timerText.textContent = text;
         }
         this.timer.classList.toggle('urgent', left < 15000 && this.timerMine);
-        if (x !== undefined) this.follow(this.timer, x, y, 0.5, 0);
+        if (x !== undefined) this.follow(this.timer, x, y, ax, 0);
     }
 
     /** The seconds left on the fuse (test hook). */
@@ -839,6 +839,10 @@ export class UI {
         if (at && at.width !== undefined) {
             x = at.right - host.left + 12;
             y = at.top - host.top - box.height / 2 + at.height / 2;
+        } else if (at && at.above) {
+            // Centred above the point (portrait: over the zoomed hand card).
+            x = Math.max(8, Math.min(at.x - box.width / 2, host.width - box.width - 8));
+            y = at.y - box.height;
         } else {
             x = (at ? at.x : 0) + 18;
             y = (at ? at.y : 0) + 18;
