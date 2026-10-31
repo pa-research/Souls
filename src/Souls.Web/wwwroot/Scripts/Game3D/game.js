@@ -1756,12 +1756,17 @@ export class Game {
         return this.stage.toScreen(hero.position.clone().addScaledVector(up, (side.isPlayer ? 1 : -1) * 130 * hero.scale.x));
     }
 
-    /** Screen position for the hero power button: beside the player's hero. */
+    /**
+     * Screen position for the hero power button: beside the player's hero, on its right, or on its left where the
+     * screen ends too soon for the button (the portrait cinematic view sways the hero to the edge).
+     */
     powerAnchor() {
         const hero = this.player.hero;
         const center = this.stage.toScreen(hero.position);
         const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x));
-        return { x: edge.x + 70, y: center.y };
+        const half = this.ui.power.offsetWidth / 2;
+        const x = edge.x + 70 + half + 8 > this.stage.width ? 2 * center.x - edge.x - 70 : edge.x + 70;
+        return { x, y: center.y };
     }
 
     // ---- Chat -----------------------------------------------------------------------------------------------------

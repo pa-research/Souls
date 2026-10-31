@@ -367,3 +367,8 @@
     .souls3d-settings,
     .souls3d-emotes { top: 12px; left: calc(max(12px, env(safe-area-inset-left)) + 52px); }
 }
+
+@media (max-height: 380px) and (pointer: coarse) {
+    /* The shortest phones: lower camera buttons, so the column fits between the two hands. */
+    .souls3d-views .s-seg > button { padding-block: 6px; }
+}
