@@ -9,7 +9,8 @@
 // cool moon and the night sky, `stadiumLights`) and warm fire light baked into its vertices, so it frames the board
 // without competing with it.
 import * as THREE from '/lib/three/three.webgpu.js';
-import { attribute, length, lights, positionView, screenDPR, smoothstep, uniformArray, uv, vec4 } from '/lib/three/three.tsl.js';
+import { attribute, length, lights, positionView, screenDPR, sin, smoothstep, uniformArray, uv, vec4 } from '/lib/three/three.tsl.js';
+import { mergeGeometries } from '/lib/three/addons/utils/BufferGeometryUtils.js';
 import { Images, loadImage, textureFrom } from './assets.js';
 import { toWorld, spriteGeometry, STAGE_W, STAGE_H } from './scene.js';
 import { buildStadium, WALL_R, SCREEN_W, SCREEN_H, STANDS_OUT } from './stadium.js';
@@ -21,6 +22,8 @@ import { Crowd } from './spectators.js';
 const SCREEN_SCALE = 0.5;
 /** Words the stadium screens show by themselves (the rest comes from the game). */
 const SCREEN_TEXT = { title: 'SOULS', versus: 'VS' };
+/** How long a Mexican wave takes to go once around the stands. */
+const WAVE_MS = 9000;
 
 /** The stadium's light (not the board's): a cool moon, the night sky and the warm ground bounce. */
 const MOON_COLOR = new THREE.Color(0xc4ceff);
@@ -199,23 +202,11 @@ function lightShafts(heads, u) {
             new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir), new THREE.Vector3(1, 1, 1));
         return cone.applyMatrix4(m);
     });
-    const geometry = new THREE.BufferGeometry();
-    const parts = cones.map(c => c.toNonIndexed());
-    const count = parts.reduce((n, g) => n + g.attributes.position.count, 0);
-    const pos = new Float32Array(count * 3), uvs = new Float32Array(count * 2);
-    let o = 0;
-    for (const g of parts) {
-        pos.set(g.attributes.position.array, o * 3);
-        uvs.set(g.attributes.uv.array, o * 2);
-        o += g.attributes.position.count;
-    }
-    geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    return new THREE.Mesh(geometry, material);
+    return new THREE.Mesh(mergeGeometries(cones), material);
 }
 
 /** Stars: small points over the upper sky that twinkle a little. */
-function stars(count) {
+function stars(count, u) {
     const pts = [];
     let s = 3;
     const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
@@ -229,7 +220,8 @@ function stars(count) {
     material.positionNode = star.xyz;
     material.sizeNode = star.w.mul(star.w).mul(2.6).add(1.1);
     const glow = smoothstep(0, 0.5, length(uv().sub(0.5))).oneMinus();
-    const bright = star.w.mul(0.8).add(0.25).mul(smoothstep(1500, 9000, star.y));
+    const twinkle = sin(u.uTime.mul(star.w.mul(3).add(1)).add(star.w.mul(100))).mul(0.25).add(0.75);
+    const bright = star.w.mul(0.8).add(0.25).mul(smoothstep(1500, 9000, star.y)).mul(twinkle);
     material.colorNode = vec4(0.85, 0.9, 1.0, glow.mul(bright));
     const points = new THREE.Mesh(geometry, material);
     points.frustumCulled = false;
@@ -333,7 +325,7 @@ export class Arena {
         const skyDome = new THREE.Mesh(new THREE.SphereGeometry(30000, 48, 24), skyMaterial(u, this.quality));
         skyDome.renderOrder = 10;
         this.stadium.add(skyDome);
-        this.stadium.add(stars(this.lowPower ? 500 : 1600));
+        this.stadium.add(stars(this.lowPower ? 500 : 1600, u));
         const hills = new THREE.MeshBasicNodeMaterial({ color: 0x0b0a12, side: THREE.DoubleSide });
         this.stadium.add(new THREE.Mesh(hillsGeometry(), hills));
         const outside = new THREE.Mesh(new THREE.RingGeometry(STANDS_OUT, 25000, 64, 1).rotateX(-Math.PI / 2), groundMaterial(stadiumLights));
@@ -379,7 +371,7 @@ export class Arena {
     wave() {
         if (performance.now() < this.waveUntil) return;
         this.waveStart = performance.now();
-        this.waveUntil = this.waveStart + 5200;
+        this.waveUntil = this.waveStart + WAVE_MS;
         this.waveFrom = Math.random() * Math.PI * 2;
     }
 
@@ -433,7 +425,7 @@ export class Arena {
             this.nextWave = now + 25000 + Math.random() * 20000;
             this.wave();
         }
-        const waveT = (now - (this.waveStart ?? -1e9)) / 5200;
+        const waveT = (now - (this.waveStart ?? -1e9)) / WAVE_MS;
         u.uWaveAmp.value = waveT >= 0 && waveT <= 1 ? Math.min(1, Math.sin(Math.PI * waveT) * 2.2) : 0;
         if (waveT >= 0 && waveT <= 1) u.uWave.value = this.waveFrom + waveT * Math.PI * 2;
         if (!this.stadium.visible) return;

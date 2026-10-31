@@ -47,7 +47,7 @@ export const TINT = {
     roof: 0x8c4a33, glowWarm: 0xffa45a, glowGreen: 0x7dff4a, plaster: 0x7a6f61,
 };
 /** Surface variants (aux.w) of the stone slot. */
-export const STONE = { ashlar: 0, trim: 1, slab: 2, rough: 3 };
+export const STONE = { ashlar: 0, trim: 1, slab: 2, rough: 3, wood: 4 };
 
 const C = hex => new THREE.Color(hex);
 const pol = (t, r, y) => [Math.cos(t) * r, y, Math.sin(t) * r];
@@ -291,7 +291,7 @@ function aisleSplit(a0, a1) {
 const isGateTower = (x, z, margin) => GATE_TOWERS.some(g => Math.hypot(x - g.x, z - g.z) < 176 + margin);
 
 /** Arena wall (podium), terraces with aisle stairs, the walkway parapets and the back wall of the stands. */
-function stands(w, segs) {
+function stands(w, segs, fires) {
     // The arena wall and the walkway on it: plinth, ashlar face, a moulded coping.
     const wall = [
         { r: WALL_R - 9, y: -2, ao: 0.55, kind: STONE.rough, color: TINT.dark },
@@ -342,7 +342,15 @@ function stands(w, segs) {
         const { seats, aisles } = aisleSplit(a0, a1);
         const team = teamOf((a0 + a1) / 2);
         for (const [t0, t1] of seats) {
-            w.ring('stone', profile(false), t0, t1, Math.max(2, Math.round(segs * (t1 - t0) / (a1 - a0))), { color: C(TINT.stone), delay: 0 });
+            const n = Math.max(2, Math.round(segs * (t1 - t0) / (a1 - a0)));
+            w.ring('stone', profile(false), t0, t1, n, { color: C(TINT.stone), delay: 0 });
+            // Wooden benches along each row of seats (not on the walkways).
+            for (let k = 0; k < TIERS; k++) {
+                if (WALKWAYS.includes(k)) continue;
+                const r = STANDS_IN + k * TIER_DEPTH, y = WALL_H + (k + 1) * TIER_RISE;
+                w.ring('stone', [{ r: r + 13, y, ao: 0.55 }, { r: r + 13, y: y + 7 }, { r: r + 33, y: y + 7 }, { r: r + 33, y, ao: 0.55 }],
+                    t0 + 0.004, t1 - 0.004, n, { color: C(TINT.wood), kind: STONE.wood, delay: 0, bw: 90, bh: 6 });
+            }
         }
         for (const [t0, t1] of aisles) {
             w.ring('stone', profile(true), t0, t1, 2, { color: C(TINT.aisle), delay: 0 });
@@ -365,6 +373,15 @@ function stands(w, segs) {
                     const ta = t0 + (t1 - t0) * (i + 0.12) / n, tb = t0 + (t1 - t0) * (i + 0.88) / n;
                     clothPanel(w, ta, tb, r, h + 1, h + TIER_RISE - 5, team, i * 1.7 + k);
                 }
+            }
+            // A torch on an iron post beside every stairway on the walkway: warm light up in the stands.
+            for (const [ta] of aisles) {
+                const t = ta - 0.012;
+                const [x, , z] = pol(t, r - 10, 0);
+                w.box('metal', x, h + 20, z, 3, 40, 3, Math.PI / 2 - t, { color: C(TINT.iron) });
+                w.ring('metal', [{ r: 0.1, y: h + 40 }, { r: 7, y: h + 46 }, { r: 6, y: h + 47 }, { r: 0.1, y: h + 44 }], 0, Math.PI * 2, 6, { color: C(TINT.iron) }, x, z);
+                fires.push({ p: [x, h + 47, z], size: 24, hue: 0, phase: t * 7 + k });
+                w.light([x, h + 52, z], 1.1, 120);
             }
         }
     }
@@ -414,10 +431,28 @@ function hangingBanner(w, x, y, z, face, width, len, color, phase) {
     }
 }
 
-/** Pilasters, banners and torch sconces on the arena wall. */
+/** Pilasters, banners and torch sconces on the arena wall; a bronze railing along its top. */
 function wallDressing(w, fires) {
     let n = 0;
     for (const [a0, a1] of ARCS) {
+        // Railing: posts and a top rail, broken where the gate towers stand.
+        const posts = Math.round((a1 - a0) * WALL_R / 26);
+        let run = null;
+        const rail = (t0, t1) => w.ring('metal', [{ r: 712, y: 85 }, { r: 712, y: 89 }, { r: 715.5, y: 89 }, { r: 715.5, y: 85 }, { r: 712, y: 85 }], t0, t1, Math.max(2, Math.round((t1 - t0) * 40)), { color: C(TINT.bronze), delay: 0.05 });
+        for (let i = 0; i <= posts; i++) {
+            const t = a0 + (a1 - a0) * i / posts;
+            const [x, , z] = pol(t, 713.8, 0);
+            const blocked = isGateTower(x, z, 4);
+            if (!blocked) {
+                w.box('metal', x, 80.5, z, 2.4, 13, 2.4, Math.PI / 2 - t, { color: C(TINT.bronze), delay: 0.05 }, 'ny');
+                run = run ?? t;
+            }
+            if ((blocked || i === posts) && run !== null) {
+                const end = blocked ? a0 + (a1 - a0) * (i - 1) / posts : t;
+                if (end > run) rail(run, end);
+                run = null;
+            }
+        }
         const count = 22;
         for (let i = 0; i <= count; i++) {
             const t = a0 + (a1 - a0) * i / count;
@@ -453,7 +488,7 @@ function wallDressing(w, fires) {
 function gateTower(w, center, segs, fires, torches) {
     const { x, z } = center;
     const profile = [
-        { r: 0, y: 166, kind: STONE.slab, color: TINT.tread, bw: 40, bh: 40 },
+        { r: 0, y: 166, kind: STONE.slab, color: TINT.dark, bw: 40, bh: 34 },
         { r: 146, y: 166, ao: 0.55 },
         { r: 146, y: 196, ao: 0.9, kind: STONE.ashlar },
         { r: 170, y: 196, kind: STONE.trim, color: TINT.trim },
@@ -562,9 +597,15 @@ function gatehouse(w, side, segs, fires, screens) {
         const aos = [0.75, 0.25, 0.25, 0.75];
         w.panel('stone', side > 0 ? [q[1], q[0], q[3], q[2]] : q, { ...stone, color: C(TINT.dark), kind: STONE.ashlar }, tunnelLen - depth, len, aos);
     }
-    // Far end: a dark gate with the soul light seeping through.
+    // Far end: the soul light behind two heavy wooden doors standing ajar, banded with iron.
     const endQ = [P(front + tunnelLen, -2, AW), P(front + tunnelLen, -2, -AW), P(front + tunnelLen, AH + AW, -AW), P(front + tunnelLen, AH + AW, AW)];
-    w.panel('glow', side > 0 ? [endQ[1], endQ[0], endQ[3], endQ[2]] : endQ, { color: C(0x1d4a20), kind: 100, delay: 0.15, bw: 1, bh: 1 }, 1, 1);
+    w.panel('glow', side > 0 ? [endQ[1], endQ[0], endQ[3], endQ[2]] : endQ, { color: C(0x3cff55), kind: 120, delay: 0.15, bw: 1, bh: 1 }, 1, 1);
+    const wood = { color: C(TINT.wood), kind: STONE.wood, delay: 0.15, bw: 16, bh: 120 };
+    for (const sz of [-1, 1]) {
+        const dw = AW - 8, dz = sz * (8 + dw / 2), dx = X(front + tunnelLen - 22);
+        w.box('stone', dx, (AH + 40) / 2 - 2, dz, 10, AH + 40, dw, sz * side * 0.12, wood);
+        for (const y of [24, 80, AH + 6]) w.box('metal', dx - side * 5.5, y, dz, 2, 8, dw + 2, sz * side * 0.12, { color: C(TINT.iron), delay: 0.15 });
+    }
     // Voussoirs: a ring of wedge stones around the arch, a keystone with a green soul gem.
     const ringPts = 15;
     for (let i = 0; i < ringPts; i++) {
@@ -662,7 +703,7 @@ function gatehouse(w, side, segs, fires, screens) {
 }
 
 /** The outer façade: three storeys of arcades between engaged columns, cornices, and an attic. */
-function facade(w, segs, fires, quality) {
+function facade(w, segs, quality) {
     const storeys = [[0, 190], [190, 380], [380, GALLERY_Y]];
     const r = OUTER_R;
     // Cornices and the attic as continuous rings, coming down the outside (solid on the right).
@@ -716,6 +757,13 @@ function facade(w, segs, fires, quality) {
                 w.geometry('stone', floor, m, { color: C(TINT.dark), kind: STONE.slab, ao: 0.5, delay: 0.1 });
                 if (lit > 0.6 && s > 0) w.light(new THREE.Vector3(0, spring, -20).applyMatrix4(m).toArray(), 0.7, 80);
             });
+            // Long banners on the attic, every few bays.
+            if (i % 5 === 2) {
+                const face = Math.atan2(Math.cos(t), Math.sin(t));
+                const [bx, , bz] = pol(t, r + 7, 0);
+                hangingBanner(w, bx, ATTIC_TOP - 26, bz, face, 64, 132, teamOf(t), i * 0.9);
+                w.box('metal', bx, ATTIC_TOP - 25, bz, 74, 3, 3, face, { color: C(TINT.iron), delay: 0.1 });
+            }
             // Engaged column at the pier between bays.
             const tc = a0 + i * da;
             if (i > 0) {
@@ -733,7 +781,6 @@ function facade(w, segs, fires, quality) {
             }
         }
     }
-    void fires;
 }
 
 /** The gallery at the top of the stands: columns under a tiled lean-to roof, in front of the attic wall. */
@@ -806,7 +853,7 @@ function flags(w) {
 }
 
 /** Beacon spires outside the stands at the diagonals: they light the sand like floodlights. */
-function beacons(w, fires, segs) {
+function beacons(w, fires) {
     const heads = [];
     for (let i = 0; i < 4; i++) {
         const a = deg(45 + i * 90);
@@ -833,7 +880,6 @@ function beacons(w, fires, segs) {
         heads.push(new THREE.Vector3(x, 1225, z));
         fires.push({ p: [x, 1225, z], size: 260, hue: 2, phase: i });
     }
-    void segs;
     return heads;
 }
 
@@ -850,15 +896,15 @@ export function buildStadium(quality) {
     const segs = { low: 72, medium: 112, high: 160 }[quality] ?? 160;
     const w = new Writer();
     const fires = [], torches = [], screens = [];
-    stands(w, segs);
+    stands(w, segs, fires);
     wallDressing(w, fires);
     for (const c of GATE_TOWERS) gateTower(w, c, Math.max(24, segs >> 2), fires, torches);
     gatehouse(w, -1, segs, fires, screens);
     gatehouse(w, 1, segs, fires, screens);
-    facade(w, segs, fires, quality);
+    facade(w, segs, quality);
     gallery(w, segs);
     flags(w);
-    const beaconHeads = beacons(w, fires, segs);
+    const beaconHeads = beacons(w, fires);
     apron(w);
     const geometries = w.build();
     return { geometries, fires, torches, screens, beaconHeads, lights: w.lights };

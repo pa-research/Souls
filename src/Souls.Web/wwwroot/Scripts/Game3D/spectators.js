@@ -3,7 +3,7 @@
 // Everything moves on the GPU: idle sway, hopping and raised arms with the crowd's excitement, the Mexican wave.
 // Lighting is per vertex (the people are small on screen): moonlight, sky and the warm light of the nearest fires.
 import * as THREE from '/lib/three/three.webgpu.js';
-import { attribute, cos, exp, float, fract, max, mix, mod, normalGeometry, positionGeometry, select, sin, smoothstep, atan, vec3, varying } from '/lib/three/three.tsl.js';
+import { attribute, cameraPosition, cos, exp, float, fract, max, mix, mod, normalGeometry, positionGeometry, select, sin, smoothstep, atan, vec3, varying } from '/lib/three/three.tsl.js';
 import { ARCS, GATE_TOWERS, STANDS_IN, TIERS, TIER_DEPTH, TIER_RISE, WALKWAYS, WALL_H, GLOW_MAX, aisleAt, random } from './stadium.js';
 
 // Parts of a person (vertex attribute `part`).
@@ -82,16 +82,19 @@ function crowdMaterial(u, light) {
             select(is(P.hood), variant.equal(2).select(1, 0),
                 select(is(P.helmet), variant.equal(3).select(1, 0),
                     select(is(P.hair), variant.equal(4).select(1, 0), pennant.select(1, 0))))));
-    // Excitement: hopping and raised arms (most people join in), and the wave going round.
+    // Most people sit; excitement brings the eager ones to their feet, hopping with raised arms. The wave goes round:
+    // everyone in it springs up with both arms in the air.
     const eager = fract(ph.mul(3.1)).greaterThan(0.25).select(1, 0);
     const speed = fract(ph.mul(13.7)).mul(3).add(3);
     const hop = sin(t.mul(speed).add(ph.mul(6.283))).max(0);
     const angle = atan(seat.z, seat.x);
     const d = mod(angle.sub(u.uWave).add(Math.PI), Math.PI * 2).sub(Math.PI);
-    const wave = exp(d.mul(d).mul(-28)).mul(u.uWaveAmp);
+    const wave = exp(d.mul(d).mul(-11)).mul(u.uWaveAmp);
     const cheer = u.uExcite.mul(1.5).sub(0.2).add(eager.sub(0.5).mul(0.4)).clamp(0, 1)
         .mul(sin(t.mul(speed).mul(0.5).add(ph.mul(20))).mul(0.25).add(0.75));
-    const lift = hop.mul(hop).mul(u.uExcite.mul(14).mul(eager).add(0.6)).add(wave.mul(15));
+    const stand = max(u.uExcite.mul(2.2).sub(0.45).clamp(0, 1).mul(eager), wave);
+    const sit = stand.oneMinus();
+    const lift = hop.mul(hop).mul(u.uExcite.mul(14).mul(eager).add(0.6)).mul(stand.mul(0.8).add(0.2)).add(wave.mul(10));
     const raise = mix(float(0.14), float(2.7), max(cheer, wave)).add(sin(t.mul(1.1).add(ph.mul(40))).mul(0.06));
     // Arms (and the pennant in the right hand) swing out and up about the shoulder.
     const side = select(is(P.armL), float(-1), float(1));
@@ -105,9 +108,13 @@ function crowdMaterial(u, light) {
     const nArm = vec3(n0.x.mul(ca).sub(n0.y.mul(sa)), n0.x.mul(sa).add(n0.y.mul(ca)), n0.z);
     // The pennant's flag flutters.
     const flutter = select(is(P.flag), sin(t.mul(9).add(ph.mul(30)).add(positionGeometry.x.mul(0.5))).mul(positionGeometry.x.sub(SHOULDER_X).mul(0.25)), float(0));
-    const local = select(shown.greaterThan(0.5), swung.add(vec3(0, 0, flutter)), vec3(0, 38, 0));
+    // Sitting folds the legs (knees forward) and lowers everything above them.
+    const legs = is(P.legs);
+    const seated = select(legs, vec3(0, swung.y.mul(sit.mul(-0.58)), sit.mul(5)), vec3(0, sit.mul(-11.3), sit.mul(1.5)));
+    const local = select(shown.greaterThan(0.5), swung.add(vec3(0, 0, flutter)).add(seated), vec3(0, 38, 0));
     // Seat: scale, turn to face the arena (plus a little looking around), lift.
-    const scale = fract(ph.mul(7.7)).mul(0.22).add(0.9);
+    // People right under the camera (the portrait views stand above the near stands) are left out.
+    const scale = fract(ph.mul(7.7)).mul(0.22).add(0.9).mul(select(seat.xyz.distance(cameraPosition).lessThan(260), float(0), float(1)));
     const turn = seat.w.add(sin(t.mul(0.4).add(ph.mul(50))).mul(0.18));
     const c = cos(turn), s = sin(turn);
     const sway = sin(t.mul(1.3).add(ph.mul(20))).mul(1.2);

@@ -68,7 +68,7 @@ function common(m, u, lightsNode) {
  * Coursed stone: blocks of irregular length in each course (no wallpaper grid), recessed mortar, hand-cut faces that
  * vary in tone, chipped arrises, rain streaks below the ledges, grime and damp near the ground.
  */
-function stoneMaterial(u, lightsNode, detailed) {
+function stoneMaterial(u, lightsNode, detailed, full) {
     const m = new THREE.MeshStandardNodeMaterial();
     const aux = common(m, u, lightsNode);
     const tint = srgb(attribute('tint', 'vec4').rgb);
@@ -84,17 +84,18 @@ function stoneMaterial(u, lightsNode, detailed) {
     const rnd2 = hash(cell.mul(3.17).add(row.mul(57.3)).add(5.0));
     const fw = fwidth(p).length().max(0.0001);
     const detail = smoothstep(0.06, 0.4, fw).oneMinus(); // block detail fades out when blocks are a few pixels
-    const chip = detailed ? mx_noise_float(vec3(p.mul(vec2(9.0, 18.0)), 2.0)).mul(0.012) : float(0);
-    const edge = min(min(f.x, f.x.oneMinus()).mul(rowLen).div(float(0.028).add(chip)), min(f.y, f.y.oneMinus()).div(float(0.06).add(chip.mul(2))));
+    const chip = full ? mx_noise_float(vec3(p.mul(vec2(9.0, 18.0)), 2.0)).mul(0.012) : float(0);
+    const wood = kind.equal(4); // planks: seams between them only, grain along them
+    const edge = min(min(f.x, f.x.oneMinus()).mul(rowLen).div(float(0.028).add(chip)), select(wood, float(99), min(f.y, f.y.oneMinus()).div(float(0.06).add(chip.mul(2)))));
     const aa = fw.mul(18).add(0.2);
     const block = smoothstep(float(1).sub(aa), float(1).add(aa), edge);
     const arris = smoothstep(1.0, 2.6, edge).oneMinus().mul(block); // the worn edge of each block
     const joints = select(kind.equal(1), 0.3, select(kind.equal(3), 0.7, 1.0)).mul(detail);
     const mortar = block.oneMinus().mul(joints);
-    const grain = detailed ? mx_noise_float(vec3(p.mul(vec2(2.6, 5.2)), rnd.mul(9.0))) : float(0);
-    const stains = detailed ? mx_fractal_noise_float(positionWorld.mul(0.0045), 3, 2.0, 0.5) : float(0);
-    const streaks = detailed ? mx_noise_float(vec3(positionWorld.x.mul(0.09), positionWorld.y.mul(0.006), positionWorld.z.mul(0.09))) : float(0);
-    const value = float(1).add(rnd.sub(0.5).mul(select(kind.equal(1), 0.1, 0.3)))
+    const grain = detailed ? mx_noise_float(select(wood, vec3(p.x.mul(14.0), p.y.mul(0.8), rnd.mul(9.0)), vec3(p.mul(vec2(2.6, 5.2)), rnd.mul(9.0)))) : float(0);
+    const stains = detailed ? mx_fractal_noise_float(positionWorld.mul(0.0045), full ? 3 : 2, 2.0, 0.5) : float(0);
+    const streaks = full ? mx_noise_float(vec3(positionWorld.x.mul(0.09), positionWorld.y.mul(0.006), positionWorld.z.mul(0.09))) : float(0);
+    const value = float(1).add(rnd.sub(0.5).mul(select(kind.equal(1), 0.1, 0.3))).add(grain.mul(select(wood, 0.25, 0.0)))
         .add(f.x.sub(0.5).mul(rnd2.sub(0.5)).mul(0.16).mul(detail))
         .add(grain.mul(0.08).mul(detail)).add(stains.mul(0.16)).add(arris.mul(joints).mul(0.07))
         .sub(smoothstep(0.1, 0.6, streaks).mul(0.12));
@@ -200,11 +201,11 @@ function glowMaterial(u) {
     return m;
 }
 
-/** The stadium's materials by slot. `detailed`: bump-mapped stone and roofs (not on low quality). */
+/** The stadium's materials by slot. Low quality: flat stone and roofs; medium: fewer noise layers than high. */
 export function stadiumMaterials(u, lightsNode, quality) {
     const detailed = quality !== 'low';
     return {
-        stone: stoneMaterial(u, lightsNode, detailed),
+        stone: stoneMaterial(u, lightsNode, detailed, quality === 'high'),
         metal: metalMaterial(u, lightsNode),
         cloth: clothMaterial(u, lightsNode),
         roof: roofMaterial(u, lightsNode, detailed),
@@ -247,7 +248,7 @@ export function sandMaterial(u, contacts, quality) {
         for (let i = 0; i < CONTACTS; i++) {
             const c = contacts.element(i);
             const d = vec2(p.x.sub(c.x).div(c.z.max(1)), p.y.sub(c.y).div(c.w.max(1)));
-            shade.mulAssign(float(1).sub(exp(dot(d, d).mul(-2.2)).mul(0.5)));
+            shade.mulAssign(float(1).sub(exp(dot(d, d).mul(-2.2)).mul(0.6)));
         }
         return shade;
     })();
@@ -290,7 +291,7 @@ export function fireSprites(fires, u) {
         const body = fall(width.mul(0.25), width, x.abs()).mul(fall(0.5, 0.98, y.add(n1.mul(0.12)))).mul(smoothstep(0.0, 0.1, y));
         const core = body.mul(body).mul(fall(0.2, 0.8, y));
         const halo = exp(vec2(q.x.sub(0.5), y.sub(0.2).mul(0.8)).length().mul(-6.0)).mul(0.22);
-        const warm = mix(vec3(1.0, 0.22, 0.03), vec3(1.0, 0.85, 0.5), core).mul(body.mul(1.9)).add(vec3(1.0, 0.45, 0.12).mul(halo));
+        const warm = mix(vec3(1.0, 0.2, 0.03), vec3(1.0, 0.72, 0.36), core).mul(body.mul(1.6)).add(vec3(1.0, 0.45, 0.12).mul(halo));
         const soul = mix(vec3(0.15, 0.85, 0.12), vec3(0.75, 1.0, 0.6), core).mul(body.mul(2.4)).add(vec3(0.3, 1.0, 0.2).mul(halo));
         const d = vec2(q.x.sub(0.5), q.y.sub(0.5)).length();
         const rays = fall(0.0, 0.012, q.x.sub(0.5).abs()).add(fall(0.0, 0.012, q.y.sub(0.5).abs())).mul(fall(0.0, 0.5, d));
