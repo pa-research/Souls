@@ -178,6 +178,7 @@ function exposeTestHooks(stage, game, ui) {
         hero: () => screen(game.player.hero),
         opponentHero: () => screen(game.opponent.hero),
         endTurn: () => { const at = game.signPoint(); return stage.classicToScreen(at.x, at.y); },
+        signRect: () => game.screenRect(game.sign),
         view: name => (name ? stage.setView(name) : stage.view),
         hovered: () => (game.hovered ? game.hovered.cid : null),
         camera: () => stage.camera.position.toArray().map(v => Math.round(v)),

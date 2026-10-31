@@ -118,6 +118,10 @@
 
 .souls3d-status { white-space: nowrap; }
 
+/* Messages: moved with the camera over the middle of the board, clear of the heroes, the hand and End Turn
+   (Game.placeToasts). */
+.souls3d-ui .sg-toasts { top: 0; transform: none; }
+
 /* Spectator bar (below the camera buttons, over the opponent's face-down hand rather than the opponent's hero) and
    replay transport. */
 .souls3d-banner {
@@ -309,12 +313,14 @@
     /* ...spectators have no chat, so their bar takes its place... */
     .souls3d-banner { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: auto; right: max(10px, env(safe-area-inset-right)); transform: none; max-width: calc(50% - 15px); }
     /* ...and messages and a replay's controls go over the opponent's hand, below the buttons. */
-    .souls3d-ui .sg-toasts { top: 108px; bottom: auto; }
-    .souls3d-replay { top: 106px; bottom: auto; flex-wrap: nowrap; gap: 8px; padding: 2px 8px; }
+    .souls3d-ui .sg-toasts { top: calc(max(12px, env(safe-area-inset-top)) + 96px); }
+    .souls3d-replay { top: calc(max(12px, env(safe-area-inset-top)) + 94px); bottom: auto; flex-wrap: nowrap; gap: 8px; padding: 2px 8px; }
     .souls3d-replay .sg-icon-btn { width: 34px; height: 34px; }
     .souls3d-replay .s-progress { width: min(90px, 20vw); }
     /* The turn fuse sits under End Turn, at the right edge, on one line. */
     #souls3d .sg-fuse { width: 170px; }
+    /* A touched hand card is lifted over the row above the hand: the player's status and the fuse step aside. */
+    .souls3d-ui.lifted > :is(.souls3d-status.mine, .sg-fuse) { opacity: 0; }
 }
 
 @media (max-width: 400px) {

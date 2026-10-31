@@ -1,8 +1,10 @@
 // End-to-end test of the new rules in the 3D client: practice game against the bot (difficulty from argv),
-// hero power, abilities, Taunt-aware attacks, battle log, timer, tooltips, rewards, stats page and replay.
+// hero power, abilities, Taunt-aware attacks, battle log, timer, tooltips, rewards, stats page and replay; the
+// targeting hint off the heroes, hero power, hand and End Turn, and the leave dialog (leave_dialog.js).
 // Usage: node rules3d.js <baseUrl> <outDir> [difficulty]
 const { chromium } = require('playwright');
 const fs = require('fs');
+const { checkLeaveDialog } = require('./leave_dialog');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'rules3d';
 const difficulty = Number(process.argv[4] ?? 2);
@@ -128,6 +130,7 @@ const RESULT = [230, 231, 233];
       const timer = await hook('timer()');
       const limit = ((await hook('sync()'))?.turnTime ?? 75000) / 1000;
       step('turn timer is shown', timer !== null && Number(timer) > 0 && Number(timer) <= limit, `${timer}s left of ${limit}`);
+      await checkLeaveDialog(page, step, { label: '3D', settings: '.souls3d-views [aria-label=Settings]', leave: '.souls3d-settings .s-btn-danger' });
     }
 
     let sync;
@@ -139,7 +142,20 @@ const RESULT = [230, 231, 233];
         if (power && !power.disabled) {
           const from = frames.length;
           await page.mouse.click(power.x, power.y); await sleep(500);
-          if (counts.powers === 0) await snap('power-armed');
+          if (counts.powers === 0) {
+            await snap('power-armed');
+            // The hint (and any message) is over the middle of the board, off the heroes, the hero power, the hand and End Turn.
+            const st = await hook('state()');
+            const keep = { 'own hero': await hook('heroRect(false)'), 'enemy hero': await hook('heroRect(true)'), 'End Turn': await hook('signRect()') };
+            for (let i = 0; i < st.hand.length; i++) keep[`hand card ${i}`] = await hook(`handRect(${i})`);
+            const rects = await page.$$eval('.sg-toast, .sg-power', e => e.map(x => { const r = x.getBoundingClientRect(); return { power: x.classList.contains('sg-power'), x: r.left, y: r.top, w: r.width, h: r.height }; }));
+            keep['hero power'] = rects.find(r => r.power);
+            const hit = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+            const toasts = rects.filter(r => !r.power);
+            const covered = Object.keys(keep).filter(k => toasts.some(t => hit(t, keep[k])));
+            step('the targeting hint shows over the board, off the heroes, the hero power, the hand and End Turn', toasts.length > 0 && covered.length === 0,
+              covered.join(', ') || toasts.map(t => `${Math.round(t.x)},${Math.round(t.y)} ${Math.round(t.w)}x${Math.round(t.h)}`).join(' '));
+          }
           const target = await hook('opponentHero()');
           await page.mouse.move(target.x, target.y, { steps: 4 }); await sleep(300);
           const armed = await page.$$eval('.sg-hint', e => e.map(x => x.textContent).join());

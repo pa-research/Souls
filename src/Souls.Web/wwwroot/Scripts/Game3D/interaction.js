@@ -58,6 +58,12 @@ export class Interaction {
 
     /** Hand cards are HUD laid out like the classic client, so hit-test them the classic way (in slices, Game.handIndexAt). */
     handCardAt(ndc) {
+        // Portrait: the lifted card lies over the hand, so a touch on it is a touch on that card.
+        const lifted = this.game.rows && this.game.hovered;
+        if (lifted && !lifted.pending && !lifted.dragging) {
+            const r = this.game.screenRect(lifted), x = (ndc.x + 1) / 2 * this.stage.width, y = (1 - ndc.y) / 2 * this.stage.height;
+            if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return lifted;
+        }
         const index = this.game.handIndexAt(this.stage.classicAtScreen(ndc));
         if (index < 0) return null;
         const card = [...this.game.player.hand.values()][index];

@@ -472,7 +472,7 @@ export class UI {
     // ---- HUD: status, power, fuse, banners, toasts ---------------------------------------------------------------
 
     buildHud() {
-        this.playerStatus = el('div', 'sg-status souls3d-status', this.root);
+        this.playerStatus = el('div', 'sg-status souls3d-status mine', this.root);
         this.playerStatus.hidden = true;
         this.opponentStatus = el('div', 'sg-status souls3d-status', this.root);
         this.opponentStatus.hidden = true;
@@ -840,7 +840,7 @@ export class UI {
             x = at.right - host.left + 12;
             y = at.top - host.top - box.height / 2 + at.height / 2;
         } else if (at && at.above) {
-            // Centred above the point (portrait: over the zoomed hand card).
+            // Centred above the point, but not above `at.top` (portrait: above the player's hero, below the buttons).
             x = Math.max(8, Math.min(at.x - box.width / 2, host.width - box.width - 8));
             y = at.y - box.height;
         } else {
@@ -848,7 +848,7 @@ export class UI {
             y = (at ? at.y : 0) + 18;
         }
         if (x + box.width > host.width - 8) x = Math.max(8, (at && at.width !== undefined ? at.left - host.left : x - 36) - box.width - 12);
-        y = Math.max(8, Math.min(y, host.height - box.height - 8));
+        y = Math.max((at && at.top) || 8, Math.min(y, host.height - box.height - 8));
         t.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     }
 
