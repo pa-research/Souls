@@ -61,7 +61,7 @@ From the MP3s ElevenLabs delivers (44.1 kHz effects, 48 kHz music) with ffmpeg:
 | `curse.ogg` | Sound Effects v2 | `QBWNAkHRuZ32r3EtvFqo` | 1.40 s | -16.0 LUFS | -6.2 dBTP | stereo, 96 kb/s | 15.7 KB |
 | `defeat.ogg` | Sound Effects v2 | `WzwLGvRbsd7uQHc6MVhN` | 3.98 s | -16.0 LUFS | -7.0 dBTP | stereo, 96 kb/s | 47.7 KB |
 | `drain.ogg` | Sound Effects v2 | `DbV5V7c2uLqSuzKM5aQ3` | 1.35 s | -16.0 LUFS | -4.7 dBTP | mono, 64 kb/s | 10.0 KB |
-| `emote.ogg` | Sound Effects v2 | `l1doOV9e4Sx8xQGhBG30` | 0.22 s | -19.5 LUFS | -1.9 dBTP | mono, 64 kb/s | 2.4 KB |
+| `emote.ogg` | Sound Effects v2 | `n5xRmhn838nmmKXpuFAV` | 0.61 s | -18.2 LUFS | -1.8 dBTP | stereo, 96 kb/s | 9.2 KB |
 | `end_turn.ogg` | Sound Effects v2 | `P16jsltJlS68hFJdRNJX` | 0.35 s | -19.9 LUFS | -1.7 dBTP | mono, 64 kb/s | 2.9 KB |
 | `fatigue.ogg` | Sound Effects v2 | `b5WxenjDmPbx52NO3IWD` | 1.29 s | -19.2 LUFS | -1.2 dBTP | mono, 64 kb/s | 9.4 KB |
 | `fire.ogg` | Sound Effects v2 | `SFaKDibBEHb4kOLWKMAQ` | 1.44 s | -16.1 LUFS | -5.3 dBTP | mono, 64 kb/s | 11.2 KB |
@@ -82,7 +82,7 @@ From the MP3s ElevenLabs delivers (44.1 kHz effects, 48 kHz music) with ffmpeg:
 | `shatter.ogg` | Sound Effects v2 | `T89pR2Q3hUN9gNowpiA7` | 1.09 s | -16.1 LUFS | -1.4 dBTP | stereo, 96 kb/s | 10.1 KB |
 | `spell_whoosh.ogg` | Sound Effects v2 | `Jcaw0AVRLvBPcduffkSe` | 0.70 s | -15.9 LUFS | -3.1 dBTP | stereo, 96 kb/s | 7.3 KB |
 | `summon.ogg` | Sound Effects v2 | `C25bIGXSRcg3SkFGKacO` | 1.18 s | -19.2 LUFS | -1.0 dBTP | mono, 64 kb/s | 8.4 KB |
-| `taunt.ogg` | Sound Effects v2 | `tH09FtdR1SEzjtZo3xyn` | 1.13 s | -18.5 LUFS | -1.9 dBTP | mono, 64 kb/s | 9.6 KB |
+| `taunt.ogg` | Sound Effects v2 | `5E3VIrxUFhoul7G4UV7r` | 1.21 s | -19.4 LUFS | -2.1 dBTP | mono, 64 kb/s | 8.4 KB |
 | `timer_warning.ogg` | Sound Effects v2 | `vdqc7A9TigizWs06VCMA` | 2.01 s | -16.0 LUFS | -7.1 dBTP | stereo, 96 kb/s | 21.5 KB |
 | `turn_start.ogg` | Sound Effects v2 | `ud3eVHwnpD4Ssz4fhmog` | 1.77 s | -16.0 LUFS | -5.9 dBTP | mono, 64 kb/s | 15.3 KB |
 | `ui_click.ogg` | Sound Effects v2 | `DyWJFhwwFyRuTMoaieQz` | 0.49 s | -21.0 LUFS | -1.9 dBTP | mono, 64 kb/s | 4.1 KB |
@@ -92,3 +92,6 @@ From the MP3s ElevenLabs delivers (44.1 kHz effects, 48 kHz music) with ffmpeg:
 | `ward.ogg` | Sound Effects v2 | `geAX5C4Du6I31oeqCaAa` | 1.49 s | -16.2 LUFS | -2.0 dBTP | mono, 64 kb/s | 12.5 KB |
 
 Total 3.4 MB (the music 2.7 MB of it, streamed when it plays; the effects 0.75 MB, loaded at start).
+
+`emote` and `taunt` are second takes (the better of two each; the first takes were `l1doOV9e4Sx8xQGhBG30` and
+`tH09FtdR1SEzjtZo3xyn`). `taunt` is still almost all below 300 Hz, so it is faint on phone speakers.
