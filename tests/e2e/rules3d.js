@@ -276,9 +276,10 @@ const RESULT = [230, 231, 233];
   console.log('event types seen:', [...evTypes].join(', '));
   const log = await hook('log()').catch(() => []);
   step('battle log has lines', log.length > 5, `${log.length} lines, last: ${log.slice(-2).join(' | ')}`);
+  // Read the overlap record now: the end screen moves on to the statistics page by itself after a countdown.
+  const overlaps = await page.evaluate(() => window.__overlaps).catch(() => null) || [];
   await sleep(2500);
   await snap('end');
-  const overlaps = await page.evaluate(() => window.__overlaps);
   step('transitions never overlap (one full-screen layer at a time, no banner or tooltip over one)', overlaps.length === 0, overlaps.slice(0, 4).join(' | '));
   step('no console errors in the game', problems.length === 0, problems.slice(0, 5).join(' || '));
 
