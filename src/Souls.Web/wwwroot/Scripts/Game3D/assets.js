@@ -84,7 +84,7 @@ export async function preload(cardPortraits, onProgress) {
 }
 
 /** Test hook: the e2e instrumentation exposes window.__soundTrace(event, name) to count what played and decoded. */
-const trace = (event, name) => { try { window.__soundTrace?.(event, name); } catch (e) { /* tests only */ } };
+export const trace = (event, name) => { try { window.__soundTrace?.(event, name); } catch (e) { /* tests only */ } };
 
 // iOS lets a media element play without a gesture once it has played in one: at the first tap the music player that
 // has nothing to play yet plays this (silent) clip, so the battle music can take over from the menu music later.

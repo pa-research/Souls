@@ -1,7 +1,7 @@
 // The crowd and the spells: a looping crowd bed that gets louder in the stadium views and swells on hits, cheers and
 // gasps on the big moments, fireworks, and a sample for each spell. Everything plays on the sound board's graph, so
 // it follows the sound switch. A spell whose sample did not load falls back to the synthesized sound below.
-import { sound } from './assets.js';
+import { sound, trace } from './assets.js';
 
 const SPELLS = {
     fire: 'fire', ice: 'ice', ward: 'ward', shatter: 'shatter', venom: 'venom', rally: 'rally', insight: 'insight',
@@ -40,6 +40,7 @@ export class CrowdAudio {
         loop.loop = true;
         loop.connect(this.bed);
         loop.start();
+        trace('play', 'crowd_loop');
     }
 
     /** The crowd reacts with the given strength (0..1): the bed swells, a big moment gets a cheer. */
