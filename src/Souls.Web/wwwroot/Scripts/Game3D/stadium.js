@@ -556,8 +556,18 @@ function gatehouse(w, side, segs, fires, screens) {
     }
     // back
     w.panel('stone', flipX([P(outX, 0, outHalf), P(outX, 0, -outHalf), P(outX, Hw, -outHalf), P(outX, Hw, outHalf)]), stone, outHalf * 2, Hw);
-    // roof deck
-    w.panel('stone', flipX([P(fx, Hw, fh), P(outX, Hw, outHalf), P(outX, Hw, -outHalf), P(fx, Hw, -fh)]), { ...stone, kind: STONE.slab }, outX - fx, outHalf * 2);
+    // Roof deck of large flags, with a crenellated parapet along its sides and back.
+    w.panel('stone', flipX([P(fx, Hw, fh), P(outX, Hw, outHalf), P(outX, Hw, -outHalf), P(fx, Hw, -fh)]), { ...stone, kind: STONE.slab, color: C(TINT.tread), bw: 80, bh: 80 }, outX - fx, outHalf * 2);
+    const parapet = (x0, z0, x1, z1) => {
+        const len = Math.hypot(x1 - x0, z1 - z0), n = Math.floor(len / 46);
+        const rot = Math.atan2(-(z1 - z0), x1 - x0) * side; // local x along the edge
+        for (let i = 0; i < n; i++) {
+            const f = (i + 0.5) / n;
+            w.box('stone', X(x0 + (x1 - x0) * f), Hw + 13, z0 + (z1 - z0) * f, 26, 26, 14, rot, { ...stone, bw: 26, bh: 26 }, 'ny');
+        }
+    };
+    for (const sz of [-1, 1]) parapet(fx + 60, sz * (fh + 60 * Math.tan(g) - 8), outX - 8, sz * (outHalf - 8));
+    parapet(outX - 8, -outHalf + 24, outX - 8, outHalf - 24);
 
     // Portal slab with the arched tunnel mouth (an opening through the slab, not a dark plane).
     const AW = 130, AH = 140; // half width, spring height of the arch
