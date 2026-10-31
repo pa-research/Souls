@@ -65,7 +65,7 @@ define("mulligan", ["hud"], function (Hud) {
         var box = Hud.El('div', 'sg-mulligan-box', layer);
         Hud.El('div', 's-eyebrow', box, 'Mulligan');
         Hud.El('h2', '', box, 'Your starting hand');
-        Hud.El('p', '', box, 'Tap the cards you want to replace. You can do this once.');
+        Hud.El('p', '', box, Hud.TouchInput() ? 'Tap the cards you want to replace. You can do this once.' : 'Click the cards you want to replace. You can do this once.');
         var row = Hud.El('div', 'sg-mulligan-cards', box);
         var timer = Hud.El('div', 'sg-mulligan-timer', box);
         var bar = Hud.Progress(timer, 1, 's-progress-ember', 'Time left');

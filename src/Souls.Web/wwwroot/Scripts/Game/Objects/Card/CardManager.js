@@ -11,8 +11,9 @@
         this.isPlayer = isPlayer;
 
 
+        // The player's hand sits low enough to leave the board free and high enough to show the whole card (stats too).
         this.startCardX = 165;
-        this.startCardY = isPlayer ? 980 : 200;
+        this.startCardY = isPlayer ? 965 : 200;
 
         this.cardSpacing = 60;
 

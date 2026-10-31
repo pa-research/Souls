@@ -227,7 +227,7 @@ const CHEAP = [6, 20, 40, 50, 31];
       for (let k = 0; k < handSize; k++) {
         const from = B.frames.length;
         const last = k === handSize - 1;
-        const a = await at(165 + 60 * k + (last ? 0 : -45), 980), b = await at(520 + 147.7 * 3, 700);
+        const a = await at(165 + 60 * k + (last ? 0 : -45), 965), b = await at(520 + 147.7 * 3, 700);
         await B.page.mouse.move(a.x, a.y); await sleep(300); await B.page.mouse.down(); await sleep(200);
         await B.page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 8 }); await sleep(400);
         await B.page.mouse.move(b.x, b.y, { steps: 8 }); await sleep(400); await B.page.mouse.up(); await sleep(300);

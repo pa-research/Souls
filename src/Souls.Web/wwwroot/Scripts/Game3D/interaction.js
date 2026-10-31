@@ -330,7 +330,7 @@ export class Interaction {
         this.mode = 'power';
         this.spell = card;
         this.powerTargets = targets || [];
-        this.game.ui.hint(`${card.data.name}: ${targets ? 'pick a target' : 'tap the board to cast it'}`);
+        this.game.ui.hint(`${card.data.name}: ${targets ? 'pick a target' : this.touch ? 'tap the board to cast it' : 'click the board to cast it'}`);
         this.target = null;
     }
 

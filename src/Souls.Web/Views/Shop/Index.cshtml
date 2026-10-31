@@ -31,6 +31,14 @@
     </aside>
 
     <div class="s-grid" style="align-content: start">
+    @* Phones: the soul coins and the pack in one bar above the cards (the player panel and the pack's details follow the cards). *@
+    <div class="s-shop-bar d-lg-none">
+        <span class="s-chip s-chip-coin" title="Soul coins"><s-icon name="coin" /> <span class="s-num">@Model.Player.Money</span><span class="s-sr-only"> soul coins</span></span>
+        <form asp-controller="Shop" asp-action="BuyPack" method="post" class="buy-form" data-card-name="a card pack" data-price="@Packs.Price">
+            <input type="hidden" name="money" value="@Model.Player.Money" />
+            <button type="submit" class="s-btn s-btn-primary s-btn-sm"><s-icon name="sparkles" />Open a pack &middot; <s-icon name="coin" />@Packs.Price</button>
+        </form>
+    </div>
     <div class="s-filters" id="shop-filters" aria-label="Filter the cards">
         <div class="s-seg" role="group" aria-label="Rarity">
             <button type="button" class="active" aria-pressed="true" data-filter="rarity" data-value="">All</button>
