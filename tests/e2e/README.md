@@ -10,7 +10,7 @@ npm install
 
 | Script | What it checks |
 |---|---|
-| `rules3d.js <base> <out> [difficulty]` | A full 3D practice game: hero power (and its targeting hint, off the heroes, the hero power, the hand and End Turn), the leave dialog, cards, attacks, turn timer, tooltips, rewards, stats page, 3D replay; every animation frame, no two full-screen layers (matchmaking, VS splash, mulligan, end screen) at once and no banner or tooltip over one |
+| `rules3d.js <base> <out> [difficulty] [class]` | A full 3D practice game (as Rabid Soul, or the class id given): hero power (and its targeting hint, off the heroes, the hero power, the hand and End Turn), the leave dialog, cards, attacks, turn timer, tooltips, rewards, stats page, 3D replay; every animation frame, no two full-screen layers (matchmaking, VS splash, mulligan, end screen) at once and no banner or tooltip over one |
 | `classic_ui.js <base> <out> [width height]` | A classic practice game with the HUD: menu, queue, cards, hero power, tooltip, settings; the board keeps 16:9 at any window shape with the HUD over it, messages off the heroes and hero powers, the leave dialog (Tab, Esc, Stay, Enter leaves) |
 | `pvp_rules.js <base> <out>` | A ranked game between a 3D and a classic player, watched live by a spectator |
 | `social.js <base> <out>` | Friendly challenges (accept, decline, challenge link) and emotes (mute) between a 3D and a classic player; no rating change |

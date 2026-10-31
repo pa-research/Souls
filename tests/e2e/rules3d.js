@@ -1,13 +1,16 @@
 // End-to-end test of the new rules in the 3D client: practice game against the bot (difficulty from argv),
 // hero power, abilities, Taunt-aware attacks, battle log, timer, tooltips, rewards, stats page and replay; the
 // targeting hint off the heroes, hero power, hand and End Turn, and the leave dialog (leave_dialog.js).
-// Usage: node rules3d.js <baseUrl> <outDir> [difficulty]
+// Usage: node rules3d.js <baseUrl> <outDir> [difficulty] [class id, default 1 Rabid Soul]
 const { chromium } = require('playwright');
 const fs = require('fs');
 const { checkLeaveDialog } = require('./leave_dialog');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'rules3d';
 const difficulty = Number(process.argv[4] ?? 2);
+const playerType = Number(process.argv[5] ?? 1);
+// Fader's default power (Fade) needs no target: it is used on the click, without a targeting hint.
+const untargetedPower = playerType === 4;
 fs.mkdirSync(out, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const steps = [];
@@ -81,7 +84,7 @@ const RESULT = [230, 231, 233];
   await page.fill('#Form_Username', name);
   await page.fill('#Form_Password', 'CorrectHorse9!');
   await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check('#type-1');
+  await page.check(`#type-${playerType}`);
   for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
   await page.click('main button[type=submit]');
   await page.waitForURL(/Player\/Login/);
@@ -142,9 +145,10 @@ const RESULT = [230, 231, 233];
         if (power && !power.disabled) {
           const from = frames.length;
           await page.mouse.click(power.x, power.y); await sleep(500);
-          if (counts.powers === 0) {
-            await snap('power-armed');
-            // The hint (and any message) is over the middle of the board, off the heroes, the hero power, the hand and End Turn.
+          if (counts.powers === 0) await snap('power-armed');
+          // The hint (and any message) is over the middle of the board, off the heroes, the hero power, the hand and End Turn.
+          // An untargeted power (Fade) shows no hint, so there is nothing to place.
+          if (counts.powers === 0 && !untargetedPower) {
             const st = await hook('state()');
             const keep = { 'own hero': await hook('heroRect(false)'), 'enemy hero': await hook('heroRect(true)'), 'End Turn': await hook('signRect()') };
             for (let i = 0; i < st.hand.length; i++) keep[`hand card ${i}`] = await hook(`handRect(${i})`);
@@ -166,7 +170,8 @@ const RESULT = [230, 231, 233];
           await sleep(800);
           if (counts.powers === 1 && ev) {
             const left = await page.$$eval('.sg-hint', e => e.length);
-            step('the targeting hint shows while the power is armed and goes with the use', /pick a target/.test(armed) && left === 0, `armed: "${armed}", after: ${left}`);
+            if (untargetedPower) step('the untargeted power is used without a targeting hint', !/pick a target/.test(armed) && left === 0, `hint: "${armed}", after: ${left}`);
+            else step('the targeting hint shows while the power is armed and goes with the use', /pick a target/.test(armed) && left === 0, `armed: "${armed}", after: ${left}`);
           }
         }
       }
