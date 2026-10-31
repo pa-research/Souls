@@ -159,7 +159,7 @@
         // Hint text
         var text = null;
         if (!found && mode !== 'attack') {
-            text = hint || ("Pick " + Rules.DescribeTargets(kinds));
+            text = hint || window.SoulsL10n.t('classic.aim.pick', { targets: Rules.DescribeTargets(kinds) });
         }
         if (text) {
             if (this.hint.text !== text) this.hint.setText(text);

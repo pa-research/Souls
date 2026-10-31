@@ -4,13 +4,16 @@ import { abs, clamp, color, dot, exp, mix, mod, normalView, positionGeometry, po
 import { Images, loadImage, textureFrom } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
+// Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
+const { t, text: serverText } = window.SoulsL10n;
+
 export const CARD_W = 150;
 export const CARD_H = 210;
 const THICKNESS = 3;
 const FACE_SCALE = 2; // the face is painted at 2x the 330x450 card texture so it stays sharp when zoomed
 
 // Card JSON fields that change what the face looks like.
-const PAINTED = ['id', 'name', 'kind', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait', 'rarity', 'flavor', 'ward'];
+const PAINTED = ['id', 'name', 'kind', 'cost', 'attack', 'health', 'maxHealth', 'armor', 'level', 'ability', 'race', 'slotId', 'paralyzed', 'taunt', 'token', 'portrait', 'rarity', 'flavor', 'flavorKey', 'ward'];
 
 // Colours of abilities (by ability id), for their effects and the spell gem.
 export const ABILITY_COLORS = {
@@ -236,7 +239,8 @@ function drawSpellPlate(g, color) {
     g.fillStyle = 'rgba(255, 255, 255, 0.9)';
     g.fill();
     g.restore();
-    for (const x of [86, 244]) drawText(g, 'SPELL', x, 408, { size: 22, fill: '#f3dc9a', stroke: '#000', strokeWidth: 2, align: 'center', baseline: 'middle' });
+    const label = t('g3d.card.spell').toUpperCase();
+    for (const x of [86, 244]) drawText(g, label, x, 408, { size: 22, fill: '#f3dc9a', stroke: '#000', strokeWidth: 2, align: 'center', baseline: 'middle', maxWidth: 120 });
 }
 
 /** Legendary cards wear a golden crown over the name banner and a gilded edge; epic cards a violet edge. */
@@ -294,7 +298,7 @@ async function paintFace(canvas, data, portraits) {
     if (data.paralyzed) {
         g.fillStyle = 'rgba(110, 170, 255, 0.5)';
         g.fillRect(47, 110, 236, 167);
-        drawText(g, 'PARALYZED', 165, 194, { size: 34, fill: '#eaf4ff', stroke: '#0b2545', align: 'center', baseline: 'middle' });
+        drawText(g, t('g3d.card.paralyzed'), 165, 194, { size: 34, fill: '#eaf4ff', stroke: '#0b2545', align: 'center', baseline: 'middle', maxWidth: 230 });
     }
     const level = Number(data.level) || 1;
     for (let i = 0; i < level - 1; i++) drawStar(g, 165 + (i - (level - 2) / 2) * 34, 104, 15);
@@ -304,17 +308,23 @@ async function paintFace(canvas, data, portraits) {
     drawText(g, String(data.cost ?? ''), 38, 44, { align: 'center', baseline: 'middle' });
     // Text box: the ability as printed ("Burn 3") and its rules text; vanilla cards show their flavor text.
     const ability = data.ability;
-    const label = ability ? (ability.label || ability.name) : null;
+    const label = ability ? (serverText(ability, 'label') || serverText(ability, 'name')) : null;
     if (label) {
-        drawText(g, label, 165, 312, { size: 30, fill: '#1b130b', stroke: null, align: 'center', baseline: 'middle', maxWidth: 236 });
-        if (ability.text) {
-            g.font = '15px Arial, Helvetica, sans-serif';
-            const lines = wrapLines(g, ability.text, 238).slice(0, 2);
-            lines.forEach((l, i) => drawText(g, l, 165, 336 + i * 17, { size: 15, fill: '#2b2118', stroke: null, align: 'center', baseline: 'middle', maxWidth: 240 }));
+        // Two lines of rules; a longer text (Sacrifice, and more of them in Norwegian) gets three smaller lines under a
+        // smaller label, all inside the text box.
+        const rules = serverText(ability);
+        g.font = '15px Arial, Helvetica, sans-serif';
+        let lines = rules ? wrapLines(g, rules, 238) : [];
+        const small = lines.length > 2;
+        if (small) {
+            g.font = '13px Arial, Helvetica, sans-serif';
+            lines = wrapLines(g, rules, 238);
         }
+        drawText(g, label, 165, small ? 310 : 312, { size: small ? 24 : 30, fill: '#1b130b', stroke: null, align: 'center', baseline: 'middle', maxWidth: 236 });
+        lines.slice(0, small ? 3 : 2).forEach((l, i) => drawText(g, l, 165, small ? 327 + i * 14 : 336 + i * 17, { size: small ? 13 : 15, fill: '#2b2118', stroke: null, align: 'center', baseline: 'middle', maxWidth: 240 }));
     } else if (data.flavor) {
         g.font = 'italic 16px Georgia, serif';
-        const lines = wrapLines(g, data.flavor, 236).slice(0, 3);
+        const lines = wrapLines(g, serverText(data, 'flavor'), 236).slice(0, 3);
         const top = 327 - (lines.length - 1) * 9;
         g.fillStyle = '#3a2d20';
         g.textAlign = 'center';

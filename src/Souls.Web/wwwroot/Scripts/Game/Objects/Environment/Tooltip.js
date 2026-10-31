@@ -11,6 +11,7 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
     var HERO_HALF_HEIGHT = 125;
     var TAP_MS = 400;
     var TAP_SLOP = 20;
+    var T = window.SoulsL10n.t;
 
     function Tooltip(engine) {
         this.engine = engine;
@@ -88,14 +89,14 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
             Hud.Text(span, value);
             Hud.El('span', 's-sr-only', span, ' ' + label);
         }
-        Add('cost', 'gem', Num(stats.cost), 'cost');
-        Add('atk', 'sword', Num(stats.attack), 'attack');
+        Add('cost', 'gem', Num(stats.cost), T('classic.stat.cost'));
+        Add('atk', 'sword', Num(stats.attack), T('classic.stat.attack'));
         var health = Num(stats.health);
         if (health !== null) {
             var max = Num(stats.maxHealth);
-            Add('hp', 'heart', max !== null && health < max ? health + '/' + max : health, 'health');
+            Add('hp', 'heart', max !== null && health < max ? health + '/' + max : health, T('classic.stat.health'));
         }
-        if (stats.armor > 0) Add('arm', 'shield', stats.armor, 'armor');
+        if (stats.armor > 0) Add('arm', 'shield', stats.armor, T('classic.stat.armor'));
         if (!box.firstChild) Hud.Remove(box);
         return box;
     }
@@ -111,11 +112,11 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
         var race = card.race ? Rules.Race(card.race) : null;
         var raceName = race ? race.name : (card.raceName || null);
         var sub = [];
-        if (rarity) sub.push(rarity.charAt(0).toUpperCase() + rarity.slice(1));
+        if (rarity) sub.push(T('rarity.' + rarity));
         if (raceName) sub.push(raceName);
-        if (card.token) sub.push('Token');
-        if (card.spell) sub.push('Spell');
-        sub.push('Level ' + level);
+        if (card.token) sub.push(T('classic.card.token'));
+        if (card.spell) sub.push(T('classic.tooltip.spell'));
+        sub.push(T('classic.level', { n: level }));
         Hud.El('div', 'sg-tip-sub', el, sub.join(' · '));
 
         Stats(el, card.spell ? { cost: card.cost } : card);
@@ -126,46 +127,46 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
             var abilityText = card.abilityText || (ability ? ability.text : '');
             if (card.spell) {
                 var kinds = card.TargetedSpell() ? Rules.AbilityTargets(card.abilityId) : [];
-                abilityText += kinds.length ? ' (drag it onto ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target)'
-                    : ' (drag it onto the board, or click it and then the board)';
+                abilityText += ' ' + (kinds.length ? T('classic.tooltip.spellTarget', { targets: Rules.DescribeTargets(kinds) })
+                    : T('classic.tooltip.spellBoard'));
             }
-            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' (right-drag, or hold and drag on touch)';
-            Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || 'Ability')), abilityText);
+            else if (Rules.IsActivated(card.abilityId, card.abilityActivated)) abilityText += ' ' + T('classic.tooltip.activated');
+            Block(el, '', card.abilityLabel || (ability ? ability.name : (card.abilityName || T('classic.ability'))), abilityText);
         }
-        if (card.spell) Block(el, 'info', '', Rules.Keyword('spell') || 'Spell: cast it from your hand, then it is used up.');
+        if (card.spell) Block(el, 'info', '', Rules.Keyword('spell') || T('keyword.spell'));
         // Spells never attack or die: only the Vampiric and Lightbringer passives work for them.
         var passive = !card.spell || Number(card.race) === 2 || Number(card.race) === 3;
         if (race && passive) Block(el, 'race', race.name, race.text);
         else if (card.raceName && passive) Block(el, 'race', String(card.raceName), '');
 
         // The ward (as in the 3D client): unbroken, or broken on a Ward card.
-        if (card.ward) Block(el, 'info', '', Rules.Keyword('ward') || 'Ward: the next damage this card would take breaks the ward instead.');
-        else if (card.inSlot && Number(card.abilityId) === 10) Block(el, 'info', '', 'Its ward is broken.');
+        if (card.ward) Block(el, 'info', '', Rules.Keyword('ward') || T('keyword.ward'));
+        else if (card.inSlot && Number(card.abilityId) === 10) Block(el, 'info', '', T('classic.tooltip.wardBroken'));
 
         // Statuses of cards on the board
         if (card.inSlot) {
             if (card.taunt && Number(card.abilityId) !== 3) {
                 var taunt = Rules.Ability(3);
-                Block(el, '', 'Taunt', taunt ? taunt.text : '');
+                Block(el, '', taunt ? taunt.name : T('ability.3.name'), taunt ? taunt.text : '');
             }
-            if (card.paralyzed) Block(el, 'warn', 'Paralyzed', Rules.Keyword('paralyzed'));
+            if (card.paralyzed) Block(el, 'warn', T('classic.status.paralyzed'), Rules.Keyword('paralyzed'));
             var own = engine.player && card.owner === engine.player;
             if (own && engine.myTurn && !card.canAct && !card.paralyzed) {
                 if (card.playedOnTurn !== undefined && card.playedOnTurn === engine.turnNumber) {
-                    Block(el, 'warn', 'Exhausted', Rules.Keyword('summoningSick'));
+                    Block(el, 'warn', T('classic.status.exhausted'), Rules.Keyword('summoningSick'));
                 }
                 else {
-                    Block(el, 'warn', 'Exhausted', 'It already attacked or used its ability this turn.');
+                    Block(el, 'warn', T('classic.status.exhausted'), T('classic.tooltip.acted'));
                 }
             }
             else if (own && engine.myTurn && card.canAct) {
-                Block(el, '', 'Ready', 'Can attack or use its ability this turn.');
+                Block(el, '', T('classic.status.ready'), T('classic.tooltip.ready'));
             }
         }
 
-        if (card.token) Block(el, 'info', '', 'Token: summoned, not from a deck.');
+        if (card.token) Block(el, 'info', '', T('classic.tooltip.token'));
         if (card.armor > 0 && Rules.Keyword('armor')) Block(el, 'info', '', Rules.Keyword('armor'));
-        if (level >= 2) Block(el, 'info', '', 'Level ' + level + ': +' + (level - 1) + (card.spell ? ' to its effect.' : ' attack and health.'));
+        if (level >= 2) Block(el, 'info', '', T(card.spell ? 'classic.tooltip.levelSpell' : 'classic.tooltip.levelCard', { level: level, n: level - 1 }));
         if (card.flavor) Block(el, 'flavor', '', String(card.flavor));
     }
 
@@ -177,52 +178,52 @@ define("tooltip", ["conf", "rules", "hud"], function (Conf, Rules, Hud) {
 
         var sub = [];
         if (type) sub.push(type.name);
-        if (Num(hero.rating) !== null) sub.push('Rating ' + hero.rating);
+        if (Num(hero.rating) !== null) sub.push(T('classic.tooltip.rating', { n: hero.rating }));
         if (sub.length) Hud.El('div', 'sg-tip-sub', el, sub.join(' · '));
 
         Stats(el, { attack: hero.attack, health: hero.health, maxHealth: hero.maxHealth, armor: hero.armor });
 
         var power = Rules.HeroPower(hero.power);
-        if (power) Block(el, '', power.name, '(' + power.cost + ' mana) ' + power.text);
+        if (power) Block(el, '', power.name, T('classic.tooltip.powerCost', { n: power.cost }) + ' ' + power.text);
         if (type && type.race) {
             var race = Rules.Race(type.race);
             if (race) Block(el, 'race', race.name, race.text);
         }
 
-        if (hero.deckCount === 0 && Rules.Keyword('fatigue')) Block(el, 'warn', 'Fatigue', Rules.Keyword('fatigue'));
+        if (hero.deckCount === 0 && Rules.Keyword('fatigue')) Block(el, 'warn', T('classic.status.fatigued'), Rules.Keyword('fatigue'));
 
-        if (type && Number(type.mana) > 0) Block(el, 'info', '', '+' + type.mana + ' mana every turn');
+        if (type && Number(type.mana) > 0) Block(el, 'info', '', T('classic.tooltip.manaPerTurn', { n: type.mana }));
         var cards = [];
-        if (Num(hero.mana) !== null) cards.push('Mana ' + hero.mana + '/' + Math.max(hero.maxMana || 0, hero.mana));
-        if (Num(hero.deckCount) !== null) cards.push('Deck ' + hero.deckCount);
-        if (Num(hero.handCount) !== null) cards.push('Hand ' + hero.handCount);
+        if (Num(hero.mana) !== null) cards.push(T('classic.tooltip.mana', { n: hero.mana, max: Math.max(hero.maxMana || 0, hero.mana) }));
+        if (Num(hero.deckCount) !== null) cards.push(T('classic.tooltip.deck', { n: hero.deckCount }));
+        if (Num(hero.handCount) !== null) cards.push(T('classic.tooltip.hand', { n: hero.handCount }));
         if (cards.length) Block(el, 'info', '', cards.join(' · '));
         if (hero.armor > 0 && Rules.Keyword('armor')) Block(el, 'info', '', Rules.Keyword('armor'));
         if (hero === engine.player && engine.myTurn) {
-            Block(el, 'info', '', hero.canAttack ? 'Drag from your hero to an enemy to attack.' : 'Your hero cannot attack right now.');
+            Block(el, 'info', '', hero.canAttack ? T('classic.tooltip.heroAttack') : T('classic.tooltip.heroCannotAttack'));
         }
     }
 
     Tooltip.prototype.BuildPower = function (power) {
         var el = this.el;
         var info = Rules.HeroPower(power.heroType);
-        Hud.El('div', 's-tip-title', el, info ? info.name : 'Hero power');
-        Hud.El('div', 'sg-tip-sub', el, (power.isOwn ? 'Your hero power' : "Opponent's hero power") + ' · ' +
-            power.cost + ' mana · once per turn');
+        Hud.El('div', 's-tip-title', el, info ? info.name : T('classic.heroPower'));
+        Hud.El('div', 'sg-tip-sub', el, (power.isOwn ? T('classic.power.own') : T('classic.power.foe')) + ' · ' +
+            T('classic.power.costOnce', { n: power.cost }));
         if (info) Block(el, '', '', info.text);
 
         var kinds = power.Kinds();
         if (power.isOwn) {
             if (power.armed) {
-                Block(el, 'info', '', 'Pick ' + Rules.DescribeTargets(kinds) + '. Escape cancels.');
+                Block(el, 'info', '', T('classic.tooltip.pickEscape', { targets: Rules.DescribeTargets(kinds) }));
             }
             else if (!power.used && power.canUse) {
                 Block(el, 'info', '', kinds.length
-                    ? 'Drag to ' + Rules.DescribeTargets(kinds) + ', or click it and pick the target.'
-                    : 'Click to use.');
+                    ? T('classic.tooltip.dragPower', { targets: Rules.DescribeTargets(kinds) })
+                    : T('classic.tooltip.clickToUse'));
             }
         }
-        if (power.used) Block(el, 'info', '', 'Used this turn.');
+        if (power.used) Block(el, 'info', '', T('classic.tooltip.used'));
         else if (power.isOwn && !power.canUse) Block(el, 'warn', '', power.Reason());
     }
 

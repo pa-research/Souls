@@ -5,6 +5,8 @@
 define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animation, Rules, Card, Asset) {
 
     var Fx = Animation.Fx;
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
 
     var ABILITY = { SUMMON: 4, BURN: 8, WARD: 10, RALLY: 13, INSIGHT: 14, INFERNO: 15, REGENERATE: 16, GROW: 17, DRAIN: 18, BROOD: 19 };
     var ABILITY_COLOR = Card.ABILITY_COLOR;
@@ -186,9 +188,9 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         var oldHealth = Num(target.maxHealth) !== null ? Num(target.maxHealth) : Num(target.health);
         var health = newHealth !== null && oldHealth !== null ? newHealth - oldHealth : 0;
         if (attack > 0 && health > 0) return "+" + attack + "/+" + health;
-        if (attack > 0) return "+" + attack + " attack";
-        if (health > 0) return "+" + health + " health";
-        return "Empowered!";
+        if (attack > 0) return T('classic.fx.attack', { n: attack });
+        if (health > 0) return T('classic.fx.health', { n: health });
+        return T('classic.fx.empowered');
     }
 
     /// Inferno: fire bursts across the enemy line, one card after the other (the damage events follow).
@@ -233,7 +235,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
     EventPlayer.prototype.handlers = {
 
         log: function (e) {
-            if (this.engine.battleLog && e.text !== undefined && e.text !== null) this.engine.battleLog.Add(e.text);
+            if (this.engine.battleLog && e.text !== undefined && e.text !== null) this.engine.battleLog.Add(L10n.text(e), null, e.text);
             return 0;
         },
 
@@ -258,7 +260,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             Fx.Float(this.engine, target, "-" + amount, "#ff3b30", 58);
             if (armorLost > 0) {
                 // Under the damage number (a second float on a target is stacked 44 higher).
-                Fx.Float(this.engine, target, "-" + armorLost + " armor", "#c3ccd5", 30, 120);
+                Fx.Float(this.engine, target, T('classic.fx.armorLost', { n: armorLost }), "#c3ccd5", 30, 120);
             }
             return 430;
         },
@@ -279,7 +281,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var target = this.Resolve(e.to);
             if (!target) return 0;
             this.SetStats(target, { armor: e.armor });
-            Fx.Float(this.engine, target, "+" + (Number(e.amount) || 0) + " armor", "#a9d4ff", 40);
+            Fx.Float(this.engine, target, T('classic.fx.armor', { n: Number(e.amount) || 0 }), "#a9d4ff", 40);
             Fx.Glow(this.engine, target, 0xb8c4cf);
             return 420;
         },
@@ -336,7 +338,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var hero = this.Resolve(e.to);
             if (card) {
                 Fx.Glow(engine, card, 0xffe082);
-                Fx.Float(engine, card, "Blessing", "#ffe082", 34, -120);
+                Fx.Float(engine, card, T('classic.fx.blessing'), "#ffe082", 34, -120);
             }
             if (card && hero) Fx.Projectile(engine, card, hero, 0xffe082, 380);
             return 560;
@@ -354,7 +356,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
 
             if (src) {
                 Fx.Glow(engine, src, color);
-                Fx.Float(engine, src, (ability ? ability.name : (src.abilityName || "Ability")) + "!", "#ffffff", 36, -120);
+                Fx.Float(engine, src, (ability ? ability.name : (src.abilityName || T('classic.ability'))) + "!", "#ffffff", 36, -120);
             }
             if (src && dst && src !== dst && Number(e.abilityId) === ABILITY.DRAIN) {
                 // A bolt of blood; the life flows back with the lifesteal event that follows.
@@ -380,7 +382,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var at = card || this.WhereRef(e.src); // Brood: the card is already gone
             if (!at) return 0;
             var ability = Rules.Ability(id);
-            var label = e.label || (card && card.abilityLabel) || (ability && ability.name);
+            var label = (e.label && L10n.text(e, 'label')) || (card && card.abilityLabel) || (ability && ability.name);
             var color = ABILITY_COLOR[id] || 0xffffff;
             if (label) Fx.Float(engine, at, String(label), "#ffd98a", 38, -120);
 
@@ -420,7 +422,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
                 return 0;
             }
             var ms = card.BreakWard();
-            Fx.Float(this.engine, card, "Blocked!", "#ffd36b", 46);
+            Fx.Float(this.engine, card, T('classic.fx.blocked'), "#ffd36b", 46);
             return Math.max(ms, 420);
         },
 
@@ -431,7 +433,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             if (!target) return 0;
             var at = Animation.Home(target);
             Fx.Venom(engine, at.x, at.y);
-            Fx.Float(engine, target, "Venom!", "#8dff5a", 48, -40);
+            Fx.Float(engine, target, T('classic.fx.venom'), "#8dff5a", 48, -40);
             if (!IsHero(target)) {
                 target.UpdateFromJson({ health: 0 });
                 target.SetFlash(0x7dff4a, 600);
@@ -452,7 +454,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
                 hero.heroPower.Redraw();
                 hero.heroPower.Activate();
             }
-            Fx.Float(engine, origin, String(e.name || "Hero power"), "#ffd54a", 34, -80);
+            Fx.Float(engine, origin, e.name ? L10n.text(e, 'name') : T('classic.heroPower'), "#ffd54a", 34, -80);
 
             if (dst && dst !== hero) {
                 Fx.Projectile(engine, origin, dst, color, 380);
@@ -467,7 +469,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             if (!card) return 0;
             card.UpdateFromJson({ paralyzed: e.on !== false });
             if (e.on !== false) {
-                Fx.Float(this.engine, card, "Paralyzed!", "#8fc8ff", 34);
+                Fx.Float(this.engine, card, T('classic.fx.paralyzed'), "#8fc8ff", 34);
                 Fx.Burst(this.engine, card.x, card.y, 0x5aa9ff, 70);
             }
             return 450;
@@ -507,7 +509,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var engine = this.engine;
             var from = this.Where(e.src);
             var dst = this.Resolve(e.dst);
-            if (from) Fx.Float(engine, from, "Death curse", "#c39bff", 34, -60);
+            if (from) Fx.Float(engine, from, T('classic.fx.deathCurse'), "#c39bff", 34, -60);
             if (from && dst) {
                 Fx.Projectile(engine, from, dst, 0x7d3c98, 420);
                 return 620;
@@ -520,7 +522,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var from = this.Where(e.cid);
             var owner = this.Hero(e.owner);
             if (!from) return 0;
-            Fx.Float(engine, from, "Haunt!", "#c9a8ff", 40, -40);
+            Fx.Float(engine, from, T('classic.fx.haunt'), "#c9a8ff", 40, -40);
             if (owner) {
                 var manager = owner.cardManager;
                 var hand = { x: manager.startCardX + manager.cardSpacing * manager.HandCount(), y: manager.startCardY };
@@ -536,14 +538,14 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
             var card = new Card(engine, e.card, 0);
             var mine = owner === engine.player;
             var x = 300, y = mine ? 760 : 330;
-            Fx.Float(engine, { x: x, y: y - 150 }, "Burned!", "#ff9a3c", 44);
+            Fx.Float(engine, { x: x, y: y - 150 }, T('classic.fx.burned'), "#ff9a3c", 44);
             return Fx.BurnCard(engine, card, x, y) - 150;
         },
 
         fatigue: function (e) {
             var hero = this.Hero(e.id);
             if (!hero) return 0;
-            Fx.Float(this.engine, hero, "Fatigue " + (Number(e.amount) || 0), "#c39bff", 42, hero.isPlayer ? -90 : 90);
+            Fx.Float(this.engine, hero, T('classic.fatigue', { n: Number(e.amount) || 0 }), "#c39bff", 42, hero.isPlayer ? -90 : 90);
             Fx.Glow(this.engine, hero, 0x8e44ad);
             return 650;
         },
@@ -551,7 +553,7 @@ define("eventPlayer", ["animation", "rules", "card", "asset"], function (Animati
         timeout: function (e) {
             var hero = this.Hero(e.id);
             var mine = hero === this.engine.player;
-            this.engine.ScreenMessage([mine ? "Time's up!" : "Your opponent ran out of time"], mine ? 'warn' : 'info');
+            this.engine.ScreenMessage([mine ? T('classic.timeout.mine') : T('classic.timeout.foe')], mine ? 'warn' : 'info');
             return 900;
         },
 

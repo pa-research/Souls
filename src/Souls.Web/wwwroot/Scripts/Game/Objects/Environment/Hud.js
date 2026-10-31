@@ -9,7 +9,8 @@ define("hud", ["conf"], function (Conf) {
     var SCALE_MIN = 0.55;
     var SCALE_MAX = 1.25;
 
-    var TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'];
+    var T = window.SoulsL10n.t;
+    var TIERS = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
     var DIVISIONS = ['III', 'II', 'I'];
 
     // ---- Small DOM helpers ----------------------------------------------------------------------------------------
@@ -83,9 +84,9 @@ define("hud", ["conf"], function (Conf) {
     function TierOf(rating) {
         var rank = Math.max(1, 1 + Math.trunc((Number(rating) - 1000) / 50));
         var index = rank - 1;
-        if (index >= TIER_NAMES.length * DIVISIONS.length) return { name: 'Champion', css: 'tier-champion' };
-        var name = TIER_NAMES[Math.floor(index / 3)];
-        return { name: name + ' ' + DIVISIONS[index % 3], css: 'tier-' + name.toLowerCase() };
+        if (index >= TIERS.length * DIVISIONS.length) return { name: T('tier.champion'), css: 'tier-champion' };
+        var tier = TIERS[Math.floor(index / 3)];
+        return { name: T('tier.division', { tier: T('tier.' + tier), division: DIVISIONS[index % 3] }), css: 'tier-' + tier };
     }
 
     /// How far a rating is towards the next rank (0-1).
@@ -114,7 +115,8 @@ define("hud", ["conf"], function (Conf) {
         return Math.floor(s / 60) + ':' + (rest < 10 ? '0' : '') + rest;
     }
 
-    /// Icon and class of a battle log line, from its wording (the server's log texts).
+    /// Icon and class of a battle log line, from its English wording (the server's log texts; BattleLog.Add passes the
+    /// English text also when the line is shown in another language).
     function Classify(line) {
         if (/ wins against | play a draw/.test(line)) return ['trophy', 'end'];
         if (/ dies| has fallen|'s venom kills /.test(line)) return ['skull', 'death'];
@@ -350,7 +352,7 @@ define("hud", ["conf"], function (Conf) {
         if (this.legend) Remove(this.legend);
         var legend = El('div', 'sg-legend' + (enemy ? ' enemy' : ''), this.Root());
         legend.setAttribute('aria-hidden', 'true');
-        El('small', '', legend, 'Legendary');
+        El('small', '', legend, T('rarity.legendary'));
         El('b', '', legend, name);
         this.legend = legend;
         setTimeout(function () {
@@ -403,7 +405,7 @@ define("hud", ["conf"], function (Conf) {
         this.at = null;
         var box = this.el = El('div', 'sg-status ' + (isPlayer ? 'souls-classic-status-me' : 'souls-classic-status-foe'), hud.Root());
         box.setAttribute('role', 'group');
-        box.setAttribute('aria-label', isPlayer ? 'Your mana and cards' : "Opponent's cards");
+        box.setAttribute('aria-label', isPlayer ? T('classic.status.mine') : T('classic.status.foe'));
         box.hidden = true;
         var that = this;
         this.untrack = hud.Track(function () { that.Layout(); });
@@ -444,8 +446,8 @@ define("hud", ["conf"], function (Conf) {
         if (this.isPlayer) {
             var pips = El('span', 'sg-mana', box);
             pips.setAttribute('role', 'img');
-            pips.setAttribute('aria-label', 'Mana ' + mana + ' of ' + max);
-            pips.title = 'Mana';
+            pips.setAttribute('aria-label', T('classic.status.manaOf', { n: mana, max: max }));
+            pips.title = T('classic.mana');
             for (var i = 0; i < 10; i++) {
                 // Available mana is full, mana spent this turn dim, the rest of the ten empty.
                 El('i', i < mana ? 'full' : i < max ? 'spent' : '', pips);
@@ -454,23 +456,23 @@ define("hud", ["conf"], function (Conf) {
         }
         if (deck !== null) {
             var deckSpan = El('span', '', box);
-            deckSpan.title = 'Cards left in the deck';
+            deckSpan.title = T('classic.status.deck');
             deckSpan.appendChild(Icon('deck'));
             Text(deckSpan, deck);
-            El('span', 's-sr-only', deckSpan, ' in the deck');
+            El('span', 's-sr-only', deckSpan, ' ' + T('classic.status.inDeck'));
         }
         if (hand !== null) {
             var handSpan = El('span', '', box);
-            handSpan.title = 'Cards in hand';
+            handSpan.title = T('classic.status.hand');
             handSpan.appendChild(Icon('hand'));
             Text(handSpan, hand);
-            El('span', 's-sr-only', handSpan, ' in hand');
+            El('span', 's-sr-only', handSpan, ' ' + T('classic.status.inHand'));
         }
         if (fatigue > 0) {
             var warn = El('span', 'warn', box);
-            warn.title = 'The deck is empty: every draw deals fatigue damage';
+            warn.title = T('classic.status.fatigue');
             warn.appendChild(Icon('skull'));
-            Text(warn, 'Fatigue ' + fatigue);
+            Text(warn, T('classic.fatigue', { n: fatigue }));
         }
         box.hidden = !box.firstChild;
     }
@@ -501,12 +503,12 @@ define("hud", ["conf"], function (Conf) {
             var progress = Math.max(0, Math.min(Number(q.progress) || 0, target || Number(q.progress) || 0));
             var fraction = target > 0 ? progress / target : (q.done ? 1 : 0);
             var item = El('li', q.done ? 'done' : '', list);
-            El('span', '', item, (q.done ? '✔ ' : '') + String(q.text === undefined || q.text === null ? '' : q.text));
+            El('span', '', item, (q.done ? '✔ ' : '') + window.SoulsL10n.text(q));
             var chip = El('span', 's-chip s-chip-coin', item);
-            chip.title = 'Reward';
+            chip.title = T('classic.reward');
             chip.appendChild(Icon('coin'));
             Text(chip, Number(q.reward) || 0);
-            var bar = Progress(item, animate ? 0 : fraction, q.done ? 's-progress-done' : '', 'Progress ' + progress + ' of ' + target);
+            var bar = Progress(item, animate ? 0 : fraction, q.done ? 's-progress-done' : '', T('classic.progress', { n: progress, target: target }));
             if (animate) this.Later(bar, fraction, 1300);
         }
         return list;

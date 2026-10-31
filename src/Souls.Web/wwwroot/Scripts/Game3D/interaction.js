@@ -316,7 +316,7 @@ export class Interaction {
         this.mode = 'power';
         this.powerTargets = this.game.candidates(power.targets);
         this.game.ui.setPowerArmed(true);
-        this.game.ui.hint(`${power.name}: pick a target`);
+        this.game.ui.hint(window.SoulsL10n.t('g3d.hint.target', { name: power.name }));
         this.target = null;
         if (this.ndc) this.updatePowerArrow();
     }
@@ -330,7 +330,7 @@ export class Interaction {
         this.mode = 'power';
         this.spell = card;
         this.powerTargets = targets || [];
-        this.game.ui.hint(`${card.data.name}: ${targets ? 'pick a target' : 'tap the board to cast it'}`);
+        this.game.ui.hint(window.SoulsL10n.t(targets ? 'g3d.hint.target' : 'g3d.hint.cast', { name: card.data.name }));
         this.target = null;
     }
 

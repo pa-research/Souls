@@ -5,7 +5,9 @@
 // Server strings are always set as text.
 define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Conf) {
 
-    var DIFFICULTY_NAMES = ["Easy", "Normal", "Hard"];
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
+    var DIFFICULTY_NAMES = [T('classic.difficulty.easy'), T('classic.difficulty.normal'), T('classic.difficulty.hard')];
     var REDIRECT_SECONDS = 25;
 
     Queue = function (engine, resuming) {
@@ -25,17 +27,17 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         // The matchmaking panel
         var layer = this.layer = Hud.Layer('souls-classic-queue');
         var box = this.box = Hud.El('section', 's-panel sg-queue', layer);
-        box.setAttribute('aria-label', 'Matchmaking');
+        box.setAttribute('aria-label', T('classic.queue'));
         this.rings = Hud.El('div', 'sg-rings', box);
         this.title = Hud.El('h2', '', box);
         this.title.setAttribute('aria-live', 'polite');
-        this.text = Hud.El('p', '', box, 'Connecting to the game server…');
+        this.text = Hud.El('p', '', box, T('classic.queue.connecting'));
         this.text.setAttribute('aria-live', 'polite');
         this.time = Hud.El('div', 'sg-time', box, '0:00');
         this.time.setAttribute('role', 'timer');
-        this.time.setAttribute('aria-label', 'Time waited');
+        this.time.setAttribute('aria-label', T('classic.queue.waited'));
         this.chip = Hud.El('span', 's-chip', box);
-        this.cancel = Hud.Button('s-btn s-btn-ghost', box, 'Cancel', 'close');
+        this.cancel = Hud.Button('s-btn s-btn-ghost', box, T('classic.queue.cancel'), 'close');
         this.cancel.addEventListener('click', function () { window.location.href = '/Game'; });
 
         var that = this;
@@ -47,17 +49,17 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         if (engine.friendly) {
             var form = Hud.El('form', 'sg-challenge', null);
             var input = Hud.El('input', 's-input', form);
-            input.placeholder = 'Player name';
+            input.placeholder = T('classic.queue.playerName');
             input.maxLength = 64;
             input.autocomplete = 'off';
-            input.setAttribute('aria-label', 'Player to challenge');
-            Hud.Button('s-btn s-btn-primary s-btn-sm', form, 'Challenge', 'swords').type = 'submit';
+            input.setAttribute('aria-label', T('classic.queue.playerToChallenge'));
+            Hud.Button('s-btn s-btn-primary s-btn-sm', form, T('classic.queue.challenge'), 'swords').type = 'submit';
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
                 var name = input.value.trim();
                 if (name) engine.gameService.Challenge(name);
             });
-            var withdraw = Hud.Button('s-btn s-btn-ghost s-btn-sm', null, 'Withdraw challenge', 'close');
+            var withdraw = Hud.Button('s-btn s-btn-ghost s-btn-sm', null, T('classic.queue.withdraw'), 'close');
             withdraw.addEventListener('click', function () { engine.gameService.CancelChallenge(); });
             box.insertBefore(form, this.cancel);
             box.insertBefore(withdraw, this.cancel);
@@ -81,17 +83,17 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         Hud.Clear(this.rings);
         this.rings.appendChild(Hud.Icon(friendly ? 'users' : normalGame ? 'swords' : 'bot'));
 
-        if (this.resuming) this.title.textContent = 'Rejoining your game';
-        else this.title.textContent = friendly ? 'Friendly challenge' : normalGame ? 'Finding an opponent' : 'Preparing the arena';
+        if (this.resuming) this.title.textContent = T('classic.queue.rejoining');
+        else this.title.textContent = friendly ? T('classic.queue.friendly') : normalGame ? T('classic.queue.finding') : T('classic.queue.preparing');
 
         Hud.Clear(this.chip);
         if (friendly) {
             this.chip.appendChild(Hud.Icon('users'));
-            Hud.Text(this.chip, 'Friendly · unranked');
+            Hud.Text(this.chip, T('classic.queue.friendly.chip'));
         }
         else if (normalGame) {
             this.chip.appendChild(Hud.Icon('crown'));
-            var text = 'Ranked';
+            var text = T('classic.queue.ranked.chip');
             if (profile && typeof profile.rating === 'number') {
                 text += ' · ' + (profile.tier || Hud.TierOf(profile.rating).name) + ' · ' + profile.rating;
             }
@@ -99,7 +101,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         }
         else {
             this.chip.appendChild(Hud.Icon('bot'));
-            Hud.Text(this.chip, 'Practice · ' + name);
+            Hud.Text(this.chip, T('classic.queue.practice.chip', { difficulty: name }));
         }
     }
 
@@ -111,14 +113,14 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     /// Logged in to the game server (10). The friendly lobby keeps its own text.
     Queue.prototype.Connected = function () {
         if (this.friendly) return;
-        if (this.resuming) this.SetText('Connected. Waiting for the game…');
-        else this.SetText(this.engine.normalGame ? 'Connected. Joining the queue…' : 'Connected. The bot takes its seat…');
+        if (this.resuming) this.SetText(T('classic.queue.connected.resume'));
+        else this.SetText(this.engine.normalGame ? T('classic.queue.connected.ranked') : T('classic.queue.connected.practice'));
     }
 
     /// In the queue (100).
     Queue.prototype.Queued = function () {
         if (this.resuming) return;
-        this.SetText(this.engine.normalGame ? 'Waiting for a player of your rank…' : 'The bot is shuffling its deck…');
+        this.SetText(this.engine.normalGame ? T('classic.queue.waiting.ranked') : T('classic.queue.waiting.practice'));
     }
 
     /// The challenge was sent (198): wait for the answer.
@@ -126,7 +128,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         if (!this.friendly) return;
         this.friendly.form.hidden = true;
         this.friendly.withdraw.hidden = false;
-        this.SetText('Waiting for ' + name + ' to answer…');
+        this.SetText(T('classic.queue.waiting.answer', { name: name }));
         this.started = Date.now();
     }
 
@@ -138,8 +140,8 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         }
         this.friendly.form.hidden = false;
         this.friendly.withdraw.hidden = true;
-        var name = Conf.profile ? Conf.profile.name : 'your name';
-        this.SetText(text || 'Challenge a player who has the game open, or wait here: others can challenge ' + name + '.');
+        var name = Conf.profile ? Conf.profile.name : T('classic.queue.yourName');
+        this.SetText(text || T('classic.queue.friendly.idle', { name: name }));
     }
 
     /// <summary>
@@ -150,18 +152,18 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         this.HideInvite();
         var card = Hud.El('section', 's-panel sg-invite', Hud.Root());
         card.setAttribute('role', 'alertdialog');
-        card.setAttribute('aria-label', 'Challenge');
+        card.setAttribute('aria-label', T('classic.invite'));
         var head = Hud.El('div', 'sg-invite-head', card);
         var img = Hud.El('img', '', head);
         img.src = '/Content/Images/Player/Portraits/' + (Number(p.type) || 0) + '.png';
         img.alt = '';
         var who = Hud.El('div', '', head);
-        Hud.El('b', '', who, String(p.name) + ' challenges you!');
-        Hud.El('div', 's-muted s-small', who, 'Friendly game · unranked' + (p.rating ? ' · ' + p.rating : ''));
-        var bar = Hud.Progress(card, 1, 's-progress-ember', 'Time to answer');
+        Hud.El('b', '', who, T('classic.invite.title', { name: String(p.name) }));
+        Hud.El('div', 's-muted s-small', who, T('classic.invite.sub') + (p.rating ? ' · ' + p.rating : ''));
+        var bar = Hud.Progress(card, 1, 's-progress-ember', T('classic.invite.time'));
         var actions = Hud.El('div', 'sg-invite-actions', card);
-        var decline = Hud.Button('s-btn s-btn-ghost s-btn-sm', actions, 'Decline', 'close');
-        var accept = Hud.Button('s-btn s-btn-primary s-btn-sm', actions, 'Accept', 'check');
+        var decline = Hud.Button('s-btn s-btn-ghost s-btn-sm', actions, T('classic.invite.decline'), 'close');
+        var accept = Hud.Button('s-btn s-btn-primary s-btn-sm', actions, T('classic.invite.accept'), 'check');
         var total = Number(p.expiresIn) || 30000;
         var ends = Date.now() + total;
         var timer = setInterval(function () {
@@ -190,16 +192,16 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     Queue.prototype.SetError = function (text) {
         clearInterval(this.clock);
         this.title.textContent = String(text);
-        this.SetText('Go back to the menu and try again.');
-        this.cancel.lastChild.textContent = 'Back to the menu';
+        this.SetText(T('classic.error.retry'));
+        this.cancel.lastChild.textContent = T('classic.backToMenu');
     }
 
     /// The game starts: "Prepare!", then the panel and the canvas backdrop fade out.
     Queue.prototype.FadeOut = function () {
         var that = this;
         clearInterval(this.clock);
-        this.title.textContent = 'Prepare!';
-        this.SetText(this.resuming ? 'Back in the game.' : 'Your opponent is here.');
+        this.title.textContent = T('classic.queue.prepare');
+        this.SetText(this.resuming ? T('classic.queue.back') : T('classic.queue.opponentHere'));
 
         var layer = this.layer;
         setTimeout(function () {
@@ -223,7 +225,8 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
     /// <param name="text">Victory! / Defeat! / Draw!</param>
     /// <param name="statisticsId">The game id (statistics page)</param>
     /// <param name="payload">{statistics, text, coins, rating, ratingChange, quests, season, friendly}</param>
-    Queue.prototype.FadeInGameEnd = function (text, statisticsId, payload) {
+    /// <param name="kind">"victory", "defeat" or "draw"</param>
+    Queue.prototype.FadeInGameEnd = function (text, statisticsId, payload, kind) {
         clearInterval(this.clock);
         Hud.Remove(this.layer);
 
@@ -236,15 +239,15 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             window.location.replace(statsUrl || "/Game");
         }
 
-        this.ShowSummary(String(text), payload || {}, gameId > 0 ? gameId : null, moveOn);
+        this.ShowSummary(String(text), payload || {}, gameId > 0 ? gameId : null, moveOn, kind);
     }
 
-    /// The end screen; every server string is set as text.
-    Queue.prototype.ShowSummary = function (title, payload, gameId, moveOn) {
+    /// The end screen; every server string is set as text. kind: "victory", "defeat" or "draw".
+    Queue.prototype.ShowSummary = function (title, payload, gameId, moveOn, kind) {
         var old = this.endLayer;
         if (old) Hud.Remove(old);
 
-        var kind = /^victory/i.test(title) ? 'victory' : /^defeat/i.test(title) ? 'defeat' : 'draw';
+        if (kind !== 'victory' && kind !== 'defeat') kind = 'draw';
         var layer = this.endLayer = Hud.Layer('souls-classic-end');
         if (!Hud.ReducedMotion()) layer.style.animation = 's-fade-in 1.2s ease-out both';
         var end = Hud.El('div', 'sg-end ' + kind, layer);
@@ -254,7 +257,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
 
         var heading = Hud.El('h1', 'sg-end-title', end, title.replace(/!+$/, ''));
         heading.id = 'souls-classic-end-title';
-        if (payload.text) Hud.El('div', 'sg-end-sub', end, payload.text);
+        if (payload.text) Hud.El('div', 'sg-end-sub', end, L10n.text(payload));
 
         // Rewards: coins and rating (or "unrated" in practice, nothing in a friendly game), counting up.
         var friendly = payload.friendly === true || !!this.engine.friendlyGame;
@@ -263,7 +266,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             var coins = Hud.El('div', 's-panel sg-reward', rewards);
             coins.appendChild(Hud.Icon('coin'));
             var coinValue = Hud.El('b', '', coins, '+0');
-            Hud.El('span', '', coins, 'Soul coins');
+            Hud.El('span', '', coins, T('classic.soulCoins'));
             Hud.CountUp(coinValue, payload.coins, payload.coins < 0 ? '-' : '+', 900);
         }
         if (typeof payload.ratingChange === 'number') {
@@ -273,9 +276,9 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             rating.appendChild(Hud.Icon('crown'));
             var ratingValue = Hud.El('b', '', rating, up ? '+0' : '-0');
             var now = typeof payload.rating === 'number' ? payload.rating : null;
-            Hud.El('span', '', rating, now !== null ? Hud.TierOf(now).name + ' · ' + now : 'Rating');
+            Hud.El('span', '', rating, now !== null ? Hud.TierOf(now).name + ' · ' + now : T('classic.end.rating'));
             if (now !== null) {
-                var bar = Hud.Progress(rating, 0, '', 'Progress to the next rank');
+                var bar = Hud.Progress(rating, 0, '', T('classic.rankProgress'));
                 Hud.Later(bar, Hud.RankProgress(now), 1100);
             }
             Hud.CountUp(ratingValue, Math.abs(change), up ? '+' : '-', 1000);
@@ -284,17 +287,17 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             var practice = Hud.El('div', 's-panel sg-reward', rewards);
             practice.appendChild(Hud.Icon(friendly ? 'users' : 'bot'));
             Hud.El('b', '', practice, '–');
-            Hud.El('span', '', practice, friendly ? 'Friendly game: no rewards' : 'Practice · unrated');
+            Hud.El('span', '', practice, friendly ? T('classic.end.friendly') : T('classic.end.practice'));
         }
         if (!rewards.firstChild) Hud.Remove(rewards);
         if (payload.season) SeasonResult(end, payload.season);
 
         if (payload.quests && payload.quests.length) {
             var quests = Hud.El('section', 's-panel sg-end-quests', end);
-            quests.setAttribute('aria-label', 'Daily quests');
+            quests.setAttribute('aria-label', T('classic.dailyQuests'));
             var head = Hud.El('div', 's-panel-head', quests);
             head.appendChild(Hud.Icon('quest'));
-            Hud.El('h3', '', head, 'Daily quests');
+            Hud.El('h3', '', head, T('classic.dailyQuests'));
             Hud.QuestList(quests, payload.quests, true);
         }
 
@@ -304,27 +307,27 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             var stats = Hud.El('a', 's-btn s-btn-gold', actions);
             stats.href = '/Game/Stats/' + gameId;
             stats.appendChild(Hud.Icon('list'));
-            Hud.Text(stats, 'Statistics');
+            Hud.Text(stats, T('classic.end.statistics'));
             var replay = Hud.El('a', 's-btn s-btn-ghost', actions);
             replay.href = '/Game/Replay/' + gameId;
             replay.appendChild(Hud.Icon('play'));
-            Hud.Text(replay, 'Watch replay');
+            Hud.Text(replay, T('classic.end.replay'));
             first = stats;
         }
         var again = Hud.El('a', 's-btn s-btn-primary', actions);
         again.href = '/Game';
         again.appendChild(Hud.Icon('swords'));
-        Hud.Text(again, 'Play again');
+        Hud.Text(again, T('classic.end.again'));
         first = first || again;
 
         // Moves on by itself after a while (the buttons go now).
         var note = Hud.El('div', 'sg-end-redirect', end);
         var left = REDIRECT_SECONDS;
-        var what = gameId ? 'Statistics' : 'Back to the menu';
-        note.textContent = what + ' in ' + left + ' s';
+        var what = gameId ? 'classic.end.statisticsIn' : 'classic.end.menuIn';
+        note.textContent = T(what, { n: left });
         var countdown = setInterval(function () {
             left--;
-            note.textContent = what + ' in ' + Math.max(0, left) + ' s';
+            note.textContent = T(what, { n: Math.max(0, left) });
             if (left <= 0) {
                 clearInterval(countdown);
                 moveOn();
@@ -341,16 +344,16 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         var panel = Hud.El('section', 's-panel sg-end-season' + (change ? ' ' + change : ''), parent);
         var head = Hud.El('div', 's-panel-head', panel);
         head.appendChild(Hud.Icon('trophy'));
-        Hud.El('h3', '', head, String(season.name || 'Season'));
+        Hud.El('h3', '', head, season.name ? L10n.text(season, 'name') : T('classic.end.season'));
         if (change) {
             var label = Hud.El('span', 'sg-season-change', head);
             label.appendChild(Hud.Icon(season.promoted ? 'arrow-up' : 'chevron-down'));
-            Hud.Text(label, season.promoted ? 'Promoted' : 'Demoted');
+            Hud.Text(label, season.promoted ? T('classic.end.promoted') : T('classic.end.demoted'));
         }
         var ranks = Hud.El('div', 'sg-season-ranks', panel);
         function Badge(r, which) {
             r = r || {};
-            Hud.RankBadge(ranks, Number(r.rating), String(r.tier || ''), String(r.css || '')).classList.add(which);
+            Hud.RankBadge(ranks, Number(r.rating), r.tier ? L10n.text(r, 'tier') : '', String(r.css || '')).classList.add(which);
         }
         Badge(season.before, 'before');
         ranks.appendChild(Hud.Icon('chevron-right', 's-icon sg-season-arrow'));

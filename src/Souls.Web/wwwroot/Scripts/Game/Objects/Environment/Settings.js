@@ -1,8 +1,11 @@
-// The settings button (a corner of the board) and its panel: sound on / off (remembered, see AudioButton.js) and
-// leaving the game. Leaving forfeits the game unless the player comes back within the server's grace period.
+// The settings button (a corner of the board) and its panel: sound on / off (remembered, see AudioButton.js), the
+// language (the page reloads in it and the running game is resumed, see SoulsGameMode.resume) and leaving the game.
+// Leaving forfeits the game unless the player comes back within the server's grace period.
 define("settings", ["hud", "audio"], function (Hud, Sound) {
 
     var PANEL_ID = 'souls-classic-settings';
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
 
     function Settings(engine) {
         var that = this;
@@ -10,31 +13,31 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         var root = Hud.Root();
 
         var button = this.button = Hud.Button('sg-icon-btn souls-classic-settings-btn', root, null, 'settings');
-        button.setAttribute('aria-label', 'Settings');
+        button.setAttribute('aria-label', T('classic.settings'));
         button.setAttribute('aria-expanded', 'false');
         button.setAttribute('aria-controls', PANEL_ID);
-        button.title = 'Settings';
+        button.title = T('classic.settings');
         button.hidden = true;
 
         var panel = this.panel = Hud.El('section', 's-panel sg-settings souls-classic-settings', root);
         panel.id = PANEL_ID;
-        panel.setAttribute('aria-label', 'Settings');
+        panel.setAttribute('aria-label', T('classic.settings'));
         panel.hidden = true;
 
         var head = Hud.El('div', 's-panel-head', panel);
         head.appendChild(Hud.Icon('settings'));
-        Hud.El('h3', '', head, 'Settings');
+        Hud.El('h3', '', head, T('classic.settings'));
         var close = this.closeButton = Hud.Button('sg-icon-btn souls-classic-settings-close', head, null, 'close');
-        close.setAttribute('aria-label', 'Close settings');
+        close.setAttribute('aria-label', T('classic.settings.close'));
 
         // Sound: On / Off
         var row = Hud.El('div', 'sg-setting', panel);
-        var label = Hud.El('span', '', row, 'Sound');
+        var label = Hud.El('span', '', row, T('classic.settings.sound'));
         label.id = PANEL_ID + '-sound';
         var seg = Hud.El('div', 's-seg', row);
         seg.setAttribute('role', 'group');
         seg.setAttribute('aria-labelledby', label.id);
-        this.soundButtons = [['On', false, 'volume'], ['Off', true, 'mute']].map(function (option) {
+        this.soundButtons = [[T('classic.settings.on'), false, 'volume'], [T('classic.settings.off'), true, 'mute']].map(function (option) {
             var b = Hud.Button('', seg, option[0], option[2]);
             b.addEventListener('click', function () {
                 if (Sound.IsMuted() !== option[1]) Sound.SetMuted(option[1]);
@@ -45,7 +48,24 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         });
         this.UpdateSound();
 
-        var leave = this.leaveButton = Hud.Button('s-btn s-btn-danger s-btn-sm', panel, 'Leave game', 'logout');
+        // Language: the current one is pressed; another reloads the page in it.
+        if (L10n.languages.length > 1) {
+            var languageRow = Hud.El('div', 'sg-setting', panel);
+            var languageLabel = Hud.El('span', '', languageRow, T('classic.settings.language'));
+            languageLabel.id = PANEL_ID + '-language';
+            var languages = Hud.El('div', 's-seg', languageRow);
+            languages.setAttribute('role', 'group');
+            languages.setAttribute('aria-labelledby', languageLabel.id);
+            L10n.languages.forEach(function (language) {
+                var current = language.code === L10n.lang;
+                var b = Hud.Button(current ? 'active' : '', languages, language.name);
+                b.lang = language.code;
+                b.setAttribute('aria-pressed', String(current));
+                b.addEventListener('click', function () { L10n.setLanguage(language.code); });
+            });
+        }
+
+        var leave = this.leaveButton = Hud.Button('s-btn s-btn-danger s-btn-sm', panel, T('classic.settings.leave'), 'logout');
         leave.addEventListener('click', function () { that.Leave(); });
 
         button.addEventListener('click', function () { that.Toggle(); });

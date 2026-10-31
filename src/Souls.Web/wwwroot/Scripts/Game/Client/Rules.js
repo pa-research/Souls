@@ -27,11 +27,12 @@ define('rules', ['conf'], function (Conf) {
     // UseAbility / HeroPower "type" of each target kind.
     var TARGET_TYPE = { friendlyCard: 0, ownHero: 1, enemyHero: 2, enemyCard: 3 };
 
+    var T = window.SoulsL10n.t;
     var TARGET_LABEL = {
-        friendlyCard: 'a friendly card',
-        ownHero: 'your hero',
-        enemyHero: 'the enemy hero',
-        enemyCard: 'an enemy card'
+        friendlyCard: T('classic.target.friendlyCard'),
+        ownHero: T('classic.target.ownHero'),
+        enemyHero: T('classic.target.enemyHero'),
+        enemyCard: T('classic.target.enemyCard')
     };
 
     function lookup(table, id) {
@@ -108,9 +109,9 @@ define('rules', ['conf'], function (Conf) {
         for (var i = 0; i < kinds.length; i++) {
             if (TARGET_LABEL[kinds[i]]) labels.push(TARGET_LABEL[kinds[i]]);
         }
-        if (labels.length === 0) return 'no target';
+        if (labels.length === 0) return T('classic.target.none');
         if (labels.length === 1) return labels[0];
-        return labels.slice(0, -1).join(', ') + ' or ' + labels[labels.length - 1];
+        return T('classic.target.or', { list: labels.slice(0, -1).join(', '), last: labels[labels.length - 1] });
     };
 
     Rules.prototype.MaxHandCards = function () {

@@ -5,6 +5,8 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
     var EMOTE = Message.Type.Game.EMOTE;
     var MUTE_EMOTES = Message.Type.Game.MUTE_EMOTES;
     var HERO_HALF_HEIGHT = 125; // heroes are 250 high, placed by their centre
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
 
     function Emotes(engine) {
         var that = this;
@@ -14,13 +16,13 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
         var root = Hud.Root();
 
         var button = this.button = Hud.Button('sg-icon-btn souls-classic-emotes-btn', root, null, 'smile');
-        button.setAttribute('aria-label', 'Emotes');
+        button.setAttribute('aria-label', T('classic.emotes'));
         button.setAttribute('aria-expanded', 'false');
-        button.title = 'Emotes';
+        button.title = T('classic.emotes');
         button.hidden = true;
 
         var panel = this.panel = Hud.El('section', 's-panel sg-emotes souls-classic-emotes', root);
-        panel.setAttribute('aria-label', 'Emotes');
+        panel.setAttribute('aria-label', T('classic.emotes'));
         panel.hidden = true;
         ((Conf.rules && Conf.rules.emotes) || []).forEach(function (text, i) {
             Hud.Button('s-btn s-btn-ghost s-btn-sm', panel, text).addEventListener('click', function () {
@@ -28,14 +30,14 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
                 engine.gameSocket.send({ "Type": EMOTE, "Payload": { "emote": i } });
             });
         });
-        var mute = this.muteButton = Hud.Button('s-btn s-btn-ghost s-btn-sm', panel, 'Mute opponent', 'mute');
+        var mute = this.muteButton = Hud.Button('s-btn s-btn-ghost s-btn-sm', panel, T('classic.emotes.mute'), 'mute');
         mute.setAttribute('aria-pressed', 'false');
         mute.addEventListener('click', function () {
             that.muted = !that.muted;
             mute.setAttribute('aria-pressed', String(that.muted));
             Hud.Clear(mute);
             mute.appendChild(Hud.Icon(that.muted ? 'volume' : 'mute'));
-            Hud.Text(mute, that.muted ? 'Unmute opponent' : 'Mute opponent');
+            Hud.Text(mute, that.muted ? T('classic.emotes.unmute') : T('classic.emotes.mute'));
             engine.gameSocket.send({ "Type": MUTE_EMOTES, "Payload": { "muted": that.muted } });
         });
 
@@ -65,7 +67,7 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
         if (open && this.engine.settings) this.engine.settings.Toggle(false);
     }
 
-    /// 299 Emote {ident, emote, text}: a bubble by that hero for a few seconds (not the opponent's while muted).
+    /// 299 Emote {ident, emote, text, textKey}: a bubble by that hero for a few seconds (not the opponent's while muted).
     Emotes.prototype.Say = function (payload) {
         var engine = this.engine;
         var hero = engine.player && (Number(payload.ident) === Number(engine.myIdent) ? engine.player : engine.opponent);
@@ -76,7 +78,7 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
         var old = this.bubbles[key];
         if (old) old.Remove();
 
-        var bubble = Hud.El('div', 'sg-bubble ' + key, Hud.Root(), String(payload.text === undefined || payload.text === null ? '' : payload.text));
+        var bubble = Hud.El('div', 'sg-bubble ' + key, Hud.Root(), L10n.text(payload));
         bubble.setAttribute('role', 'status');
         var home = hero.GetHome();
         var untrack = Hud.Track(function (hud) {

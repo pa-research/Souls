@@ -4,6 +4,8 @@
 define("mulligan", ["hud"], function (Hud) {
 
     var RARITIES = ['', 'common', 'rare', 'epic', 'legendary'];
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
 
     function Url(value) {
         return 'url(' + JSON.stringify(String(value === undefined || value === null ? '' : value)) + ')';
@@ -22,16 +24,16 @@ define("mulligan", ["hud"], function (Hud) {
         if (Number(d.level) > 1) Hud.El('div', 's-card-stars', card, new Array(Number(d.level)).join('★'));
         Hud.El('span', 's-card-gem', card);
         if (d.ability) {
-            Hud.El('div', 's-card-ability', card, d.ability.label || d.ability.name || '');
-            Hud.El('div', 's-card-rules', card, d.ability.text || '');
+            Hud.El('div', 's-card-ability', card, L10n.text(d.ability, 'label') || L10n.text(d.ability, 'name'));
+            Hud.El('div', 's-card-rules', card, L10n.text(d.ability, 'text'));
         }
         else if (d.flavor) {
-            Hud.El('div', 's-card-flavor', card, d.flavor);
+            Hud.El('div', 's-card-flavor', card, L10n.text(d, 'flavor'));
         }
         if (spell) {
             var plate = Hud.El('div', 's-card-spell', card);
-            Hud.El('span', '', plate, 'Spell');
-            Hud.El('span', '', plate, 'Spell');
+            Hud.El('span', '', plate, T('classic.card.spell'));
+            Hud.El('span', '', plate, T('classic.card.spell'));
         }
         else {
             Hud.El('div', 's-card-attack', card, d.attack);
@@ -61,16 +63,16 @@ define("mulligan", ["hud"], function (Hud) {
 
         var layer = this.layer = Hud.Layer('sg-mulligan');
         layer.setAttribute('role', 'dialog');
-        layer.setAttribute('aria-label', 'Mulligan');
+        layer.setAttribute('aria-label', T('classic.mulligan'));
         var box = Hud.El('div', 'sg-mulligan-box', layer);
-        Hud.El('div', 's-eyebrow', box, 'Mulligan');
-        Hud.El('h2', '', box, 'Your starting hand');
-        Hud.El('p', '', box, 'Tap the cards you want to replace. You can do this once.');
+        Hud.El('div', 's-eyebrow', box, T('classic.mulligan'));
+        Hud.El('h2', '', box, T('classic.mulligan.title'));
+        Hud.El('p', '', box, T('classic.mulligan.help'));
         var row = Hud.El('div', 'sg-mulligan-cards', box);
         var timer = Hud.El('div', 'sg-mulligan-timer', box);
-        var bar = Hud.Progress(timer, 1, 's-progress-ember', 'Time left');
+        var bar = Hud.Progress(timer, 1, 's-progress-ember', T('classic.mulligan.time'));
         var time = Hud.El('span', 'sg-time', timer);
-        var confirm = this.confirm = Hud.Button('s-btn s-btn-gold s-btn-lg sg-mulligan-confirm', box, 'Keep hand', 'check');
+        var confirm = this.confirm = Hud.Button('s-btn s-btn-gold s-btn-lg sg-mulligan-confirm', box, T('classic.mulligan.keep'), 'check');
         this.status = Hud.El('p', 'sg-mulligan-status s-muted', box);
         this.status.setAttribute('aria-live', 'polite');
 
@@ -80,22 +82,22 @@ define("mulligan", ["hud"], function (Hud) {
             button.setAttribute('aria-pressed', 'false');
             button.cid = cards[i].cid;
             CardFace(button, cards[i]);
-            Mark(button, 'refresh', 'Replace');
+            Mark(button, 'refresh', T('classic.mulligan.mark'));
             button.addEventListener('click', function () {
                 this.setAttribute('aria-pressed', String(!Pressed(this)));
                 var n = that.buttons.filter(Pressed).length;
                 Hud.Clear(confirm);
                 confirm.appendChild(Hud.Icon(n ? 'refresh' : 'check'));
-                Hud.Text(confirm, n ? 'Replace ' + n + ' card' + (n > 1 ? 's' : '') : 'Keep hand');
+                Hud.Text(confirm, n ? T('classic.mulligan.replace', { n: n }) : T('classic.mulligan.keep'));
             });
             this.buttons.push(button);
         }
 
         confirm.addEventListener('click', function () {
-            that.Lock('Waiting for ' + that.opponent + '…');
+            that.Lock(T('classic.waitingFor', { name: that.opponent }));
             onConfirm(that.buttons.filter(Pressed).map(function (b) { return b.cid; }));
         });
-        if (info && info.done) this.Lock('Waiting for ' + this.opponent + '…');
+        if (info && info.done) this.Lock(T('classic.waitingFor', { name: this.opponent }));
 
         var endsAt = Date.now() + (Number(info && info.endsIn) || 0);
         var total = Number(info && info.time) || 30000;
@@ -105,7 +107,7 @@ define("mulligan", ["hud"], function (Hud) {
             time.textContent = Hud.Clock(left);
             if (left > 0 || that.locked) return;
             for (var k = 0; k < that.buttons.length; k++) that.buttons[k].setAttribute('aria-pressed', 'false');
-            that.Lock('Time is up: you keep your hand.');
+            that.Lock(T('classic.mulligan.timeUp'));
         }
         Tick();
         this.clock = setInterval(Tick, 250);
@@ -126,8 +128,8 @@ define("mulligan", ["hud"], function (Hud) {
         if (!mine) {
             this.opponentDone = true;
             this.status.textContent = replaced
-                ? this.opponent + ' replaced ' + replaced + ' card' + (replaced > 1 ? 's' : '') + '.'
-                : this.opponent + ' kept their hand.';
+                ? T('classic.mulligan.replaced', { name: this.opponent, n: replaced })
+                : T('classic.mulligan.kept', { name: this.opponent });
             return;
         }
         for (var i = 0; i < hand.length && i < this.buttons.length; i++) {
@@ -138,10 +140,10 @@ define("mulligan", ["hud"], function (Hud) {
             button.classList.toggle('new', isNew);
             Hud.Clear(button);
             CardFace(button, hand[i]);
-            Mark(button, isNew ? 'sparkles' : 'check', isNew ? 'New' : 'Kept');
+            Mark(button, isNew ? 'sparkles' : 'check', isNew ? T('classic.mulligan.new') : T('classic.mulligan.keptMark'));
         }
         this.locked = true;
-        this.status.textContent = this.opponentDone ? 'The battle begins!' : 'Waiting for ' + this.opponent + '…';
+        this.status.textContent = this.opponentDone ? T('classic.mulligan.begins') : T('classic.waitingFor', { name: this.opponent });
     }
 
     /// The first turn starts (or the game ended): the layer fades out.
