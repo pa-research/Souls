@@ -54,7 +54,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
 
     function Response_Message(json) {
         AppendLine("[" + json.Payload.name + "]: " + json.Payload.message);
-        Asset.GetSound(Asset.Sound.CHAT_MESSAGE).play();
+        Asset.GetSound(Asset.Sound.EMOTE).play({ volume: 0.45 });
     }
 
     function Response_ClientDisconnected(json) // 1095

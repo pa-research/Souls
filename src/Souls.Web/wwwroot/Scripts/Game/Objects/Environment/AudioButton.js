@@ -15,6 +15,20 @@ define("audio", ["asset"], function (Asset) {
 
     var muted = Read();
 
+    // SoundJS makes its AudioContext before the player has touched the page, so browsers start it suspended: the
+    // first gestures resume it.
+    function Unlock() {
+        var ctx = window.createjs && createjs.WebAudioPlugin && createjs.WebAudioPlugin.context;
+        if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () { });
+    }
+    ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach(function (type) { window.addEventListener(type, Unlock, true); });
+
+    // A click on any button of the interface (menu, settings, mulligan, end screen).
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest || !e.target.closest('.souls-classic-hud button, .souls-classic-hud a[href]')) return;
+        try { Asset.GetSound(Asset.Sound.UI_CLICK).play({ volume: 0.5 }); } catch (err) { /* sound is optional */ }
+    });
+
     var Sound = {
         IsMuted: function () {
             return muted;

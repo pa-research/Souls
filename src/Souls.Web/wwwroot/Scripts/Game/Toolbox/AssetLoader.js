@@ -106,36 +106,76 @@
             createjs.Sound.setVolume(val);
         }
 
+        /// Test hook: the e2e instrumentation exposes window.__soundTrace(event, name) to count what played.
+        function Trace(event, src) {
+            try { if (window.__soundTrace) window.__soundTrace(event, String(src).replace(/^.*\/|\.ogg$/g, '')); } catch (e) { }
+        }
+
+        /// Loads the sound effects (the music loads when it first plays, see PlayMusic). Never holds up the game: a
+        /// sound the browser cannot play counts as done, and after 8 seconds the game goes on without the rest.
         Asset.prototype.LoadSound = function (onProgressCallback, onCompleteCallBack) {
-            createjs.Sound.alternateExtensions = ["mp3"];
-
-            $.each(Asset.prototype.Sound, function (key, value) {
-                createjs.Sound.registerSound(value, value);
-            });
-
-
-            var totalSounds = Object.keys(Asset.prototype.Sound).length;
-            var currentLoaded = 0
-            createjs.Sound.addEventListener("fileload", handleFileLoad);
-            function handleFileLoad(event) {
-                console.log("Preloaded:", event.id);
-                var percent = ++currentLoaded / totalSounds;
-
-                if (percent == 1) {
+            createjs.Sound.alternateExtensions = []; // Ogg Opus only (Content/Sound/CREDITS.md)
+            var pending = {}, total = 0, done = 0, finished = false;
+            function Done() {
+                if (finished) return;
+                done++;
+                if (done >= total) {
+                    finished = true;
                     onCompleteCallBack();
                 }
-                else {
-                    onProgressCallback(percent * 100);
-                }
-
+                else onProgressCallback(done / total * 100);
             }
+            createjs.Sound.addEventListener("fileload", function (event) {
+                if (!pending[event.id]) return;
+                delete pending[event.id];
+                Trace('decoded', event.id);
+                Done();
+            });
+            $.each(Asset.prototype.Sound, function (key, src) { pending[src] = true; total++; });
+            $.each(Asset.prototype.Sound, function (key, src) {
+                if (!createjs.Sound.registerSound(src, src)) { delete pending[src]; Trace('failed', src); Done(); }
+            });
+            setTimeout(function () {
+                if (finished) return;
+                finished = true;
+                onCompleteCallBack();
+            }, 8000);
             return true;
         }
 
-
         Asset.prototype.GetSound = function (soundEnum) {
             var instance = createjs.Sound.play(soundEnum);  // play using id.  Could also use full source path or event.src.
+            if (instance && instance.playState !== createjs.Sound.PLAY_FAILED) Trace('play', soundEnum);
             return instance;
+        }
+
+        /// Plays a music track in a loop instead of the one playing; it loads the first time (the game does not wait).
+        var music = { src: null, instance: null, loaded: {} };
+        createjs.Sound.addEventListener("fileload", function (event) {
+            if (music.loaded[event.id] !== false) return;
+            music.loaded[event.id] = true;
+            if (event.id === music.src) StartMusic();
+        });
+        function StartMusic() {
+            if (music.instance) return;
+            music.instance = createjs.Sound.play(music.src, { loop: -1, volume: music.volume });
+            Trace('music', music.src);
+        }
+        Asset.prototype.PlayMusic = function (src, volume) {
+            if (music.src === src) return;
+            Asset.prototype.StopMusic();
+            music.src = src;
+            music.volume = volume;
+            if (music.loaded[src]) StartMusic();
+            else if (music.loaded[src] === undefined) {
+                music.loaded[src] = false;
+                if (!createjs.Sound.registerSound(src, src)) delete music.loaded[src];
+            }
+        }
+
+        Asset.prototype.StopMusic = function () {
+            if (music.instance) music.instance.stop();
+            music.src = music.instance = null;
         }
 
         Asset.prototype.Textures =
@@ -190,19 +230,19 @@
             PLAYER_PORTRAIT_FOUR: Asset.Path.Textures + "Player/Portraits/4.jpg"
         }
 
-        Asset.prototype.Sound =
-            {
-                CARD_PICKUP: Asset.Path.Sound + "fjopp.ogg",
-                CARD_MOUNT: Asset.Path.Sound + "card_mount.ogg",
-                END_TURN: Asset.Path.Sound + "scroll.ogg",
-                ATTACK_1: Asset.Path.Sound + "attack_1.ogg",
-                DEFEND_1: Asset.Path.Sound + "defend_1.ogg",
-                CHAT_MESSAGE: Asset.Path.Sound + "chat_message.ogg",
-                GAME_MUSIC: Asset.Path.Sound + "background-music.ogg",
-                MENU: Asset.Path.Sound + "menu.ogg",
-                ABILITY_SACRIFICE: Asset.Path.Sound + "ability_sacrifice.ogg",
-                ABILITY_HEAL: Asset.Path.Sound + "ability_heal.ogg"
-            }
+        // The sound effects the classic client plays (the same files as the 3D client, Content/Sound/CREDITS.md).
+        Asset.prototype.Sound = {};
+        $.each(['ui_click', 'emote', 'card_pickup', 'card_play', 'card_draw', 'card_shuffle', 'end_turn', 'turn_start',
+            'timer_warning', 'attack', 'hero_hit', 'block', 'card_death', 'hero_power', 'fatigue', 'spell_whoosh', 'fire',
+            'ice', 'ward', 'shatter', 'venom', 'rally', 'insight', 'drain', 'grow', 'heal', 'summon', 'curse', 'legendary',
+            'versus', 'victory', 'defeat', 'coins', 'quest_complete'], function (i, name) {
+            Asset.prototype.Sound[name.toUpperCase()] = Asset.Path.Sound + name + ".ogg";
+        });
+
+        Asset.prototype.Music = {
+            MENU: Asset.Path.Sound + "music_menu.ogg",
+            GAME: Asset.Path.Sound + "music_battle.ogg"
+        }
 
         Asset.prototype.GetTexture = function (texture) {
             return Pixi.Texture.fromImage(texture);

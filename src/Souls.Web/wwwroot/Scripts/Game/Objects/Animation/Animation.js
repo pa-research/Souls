@@ -124,7 +124,7 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
         var wasInteractive = attacker.interactive;
         attacker.interactive = false;
         attacker._lunging = true;
-        PlaySound(Asset.Sound.ATTACK_1, 0.5);
+        PlaySound(Asset.Sound.ATTACK, 0.7);
 
         var values = { x: home.x, y: home.y, s: attacker.scale.x || 1 };
         var baseScale = values.s;
@@ -183,7 +183,7 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
                 if (done) done();
             });
 
-        PlaySound(Asset.Sound.DEFEND_1, 0.4);
+        PlaySound(Asset.Sound.CARD_DEATH, 0.8);
         return D.DEATH;
     }
 
@@ -293,7 +293,7 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
             Animate(player, { alpha: 0.45, rotation: player.isPlayer ? -0.12 : 0.12, y: home.y + (player.isPlayer ? 18 : -18) },
                 900, CreateJS.Ease.quadIn);
         }, 260);
-        PlaySound(Asset.Sound.DEFEND_1, 0.7);
+        PlaySound(Asset.Sound.HERO_HIT, 0.9);
         return 1300;
     }
 
@@ -807,7 +807,7 @@ define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, Create
             setTimeout(function () { Animation.prototype.Fx.Burst(engine, x, y, 0xffffff, 70); }, 140);
             Animation.prototype.Fx.Sparkle(engine, { x: x, y: y }, color, 14);
         });
-        PlaySound(Asset.Sound.ABILITY_SACRIFICE, 0.3);
+        PlaySound(Asset.Sound.SPELL_WHOOSH, 0.6);
         return 900;
     }
 

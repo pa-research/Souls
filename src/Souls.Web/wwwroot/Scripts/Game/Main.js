@@ -285,8 +285,7 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
 
     /// The main menu (DOM, see Objects/Environment/Menu.js) over the backdrop.
     function ShowGameSelect() {
-        var menuSound = Asset.GetSound(Asset.Sound.MENU);
-        menuSound.play({ loop: 9001, volume: 0.1 });
+        Asset.PlayMusic(Asset.Music.MENU, 0.4);
         this.stage = new Pixi.Stage(0x000000, true);
 
         var textureBg = Asset.GetTexture(Asset.Textures.GAME_LOAD_BG);
@@ -302,7 +301,6 @@ require(['jquery', 'pixi', 'asset', 'conf', 'gamestate', 'game', 'socket', 'stat
         function Start(normal, difficulty, friendly) {
             if (started) return;
             started = true;
-            try { menuSound.stop(); } catch (e) { }
             menu.Close();
             gameEngine = new Game(normal, difficulty, false, friendly);
             Conf.currentState = Gamestate.GAME;

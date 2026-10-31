@@ -239,6 +239,13 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
         this.ShowSummary(String(text), payload || {}, gameId > 0 ? gameId : null, moveOn);
     }
 
+    /// Plays a sound after `ms` (the end screen's rewards count up first).
+    function Later(sound, volume, ms) {
+        setTimeout(function () {
+            try { Asset.GetSound(sound).play({ volume: volume }); } catch (e) { /* sound is optional */ }
+        }, ms);
+    }
+
     /// The end screen; every server string is set as text.
     Queue.prototype.ShowSummary = function (title, payload, gameId, moveOn) {
         var old = this.endLayer;
@@ -265,6 +272,7 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             var coinValue = Hud.El('b', '', coins, '+0');
             Hud.El('span', '', coins, 'Soul coins');
             Hud.CountUp(coinValue, payload.coins, payload.coins < 0 ? '-' : '+', 900);
+            if (payload.coins > 0) Later(Asset.Sound.COINS, 0.7, 900);
         }
         if (typeof payload.ratingChange === 'number') {
             var change = payload.ratingChange;
@@ -296,6 +304,12 @@ define("queue", ["asset", "pixi", "hud", "conf"], function (Asset, Pixi, Hud, Co
             head.appendChild(Hud.Icon('quest'));
             Hud.El('h3', '', head, 'Daily quests');
             Hud.QuestList(quests, payload.quests, true);
+            // A quest this game completed (not done in the profile the page started with) gets a jingle.
+            var before = (Conf.profile && Conf.profile.quests) || [];
+            var completed = payload.quests.some(function (q) {
+                return q.done && !before.some(function (b) { return b.text === q.text && b.done; });
+            });
+            if (completed) Later(Asset.Sound.QUEST_COMPLETE, 0.8, 1500);
         }
 
         var actions = Hud.El('div', 'sg-end-actions', end);
