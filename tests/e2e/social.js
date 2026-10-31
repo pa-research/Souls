@@ -100,6 +100,10 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
   step('Both get the game', !!createA && !!createB);
   await A.page.waitForFunction(() => window.__souls3d && window.__souls3d.state().active, null, { timeout: 30000 }).catch(() => null);
   await sleep(5000); // the versus splash
+  // Both keep their starting hand (the mulligan screen covers the emote buttons).
+  await A.page.click('.sg-mulligan-confirm'); await B.page.click('.sg-mulligan-confirm');
+  await waitFrame(A, f => f.dir === 'in' && f.type === 226, fromA, 30000);
+  await sleep(2000);
   await snap(A, 'game');
   await snap(B, 'game');
 
