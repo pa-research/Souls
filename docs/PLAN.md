@@ -1,6 +1,6 @@
 # Souls: project plan and handover
 
-Status on 30 October 2026, after the second working session. This document says where everything stands, how to pick
+Status on 31 October 2026, after the second working session. This document says where everything stands, how to pick
 the work up again, and what to do next, in order of priority. The [README](../README.md) describes the product;
 [game-protocol.md](game-protocol.md) the rules and the protocol; [balance.md](balance.md) the latest balance report.
 
@@ -15,11 +15,14 @@ Souls is a 2014 browser card game (ASP.NET MVC 5, NHibernate, MySQL) that has be
 - **Game**: a server-authoritative rules engine with 20-card decks, a mulligan, armor, four races with passives,
   20 abilities, spells, two hero powers per class to pick from, class cards, a turn timer, rating and matchmaking,
   seasons with tier rewards, daily quests, card upgrades, card packs, emotes, friendly challenges, spectating and
-  replays, and a practice bot with three difficulty levels (Hard looks one turn ahead).
+  replays, and a practice bot with three difficulty levels (Hard looks one turn ahead). Friendly games give no
+  rewards; ranked games show the season tier change on the end screen.
 - **Content**: 59 cards: the 8 original cards with their original art, a 33-card expansion, 10 spells and 8 class
-  cards (12 of the 59 are spells), with generated art. Balanced with a bot-versus-bot simulator.
+  cards (12 of the 59 are spells), with generated art. Balanced with a bot-versus-bot simulator: every class wins
+  48-51 % of bot games.
 - **Clients**: the original PixiJS client ("Classic", modernised HUD) and a three.js client ("Modern 3D") that renders
-  with WebGPU (WebGL 2 fallback), with a stadium, camera views, touch controls and an effect for every ability.
+  with WebGPU (WebGL 2 fallback), with a stadium, camera views, touch controls, a portrait layout for phones held
+  upright and an effect for every ability.
 - **Look**: one dark-fantasy design system for the site and both clients, with a finished polish pass over every page
   and both clients.
 
@@ -29,11 +32,11 @@ Everything is merged into `main`, which is the default branch on GitHub.
 
 | Branch | State |
 |---|---|
-| `main` | Default branch. Holds everything below (pull requests #2 to #25) |
+| `main` | Default branch. Holds everything below (pull requests #2 to #31) |
 | `dev`, `master` | The original 2014/2015 code. Untouched |
 | `modernize/dotnet10`, `feature/*`, `fix/*`, `polish/*` | Merged. Their remote branches were not deleted (the session was not allowed to delete remote branches); they can all go |
 
-Pull requests merged on 30 October:
+Pull requests merged on 30 and 31 October:
 
 | # | What |
 |---|---|
@@ -60,6 +63,12 @@ Pull requests merged on 30 October:
 | #23 | Persistent games: running games survive a game server restart (P3-17, one replica) |
 | #24 | 3D client polish pass |
 | #25 | Classic client polish pass |
+| #26 | 3D client: portrait layout for phones held upright |
+| #27 | This plan |
+| #28 | Card art: more varied, cleaner generated portraits (the 2014 originals unchanged) |
+| #29 | Class retune: every class 48-51 % (Fader was 24.5 %) |
+| #30 | Friendly games give no rewards, season on the end screen, game chat restored after a restart, database saves off the game lock |
+| #31 | Client polish: themed leave dialog, toasts off the heroes, classic board keeps 16:9, safe areas, cinematic camera clear of the pillars |
 
 ## 3. What has been built
 
@@ -69,13 +78,13 @@ Pull requests merged on 30 October:
 | Modern 3D client | `988895f`, `406f1b8`, `63cb41d`, #11, #16, #20 | three.js r186 client next to the classic one (switch top right), stadium with crowd, pillars and screens, camera views, bloom, touch controls, phone layouts, adaptive quality, WebGPU with WebGL 2 fallback |
 | Original content | `c038258`, `26853bd` | The original April 2014 card art and card names restored |
 | Gameplay overhaul | `57b84e7` | Armor, decks with fatigue, races, abilities, hero powers, Taunt, turn timer, bot (Easy/Normal/Hard), Elo rating and matchmaking, quests, upgrades, deck builder, spectating, replays, events protocol |
-| AAA interface | `ead6547`, `28879f4`, #21, #22, #24, #25 | Design system (theme.css, game-hud.css, fonts, icons, rank emblems), every site page, 3D HUD and menus, classic HUD; then a polish pass over all three (transitions, overlaps, phone layouts, card tiles, empty and error states) |
-| Content and features | #3, #10, #12 to #15, #17, #19 | Expansion, card packs, seasons, smarter bot, mulligan, emotes and friendly challenges, spells, hero power choice, class cards |
-| Operations | #4 to #7, #9, #18, #23 | Card statistics, observability, encrypted keys, backups, browser tests in CI, persistent games |
+| AAA interface | `ead6547`, `28879f4`, #21, #22, #24 to #26, #31 | Design system (theme.css, game-hud.css, fonts, icons, rank emblems), every site page, 3D HUD and menus, classic HUD; then a polish pass over all three (transitions, overlaps, phone layouts, card tiles, empty and error states) |
+| Content and features | #3, #10, #12 to #15, #17, #19, #28 to #30 | Expansion, card packs, seasons, smarter bot, mulligan, emotes and friendly challenges, spells, hero power choice, class cards, art pass, class retune, season results |
+| Operations | #4 to #7, #9, #18, #23, #30 | Card statistics, observability, encrypted keys, backups, browser tests in CI, persistent games |
 
-Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 8 migrations
+Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 9 migrations
 (`InitialCreate`, `RestoreHuyCard`, `GameplayOverhaul`, `ExpansionCardSet`, `Seasons`, `Spells`, `HeroChoice`,
-`RunningGames`), 171 .NET tests.
+`RunningGames`, `ClassRetune`), 175 .NET tests.
 
 ## 4. Architecture at a glance
 
@@ -114,7 +123,7 @@ Everything below is also in the README; this is the short version for picking th
 
 1. **Run it**: `./deploy/compose/init-secrets.sh`, then `docker compose up -d --build`, then open
    <https://localhost>. The admin password is in `deploy/compose/secrets/Souls__Admin__Password`.
-2. **.NET tests** (needs Docker for PostgreSQL): `dotnet test --project tests/Souls.Tests`. Expect 171 passing.
+2. **.NET tests** (needs Docker for PostgreSQL): `dotnet test --project tests/Souls.Tests`. Expect 175 passing.
 3. **Browser tests** against a running stack: see [tests/e2e/README.md](../tests/e2e/README.md). Without a GPU, start
    the stack with `COMPOSE_FILE=compose.yaml:tests/e2e/compose.ci.yaml` (long turns and mulligan, higher login rate
    limit), as CI does.
@@ -130,15 +139,17 @@ Everything below is also in the README; this is the short version for picking th
 
 | Check | Result | When |
 |---|---|---|
-| .NET unit and integration tests | 171 / 171 pass (CI) | After #23 |
-| CI browser tests (`ui_capture.js`, `classic_ui.js`, `rules3d.js` on every pull request, software rendering) | Pass. Two flakes seen once each and passed on rerun: `ERR_NETWORK_CHANGED` on the runner, and a Hard-bot game won before the script could afford a card | After #23 |
-| 3D practice game (`rules3d.js`) | 17 / 17 on the RTX 3090 with WebGPU and with WebGL 2, and in CI with the automatic WebGL 2 fallback | After #24 |
-| Spells (`spells.js`) | 26 / 26 (shop, deck, 3D and classic casting, spectator, phone tap-tap) | After #24 |
-| Hero choice (`hero_choice.js`) | 19 / 19 | After #24 |
-| Two players with a spectator (`pvp_rules.js`) | 13 / 13 on the GPU, including "spectator receives live events". With CI's 8-minute turns that one step can time out | After #19 and #20 |
-| Restart survival (`restart.js`) | 22 / 22: restarts during the mulligan, the bot's turn and a ranked turn, a redeploy, ratings applied once, complete replays | After #23, on the merged code |
-| Website pages, desktop and phone (`ui_capture.js`) | No console errors, no page scrolls sideways; covers the new pages | After #22 |
-| Balance (10 000 bot games) | Spells 46-55 % played win rate; new hero powers 47-53 % against the class's other power; class cards 47-51 % (adjusted). Classes are far apart: Harrison 61.0 %, Lurker 57.5 %, Rabid Soul 57.2 %, Fader 24.5 % | After #19 |
+| .NET unit and integration tests | 175 / 175 pass (CI) | After #30 |
+| CI browser tests (`ui_capture.js`, `classic_ui.js`, `rules3d.js` on every pull request, software rendering) | Pass. Occasional flakes (a network change on the runner, a Hard-bot game won before the script could afford a card) pass on rerun | After #31 |
+| 3D practice game (`rules3d.js`) | 22 / 22 as Rabid Soul, 21 / 21 as Fader (GPU, WebGL 2); also on hardware WebGPU and in CI | After #31 |
+| Phone held upright (`portrait.js`) | 34 / 34 at 412x915 and at 360x780, a full game played by touch; also on hardware WebGPU | After #31 |
+| Spells (`spells.js`), hero choice (`hero_choice.js`) | 22 / 22 and 19 / 19 | After #31 |
+| Classic client (`classic_ui.js`) | Pass at 1600x900 and 915x412 (16:9 board, leave dialog) | After #31 |
+| Two players with a spectator (`pvp_rules.js`) | 14 / 14, incl. live events for the spectator and the season on both end screens | After #31 |
+| Friendly challenges and emotes (`social.js`) | 24 / 24, no rewards for friendly games | After #30 |
+| Restart survival (`restart.js`) | 23 / 23: restarts during the mulligan, the bot's turn and a ranked turn, a redeploy, the game chat comes back, ratings applied once, complete replays | After #30 |
+| Website pages, desktop and phone (`ui_capture.js`) | No console errors, no page scrolls sideways; covers the new pages | After #28 |
+| Balance (three runs of 10 000 bot games) | Classes 48.0-51.2 %, worst matchup 42-45 %, hero powers 45.7-54.3 % against the class's other power, races 50.2-52.6 %, first player 48.4-48.6 %, 24.7 turns. Expensive cards read 55-60 % drawn win rate but 50-54 % counted over every game of a deck that holds them | After #29 |
 | Upgrade from the previous release | Players registered on the old version all have 20-card decks after the migrations | Test database, P0-3 check |
 | Kubernetes | Deployed locally on kind with ingress-nginx; smoke test passes | P0-3 check |
 | Desktop GPU frame rate | RTX 3090, 1080p: 57-60 fps with vsync (WebGL renderer, #11). At 4x CPU throttle the WebGPU build (#20) costs about 15 % more CPU per frame than the WebGL renderer it replaced | After #20 |
@@ -148,89 +159,88 @@ Everything below is also in the README; this is the short version for picking th
 ## 7. Known issues and risks
 
 **Gameplay and balance**
-- Fader wins 24.5 % of bot games; Harrison 61 %. A class retune is needed (`--tune` in the simulator) and is the
-  owner's call, because it changes the classes' health and armor again.
+- A class played with its own race is lopsided: Harrison with Lightbringer decks wins about 70 %, Lurker with Vampiric
+  about 43 % (bot games; the bot picks races at random, people choose them). A follow-up pass on the race passives
+  is in progress.
 - The balance comes from the bot playing itself, not from people. The "Card statistics" admin page shows real win
   rates once people play.
-- Friendly games give coins and quest progress, so two accounts can farm them.
 
 **Art**
 - All new portraits (expansion, spells, class cards) are generated "lit emblems" built from game-icons.net
-  silhouettes, not paintings.
+  silhouettes (CC BY 3.0), not paintings; #28 made them more varied and cleaner.
 - The original cards use their 2014 art, which includes third-party images (photos, a Sonic character, a film
-  still). Fine for a hobby project; replace before any commercial use.
+  still). Kept on purpose for a hobby project; replace before any commercial use.
+- The lost original cards (Paul and others) cannot be restored without an old persoft.no backup.
 
 **Clients**
-- WebGPU is new: tested on Chromium with an NVIDIA GPU only. On one Linux setup (ANGLE on GL, WebGPU on Vulkan) canvas
+- WebGPU is tested on Chromium with an NVIDIA GPU only. On one Linux setup (ANGLE on GL, WebGPU on Vulkan) canvas
   textures came out blank; `willReadFrequently` canvases fix it there, not yet confirmed on other machines.
-- Classic client on a phone: upright it asks you to turn the phone; sideways the board is stretched about 20 %.
-- About one frame in a thousand of the classic client was drawn without the arena (cause unknown; the stage colour now
+- The classic client asks you to turn a phone held upright; the 3D client plays upright.
+- About one frame in a thousand of the classic client was drawn without the arena (cause unknown; the stage colour
   hides it).
-- Leaving a game uses the browser's confirm dialog; the end screen shows no season information.
+- In landscape the 3D hand and End Turn do not avoid side notches (portrait does).
 
 **Platform**
-- The game server runs as one replica. Running games survive a restart, but a second replica needs ownership leases,
-  routing or cross-replica events, and a shared lobby (design in the README's known limitations).
-- Saving a running game holds the game lock (about 10 ms). If the database is slow, every game waits up to 2 s, then
-  saving pauses for 5 s. Fine at today's scale.
-- After a restart the in-game chat room is not restored; a crash (no SIGTERM) can lose the last action.
-- The classic client still runs its 2014 libraries (PixiJS 1.x, CreateJS 0.x) under a strict CSP.
-- Legacy MySQL data is not imported automatically.
+- The game server runs as one replica (decided: restart survival is enough at this scale). A second replica needs
+  ownership leases, routing or cross-replica events, and a shared lobby (design in the README's known limitations).
+- A crash (no SIGTERM) can lose the last action that was not written yet.
+- The classic client still runs its 2014 libraries (PixiJS 1.x, CreateJS 0.x) under a strict CSP (decided: keep).
 - ingress-nginx was retired in March 2026; the production overlay uses the Gateway API, the `ingress` component is
   for local clusters only.
 
 ## 8. Roadmap
 
-Ordered by priority. Done items keep their number.
+Ordered by priority. Done items are struck through.
 
-### P0: ship what is built
+### P0: ship it
 
-1. ~~Pull request for the expansion~~ **Done** (#3).
-2. ~~Default branch~~ **Done**: `main` is the default.
-3. **Deploy**: tested locally (Compose, and Kubernetes on kind). *Still to do*: pick the host, back up the database,
-   run the migrations on a copy of production data, deploy, smoke test.
-4. ~~Two-player check~~ **Done**: `pvp_rules.js` passes on a GPU.
+1. ~~Pull request for the expansion~~ (#3), ~~default branch~~, ~~two-player check~~: **Done**.
+2. **Deploy**: tested locally (Compose, and Kubernetes on kind). *Still to do* (needs a host and its credentials):
+   back up the database, run the migrations on a copy of production data, deploy, smoke test.
 
 ### P1: confidence and quality
 
-5. **Play-test with people**. The "Card statistics" admin page is built (#5); compare it with `docs/balance.md` after
-   a week of real games.
-6. ~~Browser tests in CI~~ **Done** (#18).
-7. **Real devices**: adaptive quality (#11) and WebGPU (#20) are in. *Still to do*: test on an iPhone, an Android
-   phone and Safari/Firefox (frame rate, touch, sound, WebGPU fallback).
-8. **Art pass** (owner): replace the generated portraits, starting with the legendaries. Keep the file names.
-9. **Class retune** (new): bring Fader and Harrison back towards 50 % with the simulator, then a migration.
+3. **Real devices**: test on an iPhone, an Android phone, Safari and Firefox (frame rate, touch, sound, WebGPU and
+   its fallback, safe areas).
+4. **Play-test with people** for a week, then compare the "Card statistics" admin page (#5) with `docs/balance.md`.
+5. **Own-race balance**: in progress (see section 7).
+6. ~~Browser tests in CI~~ (#18), ~~class retune~~ (#29), ~~AAA polish~~ (#21, #22, #24 to #26, #31),
+   ~~art pass~~ (#28): **Done**.
 
 ### P2: content and features
 
-10. **Lost original cards** (Paul and others): needs an old persoft.no backup or the Wayback Machine.
-11. ~~Card packs~~ (#10), ~~Spells~~ (#17), ~~More hero choice~~ (#19), ~~Mulligan~~ (#14), ~~Seasons~~ (#12),
-    ~~Smarter Hard bot~~ (#13), ~~Emotes and friendly challenges~~ (#15): **Done**.
-12. **Season on the end screen**: send the season tier change with the game result and show it in both clients.
+7. ~~Card packs~~ (#10), ~~Spells~~ (#17), ~~More hero choice~~ (#19), ~~Mulligan~~ (#14), ~~Seasons~~ (#12, end
+   screen #30), ~~Smarter Hard bot~~ (#13), ~~Emotes and friendly challenges~~ (#15, no rewards #30): **Done**.
+8. **Lost original cards**: only with an old persoft.no backup.
 
 ### P3: platform and operations
 
-13. **Persistent games**: restart survival **done** (#23). *Still to do* for more than one replica: the design in the
-    README.
-14. ~~Encrypted Data Protection keys~~ (#7), ~~Observability~~ (#6, opt-in in production), ~~Backups~~ (#9): **Done**.
-15. **Import the legacy MySQL data** if the old database turns up.
-16. **Classic client**: polished (#25). Decide whether it stays (port to a current PixiJS) or the 3D client's
-    classic view replaces it.
+9. ~~Persistent games~~ (#23, #30), ~~encrypted Data Protection keys~~ (#7), ~~observability~~ (#6, opt-in in
+   production), ~~backups~~ (#9): **Done**.
+10. **More than one game server replica**: not planned (see section 7); the design is in the README.
+11. **Import the legacy MySQL data** if the old database turns up.
 
-## 9. Open decisions for the owner
+## 9. Decisions taken (31 October)
 
-- **Class retune**: run the simulator's `--tune` now, or wait for real games?
-- **Art**: keep the generated portraits, or commission or license painted art? Keep the third-party images in the
-  original cards?
-- **Lost cards**: is there an old database backup from persoft.no?
-- **Hosting**: which cluster or VM? Both Compose and Kubernetes (Gateway API) are ready.
-- **Classic client**: keep it, port it, or retire it in favour of the 3D client's classic view?
-- **Old branches**: delete the merged remote branches (`feature/*`, `fix/*`, `polish/*`, `modernize/dotnet10`)?
+The owner delegated the open decisions:
+
+- **Class balance**: retuned now with the simulator (#29); own-race decks next.
+- **Art**: keep the 2014 originals; improve the generated portraits (#28) instead of commissioning art.
+- **Classic client**: keep it as it is (polished, tested); no port to a current PixiJS.
+- **Friendly games**: no coins, quests, rating or season points (#30).
+- **Game server replicas**: one, with restart survival.
+- **Lost cards**: not searched further.
+
+Still open, because they need the owner's accounts or hardware:
+
+- **Hosting**: which cluster or VM (Compose and Kubernetes with the Gateway API are ready).
+- **Old branches**: the merged remote branches (`feature/*`, `fix/*`, `polish/*`, `balance/*`, `art/*`, `docs/*`,
+  `modernize/dotnet10`) can be deleted; the session was not allowed to delete remote branches.
 
 ## 10. Picking the work up in a new session
 
 1. Clone and stay on `main`.
-2. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (171 tests).
+2. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (175 tests).
 3. `./deploy/compose/init-secrets.sh` and `docker compose up -d --build`; open <https://localhost>.
 4. For browser tests: `cd tests/e2e && npm ci`, then the commands in its README.
 5. Read sections 6 to 9 above and start at the first item that is not done.
