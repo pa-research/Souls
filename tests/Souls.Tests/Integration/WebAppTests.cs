@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Souls.Model;
 using Souls.Model.Entities;
+using PaintedPortraits = Souls.Model.Migrations.PaintedPortraits;
 
 namespace Souls.Tests.Integration;
 
@@ -613,5 +614,36 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Upload a portrait or use one of the built-in portraits.", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.False(await app.WithDbAsync(db => db.Cards.AnyAsync(c => c.Name == "Evil")));
+    }
+
+    [Fact]
+    public async Task PaintedPortraitsMigrationRenamesOldBuiltInPortraitsOfEditorCards()
+    {
+        const string dir = "/Content/Images/Card/Portraits/";
+        // Cards made in the admin editor, with old built-in names, a kept name and an upload.
+        string[] before = [dir + "3.png", dir + "15.png", dir + "6.gif", dir + "16.jpg", "/Images/Uploaded/0123456789abcdef0123456789abcdef.png"];
+        string[] up = [dir + "3.jpg", dir + "5.jpg", dir + "0.jpg", dir + "16.jpg", before[4]];
+        string[] down = [dir + "3.png", dir + "5.png", dir + "0.png", dir + "16.jpg", before[4]];
+        var ids = Enumerable.Range(9900, before.Length).ToArray();
+        Task<string?[]> Portraits() => app.WithDbAsync(async db =>
+            (await db.Cards.AsNoTracking().Where(c => ids.Contains(c.Id)).OrderBy(c => c.Id).Select(c => c.Portrait).ToListAsync()).ToArray());
+        Task Run(string sql) => app.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(sql));
+
+        await app.WithDbAsync(db =>
+        {
+            db.Cards.AddRange(ids.Select((id, i) => new Card { Id = id, Name = "Editor " + i, Cost = 1, Health = 1, Level = 2, VendorPrice = 1, Portrait = before[i] }));
+            return db.SaveChangesAsync();
+        });
+        try
+        {
+            await Run(PaintedPortraits.RewriteSql(PaintedPortraits.Renamed));
+            Assert.Equal(up, await Portraits());
+            await Run(PaintedPortraits.RewriteSql(PaintedPortraits.Reverted));
+            Assert.Equal(down, await Portraits());
+        }
+        finally
+        {
+            await app.WithDbAsync(db => db.Cards.Where(c => ids.Contains(c.Id)).ExecuteDeleteAsync());
+        }
     }
 }

@@ -20,6 +20,12 @@ const SPELL = 60, CLASS_CARD = 70;
     const deliberate = m => /status of 40[34]/.test(m.text()) && /\/(nope|Status\/404|AccessDenied.*)$/.test(page.url());
     page.on('console', m => { if (m.type() === 'error' && !/api\.github/.test(m.text()) && !deliberate(m)) problems.push(`${device} ${page.url()}: ${m.text()}`); });
     const shot = async (name, fullPage = true) => {
+      // Card portraits load lazily and decode off the main thread (blank until decoded): a full-page shot loads and
+      // decodes them all first.
+      if (fullPage) {
+        await page.evaluate(() => document.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; i.decoding = 'sync'; }));
+        await page.waitForFunction(() => [...document.images].every(i => i.complete), null, { timeout: 30000 }).catch(() => problems.push(`${device} ${name}: images still loading`));
+      }
       await page.waitForTimeout(700);
       const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (wide > 0) problems.push(`${device} ${name}: the page scrolls ${wide}px sideways`);
