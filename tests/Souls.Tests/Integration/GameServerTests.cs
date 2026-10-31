@@ -343,7 +343,26 @@ public class GameServerTests(SoulsAppFixture app)
                     ["promoted"] = promoted,
                     ["demoted"] = !promoted,
                 };
-                Assert.True(JsonNode.DeepEquals(expected, actual), actual?.ToJsonString());
+                // The texts' keys (nameKey, tierKey, ...) are checked by LocalizationTests.
+                Assert.True(JsonNode.DeepEquals(expected, WithoutKeys(actual?.DeepClone())), actual?.ToJsonString());
+            }
+
+            static JsonNode? WithoutKeys(JsonNode? node)
+            {
+                if (node is JsonObject o)
+                {
+                    foreach (var name in o.Select(p => p.Key).Where(k => k.EndsWith("Key", StringComparison.Ordinal) || k.EndsWith("Args", StringComparison.Ordinal)).ToList())
+                    {
+                        o.Remove(name);
+                    }
+
+                    foreach (var (_, child) in o)
+                    {
+                        WithoutKeys(child);
+                    }
+                }
+
+                return node;
             }
         }
     }

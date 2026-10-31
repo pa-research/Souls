@@ -1,6 +1,8 @@
 define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hud) {
 
     var that;
+    var L10n = window.SoulsL10n;
+    var T = L10n.t;
     ChatService = function (engine) {
         console.log("> Chat loaded!");
         that = this;
@@ -48,23 +50,23 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
     }
 
     function Response_NewGameRoom(json) {
-        AppendLine("[" + json.Payload.name + "]: " + json.Payload.message);
+        AppendLine("[" + json.Payload.name + "]: " + L10n.text(json.Payload, 'message'));
         that.room = json.Payload.chRoomId;
     }
 
     function Response_Message(json) {
-        AppendLine("[" + json.Payload.name + "]: " + json.Payload.message);
+        AppendLine("[" + json.Payload.name + "]: " + L10n.text(json.Payload, 'message'));
         Asset.GetSound(Asset.Sound.EMOTE).play({ volume: 0.45 });
     }
 
     function Response_ClientDisconnected(json) // 1095
     {
-        AppendLine(String(json.Payload), true);
+        AppendLine(L10n.text(json, 'Payload'), true);
     }
 
     function Response_ClientConnected(json) // 1094
     {
-        AppendLine("Player " + json.Payload.name + " connected!", true);
+        AppendLine(T('classic.chat.connected', { name: json.Payload.name }), true);
         that.room = json.Payload.room;
         that.GetAttendees(json.Payload.room);
     }
@@ -73,7 +75,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
     {
         var names = [];
         for (var key in json.Payload) names.push(String(json.Payload[key]));
-        if (that.members) that.members.textContent = names.length ? 'In the room: ' + names.join(' · ') : '';
+        if (that.members) that.members.textContent = names.length ? T('classic.chat.members', { names: names.join(' · ') }) : '';
     }
 
 
@@ -127,12 +129,12 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
     ChatService.prototype.OpenChatWindow = function () {
         var that = this;
         var panel = this.panel = Hud.El('section', 'sg-log souls-classic-chat collapsed', Hud.Root());
-        panel.setAttribute('aria-label', 'Chat');
+        panel.setAttribute('aria-label', T('classic.chat'));
         var head = Hud.El('button', 'sg-log-head', panel);
         head.type = 'button';
         head.setAttribute('aria-expanded', 'false');
         head.appendChild(Hud.Icon('chat'));
-        Hud.Text(head, 'Chat');
+        Hud.Text(head, T('classic.chat'));
         this.badge = Hud.El('span', 'sg-log-badge', head);
         head.appendChild(Hud.Icon('chevron-down', 's-icon sg-chevron'));
         this.list = Hud.El('ol', 'sg-log-list', panel);
@@ -141,8 +143,8 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
         var input = Hud.El('textarea', 'souls-classic-chat-input', panel);
         input.rows = 1;
         input.maxLength = 500;
-        input.placeholder = 'Say something...';
-        input.setAttribute('aria-label', 'Chat message');
+        input.placeholder = T('classic.chat.placeholder');
+        input.setAttribute('aria-label', T('classic.chat.message'));
         this.unread = 0;
 
         head.addEventListener('click', function () {
@@ -209,7 +211,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
 
 
     ChatService.prototype.TrafficHandler = function (json) {
-        ChatService.prototype.networkBuffer.push(JSON.parse(json.data));
+        ChatService.prototype.networkBuffer.push(window.SoulsL10n.localizeMessage(JSON.parse(json.data)));
     }
 
 

@@ -1,11 +1,11 @@
 @model DeckViewModel
 <div class="s-page-head">
     <div>
-        <div class="s-eyebrow">Deck builder</div>
-        <h1 class="s-h1 s-gold-text">Your Deck</h1>
-        <p>Pick exactly @Model.DeckSize cards: at most @Model.MaxCopies copies of a common card, @Model.MaxRare of a rare, @Model.MaxEpic of an epic and @Model.MaxLegendary of a legendary. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.</p>
+        <div class="s-eyebrow">@L["Deck builder"]</div>
+        <h1 class="s-h1 s-gold-text">@L["Your Deck"]</h1>
+        <p>@L["Pick exactly {0} cards: at most {1} copies of a common card, {2} of a rare, {3} of an epic and {4} of a legendary. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero.", Model.DeckSize, Model.MaxCopies, Model.MaxRare, Model.MaxEpic, Model.MaxLegendary]</p>
     </div>
-    <a class="s-btn s-btn-ghost" asp-controller="Shop" asp-action="Index"><s-icon name="shop" />Get more cards</a>
+    <a class="s-btn s-btn-ghost" asp-controller="Shop" asp-action="Index"><s-icon name="shop" />@L["Get more cards"]</a>
 </div>
 
 @{
@@ -13,24 +13,24 @@
     var powerIcons = new Dictionary<int, string> { [1] = "flame", [2] = "droplet", [3] = "sparkles", [4] = "shield-plus", [5] = "skull", [6] = "heart-pulse", [7] = "shield", [8] = "castle" };
 }
 <form asp-controller="Deck" asp-action="HeroPower" method="post" id="power-form" class="s-panel mb-4">
-    <div class="s-panel-head"><s-icon name="zap" /><h2>Hero power</h2></div>
-    <p class="s-small s-muted">@Model.ClassName can use one of two powers (@Model.HeroPowerCost mana, once per turn). Your pick is used from your next game.</p>
-    <div class="s-grid s-classes s-powers" role="radiogroup" aria-label="Hero power">
+    <div class="s-panel-head"><s-icon name="zap" /><h2>@L["Hero power"]</h2></div>
+    <p class="s-small s-muted">@L["{0} can use one of two powers ({1} mana, once per turn). Your pick is used from your next game.", Model.ClassName, Model.HeroPowerCost]</p>
+    <div class="s-grid s-classes s-powers" role="radiogroup" aria-label="@L["Hero power"]">
         @foreach (var option in Model.HeroPowers)
         {
             <label class="s-class" for="power-@option.Id" data-power-id="@option.Id">
                 <input type="radio" name="power" id="power-@option.Id" value="@option.Id" checked="@option.Selected" />
                 <span class="s-class-card">
                     <span class="s-class-body">
-                        <span class="s-class-race"><s-icon name="@(powerIcons.GetValueOrDefault(option.Id, "zap"))" />@(option.Selected ? "Your hero power" : "Alternative")</span>
-                        <span class="s-class-name d-block">@option.Power.Name</span>
-                        <span class="s-class-text d-block">@option.Power.Text</span>
+                        <span class="s-class-race"><s-icon name="@(powerIcons.GetValueOrDefault(option.Id, "zap"))" />@(option.Selected ? L["Your hero power"] : L["Alternative"])</span>
+                        <span class="s-class-name d-block">@T(option.Power.Name)</span>
+                        <span class="s-class-text d-block">@T(option.Power.Text)</span>
                     </span>
                 </span>
             </label>
         }
     </div>
-    <button type="submit" class="s-btn s-btn-primary s-btn-sm mt-3" id="power-save"><s-icon name="save" />Use this power</button>
+    <button type="submit" class="s-btn s-btn-primary s-btn-sm mt-3" id="power-save"><s-icon name="save" />@L["Use this power"]</button>
 </form>
 
 <form asp-controller="Deck" asp-action="Save" method="post" id="deck-form" data-deck-size="@Model.DeckSize" data-max-copies="@Model.MaxCopies">
@@ -41,32 +41,32 @@
                 <article class="s-card-wrap deck-card rarity-@entry.Card.RarityCss" data-card-name="@entry.Card.Name" data-cost="@entry.Card.Cost" data-max="@entry.Card.MaxCopies" data-rarity="@entry.Card.RarityCss" data-class="@entry.Card.ClassName">
                     <partial name="_CardTile" model="entry.Card" />
                     <h2 class="s-card-name h6 mb-0">@entry.Card.Name</h2>
-                    <span class="s-rarity">@entry.Card.RarityName@(entry.Card.Spell ? " · Spell" : "") &middot; max @entry.Card.MaxCopies@(entry.Card.ClassName is null ? "" : $" · {entry.Card.ClassName} only")</span>
+                    <span class="s-rarity">@entry.Card.RarityName@(entry.Card.Spell ? " · " + L["Spell"] : "") &middot; @L["max {0}", entry.Card.MaxCopies]@(entry.Card.ClassName is null ? "" : " · " + L["{0} only", entry.Card.ClassName])</span>
                     @if (!string.IsNullOrEmpty(entry.Card.Description))
                     {
                         <p class="s-card-desc">@entry.Card.Description</p>
                     }
                     <div class="s-stepper">
-                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-minus" aria-label="One copy less of @entry.Card.Name"><s-icon name="minus" /></button>
-                        <label class="s-sr-only" for="count_@entry.Card.Id">Copies of @entry.Card.Name</label>
+                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-minus" aria-label="@L["One copy less of {0}", entry.Card.Name]"><s-icon name="minus" /></button>
+                        <label class="s-sr-only" for="count_@entry.Card.Id">@L["Copies of {0}", entry.Card.Name]</label>
                         <input class="s-input deck-count" type="number" min="0" max="@entry.Card.MaxCopies" step="1" inputmode="numeric"
                                id="count_@entry.Card.Id" name="count[@entry.Card.Id]" value="@entry.Count" />
-                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-plus" aria-label="One copy more of @entry.Card.Name"><s-icon name="plus" /></button>
+                        <button type="button" class="s-btn s-btn-ghost s-btn-icon s-btn-sm deck-plus" aria-label="@L["One copy more of {0}", entry.Card.Name]"><s-icon name="plus" /></button>
                     </div>
                 </article>
             }
         </div>
 
-        <aside class="s-panel s-deck-side" aria-label="Deck summary">
-            <div class="s-panel-head"><s-icon name="deck" /><h2>Deck</h2></div>
-            <div class="s-deck-count" id="deck-count"><b><span id="deck-total">@Model.Entries.Sum(e => e.Count)</span></b><span class="s-muted">/ @Model.DeckSize cards</span></div>
-            <p class="s-small s-muted mb-0">@(Model.Custom ? "You play with your own deck." : "You play with the automatic deck (your cards spread evenly) until you save one.")</p>
-            <div class="s-curve" id="deck-curve" aria-label="Mana curve"></div>
+        <aside class="s-panel s-deck-side" aria-label="@L["Deck summary"]">
+            <div class="s-panel-head"><s-icon name="deck" /><h2>@L["Deck"]</h2></div>
+            <div class="s-deck-count" id="deck-count"><b><span id="deck-total">@Model.Entries.Sum(e => e.Count)</span></b><span class="s-muted">@L["/ {0} cards", Model.DeckSize]</span></div>
+            <p class="s-small s-muted mb-0">@(Model.Custom ? L["You play with your own deck."] : L["You play with the automatic deck (your cards spread evenly) until you save one."])</p>
+            <div class="s-curve" id="deck-curve" aria-label="@L["Mana curve"]"></div>
             <div class="s-curve-labels" aria-hidden="true"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7+</span></div>
-            <ul class="s-decklist s-scroll" id="deck-list" aria-label="Cards in the deck"></ul>
+            <ul class="s-decklist s-scroll" id="deck-list" aria-label="@L["Cards in the deck"]"></ul>
             <div class="d-grid gap-2">
-                <button type="submit" class="s-btn s-btn-primary s-btn-lg" id="deck-save"><s-icon name="save" />Save deck</button>
-                <button type="submit" form="deck-reset" class="s-btn s-btn-ghost s-btn-sm">Use the automatic deck</button>
+                <button type="submit" class="s-btn s-btn-primary s-btn-lg" id="deck-save"><s-icon name="save" />@L["Save deck"]</button>
+                <button type="submit" form="deck-reset" class="s-btn s-btn-ghost s-btn-sm">@L["Use the automatic deck"]</button>
             </div>
         </aside>
     </div>

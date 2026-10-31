@@ -19,6 +19,9 @@ public static class Rarity
     /// <summary>Lower-case name used as a CSS class and in the game clients.</summary>
     public static string Css(int rarity) => Name(rarity).ToLowerInvariant();
 
+    /// <summary>The name in the reader's language.</summary>
+    public static Localization.GameText Text(int rarity) => new("rarity." + Css(rarity));
+
     /// <summary>How many copies of a card of this rarity a deck may hold.</summary>
     public static int MaxCopies(int rarity) => rarity switch
     {

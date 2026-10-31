@@ -1,6 +1,6 @@
 @model GameConfig
 @{
-    ViewData["Title"] = "Play";
+    ViewData["Title"] = L["Play"].Value;
     ViewData["FullScreen"] = true;
 }
 <div id="game-window"></div>
@@ -9,20 +9,26 @@
 <div id="sg-boot" class="sg-boot" role="status">
     <img class="sg-logo" src="~/Content/Images/logo.png" alt="Souls" />
     <div class="sg-rings" aria-hidden="true"></div>
-    <div class="sg-loading-text">Entering the arena</div>
+    <div class="sg-loading-text">@L["Entering the arena"]</div>
 </div>
 
 @* Asked by both clients before leaving a running game (SoulsGameMode.leave in /js/game-mode.js). *@
 <dialog id="sg-leave" class="s-panel s-modal sg-leave" aria-labelledby="sg-leave-title" aria-describedby="sg-leave-text" closedby="any">
     <form method="dialog">
-        <div class="s-panel-head"><s-icon name="logout" /><h2 id="sg-leave-title">Leave the game?</h2></div>
-        <p id="sg-leave-text">You lose it if you do not come back within a minute.</p>
+        <div class="s-panel-head"><s-icon name="logout" /><h2 id="sg-leave-title">@L["Leave the game?"]</h2></div>
+        <p id="sg-leave-text">@L["You lose it if you do not come back within a minute."]</p>
         <div class="sg-leave-actions">
-            <button value="stay" class="s-btn s-btn-ghost"><s-icon name="arrow-left" />Stay</button>
-            <button value="leave" class="s-btn s-btn-danger" autofocus><s-icon name="logout" />Leave game</button>
+            <button value="stay" class="s-btn s-btn-ghost"><s-icon name="arrow-left" />@L["Stay"]</button>
+            <button value="leave" class="s-btn s-btn-danger" autofocus><s-icon name="logout" />@L["Leave game"]</button>
         </div>
     </form>
 </dialog>
+
+@* The clients' language switch (SoulsL10n.setLanguage in /js/l10n.js) posts this form. *@
+<form id="sg-language" asp-controller="Home" asp-action="Language" method="post" hidden>
+    <input type="hidden" name="language" />
+    <input type="hidden" name="returnUrl" value="@($"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}")" />
+</form>
 
 @* Settings for the game client. JSON is HTML-escaped by the serializer, so it is safe inside the script element. *@
 <script type="application/json" id="souls-game-config">@Json.Serialize(Model)</script>
@@ -31,5 +37,6 @@
     <link rel="stylesheet" href="~/css/game-hud.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/game3d.css" asp-append-version="true" />
     @* Loads the classic (PixiJS) or the modern 3D (three.js) client and renders the switch between them. *@
+    <script src="~/js/l10n.js" asp-append-version="true"></script>
     <script src="~/js/game-mode.js" asp-append-version="true"></script>
 }

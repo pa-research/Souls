@@ -10,26 +10,26 @@ public static class Decks
     /// Checks a deck against the cards the player owns (card id to rarity). Returns an error message, or <c>null</c>
     /// if it is valid.
     /// </summary>
-    public static string? Validate(IEnumerable<(int CardId, int Count)> deck, IReadOnlyDictionary<int, int> owned)
+    public static Localization.GameText? Validate(IEnumerable<(int CardId, int Count)> deck, IReadOnlyDictionary<int, int> owned)
     {
         var total = 0;
         foreach (var (cardId, count) in deck)
         {
             if (count > 0 && !owned.ContainsKey(cardId))
             {
-                return "You can only put cards you own in your deck.";
+                return new("deck.notOwned");
             }
 
             var max = owned.TryGetValue(cardId, out var rarity) ? Rarity.MaxCopies(rarity) : GameRules.MaxCopiesInDeck;
             if (count < 0 || count > max)
             {
-                return $"A deck can hold at most {max} {(max == 1 ? "copy" : "copies")} of a {Rarity.Name(rarity).ToLowerInvariant()} card.";
+                return new("deck.maxCopies." + Rarity.Css(rarity), ("n", max));
             }
 
             total += count;
         }
 
-        return total == GameRules.DeckSize ? null : $"A deck has exactly {GameRules.DeckSize} cards (this one has {total}).";
+        return total == GameRules.DeckSize ? null : new("deck.size", ("size", GameRules.DeckSize), ("count", total));
     }
 
     /// <summary>

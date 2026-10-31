@@ -29,8 +29,9 @@ RUN dotnet publish src/Souls.Web/Souls.Web.csproj -c Release -o /out/web --no-re
     dotnet publish src/Souls.Server/Souls.Server.csproj -c Release -o /out/server --no-restore -p:UseAppHost=false
 
 # Chiseled ("distroless") Ubuntu image: no shell or package manager, runs as the non-root
-# user "app" (UID 1654). The apps use invariant globalization, so ICU is not needed.
-FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-noble-chiseled AS runtime
+# user "app" (UID 1654). The "extra" variant has ICU: the web site formats dates and numbers in
+# the page's language (the game server uses invariant globalization and leaves it unused).
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-noble-chiseled-extra AS runtime
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     ASPNETCORE_ENVIRONMENT=Production \

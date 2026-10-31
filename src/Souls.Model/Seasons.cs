@@ -32,6 +32,15 @@ public static class Seasons
         _ => (5, false),
     };
 
+    /// <summary>
+    /// The name of a season with the default name ("Season 3") in the reader's language, or <c>null</c> for a name an
+    /// administrator gave it (shown as it is).
+    /// </summary>
+    public static Localization.GameText? NameText(Season season) =>
+        season.Name == DefaultName(season.Number) ? new Localization.GameText("season.name", ("n", season.Number)) : null;
+
+    public static string DefaultName(int number) => $"Season {number}";
+
     public static Task<Season?> CurrentAsync(SoulsDbContext db, CancellationToken ct = default) =>
         db.Seasons.AsNoTracking().OrderByDescending(s => s.Number).FirstOrDefaultAsync(ct);
 
@@ -67,7 +76,7 @@ public static class Seasons
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             season.EndsAt = now;
-            db.Seasons.Add(new Season { Number = season.Number + 1, Name = $"Season {season.Number + 1}", StartsAt = now, EndsAt = now + options.Length });
+            db.Seasons.Add(new Season { Number = season.Number + 1, Name = DefaultName(season.Number + 1), StartsAt = now, EndsAt = now + options.Length });
             try
             {
                 await db.SaveChangesAsync(ct);

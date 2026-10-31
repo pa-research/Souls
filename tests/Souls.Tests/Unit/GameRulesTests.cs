@@ -975,8 +975,8 @@ public class GameRulesTests
     {
         var owned = new Dictionary<int, int> { [1] = Rarity.Common, [2] = Rarity.Rare, [3] = Rarity.Epic, [4] = Rarity.Legendary, [5] = Rarity.Common, [6] = Rarity.Common, [7] = Rarity.Common };
         Assert.Null(Decks.Validate([(1, 4), (2, 3), (3, 2), (4, 1), (5, 4), (6, 4), (7, 2)], owned));
-        Assert.Contains("1 copy of a legendary", Decks.Validate([(1, 4), (2, 3), (3, 2), (4, 2), (5, 4), (6, 4), (7, 1)], owned));
-        Assert.Contains("2 copies of a epic", Decks.Validate([(1, 4), (2, 3), (3, 3), (4, 1), (5, 4), (6, 4), (7, 1)], owned));
+        Assert.Contains("1 copy of a legendary", Decks.Validate([(1, 4), (2, 3), (3, 2), (4, 2), (5, 4), (6, 4), (7, 1)], owned)?.ToString());
+        Assert.Contains("2 copies of an epic", Decks.Validate([(1, 4), (2, 3), (3, 3), (4, 1), (5, 4), (6, 4), (7, 1)], owned)?.ToString());
 
         // The automatic deck respects the limits too.
         var cards = owned.Select(x => new Model.Entities.Card { Id = x.Key, Name = "c" + x.Key, Rarity = x.Value }).ToList();

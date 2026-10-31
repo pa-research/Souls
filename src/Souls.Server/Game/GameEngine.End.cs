@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
+using Souls.Model.Localization;
 using Souls.Model.Entities;
 using Souls.Server.Network;
 using Player = Souls.Server.Objects.Player;
@@ -32,17 +33,16 @@ public sealed partial class GameEngine
         var opponent = room.Players.Second;
         var winner = isDraw ? null : room.Winner ?? opponent;
         var loser = winner is null ? null : winner == player ? opponent : player;
-        var text = winner is null ? $"{player.Name} and {opponent.Name} play a draw." : $"{winner.Name} wins against {loser!.Name}!";
+        var text = winner is null
+            ? new GameText("log.draw", ("first", player.Name), ("second", opponent.Name))
+            : new GameText("log.win", ("winner", winner.Name), ("loser", loser!.Name));
         metrics.GameFinished(room.IsPractice ? "practice" : "normal", isDraw ? "draw" : player.GPlayer!.IsDead || opponent.GPlayer!.IsDead ? "win" : "forfeit");
         room.Logger.Add(isDraw ? GameLogKind.Draw : GameLogKind.Won, (winner ?? player).Id, (loser ?? opponent).Id, "Player", "Player", text);
         room.LogLine(text);
         room.FlushEvents();
 
-        var end = new JsonObject
-        {
-            ["winner"] = winner is null ? 0 : winner.GPlayer!.Ident,
-            ["text"] = text,
-        };
+        var end = new JsonObject { ["winner"] = winner is null ? 0 : winner.GPlayer!.Ident };
+        text.WriteTo(end, "text");
         room.Record(new Response(GameResponse.SpectateEnd, end));
 
         var rewards = new Dictionary<Player, Reward>();
@@ -59,7 +59,8 @@ public sealed partial class GameEngine
 
         Response Result(Player p)
         {
-            var payload = new JsonObject { ["statistics"] = room.GameId, ["text"] = text };
+            var payload = new JsonObject { ["statistics"] = room.GameId };
+            text.WriteTo(payload, "text");
             if (room.IsFriendly)
             {
                 payload["friendly"] = true;
@@ -189,14 +190,13 @@ public sealed partial class GameEngine
             rewards[p] = new Reward(coins + questCoins, change, entity.Rating, new JsonArray([.. quests.Select(q =>
             {
                 var definition = Quests.Get(q.Kind);
-                return (JsonNode)new JsonObject
-                {
-                    ["text"] = definition.Text,
-                    ["progress"] = q.Progress,
-                    ["target"] = definition.Target,
-                    ["reward"] = definition.Reward,
-                    ["done"] = q.CompletedAt is not null,
-                };
+                var quest = new JsonObject();
+                definition.Text.WriteTo(quest, "text");
+                quest["progress"] = q.Progress;
+                quest["target"] = definition.Target;
+                quest["reward"] = definition.Reward;
+                quest["done"] = q.CompletedAt is not null;
+                return (JsonNode)quest;
             })]), season is null ? null : SeasonResult(season, before, entity.Rating));
         }
 
@@ -212,20 +212,21 @@ public sealed partial class GameEngine
     private static JsonObject SeasonResult(Season season, int before, int after)
     {
         var (from, to) = (Ratings.RankOf(before), Ratings.RankOf(after));
-        return new JsonObject
-        {
-            ["number"] = season.Number,
-            ["name"] = season.Name,
-            ["before"] = Rank(before, from),
-            ["after"] = Rank(after, to),
-            ["promoted"] = to > from,
-            ["demoted"] = to < from,
-        };
+        var result = new JsonObject { ["number"] = season.Number, ["name"] = season.Name };
+        Seasons.NameText(season)?.WriteTo(result, "name");
+        result["before"] = Rank(before, from);
+        result["after"] = Rank(after, to);
+        result["promoted"] = to > from;
+        result["demoted"] = to < from;
+        return result;
 
         static JsonObject Rank(int rating, int rank)
         {
             var tier = Ratings.TierOf(rank);
-            return new JsonObject { ["rating"] = rating, ["rank"] = rank, ["tier"] = tier.ToString(), ["css"] = tier.Css };
+            var json = new JsonObject { ["rating"] = rating, ["rank"] = rank };
+            tier.Text.WriteTo(json, "tier");
+            json["css"] = tier.Css;
+            return json;
         }
     }
 
@@ -239,10 +240,10 @@ public sealed partial class GameEngine
 
         if (reason is { } kind)
         {
-            room.Logger.Add(kind, player.Id, player.Id, "Player", "Player", $"{player.Name} left the game.");
+            room.Logger.Add(kind, player.Id, player.Id, "Player", "Player", new GameText("log.left", ("player", player.Name)));
         }
 
-        room.LogLine($"{player.Name} left the game.");
+        room.LogLine(new GameText("log.left", ("player", player.Name)));
         room.Winner = player.GetOpponent();
         await EndGameAsync(room, isDraw: false);
     }
@@ -258,13 +259,13 @@ public sealed partial class GameEngine
     {
         if (player.GPlayer is not null || player.InQueue)
         {
-            player.Send(new Response(GameResponse.SpectateError, "Leave the queue or finish your game first."));
+            player.Send(new Response(GameResponse.SpectateError, new GameText("spectate.busy")));
             return;
         }
 
         if (!state.Rooms.TryGetValue(gameId, out var room) || room.IsEnded)
         {
-            player.Send(new Response(GameResponse.SpectateError, "That game is over."));
+            player.Send(new Response(GameResponse.SpectateError, new GameText("spectate.over")));
             return;
         }
 

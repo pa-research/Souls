@@ -2,20 +2,23 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Souls.Model;
 using Souls.Model.Entities;
+using Souls.Model.Localization;
 using Souls.Model.Security;
 using Souls.Web.Models;
+using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
-public sealed class GameController(SoulsDbContext db, IConfiguration configuration, TimeProvider time) : Controller
+public sealed class GameController(SoulsDbContext db, IConfiguration configuration, TimeProvider time, IStringLocalizer<SharedResource> localizer) : Controller
 {
     /// <summary>The game client. It connects to the game server's WebSockets with the login cookie.</summary>
     /// <param name="watch">A running game to spectate (3D client).</param>
     public async Task<IActionResult> Index(int? watch, CancellationToken ct)
     {
-        ViewData["Title"] = watch is null ? "Play" : "Watch";
+        ViewData["Title"] = watch is null ? localizer["Play"].Value : localizer["Watch"].Value;
         return View(await ConfigAsync(ct) with { Watch = watch });
     }
 
@@ -27,7 +30,7 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
             return NotFound();
         }
 
-        ViewData["Title"] = "Replay";
+        ViewData["Title"] = localizer["Replay"].Value;
         return View("Index", await ConfigAsync(ct) with { ReplayUrl = Url.Action(nameof(ReplayData), new { id }), ReplayGameId = id });
     }
 
@@ -45,7 +48,14 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
             .Select(c => new CardPortrait(c.Id, c.Portrait ?? CardTile.DefaultPortrait))
             .ToListAsync(ct);
         var heroTypes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
-        return new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards) { Rules = RulesConfig.Create(heroTypes), Profile = await ProfileAsync(ct) };
+        return new GameConfig(configuration["Souls:GameServerUrl"] ?? "/ws", cards)
+        {
+            Rules = RulesConfig.Create(heroTypes),
+            Profile = await ProfileAsync(ct),
+            Lang = Localized.Language,
+            Strings = Strings.Table(Localized.Language),
+            Languages = [.. Strings.Languages.Select(l => new LanguageOption(l, Localized.LanguageName(l)))],
+        };
     }
 
     private async Task<GameProfile?> ProfileAsync(CancellationToken ct)
@@ -67,16 +77,16 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
         var quests = (await Quests.EnsureTodayAsync(db, playerId, time, ct)).Select(q =>
         {
             var definition = Quests.Get(q.Kind);
-            return new QuestView(definition.Text, q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
+            return new QuestView(Localized.T(definition.Text), q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
         }).ToList();
         var tier = Ratings.TierOf(player.Rank);
-        return new GameProfile(player.Name, player.PlayerTypeId, player.Type, player.Rating, player.Rank, tier.ToString(), tier.Css, Ratings.RankProgress(player.Rating), player.Money, quests);
+        return new GameProfile(player.Name, player.PlayerTypeId, player.Type, player.Rating, player.Rank, Localized.T(tier.Text), tier.Css, Ratings.RankProgress(player.Rating), player.Money, quests);
     }
 
     [AllowAnonymous]
     public async Task<IActionResult> Stats(int id, CancellationToken ct)
     {
-        ViewData["Title"] = "Stats";
+        ViewData["Title"] = localizer["Stats"].Value;
         var game = await db.Games.AsNoTracking()
             .Include(g => g.Player1).ThenInclude(p => p!.PlayerType)
             .Include(g => g.Player2).ThenInclude(p => p!.PlayerType)
@@ -109,7 +119,20 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
         });
     }
 
-    private static string Describe(GameLog entry, Player[] players, Dictionary<int, Card> cards)
+    /// <summary>A stored log line in the reader's language (games before the string tables have their English text).</summary>
+    private static StatsLine Describe(GameLog entry, Player[] players, Dictionary<int, Card> cards)
+    {
+        if (entry.TextKey is { } key)
+        {
+            var stored = GameText.FromJson(key, entry.TextArgs);
+            var args = stored.Args?.ToDictionary(a => a.Key, a => a.Value is string name ? Localized.PlayerName(name) : a.Value);
+            return new StatsLine(new GameText(key, args).In(Localized.Language), key);
+        }
+
+        return new StatsLine(DescribeLegacy(entry, players, cards), null);
+    }
+
+    private static string DescribeLegacy(GameLog entry, Player[] players, Dictionary<int, Card> cards)
     {
         if (!string.IsNullOrEmpty(entry.Text))
         {

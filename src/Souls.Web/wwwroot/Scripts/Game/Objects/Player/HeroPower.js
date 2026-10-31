@@ -17,6 +17,7 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
     var DRAG_PX = 10;       // moving further than this from the press turns it into a drag
     var OWN_SCALE = 1.2;    // relative to the board scale: about the 3D client's size next to the classic hero frame
     var FOE_SCALE = 0.95;
+    var T = window.SoulsL10n.t;
 
     HeroPower = function (engine, owner, interactive) {
         this.engine = engine;
@@ -46,7 +47,7 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
         this.orb.appendChild(this.icon);
         this.costText = Hud.El('span', 'sg-power-cost', this.orb, String(this.cost));
         this.costText.setAttribute('aria-hidden', 'true');
-        this.label = Hud.El('span', 'sg-power-name', el, 'Hero power');
+        this.label = Hud.El('span', 'sg-power-name', el, T('classic.heroPower'));
         this.label.setAttribute('aria-hidden', 'true');
 
         this.Bind();
@@ -108,7 +109,7 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
         this.cost = Rules.PowerCost(heroType);
         this.costText.textContent = String(this.cost);
         var power = Rules.HeroPower(heroType);
-        this.label.textContent = power ? power.name : 'Hero power';
+        this.label.textContent = power ? power.name : T('classic.heroPower');
         var icon = Hud.Icon(ICONS[heroType] || 'zap');
         this.orb.replaceChild(icon, this.icon);
         this.icon = icon;
@@ -137,7 +138,7 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
         var el = this.el;
         var ready = this.Usable();
         var power = Rules.HeroPower(this.heroType);
-        var name = power ? power.name : 'Hero power';
+        var name = power ? power.name : T('classic.heroPower');
 
         el.classList.toggle('ready', ready && !this.armed && !this.aiming);
         el.classList.toggle('armed', this.armed || this.aiming);
@@ -146,11 +147,11 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
         if (this.isOwn) {
             el.setAttribute('aria-disabled', String(!ready));
             el.setAttribute('aria-pressed', String(this.armed));
-            var state = this.used ? ', used this turn' : (ready ? '' : ', not available now');
-            el.setAttribute('aria-label', 'Hero power: ' + name + ' (' + this.cost + ' mana)' + state);
+            var state = this.used ? 'classic.power.aria.used' : (ready ? 'classic.power.aria' : 'classic.power.aria.unavailable');
+            el.setAttribute('aria-label', T(state, { name: name, n: this.cost }));
         }
         else {
-            el.setAttribute('aria-label', "Opponent's hero power: " + name + ' (' + this.cost + ' mana)' + (this.used ? ', used this turn' : ''));
+            el.setAttribute('aria-label', T(this.used ? 'classic.power.ariaFoe.used' : 'classic.power.ariaFoe', { name: name, n: this.cost }));
         }
     }
 
@@ -201,10 +202,10 @@ define("heropower", ["hud", "rules", "animation"], function (Hud, Rules, Animati
 
     /// Why the power cannot be used right now.
     HeroPower.prototype.Reason = function () {
-        if (!this.engine.myTurn) return "Not your turn!";
-        if (this.used) return "Hero power already used this turn!";
-        if (this.owner && typeof this.owner.mana === 'number' && this.owner.mana < this.cost) return "Not enough mana!";
-        return "Cannot use the hero power now!";
+        if (!this.engine.myTurn) return T('error.notYourTurn');
+        if (this.used) return T('classic.power.alreadyUsed');
+        if (this.owner && typeof this.owner.mana === 'number' && this.owner.mana < this.cost) return T('error.mana');
+        return T('classic.power.cannotUse');
     }
 
     // ---- Pointer gestures ----------------------------------------------------------------------------------------

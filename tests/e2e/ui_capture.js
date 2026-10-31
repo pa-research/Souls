@@ -1,9 +1,13 @@
-// Screenshots of every website page (desktop + phone), with their error, flash and empty states.
-// Fails on a console error or on a page that scrolls sideways. Usage: node ui_capture.js <baseUrl> <outDir>
+// Screenshots of every website page (desktop + phone), with their error, flash and empty states, in a language.
+// Fails on a console error, on a page that scrolls sideways and, in a language other than English, on English text
+// or a raw key left on a page (admin pages excepted). Usage: node ui_capture.js <baseUrl> <outDir> [lang, default en]
 const { chromium } = require('playwright');
 const fs = require('fs');
+const { englishPhrases, leftovers, pickLanguage, locale } = require('./l10n');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'ui';
+const lang = process.argv[4] || 'en';
+const phrases = lang === 'en' ? null : englishPhrases(lang);
 fs.mkdirSync(out, { recursive: true });
 // The admin password from SOULS_ADMIN_PASSWORD, or the secret file that deploy/compose/init-secrets.sh writes.
 const adminPassword = process.env.SOULS_ADMIN_PASSWORD
@@ -13,7 +17,8 @@ const SPELL = 60, CLASS_CARD = 70;
   const browser = await chromium.launch();
   const problems = [];
   for (const [device, viewport] of [['desk', { width: 1600, height: 900 }], ['phone', { width: 412, height: 915 }]]) {
-    const ctx = await browser.newContext({ viewport, ignoreHTTPSErrors: true, deviceScaleFactor: device === 'phone' ? 2 : 1, isMobile: device === 'phone', hasTouch: device === 'phone' });
+    // The browser asks for the language (Accept-Language), then the site's switch picks it (cookie).
+    const ctx = await browser.newContext({ viewport, ignoreHTTPSErrors: true, deviceScaleFactor: device === 'phone' ? 2 : 1, isMobile: device === 'phone', hasTouch: device === 'phone', locale: locale(lang) });
     const page = await ctx.newPage();
     page.on('pageerror', e => problems.push(`${device} ${page.url()}: ${e.message}`));
     // The 404 and 403 pages are visited on purpose; their status shows up as a console error.
@@ -29,10 +34,17 @@ const SPELL = 60, CLASS_CARD = 70;
       await page.waitForTimeout(700);
       const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (wide > 0) problems.push(`${device} ${name}: the page scrolls ${wide}px sideways`);
+      if (phrases && !name.startsWith('admin')) {
+        const left = await leftovers(page, phrases);
+        if (left.length) problems.push(`${device} ${name}: not in ${lang}: ${left.slice(0, 8).join('; ')}`);
+      }
       await page.screenshot({ path: `${out}/${device}-${name}.jpg`, type: 'jpeg', quality: 70, fullPage, animations: 'disabled' });
     };
     const submit = async (selector = 'main button[type=submit]') => { await Promise.all([page.waitForNavigation(), page.click(selector)]); };
-    await page.goto(base + '/'); await shot('home-anon');
+    await page.goto(base + '/');
+    if (await page.evaluate(() => document.documentElement.lang) !== lang) problems.push(`${device}: the browser's ${locale(lang)} did not give a ${lang} page`);
+    await pickLanguage(page, base, lang);
+    await shot('home-anon');
     await page.goto(base + '/Season'); await shot('season-anon');
     await page.goto(base + '/Player/Login'); await shot('login');
     await page.fill('#Name', 'nobody' + Date.now().toString(36)); await page.fill('#Password', 'NotThePassword9!'); await submit(); await shot('login-error');

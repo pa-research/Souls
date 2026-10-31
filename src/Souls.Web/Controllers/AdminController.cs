@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Souls.Model;
 using Souls.Model.Entities;
 using Souls.Model.Security;
@@ -12,11 +13,11 @@ using Souls.Web.Services;
 namespace Souls.Web.Controllers;
 
 [Authorize(Roles = SoulsClaims.AdminRole)]
-public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer sanitizer, SessionService sessions, TimeProvider time, IWebHostEnvironment environment, ILogger<AdminController> logger) : Controller
+public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer sanitizer, SessionService sessions, TimeProvider time, IWebHostEnvironment environment, ILogger<AdminController> logger, IStringLocalizer<SharedResource> localizer) : Controller
 {
     public async Task<IActionResult> Players(CancellationToken ct)
     {
-        ViewData["Title"] = "Players";
+        ViewData["Title"] = localizer["Players"].Value;
         return View(new AdminPlayersViewModel
         {
             Players = await db.Players.AsNoTracking().Include(p => p.PlayerPermission).Where(p => !p.IsSystem).OrderBy(p => p.Id).ToListAsync(ct),
@@ -32,7 +33,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     {
         if (userId == User.RequirePlayerId())
         {
-            TempData["Error"] = "You cannot change your own permission.";
+            TempData["Error"] = localizer["You cannot change your own permission."].Value;
             return RedirectToAction(nameof(Players));
         }
 
@@ -55,7 +56,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
 
     public IActionResult Games()
     {
-        ViewData["Title"] = "Games";
+        ViewData["Title"] = localizer["Games"].Value;
         return View();
     }
 
@@ -65,7 +66,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     /// </summary>
     public async Task<IActionResult> CardStatistics(CancellationToken ct)
     {
-        ViewData["Title"] = "Card Statistics";
+        ViewData["Title"] = localizer["Card Statistics"].Value;
 
         // One row per game, player and card played in it (playing a card twice counts once), grouped in the database.
         var plays = db.GameLogs
@@ -102,7 +103,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     [HttpGet]
     public async Task<IActionResult> Season(CancellationToken ct)
     {
-        ViewData["Title"] = "Season";
+        ViewData["Title"] = localizer["Season"].Value;
         var current = await Seasons.CurrentAsync(db, ct);
         return current is null ? NotFound() : View(new AdminSeasonViewModel
         {
@@ -116,7 +117,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     {
         if (!ModelState.IsValid)
         {
-            ViewData["Title"] = "Season";
+            ViewData["Title"] = localizer["Season"].Value;
             var current = await Seasons.CurrentAsync(db, ct);
             return current is null ? NotFound() : View(new AdminSeasonViewModel { Current = current, Form = model });
         }
@@ -129,14 +130,14 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.Name, name).SetProperty(x => x.EndsAt, endsAt), ct);
         if (updated == 0)
         {
-            TempData["Error"] = "That season has already ended.";
+            TempData["Error"] = localizer["That season has already ended."].Value;
         }
         else
         {
             logger.LogInformation("Season {Number} now ends {EndsAt}", model.Number, endsAt);
             TempData["Message"] = endsAt <= time.GetUtcNow()
-                ? $"{name} has ended. The game server stores the standings, pays the rewards and starts the next season within a minute."
-                : $"Saved {name}.";
+                ? localizer["{0} has ended. The game server stores the standings, pays the rewards and starts the next season within a minute.", name].Value
+                : localizer["Saved {0}.", name].Value;
         }
 
         return RedirectToAction(nameof(Season));
@@ -145,7 +146,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     [HttpGet]
     public async Task<IActionResult> CardEditor(int? id, CancellationToken ct)
     {
-        ViewData["Title"] = "Card Editor";
+        ViewData["Title"] = localizer["Card Editor"].Value;
         var model = new CardEditorModel();
         if (id is not null)
         {
@@ -182,35 +183,35 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     [HttpPost]
     public async Task<IActionResult> CardEditor([Bind(Prefix = "Card")] CardEditorModel model, CancellationToken ct)
     {
-        ViewData["Title"] = "Card Editor";
+        ViewData["Title"] = localizer["Card Editor"].Value;
         if (model.AbilityId is { } abilityId && !await db.Abilities.AnyAsync(a => a.Id == abilityId, ct))
         {
-            ModelState.AddModelError("Card.AbilityId", "Unknown ability");
+            ModelState.AddModelError("Card.AbilityId", localizer["Unknown ability"]);
         }
 
         if (model.RaceId is { } raceId && !await db.Races.AnyAsync(r => r.Id == raceId, ct))
         {
-            ModelState.AddModelError("Card.RaceId", "Unknown race");
+            ModelState.AddModelError("Card.RaceId", localizer["Unknown race"]);
         }
 
         if (model.ClassId is { } classId && !await db.PlayerTypes.AnyAsync(t => t.Id == classId, ct))
         {
-            ModelState.AddModelError("Card.ClassId", "Unknown class");
+            ModelState.AddModelError("Card.ClassId", localizer["Unknown class"]);
         }
 
         if (model.Kind == CardKind.Spell && !GameRules.IsSpellAbility(model.AbilityId))
         {
-            ModelState.AddModelError("Card.AbilityId", "A spell needs an ability it can cast: Burn, Drain, Heal, Harden, Paralyze, Empower, Insight or Inferno.");
+            ModelState.AddModelError("Card.AbilityId", localizer["A spell needs an ability it can cast: Burn, Drain, Heal, Harden, Paralyze, Empower, Insight or Inferno."]);
         }
 
         if (model.Kind == CardKind.Minion && model.Health < 1)
         {
-            ModelState.AddModelError("Card.Health", "A card needs at least 1 health.");
+            ModelState.AddModelError("Card.Health", localizer["A card needs at least 1 health."]);
         }
 
         if (!await IsValidPortraitAsync(model.Portrait, ct))
         {
-            ModelState.AddModelError("Card.Portrait", "Upload a portrait or use one of the built-in portraits.");
+            ModelState.AddModelError("Card.Portrait", localizer["Upload a portrait or use one of the built-in portraits."]);
         }
 
         if (!ModelState.IsValid)
@@ -247,7 +248,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         card.Portrait =string.IsNullOrWhiteSpace(model.Portrait) ? null : model.Portrait;
         await db.SaveChangesAsync(ct);
 
-        TempData["Message"] = $"Saved {card.Name}.";
+        TempData["Message"] = localizer["Saved {0}.", card.Name].Value;
         return RedirectToAction(nameof(CardEditor), new { id = card.Id });
     }
 
@@ -259,7 +260,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     {
         if (file is null || file.Length == 0 || file.Length > UploadedImage.MaxBytes)
         {
-            return BadRequest(new { error = "Choose an image of at most 1 MB." });
+            return BadRequest(new { error = localizer["Choose an image of at most 1 MB."].Value });
         }
 
         using var buffer = new MemoryStream((int)file.Length);
@@ -268,7 +269,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
         var contentType = ImageValidator.DetectContentType(data);
         if (contentType is null)
         {
-            return BadRequest(new { error = "Only PNG, JPEG and GIF images are allowed." });
+            return BadRequest(new { error = localizer["Only PNG, JPEG and GIF images are allowed."].Value });
         }
 
         var image = new UploadedImage
@@ -287,7 +288,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     [HttpGet]
     public async Task<IActionResult> NewsEditor(int? id, CancellationToken ct)
     {
-        ViewData["Title"] = "News Editor";
+        ViewData["Title"] = localizer["News Editor"].Value;
         var post = new NewsEditorModel();
         if (id is not null)
         {
@@ -306,7 +307,7 @@ public sealed partial class AdminController(SoulsDbContext db, NewsSanitizer san
     [HttpPost]
     public async Task<IActionResult> NewsEditor([Bind(Prefix = "Post")] NewsEditorModel model, CancellationToken ct)
     {
-        ViewData["Title"] = "News Editor";
+        ViewData["Title"] = localizer["News Editor"].Value;
         if (!ModelState.IsValid)
         {
             return View(await NewsEditorPageAsync(model, ct));

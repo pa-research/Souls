@@ -1,6 +1,7 @@
 ﻿define("player", ["jquery", "pixi", "asset", "playerbase", "arrow", "cardmanager", "rules", "card"], function ($, pixi, asset, playerBase, Arrow, CardManager, Rules, Card) {
 
     var ATTACK_TARGETS = ['enemyCard', 'enemyHero'];
+    var T = window.SoulsL10n.t;
 
     Player = function (engine) {
         playerBase.call(this, engine, true);
@@ -90,14 +91,14 @@
                 var hint;
                 var ability = Rules.Ability(card.abilityId);
                 if (!card.abilityId) {
-                    hint = card.name + " has no ability";
+                    hint = T('classic.aim.noAbility', { name: card.name });
                 }
                 else if (!Rules.IsActivated(card.abilityId, card.abilityActivated)) {
-                    hint = (ability ? ability.name : card.abilityName || "This ability") + " works on its own";
+                    hint = T('classic.aim.passive', { name: ability ? ability.name : card.abilityName || T('classic.aim.thisAbility') });
                 }
                 else {
                     kinds = Rules.AbilityTargets(card.abilityId);
-                    if (ability || card.abilityName) hint = (ability ? ability.name : card.abilityName) + ": pick " + Rules.DescribeTargets(kinds);
+                    if (ability || card.abilityName) hint = T('classic.aim.pickFor', { name: ability ? ability.name : card.abilityName, targets: Rules.DescribeTargets(kinds) });
                 }
                 found = this.arrow.Aim(card, kinds, 'ability', hint);
             }
@@ -115,7 +116,7 @@
             found = null;
             if (spell.TargetedSpell()) {
                 var spellKinds = Rules.AbilityTargets(spell.abilityId);
-                found = this.arrow.Aim(spell, spellKinds, 'ability', spell.name + ": pick " + Rules.DescribeTargets(spellKinds));
+                found = this.arrow.Aim(spell, spellKinds, 'ability', T('classic.aim.pickFor', { name: spell.name, targets: Rules.DescribeTargets(spellKinds) }));
             }
             else {
                 this.arrow.Reset();
@@ -136,7 +137,8 @@
             var power = Rules.HeroPower(this.power);
             var powerKinds = Rules.PowerTargets(this.power);
             found = this.arrow.Aim(this.heroPower, powerKinds, 'power',
-                (power ? power.name + ": pick " : "Pick ") + Rules.DescribeTargets(powerKinds));
+                power ? T('classic.aim.pickFor', { name: power.name, targets: Rules.DescribeTargets(powerKinds) })
+                    : T('classic.aim.pick', { targets: Rules.DescribeTargets(powerKinds) }));
             this.heroPower.target = found;
             return;
         }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
 using Souls.Web.Models;
+using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
@@ -21,7 +22,7 @@ public sealed class SeasonController(SoulsDbContext db) : Controller
             return NotFound();
         }
 
-        ViewData["Title"] = season.Name;
+        ViewData["Title"] = Localized.SeasonName(season);
         var current = season == seasons[0];
         IReadOnlyList<SeasonEntry> standings = current
             ? [.. (await Seasons.Standings(db, season.StartsAt).Take(Top).ToListAsync(ct))

@@ -1,7 +1,9 @@
 // The battle log: a collapsible panel (.sg-log) fed by the "log" game events, top right under the Classic / 3D
-// switch. Every line gets an icon and a colour from its wording; the players' names are highlighted (yours blue, the
-// opponent's red). Lines come from the server and are inserted as text nodes only.
+// switch. Every line gets an icon and a colour from its English wording; the players' names are highlighted (yours
+// blue, the opponent's red). Lines come from the server and are inserted as text nodes only.
 define("battlelog", ["hud"], function (Hud) {
+
+    var T = window.SoulsL10n.t;
 
     var MAX_LINES = 200;
     var STORAGE_KEY = 'souls.logCollapsed'; // shared with the 3D client
@@ -16,13 +18,13 @@ define("battlelog", ["hud"], function (Hud) {
 
     function BattleLog() {
         var panel = this.panel = Hud.El('section', 'sg-log souls-classic-log', Hud.Root());
-        panel.setAttribute('aria-label', 'Battle log');
+        panel.setAttribute('aria-label', T('classic.log'));
         panel.hidden = true;
 
         var head = this.toggle = Hud.El('button', 'sg-log-head', panel);
         head.type = 'button';
         head.appendChild(Hud.Icon('list'));
-        Hud.Text(head, 'Battle log');
+        Hud.Text(head, T('classic.log'));
         this.badge = Hud.El('span', 'sg-log-badge', head);
         head.appendChild(Hud.Icon('chevron-down', 's-icon sg-chevron'));
 
@@ -57,7 +59,7 @@ define("battlelog", ["hud"], function (Hud) {
     BattleLog.prototype.UpdateBadge = function () {
         var count = this.collapsed ? this.unread : 0;
         this.badge.textContent = count > 0 ? String(count) : '';
-        this.toggle.setAttribute('aria-label', count > 0 ? 'Battle log, ' + count + ' unread' : 'Battle log');
+        this.toggle.setAttribute('aria-label', count > 0 ? T('classic.log.unread', { n: count }) : T('classic.log'));
     }
 
     BattleLog.prototype.Show = function () {
@@ -98,11 +100,12 @@ define("battlelog", ["hud"], function (Hud) {
         }
     }
 
-    /// Adds a line (plain text). kind "system": the result of the game.
-    BattleLog.prototype.Add = function (text, kind) {
+    /// Adds a line (plain text). kind "system": the result of the game. english: the server's English text of the line
+    /// (its icon comes from that wording), when the line is shown in another language.
+    BattleLog.prototype.Add = function (text, kind, english) {
         if (text === undefined || text === null) return;
         var line = String(text);
-        var look = kind === 'system' ? ['trophy', 'end'] : Hud.Classify(line);
+        var look = kind === 'system' ? ['trophy', 'end'] : Hud.Classify(english !== undefined && english !== null ? String(english) : line);
 
         var item = document.createElement('li');
         if (look[1]) item.className = look[1];

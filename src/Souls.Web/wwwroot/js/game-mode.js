@@ -9,6 +9,7 @@
     var RESUME_WINDOW_MS = 55000; // a little under the server's 60 s reconnect grace period
     var inGameTimer = null;
     var leaveDialog = document.getElementById('sg-leave');
+    var t = window.SoulsL10n ? window.SoulsL10n.t : function (key) { return key; };
 
     // While the leave dialog is open, the keys are its own (Esc, Enter, Tab), not the camera keys or panels behind it,
     // and Tab goes round its two buttons (the browser would move on to the page behind it).
@@ -93,7 +94,7 @@
             };
             if (!ask) return go();
             if (!leaveDialog || typeof leaveDialog.showModal !== 'function') {
-                if (window.confirm('Leave the game? You lose it if you do not come back within a minute.')) go();
+                if (window.confirm(t('mode.leaveConfirm'))) go();
                 return;
             }
             leaveDialog.returnValue = '';
@@ -124,8 +125,8 @@
         var home = document.createElement('a');
         home.className = 'sg-icon-btn';
         home.href = '/';
-        home.setAttribute('aria-label', 'Home');
-        home.title = 'Home';
+        home.setAttribute('aria-label', t('mode.home'));
+        home.title = t('mode.home');
         var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 's-icon');
         svg.setAttribute('aria-hidden', 'true');
@@ -138,8 +139,8 @@
         var seg = document.createElement('div');
         seg.className = 's-seg';
         seg.setAttribute('role', 'group');
-        seg.setAttribute('aria-label', 'Game client');
-        [['classic', 'Classic'], ['3d', 'Modern 3D']].forEach(function (option) {
+        seg.setAttribute('aria-label', t('mode.client'));
+        [['classic', t('mode.classic')], ['3d', t('mode.3d')]].forEach(function (option) {
             var button = document.createElement('button');
             button.type = 'button';
             button.textContent = option[1];

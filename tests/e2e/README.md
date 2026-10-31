@@ -20,11 +20,13 @@ npm install
 | `restart.js <base> <out> [restart] [redeploy]` | Running games survive a restart of the game server: a 3D practice game restarted during the mulligan and during the bot's turn, a ranked 3D vs classic game with a spectator restarted mid-turn and redeployed (stop and start) during the classic turn; everyone reconnects, a chat line after the restart arrives, the games finish, ratings change once, replays are complete. The commands default to `$SOULS_RESTART_CMD` / `$SOULS_REDEPLOY_CMD`, else `docker compose restart server` |
 | `vfx3d.js <base> <out>` | Replays the new card set's effects in the 3D client (legendary entrance, inferno, ward, venom, ice, grow, rally, drain, shatter) |
 | `hud3d.js <base> <out> [width height]` | Screenshots of the 3D client's interface states |
-| `ui_capture.js <base> <out>` | Every website page on desktop (1600x900) and phone (412x915), with their validation errors, flash messages and empty states, including the admin pages; fails on a console error or a page that scrolls sideways |
+| `ui_capture.js <base> <out> [lang]` | Every website page on desktop (1600x900) and phone (412x915), with their validation errors, flash messages and empty states, including the admin pages; fails on a console error or a page that scrolls sideways. With a language (`nb`) the browser asks for it, the EN \| NB switch picks it, and a page that still shows English (or a raw key) fails (the admin pages are not checked) |
+| `l10n_games.js <base> <out> [lang]` | A 3D and a classic practice game in a language (default `nb`), each on desktop and on a phone: menu, matchmaking, mulligan, a few turns with the battle log, tooltips, settings, the 3D end screen, the leave dialog and the game's summary page; fails on English or a raw key in the interface. What the canvases draw (card faces, the End Turn sign) is in the screenshots |
 
 `<base>` is the site, e.g. `https://localhost`; `<out>` a folder for the screenshots. Each script prints
 `PASS`/`FAIL` lines or a list of console problems. `leave_dialog.js` holds the leave dialog checks the game scripts
-share.
+share, and `l10n.js` the language helpers (the English a translated page must not show comes from the string
+tables in `src/Souls.Model/Localization` and `src/Souls.Web/Resources`).
 
 ```sh
 node rules3d.js https://localhost out/rules3d 2

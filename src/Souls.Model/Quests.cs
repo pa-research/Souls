@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Souls.Model.Entities;
+using Souls.Model.Localization;
 
 namespace Souls.Model;
 
@@ -11,16 +12,20 @@ public static class Quests
 {
     public const int PerDay = 3;
 
-    public sealed record Definition(QuestKind Kind, string Text, int Target, int Reward);
+    public sealed record Definition(QuestKind Kind, int Target, int Reward)
+    {
+        /// <summary>"Win 2 normal games": <c>quest.winGames</c> in the string tables.</summary>
+        public GameText Text => new("quest." + char.ToLowerInvariant(Kind.ToString()[0]) + Kind.ToString()[1..], ("n", Target));
+    }
 
     public static readonly IReadOnlyList<Definition> All =
     [
-        new(QuestKind.WinGames, "Win 2 normal games", 2, 4),
-        new(QuestKind.PlayCards, "Play 12 cards", 12, 2),
-        new(QuestKind.DestroyCards, "Destroy 8 enemy cards", 8, 2),
-        new(QuestKind.UseAbilities, "Use 5 card abilities or hero powers", 5, 2),
-        new(QuestKind.HeroDamage, "Deal 40 damage to enemy heroes", 40, 3),
-        new(QuestKind.WinPractice, "Win a practice game on Hard", 1, 2),
+        new(QuestKind.WinGames, 2, 4),
+        new(QuestKind.PlayCards, 12, 2),
+        new(QuestKind.DestroyCards, 8, 2),
+        new(QuestKind.UseAbilities, 5, 2),
+        new(QuestKind.HeroDamage, 40, 3),
+        new(QuestKind.WinPractice, 1, 2),
     ];
 
     public static Definition Get(QuestKind kind) => All.First(d => d.Kind == kind);

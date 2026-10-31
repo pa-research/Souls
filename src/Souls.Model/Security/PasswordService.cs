@@ -65,11 +65,11 @@ public sealed class PasswordService
         }
     }
 
-    public static string? ValidatePolicy(string? password) => password switch
+    public static Localization.GameText? ValidatePolicy(string? password) => password switch
     {
-        null or "" => "You must input a password",
-        { Length: < MinLength } => $"Password must be {MinLength} characters or longer!",
-        { Length: > MaxLength } => $"Password must be at most {MaxLength} characters!",
+        null or "" => new("password.empty"),
+        { Length: < MinLength } => new("password.short", ("n", MinLength)),
+        { Length: > MaxLength } => new("password.long", ("n", MaxLength)),
         _ => null,
     };
 

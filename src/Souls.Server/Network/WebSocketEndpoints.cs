@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Souls.Model.Localization;
 using Souls.Model.Security;
 using Souls.Server.Game;
 
@@ -101,7 +102,7 @@ public static class WebSocketEndpoints
         {
             logger.LogError(e, "Failed to process message {Type} from {Connection}", message.Type, connection);
             metrics.Error("message");
-            connection.Send(new Response(ServiceResponse.Error, "Internal server error"));
+            connection.Send(new Response(ServiceResponse.Error, new GameText("error.internal")));
         }
     }
 }

@@ -2,6 +2,8 @@
 // the server), "Your turn · 0:42" / "Enemy turn · 0:42". It turns red and pulses in the last 15 seconds.
 define("turntimer", ["hud", "conf", "asset"], function (Hud, Conf, Asset) {
 
+    var T = window.SoulsL10n.t;
+
     var URGENT_MS = 15000;
     // Under the End Turn button (centre (width - 310, height / 2 + 10), 75 high).
     var X = Conf.width - 310;
@@ -19,7 +21,7 @@ define("turntimer", ["hud", "conf", "asset"], function (Hud, Conf, Asset) {
 
         var fuse = this.el = Hud.El('div', 'sg-fuse souls-classic-fuse', Hud.Root());
         fuse.setAttribute('role', 'timer');
-        fuse.setAttribute('aria-label', 'Turn timer');
+        fuse.setAttribute('aria-label', T('classic.timer'));
         fuse.hidden = true;
         var track = Hud.El('div', 'sg-fuse-track', fuse);
         this.fill = Hud.El('div', 'sg-fuse-fill', track);
@@ -79,7 +81,7 @@ define("turntimer", ["hud", "conf", "asset"], function (Hud, Conf, Asset) {
             this.el.classList.toggle('urgent', urgent);
         }
 
-        var shown = (this.mine ? 'Your turn' : 'Enemy turn') + ' · ' + Hud.Clock(left);
+        var shown = (this.mine ? T('classic.turn.mine') : T('classic.turn.enemy')) + ' · ' + Hud.Clock(left);
         if (shown !== this._shown) {
             this._shown = shown;
             this.text.textContent = shown;

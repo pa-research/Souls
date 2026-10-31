@@ -198,6 +198,8 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.Obj1Type).HasColumnName("obj1_type").HasMaxLength(16);
             e.Property(x => x.Obj2Type).HasColumnName("obj2_type").HasMaxLength(16);
             e.Property(x => x.Text).HasColumnName("text").HasMaxLength(500);
+            e.Property(x => x.TextKey).HasColumnName("text_key").HasMaxLength(64);
+            e.Property(x => x.TextArgs).HasColumnName("text_args").HasMaxLength(2000);
             e.HasOne(x => x.GameLogType).WithMany().HasForeignKey(x => x.GameLogTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId).OnDelete(DeleteBehavior.Cascade);
         });

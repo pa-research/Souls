@@ -12,6 +12,9 @@ import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
 import { VERSUS_MS } from './ui.js';
 
+// Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
+const { t, text: serverText } = window.SoulsL10n;
+
 // Classic layout (stage pixels).
 const HAND_X = 165;
 const HAND_SPACING = 60;
@@ -192,7 +195,7 @@ export class Game {
                 onCancel: () => this.gameSocket.send(Request.CHALLENGE_CANCEL),
             });
         } else {
-            this.ui.showQueue(this.mode === 'watch' ? 'Looking for games...' : 'Connecting to the arena...', this.mode);
+            this.ui.showQueue(this.mode === 'watch' ? t('g3d.status.lookingForGames') : t('g3d.status.connecting'), this.mode);
         }
         this.gameSocket.connect();
         if (!this.spectator) this.chatSocket.connect();
@@ -220,7 +223,7 @@ export class Game {
 
     spectate(gameId) {
         this.watchId = gameId;
-        this.ui.showQueue('Joining the game...', 'watch');
+        this.ui.showQueue(t('g3d.status.joiningGame'), 'watch');
         this.gameSocket.send(Request.SPECTATE, { gameId });
     }
 
@@ -504,11 +507,11 @@ export class Game {
             const power = r.heroPowers[powerOf(info)];
             return {
                 title: String(info.name ?? ''),
-                sub: [type && type.name, info.rating ? `Rating ${info.rating}` : null].filter(Boolean).join(' \u00b7 '),
+                sub: [type && type.name, info.rating ? t('g3d.tip.rating', { rating: info.rating }) : null].filter(Boolean).join(' \u00b7 '),
                 stats: { attack: info.attack, health: info.health, maxHealth: info.maxHealth, armor: info.armor },
                 blocks: [
-                    power ? { label: 'Hero power', text: `${power.name} (${power.cost} mana): ${power.text}` } : null,
-                    type && type.mana ? { kind: 'info', text: `+${type.mana} mana every turn.` } : null,
+                    power ? { label: t('g3d.heroPower'), text: t('g3d.tip.power', { name: power.name, cost: power.cost, text: power.text }) } : null,
+                    type && type.mana ? { kind: 'info', text: t('g3d.tip.manaPerTurn', { mana: type.mana }) } : null,
                     Number(info.armor) > 0 ? { kind: 'info', text: r.keywords.armor } : null,
                 ],
             };
@@ -517,7 +520,11 @@ export class Game {
         const d = obj.data;
         const level = Number(d.level) || 1;
         const rules = d.ability && r.abilities[d.ability.id];
-        const ability = d.ability ? { name: d.ability.label || d.ability.name || rules?.name, text: d.ability.text || rules?.text, activated: d.ability.activated ?? rules?.activated } : null;
+        const ability = d.ability ? {
+            name: serverText(d.ability, 'label') || serverText(d.ability, 'name') || rules?.name,
+            text: serverText(d.ability) || rules?.text,
+            activated: d.ability.activated ?? rules?.activated,
+        } : null;
         const spell = d.kind === 'spell';
         // Spells never attack or die: only the Vampiric and Lightbringer passives work for them.
         const race = d.race && (d.kind !== 'spell' || [2, 3].includes(Number(d.race.id))) && r.races[d.race.id];
@@ -527,19 +534,19 @@ export class Game {
         const exhausted = onBoard && side.isPlayer && this.yourTurn && !obj.ready && !d.paralyzed;
         return {
             title: `${d.name}${level > 1 ? ' ' + '\u2605'.repeat(level - 1) : ''}`,
-            sub: [rarity && !d.token ? rarity[0].toUpperCase() + rarity.slice(1) : null, spell ? 'Spell' : null, race && race.name, level > 1 ? `Level ${level}` : null, d.token ? 'Token' : null].filter(Boolean).join(' \u00b7 '),
+            sub: [rarity && !d.token ? t(`rarity.${rarity}`) : null, spell ? t('g3d.spell') : null, race && race.name, level > 1 ? t('g3d.level', { level }) : null, d.token ? t('g3d.token') : null].filter(Boolean).join(' \u00b7 '),
             rarity,
             stats: spell ? { cost: d.cost } : { cost: d.cost, attack: d.attack, health: d.health, maxHealth: d.maxHealth, armor: d.armor },
             blocks: [
                 ability ? { label: ability.name, text: ability.text } : null,
                 race ? { kind: 'race', label: race.name, text: race.text } : null,
-                d.ward ? { kind: 'info', text: r.keywords.ward || 'Ward: the next damage breaks the ward instead.' } : null,
+                d.ward ? { kind: 'info', text: r.keywords.ward || t('keyword.ward') } : null,
                 d.paralyzed ? { kind: 'warn', text: r.keywords.paralyzed } : null,
-                exhausted ? { kind: 'warn', text: 'Exhausted: it already acted this turn, or arrived this turn.' } : null,
-                spell ? { kind: 'info', text: r.keywords.spell || 'Spell: cast it from your hand, then it is used up.' } : null,
+                exhausted ? { kind: 'warn', text: t('g3d.tip.exhausted') } : null,
+                spell ? { kind: 'info', text: r.keywords.spell || t('keyword.spell') } : null,
                 !spell && !onBoard && side.isPlayer && !ability?.activated && d.ability?.id !== ABILITY.CHARGE ? { kind: 'info', text: r.keywords.summoningSick } : null,
-                level > 1 ? { kind: 'info', text: spell ? `Level ${level}: +${level - 1} to its effect.` : `Level ${level}: +${level - 1} attack and health.` } : null,
-                d.flavor ? { kind: 'flavor', text: d.flavor } : null,
+                level > 1 ? { kind: 'info', text: spell ? t('g3d.tip.levelSpell', { level, bonus: level - 1 }) : t('g3d.tip.levelCard', { level, bonus: level - 1 }) } : null,
+                d.flavor ? { kind: 'flavor', text: serverText(d, 'flavor') } : null,
             ],
         };
     }
@@ -719,23 +726,23 @@ export class Game {
             case Response.LOGIN_OK:
                 this.reconnects = 0;
                 if (!this.spectator) this.chatSocket.send(Request.LOGIN);
-                if (!this.active && !this.spectator && !this.friendly) this.ui.setStatus('Connection established!');
+                if (!this.active && !this.spectator && !this.friendly) this.ui.setStatus(t('g3d.status.connected'));
                 break;
             case Response.LOGIN_NO_HASH:
             case Response.LOGIN_NOT_LOGGED_IN:
-                this.ui.showQueue('You are not logged in!');
+                this.ui.showQueue(t('g3d.status.notLoggedIn'));
                 break;
             case Response.LOGIN_WRONG_HASH:
-                this.ui.showQueue('Authentication Failure!');
+                this.ui.showQueue(t('g3d.status.authFailed'));
                 break;
             case Response.LOGIN_BANNED:
-                this.ui.showQueue('You are banned!');
+                this.ui.showQueue(t('g3d.status.banned'));
                 break;
             case Response.QUEUE_OK:
-                this.ui.setStatus(this.normalGame ? 'Waiting for an opponent of your rank...' : 'Waiting for a match...');
+                this.ui.setStatus(this.normalGame ? t('g3d.status.waitingRank') : t('g3d.status.waitingMatch'));
                 break;
             case Response.QUEUE_ALREADY_IN:
-                this.ui.setStatus('You are already in queue!');
+                this.ui.setStatus(t('queue.already'));
                 break;
             case Response.OPPONENT_MOVE:
                 this.onOpponentMove(p);
@@ -745,27 +752,27 @@ export class Game {
                 this.onRelease(m.Type === Response.RELEASE ? this.player : this.opponent, p.cid);
                 break;
             case Response.NOT_YOUR_TURN:
-                this.ui.screenMessage('Not your turn!');
+                this.ui.screenMessage(t('error.notYourTurn'));
                 break;
             case Response.SLOT_OCCUPIED:
-                this.ui.screenMessage(p.message);
+                this.ui.screenMessage(serverText(p, 'message'));
                 break;
             case Response.USECARD_OOM:
-                this.ui.screenMessage('Not enough mana!');
+                this.ui.screenMessage(t('error.mana'));
                 break;
             case Response.GENERAL_MESSAGE:
-                this.ui.screenMessage(p);
+                this.ui.screenMessage(serverText(m, 'Payload'));
                 break;
             case Response.LIVE_GAMES:
                 this.onLiveGames(p);
                 break;
             case Response.SPECTATE_ERROR:
                 this.watchId = null;
-                this.ui.showQueue(String(p));
+                this.ui.showQueue(serverText(m, 'Payload'));
                 setTimeout(() => this.gameSocket.send(Request.LIST_LIVE_GAMES), 1500);
                 break;
             case Response.ERROR:
-                if (typeof p === 'string') this.ui.screenMessage(p);
+                if (typeof p === 'string') this.ui.screenMessage(serverText(m, 'Payload'));
                 break;
             case Response.CHALLENGE_INVITE:
                 // The live games list is no place to start a game.
@@ -784,7 +791,7 @@ export class Game {
                 break;
             case Response.CHALLENGE_CLOSED:
                 this.ui.hideInvite();
-                this.ui.challengeIdle(String(p));
+                this.ui.challengeIdle(serverText(m, 'Payload'));
                 break;
             case Response.EMOTE:
                 this.showEmote(p);
@@ -798,7 +805,7 @@ export class Game {
     showEmote(p) {
         const side = this.sideByIdent(p.ident);
         if (!this.active || (side === this.opponent && this.emotesMuted)) return;
-        this.ui.emote(side.isPlayer ? 'player' : 'opponent', String(p.text ?? ''));
+        this.ui.emote(side.isPlayer ? 'player' : 'opponent', serverText(p));
         sound.play('emote', 0.6);
     }
 
@@ -837,11 +844,11 @@ export class Game {
             case Response.GAME_SYNC:
                 return this.applySync(p);
             case Response.VICTORY:
-                return this.onEnd('Victory!', p);
+                return this.onEnd('victory', p);
             case Response.DEFEAT:
-                return this.onEnd('Defeat!', p);
+                return this.onEnd('defeat', p);
             case Response.DRAW:
-                return this.onEnd('Draw!', p);
+                return this.onEnd('draw', p);
             case Response.SPECTATE_END:
                 return this.onSpectateEnd(p);
             case Response.EMOTE: // replays (live emotes are shown at once)
@@ -868,7 +875,7 @@ export class Game {
 
         this.ui.setNames(String(p.player.info.name ?? ''), String(p.opponent.info.name ?? ''));
         if (spectating) {
-            const names = `${p.player.info.name} vs ${p.opponent.info.name}`;
+            const names = t('g3d.versus', { a: p.player.info.name, b: p.opponent.info.name });
             this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' });
         } else if (p.ident === 1 && p.create) {
             // The first player creates the game's chat room.
@@ -894,10 +901,10 @@ export class Game {
         this.yourTurn = !!yourTurn && !this.spectator;
         if (this.current === 0) {
             // GameSync: nobody's turn during the mulligan.
-            this.ui.setTurn(false, 'Starting hands');
+            this.ui.setTurn(false, t('g3d.startingHands'));
         } else if (this.spectator && this.current) {
             const name = this.heroOf(this.current).info.name;
-            this.ui.setTurn(this.current === 1, `${name}'s turn`);
+            this.ui.setTurn(this.current === 1, t('g3d.turnOf', { name }));
         } else {
             this.ui.setTurn(this.yourTurn);
         }
@@ -907,11 +914,11 @@ export class Game {
     turnBanner() {
         const turn = this.lastSync ? this.lastSync.turn + 1 : null;
         if (this.spectator) {
-            if (this.current) this.ui.banner(`${this.heroOf(this.current).info.name}`, { sub: turn ? `Turn ${turn}` : null, enemy: this.current !== 1 });
+            if (this.current) this.ui.banner(`${this.heroOf(this.current).info.name}`, { sub: turn ? t('g3d.turn', { turn }) : null, enemy: this.current !== 1 });
         } else if (this.yourTurn) {
-            this.ui.banner('Your turn', { sub: turn ? `Turn ${turn}` : null });
+            this.ui.banner(t('g3d.yourTurn'), { sub: turn ? t('g3d.turn', { turn }) : null });
         } else {
-            this.ui.banner('Enemy turn', { enemy: true });
+            this.ui.banner(t('g3d.enemyTurn'), { enemy: true });
         }
     }
 
@@ -1190,12 +1197,12 @@ export class Game {
                 case 'haunt': this.showHaunt(e); await wait(300); break;
                 case 'burned': await this.showBurned(e); break;
                 case 'fatigue': this.showFatigue(e); await wait(320); break;
-                case 'timeout': this.ui.screenMessage(`${this.heroOf(e.id).info.name} ran out of time!`); break;
+                case 'timeout': this.ui.screenMessage(t('g3d.timeout', { name: this.heroOf(e.id).info.name })); break;
                 case 'trigger': await this.showTrigger(e); break;
                 case 'ward': await this.showWardBreak(e); break;
                 case 'venom': this.showVenom(e); await wait(240); break;
                 case 'heroDeath': this.heroDeath(this.heroOf(e.id)); break;
-                case 'log': this.ui.logLine(e.text); break;
+                case 'log': this.ui.logLine(serverText(e), e.textKey); break;
                 default: break;
             }
         }
@@ -1398,7 +1405,7 @@ export class Game {
         const color = ABILITY_COLORS[e.abilityId] ?? 0xffffff;
         if (!source) return;
         const at = source instanceof Hero3D ? source.position.clone() : source.position.clone();
-        const label = e.label || this.rules.abilities[e.abilityId]?.name;
+        const label = serverText(e, 'label') || this.rules.abilities[e.abilityId]?.name;
         if (label) this.textAbove(source, label, '#ffd98a', 52);
         switch (e.abilityId) {
             case ABILITY.SUMMON:
@@ -1463,7 +1470,7 @@ export class Game {
         }
         this.crowd.spell('shatter');
         this.effects.shards(card.center());
-        this.textAbove(card, 'Blocked!', '#ffd36b', 60);
+        this.textAbove(card, t('g3d.float.blocked'), '#ffd36b', 60);
         card.breakWard();
         await wait(200);
     }
@@ -1475,7 +1482,7 @@ export class Game {
         this.effects.venom(this.targetPoint(target));
         // Above the damage number of the same hit.
         const point = this.targetPoint(target);
-        this.effects.floatText('Venom!', point.setY(point.y + 170), '#8dff5a', 64);
+        this.effects.floatText(t('g3d.float.venom'), point.setY(point.y + 170), '#8dff5a', 64);
         if (target instanceof Card3D) target.setGlow(0x5aff2a, 1);
     }
 
@@ -1484,7 +1491,7 @@ export class Game {
         const target = this.resolve(e.dst);
         const color = POWER_COLORS[e.power] ?? 0xffd34d;
         sound.play('hero_power', 0.75);
-        this.textAbove(hero, e.name || 'Hero power', '#ffd98a', 60);
+        this.textAbove(hero, serverText(e, 'name') || t('g3d.heroPower'), '#ffd98a', 60);
         tweens.to(hero.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 180, Ease.backOut).then(() => tweens.to(hero.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut));
         if (!target || target === hero) {
             this.effects.shockwave(hero.podium.position, color, 260);
@@ -1541,7 +1548,7 @@ export class Game {
         this.effects.sparkle(card.center(), 0xb39ddb, 40);
         this.effects.soul(card.center(), 0xd1c4e9);
         this.crowd.spell('curse', 0.6);
-        this.textAbove(card, 'Haunt!', '#d1c4e9', 60);
+        this.textAbove(card, t('g3d.float.haunt'), '#d1c4e9', 60);
     }
 
     /** A drawn card with a full hand: shown big, then it burns. */
@@ -1550,7 +1557,7 @@ export class Game {
         const card = this.createCard(side, e.card, true);
         card.castsShadow = false;
         card.setPose({ ...this.stage.hudPose(960, 520, HOVER_LIFT, 2.2) });
-        this.ui.screenMessage(`${e.card.name} burns, the hand is full!`);
+        this.ui.screenMessage(t('g3d.burned', { card: e.card.name }));
         await wait(900);
         sound.play('fire', 0.5);
         card.setGlow(0xff5a1a, 1);
@@ -1562,7 +1569,7 @@ export class Game {
         const hero = this.heroOf(e.id);
         sound.play('fatigue', 0.8);
         hero.flash(3, 0x8e44ad);
-        this.textAbove(hero, `Fatigue ${e.amount}`, '#c39bd3', 60);
+        this.textAbove(hero, t('g3d.float.fatigue', { amount: e.amount }), '#c39bd3', 60);
     }
 
     /** Start of a new match: VS splash, heroes enter in columns of light, fireworks and a wave. */
@@ -1668,21 +1675,23 @@ export class Game {
         }
     }
 
-    onEnd(text, p) {
+    /** kind: 'victory' | 'defeat' | 'draw'. */
+    onEnd(kind, p) {
         this.stopPlaying();
         this.clearInGame();
-        this.endMusic(text === 'Victory!' ? 'victory' : text === 'Defeat!' ? 'defeat' : null);
+        this.endMusic(kind === 'victory' || kind === 'defeat' ? kind : null);
         this.cheer(1);
+        const text = { victory: t('g3d.end.victory'), defeat: t('g3d.end.defeat'), draw: t('g3d.end.draw') }[kind];
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
         this.arena.wave();
-        if (text === 'Victory!') {
+        if (kind === 'victory') {
             this.flameJets(1.4);
             this.celebrate(14);
             this.effects.burst(this.opponent.hero.position.clone(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
         } else {
-            this.celebrate(text === 'Draw!' ? 6 : 3, text === 'Draw!' ? undefined : [0xff4d4d, 0x9b59b6]);
+            this.celebrate(kind === 'draw' ? 6 : 3, kind === 'draw' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
-        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame });
+        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame, kind });
     }
 
     /** The battle music gives way to the result's stinger (a gasp for a draw), then the menu music comes back. */
@@ -1700,9 +1709,11 @@ export class Game {
         this.arena.wave();
         this.celebrate(10);
         const winner = p.winner ? this.heroOf(p.winner).info.name : null;
-        const text = winner ? `${winner} wins!` : 'Draw!';
-        this.arena.screenFlash(winner ? 'WINNER' : 'DRAW');
-        this.ui.showEnd(text, { statistics: p.statistics }, { redirect: false, detail: this.mode === 'replay' ? 'End of the replay' : null });
+        const text = winner ? t('g3d.end.wins', { name: winner }) : t('g3d.end.draw');
+        this.arena.screenFlash(winner ? t('g3d.end.winnerFlash') : t('g3d.end.draw').replace('!', '').toUpperCase());
+        this.ui.showEnd(text, { statistics: p.statistics }, {
+            redirect: false, detail: this.mode === 'replay' ? t('g3d.end.replayOver') : null, kind: winner ? 'victory' : 'draw',
+        });
     }
 
     leave() {
@@ -1713,20 +1724,21 @@ export class Game {
     onGameClosed(e) {
         if (this.ended) return;
         const reason = (e && e.reason) || '';
+        // The close reason is the server's English (close.<reason> in the string tables), never shown as it is.
         if (/another window/i.test(reason)) {
-            this.ui.showQueue('You opened the game in another window.');
+            this.ui.showQueue(t('g3d.status.otherWindow'));
             return;
         }
         // Running games survive a restart of the game server: keep trying for about a minute (a redeploy).
         if (this.reconnects++ < 12) {
-            this.ui.screenMessage(/restarting/i.test(reason) ? 'The server is restarting, reconnecting...' : 'Connection lost, reconnecting...');
+            this.ui.screenMessage(/restarting/i.test(reason) ? t('g3d.status.restarting') : t('g3d.status.reconnecting'));
             setTimeout(() => {
                 this.gameSocket.connect();
                 if (!this.spectator) this.chatSocket.connect();
                 this.login();
             }, Math.min(1500 * this.reconnects, 5000));
         } else {
-            this.ui.showQueue('Connection lost. Reload the page to continue.');
+            this.ui.showQueue(t('g3d.status.lost'));
         }
     }
 
@@ -1741,13 +1753,13 @@ export class Game {
 
     /** Plays a recorded game: the spectator messages with their original timing (long pauses shortened). */
     async playReplay() {
-        this.ui.showQueue('Loading the replay...');
+        this.ui.showQueue(t('g3d.status.loadingReplay'));
         let records;
         try {
             const response = await fetch(this.config.replayUrl, { credentials: 'same-origin' });
-            records = await response.json();
+            records = window.SoulsL10n.localizeMessage(await response.json());
         } catch (err) {
-            this.ui.showQueue('The replay could not be loaded.');
+            this.ui.showQueue(t('g3d.status.replayFailed'));
             return;
         }
         const state = { playing: true, speed: 1 };
@@ -1808,18 +1820,18 @@ export class Game {
         const p = m.Payload;
         switch (m.Type) {
             case Response.CHAT_ROOM_MADE:
-                this.ui.chatLine(`[${p.name}]: ${p.message}`);
+                this.ui.chatLine(`[${p.name}]: ${serverText(p, 'message')}`);
                 this.chatRoom = p.chRoomId;
                 break;
             case Response.CHAT_MESSAGE:
-                this.ui.chatLine(`[${p.name}]: ${p.message}`);
+                this.ui.chatLine(`[${p.name}]: ${serverText(p, 'message')}`);
                 sound.play('emote', 0.45);
                 break;
             case Response.CHAT_CLIENT_DISCONNECT:
-                this.ui.chatLine(`[SERVER]: ${p}`);
+                this.ui.chatLine(`[SERVER]: ${serverText(m, 'Payload')}`);
                 break;
             case Response.CHAT_CLIENT_CONNECT:
-                this.ui.chatLine(`[SERVER]: Player ${p.name} connected!`);
+                this.ui.chatLine(`[SERVER]: ${t('g3d.chat.connected', { name: p.name })}`);
                 this.chatRoom = p.room;
                 this.chatSocket.send(Request.CHAT_LIST, { room: p.room });
                 break;
@@ -1833,7 +1845,7 @@ export class Game {
 
     sendChat(text) {
         if (this.chatRoom === null || this.chatRoom === undefined) {
-            this.ui.chatLine('[SERVER]: The chat opens when the game starts.');
+            this.ui.chatLine(`[SERVER]: ${t('g3d.chat.notOpen')}`);
             return;
         }
         this.chatSocket.send(Request.CHAT_MESSAGE, { room: this.chatRoom, message: text });

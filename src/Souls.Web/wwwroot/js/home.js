@@ -15,18 +15,20 @@
         return svg;
     }
 
+    // The texts in the page's language are on the lists (data-*).
     var games = $("#game-stats-feed");
     if (games.length) {
+        var gameTexts = games[0].dataset;
         $.getJSON("/Home/GetGames").done(function (list) {
             if (!list.length) {
-                games.append($("<li class='s-muted s-small'>").text("No games yet. Be the first!"));
+                games.append($("<li class='s-muted s-small'>").text(gameTexts.empty));
             }
             $.each(list, function (_, game) {
                 var link = $("<a>").attr("href", "/Game/Stats/" + encodeURIComponent(game.gameId));
                 link.append(icon(game.practice ? "bot" : "swords"));
-                link.append($("<span>").text(game.player1 + " vs " + game.player2));
+                link.append($("<span>").text(window.soulsFormat(gameTexts.vs, game.player1, game.player2)));
                 if (game.practice) {
-                    link.append($("<span class='s-chip ms-auto'>").text("Practice"));
+                    link.append($("<span class='s-chip ms-auto'>").text(gameTexts.practice));
                 }
                 games.append($("<li>").append(link));
             });
@@ -36,11 +38,12 @@
     var news = $(".news-wrapper");
     if (news.length) {
         $.getJSON("/Home/GetNews").done(function (list) {
+            var dates = new Intl.DateTimeFormat(document.documentElement.lang);
             $.each(list, function (_, item) {
                 var post = $("<article class='s-news-item'>");
                 post.append($("<h3>").text(item.title));
                 post.append($("<div class='s-news-body'>").html(item.text));
-                post.append($("<div class='s-news-meta'>").text(item.author + " · " + new Date(item.date).toLocaleDateString()));
+                post.append($("<div class='s-news-meta'>").text(item.author + " · " + dates.format(new Date(item.date))));
                 news.append(post);
             });
         });
@@ -48,11 +51,13 @@
 
     var services = $("#services-plugin");
     if (services.length) {
+        var serviceTexts = services[0].dataset;
+        var names = { "Game Server": serviceTexts.gameServer, "Database": serviceTexts.database };
         $.getJSON("/Home/ServiceStatus").done(function (status) {
             $.each(status, function (name, online) {
-                var state = $("<span class='fw-semibold'>").text(online ? "Online" : "Offline")
+                var state = $("<span class='fw-semibold'>").text(online ? serviceTexts.online : serviceTexts.offline)
                     .prepend($("<span class='s-dot'>").addClass(online ? "on" : "off"));
-                services.append($("<li>").append($("<span>").text(name), state));
+                services.append($("<li>").append($("<span>").text(names[name] || name), state));
             });
         });
     }

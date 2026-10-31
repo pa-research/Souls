@@ -316,7 +316,7 @@ export class Interaction {
         this.mode = 'power';
         this.powerTargets = this.game.candidates(power.targets);
         this.game.ui.setPowerArmed(true);
-        this.game.ui.hint(`${power.name}: pick a target`);
+        this.game.ui.hint(window.SoulsL10n.t('g3d.hint.target', { name: power.name }));
         this.target = null;
         if (this.ndc) this.updatePowerArrow();
     }
@@ -330,7 +330,8 @@ export class Interaction {
         this.mode = 'power';
         this.spell = card;
         this.powerTargets = targets || [];
-        this.game.ui.hint(`${card.data.name}: ${targets ? 'pick a target' : this.touch ? 'tap the board to cast it' : 'click the board to cast it'}`);
+        this.game.ui.hint(targets ? window.SoulsL10n.t('g3d.hint.target', { name: card.data.name })
+            : this.touch ? window.SoulsL10n.t('g3d.hint.cast', { name: card.data.name }) : window.SoulsL10n.t('g3d.hint.castClick', { name: card.data.name }));
         this.target = null;
     }
 
@@ -455,9 +456,9 @@ export class Interaction {
         game.ui.hideTooltip();
         const ability = this.ability && this.source instanceof Card3D ? game.abilityOf(this.source) : null;
         const candidates = this.ability
-            ? game.candidates(ability ? ability.targets : [], ability && ability.name === 'Sacrifice' ? this.source : null)
+            ? game.candidates(ability ? ability.targets : [], ability && this.source.abilityId === 2 ? this.source : null) // 2: Sacrifice
             : game.attackCandidates();
-        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source || (ability && ability.name === 'Heal')));
+        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source || (ability && this.source.abilityId === 1))); // 1: Heal
         const color = this.arrowColor();
         this.setTarget(target, color);
         const from = game.targetPoint(this.source);
