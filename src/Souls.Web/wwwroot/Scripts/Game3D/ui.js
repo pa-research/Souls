@@ -112,6 +112,15 @@ function cardFace(parent, d) {
     return card;
 }
 
+// The pointer the player uses: the last one pressed (touch or pen, or a mouse), before that the device's main one.
+let lastPointer = null;
+window.addEventListener('pointerdown', e => { lastPointer = e.pointerType; }, true);
+
+/** Whether hints should speak of taps (touch) rather than clicks (mouse). */
+export function touchInput() {
+    return lastPointer ? lastPointer !== 'mouse' : !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
 function readNumber(key, fallback) {
     try {
         const raw = localStorage.getItem(key);
@@ -491,6 +500,11 @@ export class UI {
         this.power.addEventListener('mouseenter', () => { if (this.powerInfo) this.showTooltip(this.powerInfo, this.power.getBoundingClientRect()); });
         this.power.addEventListener('mouseleave', () => this.hideTooltip());
 
+        // Portrait: the number of cards in the opponent's hand, beside its fan of card backs (Game.update).
+        this.handCount = el('span', 'souls3d-hand-count', this.root);
+        this.handCount.hidden = true;
+        this.handCount.setAttribute('aria-hidden', 'true');
+
         this.timer = el('div', 'sg-fuse', this.root);
         this.timer.hidden = true;
         const track = el('div', 'sg-fuse-track', this.timer);
@@ -534,6 +548,15 @@ export class UI {
 
     placeStatus(side, x, y, ax = 0.5) {
         this.follow(side === 'player' ? this.playerStatus : this.opponentStatus, x, y, ax);
+    }
+
+    /** The opponent's hand count at (x, y), its left edge there; null hides it. */
+    placeHandCount(count, x, y) {
+        const box = this.handCount;
+        box.hidden = count === null;
+        if (box.hidden) return;
+        if (box.textContent !== String(count)) box.textContent = String(count);
+        this.follow(box, x, y, 0);
     }
 
     /**
@@ -709,7 +732,7 @@ export class UI {
         const box = el('div', 'sg-mulligan-box', layer);
         el('div', 's-eyebrow', box, 'Mulligan');
         el('h2', '', box, 'Your starting hand');
-        el('p', '', box, 'Tap the cards you want to replace. You can do this once.');
+        el('p', '', box, touchInput() ? 'Tap the cards you want to replace. You can do this once.' : 'Click the cards you want to replace. You can do this once.');
         const row = el('div', 'sg-mulligan-cards', box);
         const timer = el('div', 'sg-mulligan-timer', box);
         const bar = progress(timer, 1, 's-progress-ember');
@@ -807,6 +830,8 @@ export class UI {
         }
         const t = this.tooltip;
         t.replaceChildren();
+        t.classList.remove('compact');
+        t.style.transform = '';
         t.dataset.rarity = info.rarity || '';
         el('div', 's-tip-title', t, info.title);
         if (info.sub) el('div', 'sg-tip-sub', t, info.sub);
@@ -833,23 +858,33 @@ export class UI {
             if (line) el('div', 'sg-tip-block', t, line);
         }
         t.hidden = false;
-        const box = t.getBoundingClientRect();
         const host = this.root.getBoundingClientRect();
+        // Between `at.top` and the point it goes above, or `at.floor` (portrait: below the buttons, above the player's
+        // hero and hero power); a tooltip too tall for that drops its flavour text, then shrinks.
+        const top = (at && at.top) || 8;
+        const fenced = !!at && (at.above || at.floor !== undefined);
+        const floor = !fenced ? host.height - 8 : at.above ? at.y : at.floor;
+        let box = t.getBoundingClientRect();
+        if (fenced && box.height > floor - top) {
+            t.classList.add('compact');
+            box = t.getBoundingClientRect();
+        }
+        const scale = fenced ? Math.max(0.6, Math.min(1, (floor - top) / box.height)) : 1;
+        const w = box.width * scale, h = box.height * scale;
         let x, y;
         if (at && at.width !== undefined) {
             x = at.right - host.left + 12;
-            y = at.top - host.top - box.height / 2 + at.height / 2;
+            y = at.top - host.top - h / 2 + at.height / 2;
         } else if (at && at.above) {
-            // Centred above the point, but not above `at.top` (portrait: above the player's hero, below the buttons).
-            x = Math.max(8, Math.min(at.x - box.width / 2, host.width - box.width - 8));
-            y = at.y - box.height;
+            x = Math.max(8, Math.min(at.x - w / 2, host.width - w - 8));
+            y = at.y - h;
         } else {
             x = (at ? at.x : 0) + 18;
             y = (at ? at.y : 0) + 18;
         }
-        if (x + box.width > host.width - 8) x = Math.max(8, (at && at.width !== undefined ? at.left - host.left : x - 36) - box.width - 12);
-        y = Math.max((at && at.top) || 8, Math.min(y, host.height - box.height - 8));
-        t.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+        if (x + w > host.width - 8) x = Math.max(8, (at && at.width !== undefined ? at.left - host.left : x - 36) - w - 12);
+        y = Math.max(top, Math.min(y, floor - h));
+        t.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)${scale < 1 ? ` scale(${scale.toFixed(3)})` : ''}`;
     }
 
     hideTooltip() {
@@ -938,8 +973,7 @@ export class UI {
             b.addEventListener('click', () => { if (this.onView) this.onView(name); });
             this.viewButtons[name] = b;
         }
-        const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-        el('span', 'souls3d-views-hint', bar, touch
+        el('span', 'souls3d-views-hint', bar, touchInput()
             ? 'Pinch: zoom · Drag the arena: rotate · Hold a card: ability'
             : 'Wheel: zoom · Right-drag: rotate');
         this.views = bar;

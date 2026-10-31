@@ -58,7 +58,8 @@ const PORTRAIT_BOARD_FIT = [
     new THREE.Vector3(0, 0, -725), new THREE.Vector3(0, 300, -585),
     new THREE.Vector3(0, 0, 725), new THREE.Vector3(0, 270, 585),
 ];
-// The part of the screen a view frames its subject in (normalized device y): all of it, except in portrait.
+// The part of the screen a view frames its subject in (normalized device coordinates): all of it, except in portrait
+// (Stage.bands) and inside the safe area in landscape (safeFrame).
 const FULL_SCREEN = { top: 1, bottom: -1 };
 
 /**
@@ -75,6 +76,15 @@ function portraitBands(width, height, inset) {
     const hand = footer - Math.round(card * 1.4) - 8;
     const action = hand - 78;
     return { card, inset, opponentHand: [buttons, buttons + 48], board: [buttons + 48, action], action: [action, hand], hand: [hand, footer] };
+}
+
+/**
+ * Landscape: the part of the screen (normalized device coordinates) inside the safe area, where the classic stage (and so
+ * the hand, End Turn, the turn fuse and the status pills, which are placed on it) goes, clear of a notch at the sides and
+ * the home indicator at the bottom.
+ */
+function safeFrame(width, height, inset) {
+    return { top: 1 - 2 * inset.top / height, bottom: 2 * inset.bottom / height - 1, left: 2 * inset.left / width - 1, right: 1 - 2 * inset.right / width };
 }
 
 /** The safe area (env(safe-area-inset-*), CSS pixels) as measured by `probe`, an element padded by it. */
@@ -123,6 +133,17 @@ function detectQuality(gpu) {
     let stored = null;
     try { stored = localStorage.getItem(QUALITY_KEY); } catch (e) { /* storage blocked */ }
     return QUALITIES.indexOf(stored) >= 0 && QUALITIES.indexOf(stored) < QUALITIES.indexOf(detected) ? stored : detected;
+}
+
+/**
+ * Bloom blurs the bright parts at five sizes, each two passes, and every pass costs main-thread time to set up: high
+ * quality keeps the three smallest blurs, medium two (the widest ones hardly show at this strength). The left-out ones
+ * get no share of the glow (BloomNode adds all five, `bloomTintColors` weighs them).
+ */
+const BLOOM_MIPS = { medium: 2, high: 3 };
+function limitBloom(node, quality) {
+    node._nMips = BLOOM_MIPS[quality] ?? 5;
+    node.bloomTintColors.forEach((tint, i) => tint.setScalar(i < node._nMips ? 1 : 0));
 }
 
 /** Device pixel ratio to render at for a quality level. */
@@ -192,6 +213,7 @@ export class Stage {
         if (this.quality !== 'low') {
             this.world = pass(this.scene, this.camera, { samples: 4 });
             this.bloom = bloom(this.world, 0.45, 0.35, 0.88);
+            limitBloom(this.bloom, this.quality);
             this.pipeline = new THREE.RenderPipeline(renderer, this.world.add(this.bloom));
             this.pipeline.outputColorTransform = false; // the HUD still goes on top
         }
@@ -215,10 +237,11 @@ export class Stage {
         // the browser to lay out the page again each time.
         this.width = width;
         this.height = height;
-        // Portrait: the bands of the screen, and the part of it (normalized device y) the views frame the board in.
+        // Portrait: the bands of the screen, and the part of it the views frame the board in (landscape: the safe area).
         this.portrait = width < height;
-        this.bands = this.portrait ? portraitBands(width, height, safeArea(this.safeProbe)) : null;
-        this.frame = this.portrait ? { top: 1 - 2 * this.bands.board[0] / height, bottom: 1 - 2 * this.bands.board[1] / height } : FULL_SCREEN;
+        const inset = safeArea(this.safeProbe);
+        this.bands = this.portrait ? portraitBands(width, height, inset) : null;
+        this.frame = this.portrait ? { top: 1 - 2 * this.bands.board[0] / height, bottom: 1 - 2 * this.bands.board[1] / height } : safeFrame(width, height, inset);
         this.renderer.setSize(width, height, false);
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
         this.target.setSize(size.x, size.y);
@@ -227,19 +250,24 @@ export class Stage {
             cam.updateProjectionMatrix();
         }
         if (this.portrait) this.fit(this.classicCamera, PORTRAIT_CLASSIC_FIT, this.classicTilt, 0.97, this.frame);
-        else this.fit(this.classicCamera, CLASSIC_FIT, this.classicTilt);
+        else this.fit(this.classicCamera, CLASSIC_FIT, this.classicTilt, 0.985, this.frame);
         for (const fn of this.listeners) fn();
     }
 
     /**
      * Fits `cam` (looking down at `tilt` from vertical, from the player's side or from `azimuth` around the arena) so
-     * all `points` are in view, between the `frame.top` and `frame.bottom` of the screen (normalized device y).
+     * all `points` are in view, inside `frame` (normalized device coordinates: `top` and `bottom`, and `left` and
+     * `right`, the whole width when left out).
      */
     fit(cam, points, tilt, margin = 0.985, frame = FULL_SCREEN, azimuth = 0) {
         cam.updateProjectionMatrix();
         const target = new THREE.Vector3(0, 0, 40);
         let distance = 2400;
         const v = new THREE.Vector3();
+        // A frame with sides (landscape's safe area) also centres the points between them; the others keep the target
+        // on the line the camera looks along.
+        const sides = frame.left !== undefined;
+        const left = sides ? frame.left : -1, right = sides ? frame.right : 1;
         for (let i = 0; i < 40; i++) {
             this.place(cam, target, distance, tilt, azimuth);
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -248,12 +276,13 @@ export class Stage {
                 minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
                 minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
             }
-            const scale = Math.max((maxX - minX) / 2 / margin, (maxY - minY) / (frame.top - frame.bottom) / margin);
+            const scale = Math.max((maxX - minX) / (right - left) / margin, (maxY - minY) / (frame.top - frame.bottom) / margin);
             distance *= scale;
             const halfHeight = distance * Math.tan(deg(cam.fov / 2)) / Math.max(0.2, Math.cos(tilt));
             const shift = ((maxY + minY) / 2 - (frame.top + frame.bottom) / 2) * halfHeight * 0.5;
-            target.x -= shift * Math.sin(azimuth);
-            target.z -= shift * Math.cos(azimuth);
+            const side = sides ? ((maxX + minX) / 2 - (left + right) / 2) * distance * Math.tan(deg(cam.fov / 2)) * cam.aspect * 0.5 : 0;
+            target.x += side * Math.cos(azimuth) - shift * Math.sin(azimuth);
+            target.z -= side * Math.sin(azimuth) + shift * Math.cos(azimuth);
         }
         this.place(cam, target, distance, tilt, azimuth);
         return { target, distance };
@@ -447,14 +476,14 @@ export class Stage {
             cam.position.set(0, 430 * back, 930 * back);
             cam.lookAt(0, 0, -150);
         } else if (name === 'cinematic') {
-            // A slow orbit above the terraces (higher and wider behind the menu). In a game it comes in over the sand and
-            // rises at the sides, inside the pillars (x = ±880), so they never pass in front of the board.
+            // A slow orbit above the terraces, in a game and behind the menu: it comes in over the sand and rises at the
+            // sides, inside the pillars (x = ±880), so they never pass in front of the board.
             cam.fov = 44;
             const a = now * 0.00005 + 0.6;
-            const side = this.menu ? 0 : Math.sin(a) ** 2;
-            const radius = this.menu ? 1900 : 1500 - 940 * side, height = this.menu ? 1500 : 1080 + 470 * side;
+            const side = Math.sin(a) ** 2;
+            const radius = 1500 - 940 * side, height = 1080 + 470 * side;
             cam.position.set(Math.sin(a) * radius, height + Math.sin(now * 0.00011) * 90, Math.cos(a) * radius);
-            cam.lookAt(0, this.menu ? 0 : 60, 0);
+            cam.lookAt(0, 60, 0);
         } else {
             const f = this.free;
             cam.fov = f.fov || 40;
@@ -530,6 +559,7 @@ export class Stage {
         this.quality = QUALITIES[QUALITIES.indexOf(this.quality) - 1];
         try { localStorage.setItem(QUALITY_KEY, this.quality); } catch (e) { /* storage blocked */ }
         this.renderer.setPixelRatio(pixelRatio(this.quality));
+        if (this.bloom) limitBloom(this.bloom, this.quality);
         if (this.quality === 'low' && this.pipeline) {
             for (const part of [this.pipeline, this.bloom, this.world]) part.dispose();
             this.pipeline = this.bloom = this.world = null;
