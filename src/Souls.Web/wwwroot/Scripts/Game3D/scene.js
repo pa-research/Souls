@@ -43,12 +43,38 @@ export const VIEWS = {
 };
 
 const CLASSIC_FIT = [toWorld(0, 0), toWorld(STAGE_W, 0), toWorld(0, STAGE_H), toWorld(STAGE_W, STAGE_H)];
+// Portrait: the classic view frames the board alone (both slot rows, both heroes), not the whole classic stage.
+const PORTRAIT_CLASSIC_FIT = [toWorld(440, 0), toWorld(1480, 0), toWorld(440, STAGE_H), toWorld(1480, STAGE_H)];
 // The board (both slot rows and both heroes on their podiums) for the angled view.
 const BOARD_FIT = [
     new THREE.Vector3(-700, 0, -640), new THREE.Vector3(700, 0, -640),
     new THREE.Vector3(-640, 0, 700), new THREE.Vector3(640, 0, 700),
     new THREE.Vector3(0, 300, -585),
 ];
+// Portrait: the narrow screen holds the slot rows edge to edge (cards 150 x 210 on them) and both heroes on their podiums.
+const PORTRAIT_BOARD_FIT = [
+    new THREE.Vector3(-545, 0, -230), new THREE.Vector3(545, 0, -230),
+    new THREE.Vector3(-545, 0, 270), new THREE.Vector3(545, 0, 270),
+    new THREE.Vector3(0, 0, -725), new THREE.Vector3(0, 300, -585),
+    new THREE.Vector3(0, 0, 725), new THREE.Vector3(0, 270, 585),
+];
+// The part of the screen a view frames its subject in (normalized device y): all of it, except in portrait.
+const FULL_SCREEN = { top: 1, bottom: -1 };
+
+/**
+ * Portrait (aspect below 1): the classic 16:9 layout would leave the board a thin strip, so the screen is split into
+ * bands, top to bottom (CSS pixels): the camera and settings buttons (two rows, see game3d.css), the opponent's hand,
+ * the board (every view frames it there), a row with the player's status, End Turn and the turn fuse, the player's
+ * hand, and the battle log and chat. `card` is the width of a hand card.
+ */
+function portraitBands(width, height) {
+    const card = Math.round(THREE.MathUtils.clamp(width * 0.24, 86, 150)); // the frame art is about 0.82 of it
+    const buttons = 104;
+    const footer = height - 56;
+    const hand = footer - Math.round(card * 1.4) - 8;
+    const action = hand - 78;
+    return { card, opponentHand: [buttons, buttons + 48], board: [buttons + 48, action], action: [action, hand], hand: [hand, footer] };
+}
 
 const QUALITIES = ['low', 'medium', 'high'];
 // The level the frame-rate watch stepped down to on this device; cleared by choosing "Auto" in the settings.
@@ -180,6 +206,10 @@ export class Stage {
         // the browser to lay out the page again each time.
         this.width = width;
         this.height = height;
+        // Portrait: the bands of the screen, and the part of it (normalized device y) the views frame the board in.
+        this.portrait = width < height;
+        this.bands = this.portrait ? portraitBands(width, height) : null;
+        this.frame = this.portrait ? { top: 1 - 2 * this.bands.board[0] / height, bottom: 1 - 2 * this.bands.board[1] / height } : FULL_SCREEN;
         this.renderer.setSize(width, height, false);
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
         this.target.setSize(size.x, size.y);
@@ -187,37 +217,54 @@ export class Stage {
             cam.aspect = width / height;
             cam.updateProjectionMatrix();
         }
-        this.fit(this.classicCamera, CLASSIC_FIT, this.classicTilt);
+        if (this.portrait) this.fit(this.classicCamera, PORTRAIT_CLASSIC_FIT, this.classicTilt, 0.97, this.frame);
+        else this.fit(this.classicCamera, CLASSIC_FIT, this.classicTilt);
         for (const fn of this.listeners) fn();
     }
 
-    /** Fits `cam` (looking down at `tilt` from vertical, from the player's side) so all `points` are in view. */
-    fit(cam, points, tilt, margin = 0.985) {
+    /**
+     * Fits `cam` (looking down at `tilt` from vertical, from the player's side or from `azimuth` around the arena) so
+     * all `points` are in view, between the `frame.top` and `frame.bottom` of the screen (normalized device y).
+     */
+    fit(cam, points, tilt, margin = 0.985, frame = FULL_SCREEN, azimuth = 0) {
         cam.updateProjectionMatrix();
         const target = new THREE.Vector3(0, 0, 40);
         let distance = 2400;
         const v = new THREE.Vector3();
         for (let i = 0; i < 40; i++) {
-            this.place(cam, target, distance, tilt);
+            this.place(cam, target, distance, tilt, azimuth);
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (const p of points) {
                 v.copy(p).project(cam);
                 minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
                 minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
             }
-            const scale = Math.max((maxX - minX) / 2 / margin, (maxY - minY) / 2 / margin);
+            const scale = Math.max((maxX - minX) / 2 / margin, (maxY - minY) / (frame.top - frame.bottom) / margin);
             distance *= scale;
             const halfHeight = distance * Math.tan(deg(cam.fov / 2)) / Math.max(0.2, Math.cos(tilt));
-            target.z -= ((maxY + minY) / 2) * halfHeight * 0.5;
+            const shift = ((maxY + minY) / 2 - (frame.top + frame.bottom) / 2) * halfHeight * 0.5;
+            target.x -= shift * Math.sin(azimuth);
+            target.z -= shift * Math.cos(azimuth);
         }
-        this.place(cam, target, distance, tilt);
+        this.place(cam, target, distance, tilt, azimuth);
         return { target, distance };
     }
 
-    place(cam, target, distance, tilt) {
-        cam.position.set(target.x, target.y + distance * Math.cos(tilt), target.z + distance * Math.sin(tilt));
+    place(cam, target, distance, tilt, azimuth = 0) {
+        const ground = distance * Math.sin(tilt);
+        cam.position.set(target.x + ground * Math.sin(azimuth), target.y + distance * Math.cos(tilt), target.z + ground * Math.cos(azimuth));
         cam.lookAt(target);
         cam.updateMatrixWorld(true);
+    }
+
+    /** Screen point (CSS pixels) to the classic stage point the HUD shows there. */
+    classicAtPixel(x, y) {
+        return this.classicAtScreen(new THREE.Vector2(x / this.width * 2 - 1, 1 - y / this.height * 2));
+    }
+
+    /** CSS pixels per classic stage pixel on the HUD, across the stage at row `y`. */
+    pixelsPerClassic(y) {
+        return (this.classicToScreen(1060, y).x - this.classicToScreen(960, y).x) / 100;
     }
 
     /**
@@ -359,7 +406,8 @@ export class Stage {
     zoomBy(factor) {
         this.enterFree();
         if (this.view !== 'free') return;
-        this.free.distance = THREE.MathUtils.clamp(this.free.distance * factor, 450, 5200);
+        // Portrait views stand further back (the narrow screen), so free zooming goes further out there.
+        this.free.distance = THREE.MathUtils.clamp(this.free.distance * factor, 450, this.portrait ? 8000 : 5200);
     }
 
     /** The camera the current view wants at time `now`. */
@@ -367,11 +415,22 @@ export class Stage {
         const cam = this._viewCam || (this._viewCam = new THREE.PerspectiveCamera(30, 1, 10, 60000));
         cam.aspect = this.camera.aspect;
         const name = this.menu ? 'cinematic' : this.view;
+        // Portrait: each view frames the board (just the slot rows and the heroes) in its band of the screen.
+        const portrait = this.portrait && !this.menu;
         if (name === 'classic') {
             cam.copy(this.classicCamera);
         } else if (name === 'arena') {
             cam.fov = 44;
-            this.fit(cam, BOARD_FIT, deg(48), 0.97);
+            this.fit(cam, portrait ? PORTRAIT_BOARD_FIT : BOARD_FIT, deg(portrait ? 40 : 48), 0.97, this.frame);
+        } else if (portrait && name === 'field') {
+            // Not down at the front row: the narrow screen needs the camera so far back that it would be in the stands.
+            cam.fov = 60;
+            this.fit(cam, PORTRAIT_BOARD_FIT, deg(56), 0.97, this.frame);
+        } else if (portrait && name === 'cinematic') {
+            // A slow sway above the player's end instead of the orbit: from this far back, the pillars beside the arena
+            // would pass in front of the board.
+            cam.fov = 50;
+            this.fit(cam, PORTRAIT_BOARD_FIT, deg(40 + Math.sin(now * 0.00011) * 4), 0.97, this.frame, Math.sin(now * 0.00009) * 0.7);
         } else if (name === 'field') {
             // Down at the front row behind your hero, looking across the sand at the opponent.
             cam.fov = 55;

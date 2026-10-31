@@ -5,7 +5,7 @@
 import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound } from './assets.js';
-import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS } from './cards.js';
+import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
@@ -228,11 +228,98 @@ export class Game {
 
     // ---- Layout -------------------------------------------------------------------------------------------------
 
+    /**
+     * Where a side's hand goes, in classic stage pixels: the classic layout (from the left, 60 apart, the hovered card
+     * zoomed above its place), or in portrait centred in its band and spread over the screen width (Game.portraitRows).
+     */
+    handRow(side) {
+        const r = this.rows && (side.isPlayer ? this.rows.player : this.rows.opponent);
+        if (!r) {
+            const y = side.isPlayer ? PLAYER_HAND_Y : OPPONENT_HAND_Y;
+            return { x: HAND_X, spacing: HAND_SPACING, y, scale: 1, hoverY: y - 120, hoverScale: 2.2, hoverX: x => x };
+        }
+        const n = side.hand.size;
+        const width = CARD_W * r.scale;
+        const spacing = n > 1 ? Math.min(width * 0.92, (r.span - width) / (n - 1)) : 0;
+        return {
+            x: 960 - spacing * (n - 1) / 2, spacing, y: r.y, scale: r.scale, hoverY: r.hoverY, hoverScale: r.hoverScale,
+            hoverX: x => THREE.MathUtils.clamp(x, 960 - r.hoverRoom, 960 + r.hoverRoom),
+        };
+    }
+
+    /**
+     * Portrait: the hands, the End Turn sign, the turn fuse and the player's status go into their bands of the screen
+     * (Stage.bands), sized in screen pixels and turned into classic stage points for hudPose.
+     */
+    portraitRows() {
+        const stage = this.stage, b = stage.bands, w = stage.width;
+        const at = (x, py) => {
+            const y = stage.classicAtPixel(x, py).y;
+            return { y, k: stage.pixelsPerClassic(y) };
+        };
+        const hand = at(w / 2, (b.hand[0] + b.hand[1]) / 2);
+        // The touched card zooms above the row over the hand (its rules above it), at most about half the screen wide.
+        const zoom = Math.min(w * 0.46, 230);
+        const hoverPx = Math.max(b.board[0] + zoom * 0.7, b.action[0] - zoom * 0.7);
+        const hover = at(w / 2, hoverPx);
+        const opponent = at(w / 2, (b.opponentHand[0] + b.opponentHand[1]) / 2);
+        const signW = 112, signPx = { x: w - 10 - signW / 2, y: b.action[0] + 24 };
+        const sign = stage.classicAtPixel(signPx.x, signPx.y);
+        return {
+            player: {
+                y: hand.y, scale: b.card / (CARD_W * hand.k), span: (w - 16) / hand.k,
+                hoverY: hover.y, hoverScale: zoom / (CARD_W * hover.k), hoverRoom: Math.max(0, w / 2 - 8 - zoom / 2) / hover.k,
+            },
+            opponent: { y: opponent.y, scale: 30 / (CARD_W * opponent.k), span: w * 0.55 / opponent.k, hoverY: opponent.y, hoverScale: 1, hoverRoom: 0 },
+            sign: { x: sign.x, y: sign.y, scale: signW / (196 * stage.pixelsPerClassic(sign.y)) },
+            fuse: { x: w - 10, y: this.spectator ? b.action[0] + 24 : b.action[0] + 48, ax: 1 },
+            status: { x: 10, y: signPx.y, ax: 0 },
+            tip: { x: w / 2, y: hoverPx - zoom * 0.7 - 8, above: true },
+        };
+    }
+
+    /** The index of the player's hand card at classic stage point `p` (the visible strip of each card), or -1. */
+    handIndexAt(p) {
+        const n = this.player.hand.size;
+        const row = this.handRow(this.player);
+        if (!p || n === 0 || p.y < row.y - 100 * row.scale) return -1;
+        const left = row.x - 75 * row.scale;
+        const right = row.x + row.spacing * (n - 1) + 75 * row.scale;
+        if (p.x < left || p.x > right) return -1;
+        return row.spacing > 0 ? Math.min(n - 1, Math.max(0, Math.floor((p.x - left) / row.spacing))) : 0;
+    }
+
+    /** Screen point of the visible strip of the player's hand card `index` (test hook). */
+    handScreenPoint(index) {
+        const row = this.handRow(this.player);
+        const last = index === this.player.hand.size - 1;
+        return this.stage.classicToScreen(row.x + row.spacing * index + (last ? 0 : row.spacing / 2 - 75 * row.scale), row.y + 10 * row.scale);
+    }
+
+    /** Screen rectangle (CSS pixels) of a card's face or a hero, in the HUD or the arena (test hook). */
+    screenRect(obj) {
+        if (!obj) return null;
+        const camera = obj.parent === this.stage.hud ? this.stage.hudCamera : this.stage.camera;
+        const box = new THREE.Box3().setFromObject(obj.front || obj.face || obj, true);
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < 8; i++) {
+            const v = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera);
+            const x = (v.x + 1) / 2 * this.stage.width, y = (1 - v.y) / 2 * this.stage.height;
+            x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    /** End Turn sign: its classic spot, or the right of the row above the hand in portrait. */
+    signPoint() {
+        return this.rows ? this.rows.sign : { x: 1610, y: 550, scale: 1 };
+    }
+
     handPose(side, index, hovered = false, card = null) {
-        const y = side.isPlayer ? PLAYER_HAND_Y : OPPONENT_HAND_Y;
-        const x = HAND_X + HAND_SPACING * index;
-        if (hovered) return this.stage.hudPose(x, y - 120, HOVER_LIFT, 2.2);
-        const pose = this.stage.hudPose(x, y, HAND_LIFT + index * 0.004);
+        const row = this.handRow(side);
+        const x = row.x + row.spacing * index;
+        if (hovered) return this.stage.hudPose(row.hoverX(x), row.hoverY, HOVER_LIFT, row.hoverScale);
+        const pose = this.stage.hudPose(x, row.y, HAND_LIFT + index * 0.004, row.scale);
         // The opponent's cards, and player one's when spectating, show their backs.
         if (!side.isPlayer || (card && !card.revealed)) pose.quaternion.multiply(TURN_AROUND);
         return pose;
@@ -244,13 +331,15 @@ export class Game {
 
     /** Re-positions everything that is anchored to the classic screen layout. */
     layout(animate = true) {
+        this.rows = this.stage.portrait ? this.portraitRows() : null;
         for (const side of [this.player, this.opponent]) {
             // Heroes: where the classic client draws them (classic view), or on their podium (stadium views).
             side.hero.anchorPose = this.stage.anchor(960, side.isPlayer ? 955 : 125, HERO_LIFT);
             side.hero.podium.position.set(0, 0, side.isPlayer ? PODIUM_Z : -PODIUM_Z);
             this.layoutHand(side, animate);
         }
-        const sign = this.stage.hudPose(1610, 550, SIGN_LIFT);
+        const at = this.signPoint();
+        const sign = this.stage.hudPose(at.x, at.y, SIGN_LIFT, at.scale);
         this.sign.position.copy(sign.position);
         this.sign.quaternion.copy(sign.quaternion);
         this.sign.scale.setScalar(sign.scale);
@@ -291,13 +380,15 @@ export class Game {
     }
 
     addHandCards(side, cards, { deal = true } = {}) {
+        const held = [...side.hand.values()];
         cards.forEach((data, k) => {
             if (side.hand.has(data.cid)) return;
             const card = this.createCard(side, data, true);
             card.castsShadow = false;
             side.hand.set(card.cid, card);
             // Deal from the right edge of the screen, flipping into place.
-            const start = this.stage.hudPose(2080, side.isPlayer ? PLAYER_HAND_Y : OPPONENT_HAND_Y, HAND_LIFT);
+            const row = this.handRow(side);
+            const start = this.stage.hudPose(2080, row.y, HAND_LIFT, row.scale);
             if (side.isPlayer && card.revealed) start.quaternion.multiply(TURN_AROUND);
             card.setPose(start);
             tweens.wait(deal ? k * 120 : 0).then(() => {
@@ -305,6 +396,12 @@ export class Game {
                 card.moveTo(this.handPose(side, [...side.hand.keys()].indexOf(card.cid), card === this.hovered, card), 650, Ease.cubicOut);
             });
         });
+        // Portrait spreads the hand over the screen: the cards already in it close up for the new ones.
+        if (this.rows) {
+            held.forEach((card, index) => {
+                if (!card.dragging && !card.pending && !card.opponentDragging) card.moveTo(this.handPose(side, index, card === this.hovered, card), 450, Ease.cubicOut);
+            });
+        }
     }
 
     addBoardCard(side, data) {
@@ -431,6 +528,8 @@ export class Game {
     }
 
     inspect(obj, at) {
+        // Portrait: a hand card's rules go above its zoomed picture, clear of the hand.
+        if (this.rows && obj instanceof Card3D && this.player.hand.get(obj.cid) === obj) at = this.rows.tip;
         this.ui.showTooltip(obj ? this.describe(obj) : null, at);
     }
 
@@ -910,14 +1009,15 @@ export class Game {
         if (p.returned) {
             // Haunt: the card comes back from the arena to the hand.
             for (const data of cards) {
-                const at = this.stage.hudPose(960, side.isPlayer ? PLAYER_HAND_Y : OPPONENT_HAND_Y, HAND_LIFT);
+                const row = this.handRow(side);
+                const at = this.stage.hudPose(960, row.y, HAND_LIFT, row.scale);
                 const card = this.createCard(side, data, true);
                 card.castsShadow = false;
                 if (!side.isPlayer || !card.revealed) at.quaternion.multiply(TURN_AROUND);
                 card.setPose({ ...at, scale: 0.01 });
                 card.setOpacity(0.6);
                 side.hand.set(card.cid, card);
-                card.moveTo({ ...at, scale: 1.3 }, 350, Ease.backOut).then(() => { card.setOpacity(1); this.layoutHand(side); });
+                card.moveTo({ ...at, scale: 1.3 * row.scale }, 350, Ease.backOut).then(() => { card.setOpacity(1); this.layoutHand(side); });
             }
             return wait(450);
         }
@@ -1706,7 +1806,8 @@ export class Game {
             // The medallion stands on the podium (44 high); 125 is half its height at scale 1.
             const onPodium = hero.podium.position.clone().setY(56 + 125 * (hero.viewScale ?? 0.85));
             hero.position.lerpVectors(a.position, onPodium, blend);
-            const viewScale = side.isPlayer ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
+            // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
+            const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
             hero.viewScale = (hero.viewScale ?? viewScale) + (viewScale - (hero.viewScale ?? viewScale)) * Math.min(1, dt / 300);
             hero.scale.setScalar(a.scale + (hero.viewScale - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
@@ -1724,16 +1825,17 @@ export class Game {
             }
         }
         // HTML overlays that follow the 3D scene: the turn timer under the End Turn sign, the hero power button.
-        const sign = this.stage.classicToScreen(1610, this.spectator ? 520 : 600);
-        this.ui.updateTimer(now, sign.x, sign.y);
+        const fuse = this.rows ? this.rows.fuse : this.stage.classicToScreen(1610, this.spectator ? 520 : 600);
+        this.ui.updateTimer(now, fuse.x, fuse.y, fuse.ax);
         if (this.active && !this.spectator) {
             const anchor = this.powerAnchor();
             this.ui.placePower(anchor.x, anchor.y);
         }
         if (this.active) {
             for (const side of [this.player, this.opponent]) {
-                const at = this.statusAnchor(side);
-                this.ui.placeStatus(side.isPlayer ? 'player' : 'opponent', at.x, at.y);
+                // Portrait: the player's status starts the row above the hand.
+                const at = side.isPlayer && this.rows ? this.rows.status : this.statusAnchor(side);
+                this.ui.placeStatus(side.isPlayer ? 'player' : 'opponent', at.x, at.y, at.ax);
                 const bubble = this.emoteAnchor(side);
                 this.ui.placeEmote(side.isPlayer ? 'player' : 'opponent', bubble.x, bubble.y);
             }
