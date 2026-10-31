@@ -49,7 +49,7 @@ async function main() {
     await stage.init();
     const ui = new UI(host, config);
     const effects = new Effects(stage);
-    const arena = new Arena(stage.scene, stage.quality, stage.backend);
+    const arena = new Arena(stage.scene, stage.quality, stage.backend, stage.camera);
     const crowd = new CrowdAudio();
     let game = null;
     let torches = null;

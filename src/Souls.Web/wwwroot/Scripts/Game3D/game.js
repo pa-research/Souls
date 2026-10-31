@@ -1824,12 +1824,21 @@ export class Game {
         // Board cards stand up to face the camera in the low views; ready cards breathe.
         this.tilt += (this.stage.viewInfo.cardTilt - this.tilt) * Math.min(1, dt / 250);
         updateFoil(now);
+        // Soft contact shadows on the sand under the podiums and the cards lying (or standing) on the board.
+        const contacts = [];
         for (const side of [this.player, this.opponent]) {
+            const podium = side.hero.podium.position;
+            contacts.push([podium.x, podium.z, 175 * blend, 175 * blend]);
             for (const card of side.board.values()) {
                 card.setTilt(this.tilt);
                 card.pulse(now);
+                if (card.position.y < 60) {
+                    const c = card.center();
+                    contacts.push([c.x, c.z, 92, 34 + 92 * Math.cos(this.tilt)]);
+                }
             }
         }
+        this.arena.setContacts(contacts);
         // HTML overlays that follow the 3D scene: the turn timer under the End Turn sign, the hero power button.
         const fuse = this.rows ? this.rows.fuse : this.stage.classicToScreen(1610, this.spectator ? 520 : 600);
         this.ui.updateTimer(now, fuse.x, fuse.y, fuse.ax);
