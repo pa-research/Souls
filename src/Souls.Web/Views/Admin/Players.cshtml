@@ -1,12 +1,12 @@
 @model AdminPlayersViewModel
 <div class="s-admin">
 <section class="s-panel">
-<div class="s-panel-head"><s-icon name="users" /><h2>Players</h2><span class="s-muted s-small">Online status, kick, ban and reset are live actions on the game server.</span></div>
+<div class="s-panel-head"><s-icon name="users" /><h2>@L["Players"]</h2><span class="s-muted s-small">@L["Online status, kick, ban and reset are live actions on the game server."]</span></div>
 
 <div class="table-responsive">
-    <table class="table table-sm align-middle" id="admin-players">
+    <table class="table table-sm align-middle" id="admin-players" data-online="@L["Online"]" data-offline="@L["Offline"]" data-ban-date="@L["Choose the date the ban lasts until."]" data-reset="@L["Reset money, rank and cards of this player?"]">
         <thead>
-            <tr><th>Id</th><th>Name</th><th>Money</th><th title="Cards owned and the sum of their levels">Cards (levels)</th><th>Rank</th><th>Created</th><th>Permission</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>@L["Id"]</th><th>@L["Name"]</th><th>@L["Money"]</th><th title="@L["Cards owned and the sum of their levels"]">@L["Cards (levels)"]</th><th>@L["Rank"]</th><th>@L["Created"]</th><th>@L["Permission"]</th><th>@L["Status"]</th><th>@L["Actions"]</th></tr>
         </thead>
         <tbody>
             @foreach (var player in Model.Players)
@@ -28,15 +28,15 @@
                                     <option value="@permission.Id" selected="@(permission.Id == player.PlayerPermissionId)">@permission.Name</option>
                                 }
                             </select>
-                            <button type="submit" class="s-btn s-btn-ghost s-btn-sm">Save</button>
+                            <button type="submit" class="s-btn s-btn-ghost s-btn-sm">@L["Save"]</button>
                         </form>
                     </td>
-                    <td class="player-status text-danger fw-bold">Offline</td>
+                    <td class="player-status text-danger fw-bold">@L["Offline"]</td>
                     <td class="text-nowrap">
-                        <button type="button" class="s-btn s-btn-ghost s-btn-sm kick">Kick</button>
-                        <input type="date" class="form-control form-control-sm d-inline-block w-auto ban-until" aria-label="Ban until" />
-                        <button type="button" class="s-btn s-btn-ghost s-btn-sm ban">Ban</button>
-                        <button type="button" class="s-btn s-btn-ghost s-btn-sm reset">Reset</button>
+                        <button type="button" class="s-btn s-btn-ghost s-btn-sm kick">@L["Kick"]</button>
+                        <input type="date" class="form-control form-control-sm d-inline-block w-auto ban-until" aria-label="@L["Ban until"]" />
+                        <button type="button" class="s-btn s-btn-ghost s-btn-sm ban">@L["Ban"]</button>
+                        <button type="button" class="s-btn s-btn-ghost s-btn-sm reset">@L["Reset"]</button>
                     </td>
                 </tr>
             }

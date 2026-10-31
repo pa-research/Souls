@@ -2,9 +2,9 @@
 @model ShopViewModel
 <section class="s-panel s-shop-head s-rise mb-4">
     <div>
-        <div class="s-eyebrow">Hansel's Card Shop</div>
-        <h1 class="s-h1 s-gold-text">Cards and Upgrades</h1>
-        <p class="s-muted mb-0">Hansel was once the champion of souls. Now he sells cards to feed himself and his wife.<br />Buying a card you already own levels it up: +1 attack and +1 health per level (spells: +1 to their effect), up to level @GameRules.MaxCardLevel.</p>
+        <div class="s-eyebrow">@L["Hansel's Card Shop"]</div>
+        <h1 class="s-h1 s-gold-text">@L["Cards and Upgrades"]</h1>
+        <p class="s-muted mb-0">@L["Hansel was once the champion of souls. Now he sells cards to feed himself and his wife."]<br />@L["Buying a card you already own levels it up: +1 attack and +1 health per level (spells: +1 to their effect), up to level {0}.", GameRules.MaxCardLevel]</p>
     </div>
     <img class="hansel-art d-none d-sm-block" src="~/Content/Images/Page/hansel.png" alt="" />
 </section>
@@ -13,41 +13,41 @@
     <aside class="s-grid" style="align-content: start">
         <partial name="_PlayerInfo" model="Model.Player" />
         <section class="s-panel s-pack-offer" aria-labelledby="pack-title">
-            <div class="s-panel-head"><s-icon name="sparkles" /><h2 id="pack-title">Card Pack</h2></div>
+            <div class="s-panel-head"><s-icon name="sparkles" /><h2 id="pack-title">@L["Card Pack"]</h2></div>
             <div class="s-pack-art" aria-hidden="true"><span></span><span></span><span></span></div>
-            <p class="s-small">Five random cards, the last one rare or better. A card you own levels up instead; at level @GameRules.MaxCardLevel it pays back half its price.</p>
+            <p class="s-small">@L["Five random cards, the last one rare or better. A card you own levels up instead; at level {0} it pays back half its price.", GameRules.MaxCardLevel]</p>
             <details class="s-small s-muted mb-3">
-                <summary>Drop rates</summary>
-                Cards 1-4: @string.Join(", ", Packs.DropRates[0].Select(r => $"{Rarity.Name(r.Key)} {r.Value}%")).<br />
-                Card 5: @string.Join(", ", Packs.DropRates[^1].Select(r => $"{Rarity.Name(r.Key)} {r.Value}%")).
+                <summary>@L["Drop rates"]</summary>
+                @L["Cards 1-4:"] @string.Join(", ", Packs.DropRates[0].Select(r => $"{T(Rarity.Text(r.Key))} {r.Value}%")).<br />
+                @L["Card 5:"] @string.Join(", ", Packs.DropRates[^1].Select(r => $"{T(Rarity.Text(r.Key))} {r.Value}%")).
             </details>
-            <form asp-controller="Shop" asp-action="BuyPack" method="post" class="buy-form" data-card-name="a card pack" data-price="@Packs.Price">
+            <form asp-controller="Shop" asp-action="BuyPack" method="post" class="buy-form" data-card-name="@L["a card pack"]" data-price="@Packs.Price">
                 <input type="hidden" name="money" value="@Model.Player.Money" />
-                <button type="submit" class="s-btn s-btn-primary s-btn-block"><s-icon name="sparkles" />Open a pack &middot; <s-icon name="coin" />@Packs.Price</button>
+                <button type="submit" class="s-btn s-btn-primary s-btn-block"><s-icon name="sparkles" />@L["Open a pack"] &middot; <s-icon name="coin" />@Packs.Price</button>
             </form>
         </section>
-        <a class="s-btn s-btn-gold s-btn-block" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />Build your deck</a>
-        <p class="s-small s-muted mb-0">Win games and finish daily quests to earn soul coins.</p>
+        <a class="s-btn s-btn-gold s-btn-block" asp-controller="Deck" asp-action="Index"><s-icon name="deck" />@L["Build your deck"]</a>
+        <p class="s-small s-muted mb-0">@L["Win games and finish daily quests to earn soul coins."]</p>
     </aside>
 
     <div class="s-grid" style="align-content: start">
-    <div class="s-filters" id="shop-filters" aria-label="Filter the cards">
-        <div class="s-seg" role="group" aria-label="Rarity">
-            <button type="button" class="active" aria-pressed="true" data-filter="rarity" data-value="">All</button>
-            <button type="button" aria-pressed="false" data-filter="rarity" data-value="common">Common</button>
-            <button type="button" aria-pressed="false" data-filter="rarity" data-value="rare">Rare</button>
-            <button type="button" aria-pressed="false" data-filter="rarity" data-value="epic">Epic</button>
-            <button type="button" aria-pressed="false" data-filter="rarity" data-value="legendary">Legendary</button>
+    <div class="s-filters" id="shop-filters" aria-label="@L["Filter the cards"]">
+        <div class="s-seg" role="group" aria-label="@L["Rarity"]">
+            <button type="button" class="active" aria-pressed="true" data-filter="rarity" data-value="">@L["All"]</button>
+            <button type="button" aria-pressed="false" data-filter="rarity" data-value="common">@T(Rarity.Text(Rarity.Common))</button>
+            <button type="button" aria-pressed="false" data-filter="rarity" data-value="rare">@T(Rarity.Text(Rarity.Rare))</button>
+            <button type="button" aria-pressed="false" data-filter="rarity" data-value="epic">@T(Rarity.Text(Rarity.Epic))</button>
+            <button type="button" aria-pressed="false" data-filter="rarity" data-value="legendary">@T(Rarity.Text(Rarity.Legendary))</button>
         </div>
-        <div class="s-seg" role="group" aria-label="Race">
-            <button type="button" class="active" aria-pressed="true" data-filter="race" data-value="">All races</button>
+        <div class="s-seg" role="group" aria-label="@L["Race"]">
+            <button type="button" class="active" aria-pressed="true" data-filter="race" data-value="">@L["All races"]</button>
             @foreach (var race in Model.Cards.Select(c => c.RaceName).Where(r => r is not null).Distinct())
             {
                 <button type="button" aria-pressed="false" data-filter="race" data-value="@race">@race</button>
             }
         </div>
-        <label class="s-check"><input type="checkbox" id="shop-unowned" /> Not owned yet</label>
-        <span class="s-muted s-small" id="shop-shown" aria-live="polite"></span>
+        <label class="s-check"><input type="checkbox" id="shop-unowned" /> @L["Not owned yet"]</label>
+        <span class="s-muted s-small" id="shop-shown" aria-live="polite" data-text="@L["{0} of {1} cards"]"></span>
     </div>
     <div class="s-grid s-shop-grid">
         @foreach (var card in Model.Cards.OrderBy(c => c.Cost).ThenBy(c => c.Name))
@@ -55,11 +55,11 @@
             <article class="s-card-wrap s-rise rarity-@card.RarityCss" aria-label="@card.Name" data-rarity="@card.RarityCss" data-race="@card.RaceName" data-class="@card.ClassName" data-owned="@(card.Owned ? "true" : "false")">
                 @if (card.Owned)
                 {
-                    <span class="s-ribbon">Owned &middot; Lv @card.Level</span>
+                    <span class="s-ribbon">@L["Owned"] &middot; @L["Lv {0}", card.Level]</span>
                 }
                 <partial name="_CardTile" model="card" />
                 <h2 class="s-card-name h6 mb-0">@card.Name</h2>
-                <span class="s-rarity">@card.RarityName@(card.Spell ? " · Spell" : "") &middot; @card.RaceName@(card.ClassName is null ? "" : $" · {card.ClassName} only")</span>
+                <span class="s-rarity">@card.RarityName@(card.Spell ? " · " + L["Spell"] : "") &middot; @card.RaceName@(card.ClassName is null ? "" : " · " + L["{0} only", card.ClassName])</span>
                 <p class="s-card-desc">@card.Description</p>
                 @if (card.Flavor is not null)
                 {
@@ -72,19 +72,19 @@
                         {
                             <form asp-controller="Shop" asp-action="Upgrade" method="post" class="buy-form" data-card-name="@card.Name" data-price="@cost" data-upgrade="true">
                                 <input type="hidden" name="cardId" value="@card.Id" />
-                                <button type="submit" class="s-btn s-btn-success s-btn-sm s-btn-block"><s-icon name="arrow-up" />Level @(card.Level + 1) &middot; <s-icon name="coin" />@cost</button>
+                                <button type="submit" class="s-btn s-btn-success s-btn-sm s-btn-block"><s-icon name="arrow-up" />@L["Level {0}", card.Level + 1] &middot; <s-icon name="coin" />@cost</button>
                             </form>
                         }
                         else
                         {
-                            <span class="s-chip justify-content-center"><s-icon name="star" />Max level</span>
+                            <span class="s-chip justify-content-center"><s-icon name="star" />@L["Max level"]</span>
                         }
                     }
                     else
                     {
                         <form asp-controller="Shop" asp-action="Buy" method="post" class="buy-form" data-card-name="@card.Name" data-price="@card.VendorPrice">
                             <input type="hidden" name="cardId" value="@card.Id" />
-                            <button type="submit" class="s-btn s-btn-gold s-btn-sm s-btn-block">Buy &middot; <s-icon name="coin" />@card.VendorPrice</button>
+                            <button type="submit" class="s-btn s-btn-gold s-btn-sm s-btn-block">@L["Buy"] &middot; <s-icon name="coin" />@card.VendorPrice</button>
                         </form>
                     }
                 </div>
@@ -94,13 +94,14 @@
     </div>
 </div>
 
-<dialog id="buy-confirm" class="s-panel s-modal" aria-labelledby="buy-confirm-title">
+<dialog id="buy-confirm" class="s-panel s-modal" aria-labelledby="buy-confirm-title"
+        data-purchase="@L["Purchase {0}"]" data-upgrade="@L["Upgrade {0}"]" data-purchase-text="@L["Are you sure you want to purchase {0} for {1} soul coins?"]" data-upgrade-text="@L["Are you sure you want to upgrade {0} for {1} soul coins?"]">
     <form method="dialog">
-        <h2 id="buy-confirm-title" class="s-h2 s-gold-text">Purchase</h2>
+        <h2 id="buy-confirm-title" class="s-h2 s-gold-text">@L["Purchase"]</h2>
         <p id="buy-confirm-message"></p>
         <div class="d-flex gap-2 justify-content-end">
-            <button value="cancel" class="s-btn s-btn-ghost">Cancel</button>
-            <button value="ok" class="s-btn s-btn-primary" autofocus><s-icon name="coin" />Confirm</button>
+            <button value="cancel" class="s-btn s-btn-ghost">@L["Cancel"]</button>
+            <button value="ok" class="s-btn s-btn-primary" autofocus><s-icon name="coin" />@L["Confirm"]</button>
         </div>
     </form>
 </dialog>

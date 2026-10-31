@@ -38,16 +38,16 @@
 <div class="s-page-head">
     <div>
         @* Friendly games are stored as practice games between two people. *@
-        <div class="s-eyebrow">@(!Model.IsPractice ? "Ranked game" : Model.Players.Any(p => p.IsSystem) ? "Practice game" : "Friendly game")@(Model.Turns > 0 ? $" · {Model.Turns} turns" : "")</div>
-        <h1 class="s-h1 s-gold-text">Game Summary for #@Model.GameId</h1>
+        <div class="s-eyebrow">@(!Model.IsPractice ? L["Ranked game"] : Model.Players.Any(p => p.IsSystem) ? L["Practice game"] : L["Friendly game"])@(Model.Turns > 0 ? " · " + L["{0} turns", Model.Turns] : "")</div>
+        <h1 class="s-h1 s-gold-text">@L["Game Summary for #{0}", Model.GameId]</h1>
     </div>
     @if (Model.HasReplay)
     {
-        <a class="s-btn s-btn-primary s-btn-lg" asp-controller="Game" asp-action="Replay" asp-route-id="@Model.GameId"><s-icon name="play" />Watch the replay in 3D</a>
+        <a class="s-btn s-btn-primary s-btn-lg" asp-controller="Game" asp-action="Replay" asp-route-id="@Model.GameId"><s-icon name="play" />@L["Watch the replay in 3D"]</a>
     }
 </div>
 
-<section class="s-panel s-rise mb-4" aria-label="Result">
+<section class="s-panel s-rise mb-4" aria-label="@L["Result"]">
     <div class="s-versus">
         @for (var i = 0; i < Model.Players.Count; i++)
         {
@@ -60,8 +60,8 @@
             }
             <div class="s-fighter @state">
                 <div class="s-fighter-portrait" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).png');"></div>
-                <span class="s-fighter-result">@(Model.IsDraw ? "Draw" : won ? "Victorious" : "Defeated")</span>
-                <h2>@player.Name the @(Model.IsDraw ? "Undefeated" : won ? "Victorious" : "Defeated")</h2>
+                <span class="s-fighter-result">@(Model.IsDraw ? L["Draw"] : won ? L["Victorious"] : L["Defeated"])</span>
+                <h2>@(Model.IsDraw ? L["{0} the Undefeated", player.Name] : won ? L["{0} the Victorious", player.Name] : L["{0} the Defeated", player.Name])</h2>
                 <div class="s-fighter-meta">
                     @if (!player.IsSystem)
                     {
@@ -70,17 +70,17 @@
                     @if (!Model.IsPractice && Model.RatingChanges[i] != 0)
                     {
                         var change = Model.RatingChanges[i];
-                        <span class="s-chip @(change > 0 ? "s-chip-up" : "s-chip-down")">Rating: @player.Rating (@(change > 0 ? "+" : "")@change)</span>
+                        <span class="s-chip @(change > 0 ? "s-chip-up" : "s-chip-down")">@L["Rating: {0} ({1})", player.Rating, (change > 0 ? "+" : "") + change]</span>
                     }
                 </div>
                 <div class="s-fighter-meta mt-2">
                     <span class="s-chip">@player.PlayerType?.Name</span>
-                    <span class="s-chip" title="Attack"><s-icon name="sword" />@player.PlayerType?.Attack</span>
-                    <span class="s-chip" title="Health"><s-icon name="heart" />@player.PlayerType?.Health</span>
+                    <span class="s-chip" title="@L["Attack"]"><s-icon name="sword" />@player.PlayerType?.Attack</span>
+                    <span class="s-chip" title="@L["Health"]"><s-icon name="heart" />@player.PlayerType?.Health</span>
                 </div>
                 @if (!player.IsSystem && User.GetPlayerId() is { } me && me != player.Id)
                 {
-                    <a class="s-btn s-btn-ghost s-btn-sm mt-2" asp-controller="Game" asp-action="Index" asp-route-challenge="@player.Name"><s-icon name="swords" />Challenge</a>
+                    <a class="s-btn s-btn-ghost s-btn-sm mt-2" asp-controller="Game" asp-action="Index" asp-route-challenge="@player.Name"><s-icon name="swords" />@L["Challenge"]</a>
                 }
             </div>
         }
@@ -88,7 +88,7 @@
 </section>
 
 <section class="s-panel s-rise" aria-labelledby="history-title">
-    <div class="s-panel-head"><s-icon name="list" /><h2 id="history-title">Game History</h2><span class="s-chip">@Model.Log.Count events</span></div>
+    <div class="s-panel-head"><s-icon name="list" /><h2 id="history-title">@L["Game History"]</h2><span class="s-chip">@L["{0} events", Model.Log.Count]</span></div>
     <ol class="s-timeline s-scroll">
         @foreach (var line in Model.Log)
         {

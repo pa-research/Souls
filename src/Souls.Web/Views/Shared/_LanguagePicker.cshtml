@@ -3,7 +3,7 @@
     var current = Language;
     var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
 }
-<form asp-controller="Home" asp-action="Language" method="post" class="s-lang @ViewData["LanguageClass"]" role="group" aria-label="@L["Language"]">
+<form asp-controller="Home" asp-action="Language" method="post" class="s-seg s-lang @ViewData["LanguageClass"]" role="group" aria-label="@L["Language"]">
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @foreach (var culture in Cultures)
     {

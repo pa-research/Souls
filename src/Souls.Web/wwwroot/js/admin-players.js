@@ -7,6 +7,8 @@
     var url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/admin";
     var socket = new WebSocket(url);
     var queue = [];
+    // The texts in the page's language are on the table (data-*).
+    var texts = document.getElementById("admin-players").dataset;
 
     function send(type, payload) {
         queue.push(JSON.stringify({ Type: type, Payload: payload || {} }));
@@ -23,7 +25,7 @@
         row.find(".player-status")
             .toggleClass("text-success", online)
             .toggleClass("text-danger", !online)
-            .text(online ? "Online" : "Offline");
+            .text(online ? texts.online : texts.offline);
     }
 
     socket.onopen = function () {
@@ -62,14 +64,14 @@
     $(".ban").on("click", function () {
         var until = $(this).closest("tr").find(".ban-until").val();
         if (!until) {
-            window.alert("Choose the date the ban lasts until.");
+            window.alert(texts.banDate);
             return;
         }
         send(Request.BAN_USER, { pId: playerId(this), until: new Date(until).toISOString() });
     });
 
     $(".reset").on("click", function () {
-        if (window.confirm("Reset money, rank and cards of this player?")) {
+        if (window.confirm(texts.reset)) {
             send(Request.RESET, { pId: playerId(this) });
         }
     });

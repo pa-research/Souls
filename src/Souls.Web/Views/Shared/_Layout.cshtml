@@ -9,7 +9,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Souls Online - a multiplayer card game" />
+    <meta name="description" content="@L["Souls Online - a multiplayer card game"]" />
     <meta name="theme-color" content="#0d0b12" />
     <title>@ViewData["Title"] - Souls Online</title>
     <link rel="icon" href="~/favicon.ico" />
@@ -29,33 +29,33 @@
     }
     else
     {
-        <a class="s-skip" href="#main">Skip to content</a>
-        <header class="s-topbar navbar navbar-expand-lg">
+        <a class="s-skip" href="#main">@L["Skip to content"]</a>
+        <header class="s-topbar navbar navbar-expand-xl">
             <div class="container-xxl s-topbar-inner">
-                <a class="s-brand" asp-controller="Home" asp-action="Index" aria-label="Souls Online, home">
+                <a class="s-brand" asp-controller="Home" asp-action="Index" aria-label="@L["Souls Online, home"]">
                     <img src="~/Content/Images/logo.png" alt="" width="132" height="64" />
                 </a>
-                <button class="navbar-toggler s-btn s-btn-ghost s-btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav" aria-controls="main-nav" aria-expanded="false" aria-label="Menu">
+                <button class="navbar-toggler s-btn s-btn-ghost s-btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav" aria-controls="main-nav" aria-expanded="false" aria-label="@L["Menu"]">
                     <s-icon name="layout" />
                 </button>
                 <div class="collapse navbar-collapse" id="main-nav">
                     <ul class="navbar-nav s-nav">
-                        <li class="nav-item"><a class="s-nav-link @Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><s-icon name="home" /><span>Home</span></a></li>
-                        <li class="nav-item"><a class="s-nav-link s-nav-play" asp-controller="Game" asp-action="Index"><s-icon name="swords" /><span>Play</span></a></li>
-                        <li class="nav-item"><a class="s-nav-link @Active("Deck")" aria-current="@Current("Deck")" asp-controller="Deck" asp-action="Index"><s-icon name="deck" /><span>Deck</span></a></li>
-                        <li class="nav-item"><a class="s-nav-link @Active("Shop")" aria-current="@Current("Shop")" asp-controller="Shop" asp-action="Index"><s-icon name="shop" /><span>Shop</span></a></li>
-                        <li class="nav-item"><a class="s-nav-link @Active("Season")" aria-current="@Current("Season")" asp-controller="Season" asp-action="Index"><s-icon name="trophy" /><span>Season</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><s-icon name="home" /><span>@L["Home"]</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link s-nav-play" asp-controller="Game" asp-action="Index"><s-icon name="swords" /><span>@L["Play"]</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Deck")" aria-current="@Current("Deck")" asp-controller="Deck" asp-action="Index"><s-icon name="deck" /><span>@L["Deck"]</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Shop")" aria-current="@Current("Shop")" asp-controller="Shop" asp-action="Index"><s-icon name="shop" /><span>@L["Shop"]</span></a></li>
+                        <li class="nav-item"><a class="s-nav-link @Active("Season")" aria-current="@Current("Season")" asp-controller="Season" asp-action="Index"><s-icon name="trophy" /><span>@L["Season"]</span></a></li>
                         @if (User.IsAdmin())
                         {
                             <li class="nav-item dropdown">
-                                <a class="s-nav-link dropdown-toggle @Active("Admin")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><s-icon name="crown" /><span>Admin</span></a>
+                                <a class="s-nav-link dropdown-toggle @Active("Admin")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><s-icon name="crown" /><span>@L["Admin"]</span></a>
                                 <ul class="dropdown-menu s-dropdown">
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Players"><s-icon name="users" /> Players</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Games"><s-icon name="swords" /> Games</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardStatistics"><s-icon name="gauge" /> Card Statistics</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Season"><s-icon name="trophy" /> Season</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardEditor" asp-route-id=""><s-icon name="pencil" /> Card Editor</a></li>
-                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="NewsEditor" asp-route-id=""><s-icon name="news" /> News Editor</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Players"><s-icon name="users" /> @L["Players"]</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Games"><s-icon name="swords" /> @L["Games"]</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardStatistics"><s-icon name="gauge" /> @L["Card Statistics"]</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Season"><s-icon name="trophy" /> @L["Season"]</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="CardEditor" asp-route-id=""><s-icon name="pencil" /> @L["Card Editor"]</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="NewsEditor" asp-route-id=""><s-icon name="news" /> @L["News Editor"]</a></li>
                                 </ul>
                             </li>
                         }
@@ -66,13 +66,13 @@
                         {
                             @await Component.InvokeAsync("ProfileChip")
                             <form asp-controller="Player" asp-action="Logout" method="post" class="d-inline">
-                                <button type="submit" class="s-btn s-btn-ghost s-btn-icon" aria-label="Logout" title="Logout"><s-icon name="logout" /><span class="d-lg-none">Logout</span></button>
+                                <button type="submit" class="s-btn s-btn-ghost s-btn-icon" aria-label="@L["Logout"]" title="@L["Logout"]"><s-icon name="logout" /><span class="d-xl-none">@L["Logout"]</span></button>
                             </form>
                         }
                         else
                         {
-                            <a class="s-btn s-btn-ghost s-btn-sm" asp-controller="Player" asp-action="Login"><s-icon name="login" />Login</a>
-                            <a class="s-btn s-btn-primary s-btn-sm" asp-controller="Player" asp-action="Register"><s-icon name="user-plus" />Register</a>
+                            <a class="s-btn s-btn-ghost s-btn-sm" asp-controller="Player" asp-action="Login"><s-icon name="login" />@L["Login"]</a>
+                            <a class="s-btn s-btn-primary s-btn-sm" asp-controller="Player" asp-action="Register"><s-icon name="user-plus" />@L["Register"]</a>
                         }
                     </div>
                 </div>
@@ -97,8 +97,8 @@
         <footer class="s-footer">
             <div class="container-xxl s-footer-inner">
                 <img src="~/Content/Images/logo.png" alt="" width="84" height="40" />
-                <span>Souls Online &middot; a card game from 2014, rebuilt</span>
-                <span class="s-footer-credits">Type: Cinzel &amp; Inter (OFL) &middot; Icons: Lucide (ISC)</span>
+                <span>Souls Online &middot; @L["a card game from 2014, rebuilt"]</span>
+                <span class="s-footer-credits">@L["Type:"] Cinzel &amp; Inter (OFL) &middot; @L["Icons:"] Lucide (ISC)</span>
             </div>
         </footer>
     }

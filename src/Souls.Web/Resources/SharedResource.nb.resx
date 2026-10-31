@@ -1,0 +1,937 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The site's texts in Norwegian Bokmål. The keys are the English texts (see SharedResource.cs). -->
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="(none)" xml:space="preserve">
+    <value>(ingen)</value>
+  </data>
+  <data name="+{0} soul coin" xml:space="preserve">
+    <value>+{0} sjelemynt</value>
+  </data>
+  <data name="+{0} soul coins" xml:space="preserve">
+    <value>+{0} sjelemynter</value>
+  </data>
+  <data name="/ {0} cards" xml:space="preserve">
+    <value>/ {0} kort</value>
+  </data>
+  <data name="3-20 letters or digits" xml:space="preserve">
+    <value>3–20 bokstaver eller tall</value>
+  </data>
+  <data name="a card game from 2014, rebuilt" xml:space="preserve">
+    <value>et kortspill fra 2014, bygd på nytt</value>
+  </data>
+  <data name="A card game of the arena" xml:space="preserve">
+    <value>Et kortspill fra arenaen</value>
+  </data>
+  <data name="A card needs at least 1 health." xml:space="preserve">
+    <value>Et kort må ha minst 1 liv.</value>
+  </data>
+  <data name="a card pack" xml:space="preserve">
+    <value>en kortpakke</value>
+  </data>
+  <data name="A few steps from the arena" xml:space="preserve">
+    <value>Noen få steg fra arenaen</value>
+  </data>
+  <data name="a legendary card" xml:space="preserve">
+    <value>et legendarisk kort</value>
+  </data>
+  <data name="A spell needs an ability it can cast: Burn, Drain, Heal, Harden, Paralyze, Empower, Insight or Inferno." xml:space="preserve">
+    <value>En trylleformel trenger en evne den kan kaste: Brenn, Tapp, Helbred, Herd, Lamme, Styrk, Innsikt eller Inferno.</value>
+  </data>
+  <data name="Ability" xml:space="preserve">
+    <value>Evne</value>
+  </data>
+  <data name="Ability value" xml:space="preserve">
+    <value>Evneverdi</value>
+  </data>
+  <data name="Access denied" xml:space="preserve">
+    <value>Ingen tilgang</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Handlinger</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Admin</value>
+  </data>
+  <data name="All" xml:space="preserve">
+    <value>Alle</value>
+  </data>
+  <data name="All races" xml:space="preserve">
+    <value>Alle raser</value>
+  </data>
+  <data name="Already a champion?" xml:space="preserve">
+    <value>Allerede en kjempe?</value>
+  </data>
+  <data name="Alternative" xml:space="preserve">
+    <value>Alternativ</value>
+  </data>
+  <data name="An error occurred while processing your request." xml:space="preserve">
+    <value>Det oppstod en feil under behandlingen av forespørselen.</value>
+  </data>
+  <data name="Are you sure you want to purchase {0} for {1} soul coins?" xml:space="preserve">
+    <value>Vil du kjøpe {0} for {1} sjelemynter?</value>
+  </data>
+  <data name="Are you sure you want to upgrade {0} for {1} soul coins?" xml:space="preserve">
+    <value>Vil du oppgradere {0} for {1} sjelemynter?</value>
+  </data>
+  <data name="Armor" xml:space="preserve">
+    <value>Rustning</value>
+  </data>
+  <data name="Armor {0}" xml:space="preserve">
+    <value>Rustning {0}</value>
+  </data>
+  <data name="At least 8 characters" xml:space="preserve">
+    <value>Minst 8 tegn</value>
+  </data>
+  <data name="Attack" xml:space="preserve">
+    <value>Angrep</value>
+  </data>
+  <data name="Attack {0}" xml:space="preserve">
+    <value>Angrep {0}</value>
+  </data>
+  <data name="Author" xml:space="preserve">
+    <value>Forfatter</value>
+  </data>
+  <data name="Back to the home page" xml:space="preserve">
+    <value>Tilbake til forsiden</value>
+  </data>
+  <data name="Back to the shop" xml:space="preserve">
+    <value>Tilbake til butikken</value>
+  </data>
+  <data name="Ban" xml:space="preserve">
+    <value>Utesteng</value>
+  </data>
+  <data name="Ban until" xml:space="preserve">
+    <value>Utesteng til</value>
+  </data>
+  <data name="Basic HTML is allowed: p, br, b, strong, i, em, u, ul, ol, li, a, h3, h4, blockquote, img. Everything else is removed." xml:space="preserve">
+    <value>Enkel HTML er tillatt: p, br, b, strong, i, em, u, ul, ol, li, a, h3, h4, blockquote, img. Alt annet fjernes.</value>
+  </data>
+  <data name="Best finish: #{0} in {1} ({2})" xml:space="preserve">
+    <value>Beste plassering: {0}. plass i {1} ({2})</value>
+  </data>
+  <data name="Best finish: none yet" xml:space="preserve">
+    <value>Beste plassering: ingen ennå</value>
+  </data>
+  <data name="Bonus Mana" xml:space="preserve">
+    <value>Ekstra mana</value>
+  </data>
+  <data name="Bonus mana every turn" xml:space="preserve">
+    <value>Ekstra mana hver tur</value>
+  </data>
+  <data name="Build a deck of souls, step onto the sand in front of a roaring crowd and fight your way up from Bronze to Champion." xml:space="preserve">
+    <value>Bygg en kortstokk av sjeler, tre ut på sanden foran et brølende publikum og kjemp deg opp fra Bronse til Mester.</value>
+  </data>
+  <data name="Build your deck" xml:space="preserve">
+    <value>Bygg kortstokk</value>
+  </data>
+  <data name="Buy" xml:space="preserve">
+    <value>Kjøp</value>
+  </data>
+  <data name="Buying a card you already own levels it up: +1 attack and +1 health per level (spells: +1 to their effect), up to level {0}." xml:space="preserve">
+    <value>Kjøper du et kort du allerede har, går det opp et nivå: +1 angrep og +1 liv per nivå (trylleformler: +1 på effekten), opp til nivå {0}.</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Avbryt</value>
+  </data>
+  <data name="Card" xml:space="preserve">
+    <value>Kort</value>
+  </data>
+  <data name="Card 5:" xml:space="preserve">
+    <value>Kort 5:</value>
+  </data>
+  <data name="Card Editor" xml:space="preserve">
+    <value>Kortredigering</value>
+  </data>
+  <data name="Card Pack" xml:space="preserve">
+    <value>Kortpakke</value>
+  </data>
+  <data name="Card Portrait" xml:space="preserve">
+    <value>Kortportrett</value>
+  </data>
+  <data name="Card Statistics" xml:space="preserve">
+    <value>Kortstatistikk</value>
+  </data>
+  <data name="Card {0}, face down. Turn it over." xml:space="preserve">
+    <value>Kort {0}, med baksiden opp. Snu det.</value>
+  </data>
+  <data name="Cards (levels)" xml:space="preserve">
+    <value>Kort (nivåer)</value>
+  </data>
+  <data name="Cards 1-4:" xml:space="preserve">
+    <value>Kort 1–4:</value>
+  </data>
+  <data name="Cards and Upgrades" xml:space="preserve">
+    <value>Kort og oppgraderinger</value>
+  </data>
+  <data name="Cards in the deck" xml:space="preserve">
+    <value>Kort i kortstokken</value>
+  </data>
+  <data name="Cards owned and the sum of their levels" xml:space="preserve">
+    <value>Kort spilleren har, og summen av nivåene deres</value>
+  </data>
+  <data name="Challenge" xml:space="preserve">
+    <value>Utfordre</value>
+  </data>
+  <data name="Choose an image of at most 1 MB." xml:space="preserve">
+    <value>Velg et bilde på høyst 1 MB.</value>
+  </data>
+  <data name="Choose the date the ban lasts until." xml:space="preserve">
+    <value>Velg datoen utestengingen varer til.</value>
+  </data>
+  <data name="Choose your hero" xml:space="preserve">
+    <value>Velg helten din</value>
+  </data>
+  <data name="Class" xml:space="preserve">
+    <value>Klasse</value>
+  </data>
+  <data name="Climb the ranks" xml:space="preserve">
+    <value>Klatre i rangene</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Bekreft</value>
+  </data>
+  <data name="Confirm Password" xml:space="preserve">
+    <value>Bekreft passord</value>
+  </data>
+  <data name="Copies of {0}" xml:space="preserve">
+    <value>Antall eksemplarer av {0}</value>
+  </data>
+  <data name="Cost" xml:space="preserve">
+    <value>Kostnad</value>
+  </data>
+  <data name="Cost {0}" xml:space="preserve">
+    <value>Kostnad {0}</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Opprett</value>
+  </data>
+  <data name="Create a card" xml:space="preserve">
+    <value>Lag et kort</value>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>Opprettet</value>
+  </data>
+  <data name="Credentials" xml:space="preserve">
+    <value>Innlogging</value>
+  </data>
+  <data name="d MMM yyyy" xml:space="preserve">
+    <value>d. MMM yyyy</value>
+  </data>
+  <data name="d MMM yyyy HH:mm" xml:space="preserve">
+    <value>d. MMM yyyy 'kl.' HH:mm</value>
+  </data>
+  <data name="Daily Quests" xml:space="preserve">
+    <value>Dagens oppdrag</value>
+  </data>
+  <data name="Database" xml:space="preserve">
+    <value>Database</value>
+  </data>
+  <data name="Date" xml:space="preserve">
+    <value>Dato</value>
+  </data>
+  <data name="Deck" xml:space="preserve">
+    <value>Kortstokk</value>
+  </data>
+  <data name="Deck builder" xml:space="preserve">
+    <value>Kortstokkbygger</value>
+  </data>
+  <data name="Deck summary" xml:space="preserve">
+    <value>Oversikt over kortstokken</value>
+  </data>
+  <data name="default" xml:space="preserve">
+    <value>standard</value>
+  </data>
+  <data name="Defeated" xml:space="preserve">
+    <value>Tap</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Slett</value>
+  </data>
+  <data name="Delete this post?" xml:space="preserve">
+    <value>Slette dette innlegget?</value>
+  </data>
+  <data name="Draw" xml:space="preserve">
+    <value>Uavgjort</value>
+  </data>
+  <data name="Drop rates" xml:space="preserve">
+    <value>Sjanser</value>
+  </data>
+  <data name="End the season now" xml:space="preserve">
+    <value>Avslutt sesongen nå</value>
+  </data>
+  <data name="End {0} now? Ratings reset and rewards are paid." xml:space="preserve">
+    <value>Avslutte {0} nå? Ratingene tilbakestilles og belønningene betales ut.</value>
+  </data>
+  <data name="Ends at (UTC)" xml:space="preserve">
+    <value>Slutter (UTC)</value>
+  </data>
+  <data name="ends {0}" xml:space="preserve">
+    <value>slutter {0}</value>
+  </data>
+  <data name="Enter the Arena" xml:space="preserve">
+    <value>Gå inn på arenaen</value>
+  </data>
+  <data name="Entering the arena" xml:space="preserve">
+    <value>På vei inn på arenaen</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Feil</value>
+  </data>
+  <data name="Every class" xml:space="preserve">
+    <value>Alle klasser</value>
+  </data>
+  <data name="Features" xml:space="preserve">
+    <value>Funksjoner</value>
+  </data>
+  <data name="Filter the cards" xml:space="preserve">
+    <value>Filtrer kortene</value>
+  </data>
+  <data name="Final standings" xml:space="preserve">
+    <value>Endelig stilling</value>
+  </data>
+  <data name="Final standings · {0} to {1}" xml:space="preserve">
+    <value>Endelig stilling · {0} til {1}</value>
+  </data>
+  <data name="Five random cards, the last one rare or better. A card you own levels up instead; at level {0} it pays back half its price." xml:space="preserve">
+    <value>Fem tilfeldige kort, det siste sjeldent eller bedre. Et kort du allerede har, går opp et nivå i stedet; på nivå {0} får du halve prisen tilbake.</value>
+  </data>
+  <data name="Flavor text" xml:space="preserve">
+    <value>Stemningstekst</value>
+  </data>
+  <data name="Friendly game" xml:space="preserve">
+    <value>Vennskapskamp</value>
+  </data>
+  <data name="Game History" xml:space="preserve">
+    <value>Kamphistorikk</value>
+  </data>
+  <data name="Game Server" xml:space="preserve">
+    <value>Spillserver</value>
+  </data>
+  <data name="Game Summary for #{0}" xml:space="preserve">
+    <value>Kampsammendrag for #{0}</value>
+  </data>
+  <data name="Games" xml:space="preserve">
+    <value>Kamper</value>
+  </data>
+  <data name="Get more cards" xml:space="preserve">
+    <value>Skaff flere kort</value>
+  </data>
+  <data name="Hansel was once the champion of souls. Now he sells cards to feed himself and his wife." xml:space="preserve">
+    <value>Hansel var en gang sjelenes mester. Nå selger han kort for å fø seg selv og kona.</value>
+  </data>
+  <data name="Hansel's Card Shop" xml:space="preserve">
+    <value>Hansels kortbutikk</value>
+  </data>
+  <data name="Health" xml:space="preserve">
+    <value>Liv</value>
+  </data>
+  <data name="Health {0}" xml:space="preserve">
+    <value>Liv {0}</value>
+  </data>
+  <data name="Hero class" xml:space="preserve">
+    <value>Helteklasse</value>
+  </data>
+  <data name="Hero power" xml:space="preserve">
+    <value>Heltekraft</value>
+  </data>
+  <data name="Hidden" xml:space="preserve">
+    <value>Skjult</value>
+  </data>
+  <data name="Hide it from the home page" xml:space="preserve">
+    <value>Skjul det på forsiden</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Hjem</value>
+  </data>
+  <data name="Icons:" xml:space="preserve">
+    <value>Ikoner:</value>
+  </data>
+  <data name="Id" xml:space="preserve">
+    <value>Id</value>
+  </data>
+  <data name="Invalid username or password." xml:space="preserve">
+    <value>Feil brukernavn eller passord.</value>
+  </data>
+  <data name="Join the fight" xml:space="preserve">
+    <value>Bli med i kampen</value>
+  </data>
+  <data name="Kick" xml:space="preserve">
+    <value>Kast ut</value>
+  </data>
+  <data name="Kind" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Språk</value>
+  </data>
+  <data name="Leave game" xml:space="preserve">
+    <value>Forlat kampen</value>
+  </data>
+  <data name="Leave the game?" xml:space="preserve">
+    <value>Forlate kampen?</value>
+  </data>
+  <data name="Level" xml:space="preserve">
+    <value>Nivå</value>
+  </data>
+  <data name="Level {0}" xml:space="preserve">
+    <value>Nivå {0}</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>Logg inn</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Logg ut</value>
+  </data>
+  <data name="Lost in the arena" xml:space="preserve">
+    <value>Gått deg vill på arenaen</value>
+  </data>
+  <data name="Lv {0}" xml:space="preserve">
+    <value>Nivå {0}</value>
+  </data>
+  <data name="Mana curve" xml:space="preserve">
+    <value>Manakurve</value>
+  </data>
+  <data name="Max level" xml:space="preserve">
+    <value>Maks nivå</value>
+  </data>
+  <data name="max {0}" xml:space="preserve">
+    <value>maks {0}</value>
+  </data>
+  <data name="Menu" xml:space="preserve">
+    <value>Meny</value>
+  </data>
+  <data name="Money" xml:space="preserve">
+    <value>Penger</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Navn</value>
+  </data>
+  <data name="New card" xml:space="preserve">
+    <value>Nytt kort</value>
+  </data>
+  <data name="New post" xml:space="preserve">
+    <value>Nytt innlegg</value>
+  </data>
+  <data name="News" xml:space="preserve">
+    <value>Nyheter</value>
+  </data>
+  <data name="News Editor" xml:space="preserve">
+    <value>Nyhetsredigering</value>
+  </data>
+  <data name="Next rank at {0}" xml:space="preserve">
+    <value>Neste rang ved {0}</value>
+  </data>
+  <data name="No account yet?" xml:space="preserve">
+    <value>Har du ingen konto ennå?</value>
+  </data>
+  <data name="No games yet. Be the first!" xml:space="preserve">
+    <value>Ingen kamper ennå. Bli den første!</value>
+  </data>
+  <data name="No posts yet. Posts you create here appear on the home page." xml:space="preserve">
+    <value>Ingen innlegg ennå. Innlegg du lager her, vises på forsiden.</value>
+  </data>
+  <data name="No ranked games yet this season. Win one and you lead the table." xml:space="preserve">
+    <value>Ingen rangerte kamper ennå denne sesongen. Vinn én, så topper du tabellen.</value>
+  </data>
+  <data name="Nobody played a ranked game this season." xml:space="preserve">
+    <value>Ingen spilte en rangert kamp denne sesongen.</value>
+  </data>
+  <data name="Not owned yet" xml:space="preserve">
+    <value>Ikke i samlingen</value>
+  </data>
+  <data name="Offline" xml:space="preserve">
+    <value>Frakoblet</value>
+  </data>
+  <data name="One copy less of {0}" xml:space="preserve">
+    <value>Ett eksemplar mindre av {0}</value>
+  </data>
+  <data name="One copy more of {0}" xml:space="preserve">
+    <value>Ett eksemplar til av {0}</value>
+  </data>
+  <data name="Online" xml:space="preserve">
+    <value>Tilkoblet</value>
+  </data>
+  <data name="Online status, kick, ban and reset are live actions on the game server." xml:space="preserve">
+    <value>Tilkoblingsstatus, kast ut, utesteng og nullstill virker direkte på spillserveren.</value>
+  </data>
+  <data name="Only PNG, JPEG and GIF images are allowed." xml:space="preserve">
+    <value>Bare PNG-, JPEG- og GIF-bilder er tillatt.</value>
+  </data>
+  <data name="Open a pack" xml:space="preserve">
+    <value>Åpne en pakke</value>
+  </data>
+  <data name="Or" xml:space="preserve">
+    <value>Eller</value>
+  </data>
+  <data name="Owned" xml:space="preserve">
+    <value>Eid</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Passord</value>
+  </data>
+  <data name="Password does not match!" xml:space="preserve">
+    <value>Passordene er ikke like!</value>
+  </data>
+  <data name="Password is empty!" xml:space="preserve">
+    <value>Skriv inn passordet!</value>
+  </data>
+  <data name="Permission" xml:space="preserve">
+    <value>Tilgang</value>
+  </data>
+  <data name="Pick a name, choose the hero you fight as and the five cards you start with." xml:space="preserve">
+    <value>Velg et navn, helten du kjemper som og de fem kortene du starter med.</value>
+  </data>
+  <data name="Pick exactly {0} cards: at most {1} copies of a common card, {2} of a rare, {3} of an epic and {4} of a legendary. Games shuffle your deck; when it runs out, every draw deals fatigue damage to your hero." xml:space="preserve">
+    <value>Velg nøyaktig {0} kort: høyst {1} eksemplarer av et vanlig kort, {2} av et sjeldent, {3} av et episk og {4} av et legendarisk. Kortstokken stokkes før hver kamp; når den er tom, gjør hvert trekk utmattelsesskade på helten din.</value>
+  </data>
+  <data name="Play" xml:space="preserve">
+    <value>Spill</value>
+  </data>
+  <data name="Play ranked" xml:space="preserve">
+    <value>Spill rangert</value>
+  </data>
+  <data name="Player" xml:space="preserve">
+    <value>Spiller</value>
+  </data>
+  <data name="Players" xml:space="preserve">
+    <value>Spillere</value>
+  </data>
+  <data name="Portrait URL" xml:space="preserve">
+    <value>Portrett-URL</value>
+  </data>
+  <data name="Practice" xml:space="preserve">
+    <value>Øving</value>
+  </data>
+  <data name="Practice game" xml:space="preserve">
+    <value>Øvingskamp</value>
+  </data>
+  <data name="Price" xml:space="preserve">
+    <value>Pris</value>
+  </data>
+  <data name="Profile" xml:space="preserve">
+    <value>Profil</value>
+  </data>
+  <data name="Purchase" xml:space="preserve">
+    <value>Kjøp</value>
+  </data>
+  <data name="Purchase {0}" xml:space="preserve">
+    <value>Kjøp {0}</value>
+  </data>
+  <data name="Race" xml:space="preserve">
+    <value>Rase</value>
+  </data>
+  <data name="Rank" xml:space="preserve">
+    <value>Rang</value>
+  </data>
+  <data name="Ranked game" xml:space="preserve">
+    <value>Rangert kamp</value>
+  </data>
+  <data name="Ranked season · ends {0} UTC" xml:space="preserve">
+    <value>Rangert sesong · slutter {0} UTC</value>
+  </data>
+  <data name="Ranked seasons take your rating from Bronze III up to Champion and pay out when they end. Daily quests and wins fill your purse." xml:space="preserve">
+    <value>Rangerte sesonger tar ratingen din fra Bronse III helt opp til Mester og betaler ut når de slutter. Dagens oppdrag og seire fyller pungen.</value>
+  </data>
+  <data name="Rarity" xml:space="preserve">
+    <value>Sjeldenhet</value>
+  </data>
+  <data name="Rating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="Rating: {0} ({1})" xml:space="preserve">
+    <value>Rating: {0} ({1})</value>
+  </data>
+  <data name="Recent Games" xml:space="preserve">
+    <value>Siste kamper</value>
+  </data>
+  <data name="Register" xml:space="preserve">
+    <value>Registrer deg</value>
+  </data>
+  <data name="Register a Champion" xml:space="preserve">
+    <value>Registrer en kjempe</value>
+  </data>
+  <data name="Registration" xml:space="preserve">
+    <value>Registrering</value>
+  </data>
+  <data name="Repeat the password" xml:space="preserve">
+    <value>Gjenta passordet</value>
+  </data>
+  <data name="Replay" xml:space="preserve">
+    <value>Reprise</value>
+  </data>
+  <data name="Request failed" xml:space="preserve">
+    <value>Forespørselen mislyktes</value>
+  </data>
+  <data name="Request id:" xml:space="preserve">
+    <value>Forespørsels-id:</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>Nullstill</value>
+  </data>
+  <data name="Reset money, rank and cards of this player?" xml:space="preserve">
+    <value>Nullstille penger, rang og kort for denne spilleren?</value>
+  </data>
+  <data name="Result" xml:space="preserve">
+    <value>Resultat</value>
+  </data>
+  <data name="Reveal all" xml:space="preserve">
+    <value>Snu alle</value>
+  </data>
+  <data name="Reward" xml:space="preserve">
+    <value>Belønning</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Lagre</value>
+  </data>
+  <data name="Save deck" xml:space="preserve">
+    <value>Lagre</value>
+  </data>
+  <data name="Saved {0}." xml:space="preserve">
+    <value>{0} er lagret.</value>
+  </data>
+  <data name="Season" xml:space="preserve">
+    <value>Sesong</value>
+  </data>
+  <data name="Season leaderboard" xml:space="preserve">
+    <value>Sesongens toppliste</value>
+  </data>
+  <data name="Season rewards" xml:space="preserve">
+    <value>Sesongbelønninger</value>
+  </data>
+  <data name="Seasons" xml:space="preserve">
+    <value>Sesonger</value>
+  </data>
+  <data name="Server Status" xml:space="preserve">
+    <value>Serverstatus</value>
+  </data>
+  <data name="Shop" xml:space="preserve">
+    <value>Butikk</value>
+  </data>
+  <data name="Show it on the home page" xml:space="preserve">
+    <value>Vis det på forsiden</value>
+  </data>
+  <data name="Shown" xml:space="preserve">
+    <value>Vises</value>
+  </data>
+  <data name="Sign in" xml:space="preserve">
+    <value>Logg inn</value>
+  </data>
+  <data name="Skip to content" xml:space="preserve">
+    <value>Hopp til innholdet</value>
+  </data>
+  <data name="Slow down" xml:space="preserve">
+    <value>Ro deg ned</value>
+  </data>
+  <data name="Something broke" xml:space="preserve">
+    <value>Noe gikk i stykker</value>
+  </data>
+  <data name="Soul Coins" xml:space="preserve">
+    <value>Sjelemynter</value>
+  </data>
+  <data name="Souls Online - a multiplayer card game" xml:space="preserve">
+    <value>Souls Online - et kortspill for flere spillere</value>
+  </data>
+  <data name="Souls Online, home" xml:space="preserve">
+    <value>Souls Online, forsiden</value>
+  </data>
+  <data name="Souls Updates" xml:space="preserve">
+    <value>Nytt i Souls</value>
+  </data>
+  <data name="Souls winning game of the year (probably)" xml:space="preserve">
+    <value>Souls vinner årets spill (sannsynligvis)</value>
+  </data>
+  <data name="Spell" xml:space="preserve">
+    <value>Formel</value>
+  </data>
+  <data name="Spells are cast from the hand (attack, health and armor are ignored)." xml:space="preserve">
+    <value>Trylleformler kastes fra hånden (angrep, liv og rustning ignoreres).</value>
+  </data>
+  <data name="Spirit wolf coming to Souls" xml:space="preserve">
+    <value>Åndeulv kommer til Souls</value>
+  </data>
+  <data name="Started {0} UTC, ends {1} UTC" xml:space="preserve">
+    <value>Startet {0} UTC, slutter {1} UTC</value>
+  </data>
+  <data name="Starter cards" xml:space="preserve">
+    <value>Startkort</value>
+  </data>
+  <data name="Stats" xml:space="preserve">
+    <value>Kampsammendrag</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Stay" xml:space="preserve">
+    <value>Bli</value>
+  </data>
+  <data name="Studies show that Souls is a great game" xml:space="preserve">
+    <value>Studier viser at Souls er et flott spill</value>
+  </data>
+  <data name="Take a seat in the stands for any live match, challenge a friend, or replay any finished game in 3D." xml:space="preserve">
+    <value>Ta plass på tribunen og se en direkte kamp, utfordre en venn, eller se reprise av en ferdig kamp i 3D.</value>
+  </data>
+  <data name="Tap a card to turn it over. A card you already owned levels up; at level {0} it pays back half its price." xml:space="preserve">
+    <value>Trykk på et kort for å snu det. Et kort du allerede hadde, går opp et nivå; på nivå {0} får du halve prisen tilbake.</value>
+  </data>
+  <data name="Text" xml:space="preserve">
+    <value>Tekst</value>
+  </data>
+  <data name="That season has already ended." xml:space="preserve">
+    <value>Den sesongen er allerede over.</value>
+  </data>
+  <data name="That username is reserved" xml:space="preserve">
+    <value>Det brukernavnet er reservert</value>
+  </data>
+  <data name="The Arena Awaits" xml:space="preserve">
+    <value>Arenaen venter</value>
+  </data>
+  <data name="The cards in your pack" xml:space="preserve">
+    <value>Kortene i pakken din</value>
+  </data>
+  <data name="The page you are looking for does not exist." xml:space="preserve">
+    <value>Siden du leter etter, finnes ikke.</value>
+  </data>
+  <data name="The request could not be completed ({0})." xml:space="preserve">
+    <value>Forespørselen kunne ikke fullføres ({0}).</value>
+  </data>
+  <data name="The username already exists" xml:space="preserve">
+    <value>Brukernavnet er allerede tatt</value>
+  </data>
+  <data name="This account is banned." xml:space="preserve">
+    <value>Denne kontoen er utestengt.</value>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>Tittel</value>
+  </data>
+  <data name="Too many requests. Please wait a minute and try again." xml:space="preserve">
+    <value>For mange forespørsler. Vent et minutt og prøv igjen.</value>
+  </data>
+  <data name="Top Players" xml:space="preserve">
+    <value>Toppspillere</value>
+  </data>
+  <data name="Twenty cards: souls of four races, spells and cards only your hero can play. Open card packs to grow your collection." xml:space="preserve">
+    <value>Tjue kort: sjeler fra fire raser, trylleformler og kort bare helten din kan spille. Åpne kortpakker for å utvide samlingen.</value>
+  </data>
+  <data name="Type:" xml:space="preserve">
+    <value>Skrift:</value>
+  </data>
+  <data name="Unknown ability" xml:space="preserve">
+    <value>Ukjent evne</value>
+  </data>
+  <data name="Unknown class" xml:space="preserve">
+    <value>Ukjent klasse</value>
+  </data>
+  <data name="Unknown race" xml:space="preserve">
+    <value>Ukjent rase</value>
+  </data>
+  <data name="Update" xml:space="preserve">
+    <value>Oppdater</value>
+  </data>
+  <data name="Update {0}" xml:space="preserve">
+    <value>Oppdater {0}</value>
+  </data>
+  <data name="Upgrade {0}" xml:space="preserve">
+    <value>Oppgrader {0}</value>
+  </data>
+  <data name="Upload a portrait or use one of the built-in portraits." xml:space="preserve">
+    <value>Last opp et portrett eller bruk et av de innebygde portrettene.</value>
+  </data>
+  <data name="Upload failed." xml:space="preserve">
+    <value>Opplastingen mislyktes.</value>
+  </data>
+  <data name="Uploaded." xml:space="preserve">
+    <value>Lastet opp.</value>
+  </data>
+  <data name="Uploading..." xml:space="preserve">
+    <value>Laster opp …</value>
+  </data>
+  <data name="Use the automatic deck" xml:space="preserve">
+    <value>Bruk automatisk kortstokk</value>
+  </data>
+  <data name="Use this power" xml:space="preserve">
+    <value>Bruk denne kraften</value>
+  </data>
+  <data name="Username" xml:space="preserve">
+    <value>Brukernavn</value>
+  </data>
+  <data name="Username is empty!" xml:space="preserve">
+    <value>Skriv inn brukernavnet!</value>
+  </data>
+  <data name="Usernames are 3-20 letters, digits, '-' or '_'" xml:space="preserve">
+    <value>Brukernavn er 3–20 bokstaver, tall, '-' eller '_'</value>
+  </data>
+  <data name="Victorious" xml:space="preserve">
+    <value>Seier</value>
+  </data>
+  <data name="Watch" xml:space="preserve">
+    <value>Se på</value>
+  </data>
+  <data name="Watch and replay" xml:space="preserve">
+    <value>Se på og se reprise</value>
+  </data>
+  <data name="Watch the replay in 3D" xml:space="preserve">
+    <value>Se reprisen i 3D</value>
+  </data>
+  <data name="Welcome back, {0}" xml:space="preserve">
+    <value>Velkommen tilbake, {0}</value>
+  </data>
+  <data name="When a season ends, every rating moves halfway back to {0} and everyone who played a ranked game in it is paid for the tier they finished in." xml:space="preserve">
+    <value>Når en sesong slutter, flyttes hver rating halvveis tilbake mot {0}, og alle som spilte en rangert kamp i sesongen, får betalt for nivået de endte på.</value>
+  </data>
+  <data name="When the season ends, the game server stores the final standings, pays every player who played a ranked game the reward for their tier, resets every rating halfway to the start and starts the next season (it checks once a minute)." xml:space="preserve">
+    <value>Når sesongen slutter, lagrer spillserveren den endelige stillingen, betaler alle som spilte en rangert kamp, belønningen for nivået sitt, flytter hver rating halvveis tilbake mot start og starter neste sesong (den sjekker én gang i minuttet).</value>
+  </data>
+  <data name="Win games and finish daily quests to earn soul coins." xml:space="preserve">
+    <value>Vinn kamper og fullfør dagens oppdrag for å tjene sjelemynter.</value>
+  </data>
+  <data name="Win rate" xml:space="preserve">
+    <value>Seiers­prosent</value>
+  </data>
+  <data name="Win rate of the player who played the card, in decided games between players (draws and practice games are left out), to compare with docs/balance.md. Numbers from fewer than {0} games are faded: too few to trust." xml:space="preserve">
+    <value>Seiersprosenten til spilleren som spilte kortet, i avgjorte kamper mellom spillere (uavgjorte kamper og øvingskamper er utelatt), til sammenligning med docs/balance.md. Tall fra færre enn {0} kamper er tonet ned: for få til å stole på.</value>
+  </data>
+  <data name="Wins" xml:space="preserve">
+    <value>Seire</value>
+  </data>
+  <data name="You already own {0}" xml:space="preserve">
+    <value>Du har allerede {0}</value>
+  </data>
+  <data name="You bought {0}!" xml:space="preserve">
+    <value>Du kjøpte {0}!</value>
+  </data>
+  <data name="You cannot afford a card pack!" xml:space="preserve">
+    <value>Du har ikke råd til en kortpakke!</value>
+  </data>
+  <data name="You cannot afford to upgrade {0}!" xml:space="preserve">
+    <value>Du har ikke råd til å oppgradere {0}!</value>
+  </data>
+  <data name="You cannot afford {0}!" xml:space="preserve">
+    <value>Du har ikke råd til {0}!</value>
+  </data>
+  <data name="You cannot change your own permission." xml:space="preserve">
+    <value>Du kan ikke endre din egen tilgang.</value>
+  </data>
+  <data name="You do not have permission to view this page." xml:space="preserve">
+    <value>Du har ikke tilgang til denne siden.</value>
+  </data>
+  <data name="You lose it if you do not come back within a minute." xml:space="preserve">
+    <value>Du taper den hvis du ikke er tilbake innen et minutt.</value>
+  </data>
+  <data name="You must input a confirmation password" xml:space="preserve">
+    <value>Du må gjenta passordet</value>
+  </data>
+  <data name="You must input a password" xml:space="preserve">
+    <value>Du må skrive inn et passord</value>
+  </data>
+  <data name="You must input a username" xml:space="preserve">
+    <value>Du må skrive inn et brukernavn</value>
+  </data>
+  <data name="You must select 5 starter cards!" xml:space="preserve">
+    <value>Du må velge 5 startkort!</value>
+  </data>
+  <data name="You must select a class" xml:space="preserve">
+    <value>Du må velge en klasse</value>
+  </data>
+  <data name="You play with the automatic deck (your cards spread evenly) until you save one." xml:space="preserve">
+    <value>Du spiller med den automatiske kortstokken (kortene dine fordelt jevnt) til du lagrer din egen.</value>
+  </data>
+  <data name="You play with the automatic deck again." xml:space="preserve">
+    <value>Du spiller med den automatiske kortstokken igjen.</value>
+  </data>
+  <data name="You play with your own deck." xml:space="preserve">
+    <value>Du spiller med din egen kortstokk.</value>
+  </data>
+  <data name="You play with {0} from your next game." xml:space="preserve">
+    <value>Du spiller med {0} fra neste kamp.</value>
+  </data>
+  <data name="Your account was created. Please log in." xml:space="preserve">
+    <value>Kontoen din er opprettet. Nå kan du logge inn.</value>
+  </data>
+  <data name="Your Card Pack" xml:space="preserve">
+    <value>Kortpakken din</value>
+  </data>
+  <data name="Your champion" xml:space="preserve">
+    <value>Kjempen din</value>
+  </data>
+  <data name="Your champion's name" xml:space="preserve">
+    <value>Navnet på kjempen din</value>
+  </data>
+  <data name="Your class cannot use that hero power." xml:space="preserve">
+    <value>Klassen din kan ikke bruke den heltekraften.</value>
+  </data>
+  <data name="Your Deck" xml:space="preserve">
+    <value>Kortstokken din</value>
+  </data>
+  <data name="Your deck was saved. It is used from your next game." xml:space="preserve">
+    <value>Kortstokken er lagret. Den brukes fra neste kamp.</value>
+  </data>
+  <data name="Your hero power" xml:space="preserve">
+    <value>Heltekraften din</value>
+  </data>
+  <data name="Your soul coins changed in the meantime, so no pack was bought. Please try again." xml:space="preserve">
+    <value>Sjelemyntene dine endret seg i mellomtiden, så ingen pakke ble kjøpt. Prøv igjen.</value>
+  </data>
+  <data name="{0} can use one of two powers ({1} mana, once per turn). Your pick is used from your next game." xml:space="preserve">
+    <value>{0} kan bruke én av to krefter ({1} mana, én gang per tur). Valget ditt gjelder fra neste kamp.</value>
+  </data>
+  <data name="{0} events" xml:space="preserve">
+    <value>{0} hendelser</value>
+  </data>
+  <data name="{0} has ended. The game server stores the standings, pays the rewards and starts the next season within a minute." xml:space="preserve">
+    <value>{0} er over. Spillserveren lagrer stillingen, betaler ut belønningene og starter neste sesong innen et minutt.</value>
+  </data>
+  <data name="{0} is a card of another class." xml:space="preserve">
+    <value>{0} er et kort for en annen klasse.</value>
+  </data>
+  <data name="{0} is already at the highest level." xml:space="preserve">
+    <value>{0} er allerede på høyeste nivå.</value>
+  </data>
+  <data name="{0} is now level {1}!" xml:space="preserve">
+    <value>{0} er nå på nivå {1}!</value>
+  </data>
+  <data name="{0} of {1} cards" xml:space="preserve">
+    <value>{0} av {1} kort</value>
+  </data>
+  <data name="{0} of {1} games won" xml:space="preserve">
+    <value>{0} av {1} kamper vunnet</value>
+  </data>
+  <data name="{0} only" xml:space="preserve">
+    <value>kun {0}</value>
+  </data>
+  <data name="{0} ranked games, {1} wins" xml:space="preserve">
+    <value>{0} rangerte kamper, {1} seire</value>
+  </data>
+  <data name="{0} soul coins" xml:space="preserve">
+    <value>{0} sjelemynter</value>
+  </data>
+  <data name="{0} the Defeated" xml:space="preserve">
+    <value>{0} den beseirede</value>
+  </data>
+  <data name="{0} the Undefeated" xml:space="preserve">
+    <value>{0} den ubeseirede</value>
+  </data>
+  <data name="{0} the Victorious" xml:space="preserve">
+    <value>{0} den seierrike</value>
+  </data>
+  <data name="{0} turns" xml:space="preserve">
+    <value>{0} turer</value>
+  </data>
+  <data name="{0} vs {1}" xml:space="preserve">
+    <value>{0} mot {1}</value>
+  </data>
+  <data name="{0} was already upgraded." xml:space="preserve">
+    <value>{0} er allerede oppgradert.</value>
+  </data>
+</root>

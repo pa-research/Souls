@@ -12,20 +12,22 @@
 
             e.preventDefault();
             var upgrade = form.dataset.upgrade === "true";
-            var text = "Are you sure you want to " + (upgrade ? "upgrade " : "purchase ") + form.dataset.cardName + " for " + form.dataset.price + " soul coins?";
+            // The texts in the page's language are on the dialog (data-*).
+            var texts = dialog.dataset;
+            var text = window.soulsFormat(upgrade ? texts.upgradeText : texts.purchaseText, form.dataset.cardName, form.dataset.price);
             var confirmed = function () {
                 form.dataset.confirmed = "true";
                 form.submit();
             };
 
-            if (!dialog || typeof dialog.showModal !== "function") {
+            if (typeof dialog.showModal !== "function") {
                 if (window.confirm(text)) {
                     confirmed();
                 }
                 return;
             }
 
-            document.getElementById("buy-confirm-title").textContent = (upgrade ? "Upgrade " : "Purchase ") + form.dataset.cardName;
+            document.getElementById("buy-confirm-title").textContent = window.soulsFormat(upgrade ? texts.upgrade : texts.purchase, form.dataset.cardName);
             document.getElementById("buy-confirm-message").textContent = text;
             dialog.returnValue = "";
             dialog.onclose = function () {
@@ -53,7 +55,7 @@
                 card.hidden = !visible;
                 if (visible) count++;
             });
-            shown.textContent = count + " of " + cards.length + " cards";
+            shown.textContent = window.soulsFormat(shown.dataset.text, count, cards.length);
         };
         filters.querySelectorAll("button[data-filter]").forEach(function (button) {
             button.addEventListener("click", function () {

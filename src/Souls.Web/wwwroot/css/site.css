@@ -200,6 +200,10 @@ a:hover { color: #fff0c2; }
 
 .s-topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 
+/* The language switch (EN | NB, see _LanguagePicker): a compact .s-seg, as tall as .s-btn-sm. */
+.s-lang { flex: none; }
+.s-lang > .s-lang-btn { padding: 6px 10px; }
+
 .s-profile { display: flex; align-items: center; gap: 12px; }
 .s-profile-who { display: flex; align-items: center; gap: 8px; }
 .s-profile-portrait {
@@ -217,7 +221,14 @@ a:hover { color: #fff0c2; }
 .navbar-toggler { border: 1px solid var(--s-line); }
 .navbar-toggler:focus { box-shadow: var(--s-focus); }
 
-@media (max-width: 991.98px) {
+/* Below 1400px the top bar is tight (longer words in Norwegian, the language switch): closer nav links. Below 1200px
+   the nav collapses into the menu (navbar-expand-xl). */
+@media (max-width: 1399.98px) {
+    .s-nav-link { padding: 10px; letter-spacing: 0.1em; }
+    .s-nav-link.active::after { left: 10px; right: 10px; }
+}
+
+@media (max-width: 1199.98px) {
     .s-topbar-inner { min-height: 60px; }
     .s-brand img { height: 42px; }
     .s-topbar .navbar-toggler { margin-left: auto; }

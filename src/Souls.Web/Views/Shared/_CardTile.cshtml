@@ -3,12 +3,12 @@
 <div class="s-card card-container rarity-@Model.RarityCss @(Model.Owned ? "owned" : null) @(Model.Spell ? "spell" : null)" id="card_@Model.Id" title="@Model.Description"
      style="background-image: url('@(Model.RaceTexture ?? "/Content/Images/Card/Texture/card_error.png")');">
     <div class="s-card-portrait card-portrait" style="background-image: url('@Model.Portrait');"></div>
-    <div class="s-card-cost" aria-label="Cost @Model.Cost">@Model.Cost</div>
+    <div class="s-card-cost" aria-label="@L["Cost {0}", Model.Cost]">@Model.Cost</div>
     @* --len shrinks long names to fit the name band, between the cost gem and the race emblem. *@
     <div class="s-card-title" style="--len: @Model.Name.Length">@Model.Name</div>
     @if (Model.Level > 1)
     {
-        <div class="s-card-stars" aria-label="Level @Model.Level">@(new string('★', Model.Level - 1))</div>
+        <div class="s-card-stars" aria-label="@L["Level {0}", Model.Level]">@(new string('★', Model.Level - 1))</div>
     }
     <span class="s-card-gem" role="img" aria-label="@Model.RarityName"></span>
     @if (Model.Ability is not null)
@@ -22,15 +22,15 @@
     }
     @if (Model.Spell)
     {
-        <div class="s-card-spell" role="img" aria-label="Spell"><span>Spell</span><span>Spell</span></div>
+        <div class="s-card-spell" role="img" aria-label="@L["Spell"]"><span>@L["Spell"]</span><span>@L["Spell"]</span></div>
     }
     else
     {
-        <div class="s-card-attack" aria-label="Attack @Model.Attack">@Model.Attack</div>
-        <div class="s-card-health" aria-label="Health @Model.Health">@Model.Health</div>
+        <div class="s-card-attack" aria-label="@L["Attack {0}", Model.Attack]">@Model.Attack</div>
+        <div class="s-card-health" aria-label="@L["Health {0}", Model.Health]">@Model.Health</div>
     }
     @if (Model.Armor > 0)
     {
-        <div class="s-card-armor" aria-label="Armor @Model.Armor">@Model.Armor</div>
+        <div class="s-card-armor" aria-label="@L["Armor {0}", Model.Armor]">@Model.Armor</div>
     }
 </div>

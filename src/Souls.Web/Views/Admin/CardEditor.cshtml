@@ -5,7 +5,7 @@
 }
 <div class="s-admin">
 <section class="s-panel">
-<div class="s-panel-head"><s-icon name="pencil" /><h2>Card Editor</h2><a class="s-btn s-btn-ghost s-btn-sm" asp-action="CardEditor" asp-route-id=""><s-icon name="plus" />New card</a></div>
+<div class="s-panel-head"><s-icon name="pencil" /><h2>@L["Card Editor"]</h2><a class="s-btn s-btn-ghost s-btn-sm" asp-action="CardEditor" asp-route-id=""><s-icon name="plus" />@L["New card"]</a></div>
 <div class="row g-4">
     <div class="col-lg-3 d-flex justify-content-center align-items-start">
         @* A form sent back with errors can have an empty name. *@
@@ -13,79 +13,79 @@
     </div>
 
     <div class="col-lg-9">
-        <h3 class="s-h3">@(card.Id is null ? "Create a card" : $"Update {card.Name}")</h3>
+        <h3 class="s-h3">@(card.Id is null ? L["Create a card"] : L["Update {0}", card.Name ?? string.Empty])</h3>
         <form asp-action="CardEditor" method="post" id="card-form">
             <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
             <input type="hidden" asp-for="Card.Id" />
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label" for="portrait-upload">Card Portrait</label>
+                    <label class="form-label" for="portrait-upload">@L["Card Portrait"]</label>
                     <input class="form-control" type="file" id="portrait-upload" accept="image/png,image/jpeg,image/gif" />
-                    <div class="form-text" id="upload-status"></div>
-                    <label asp-for="Card.Portrait" class="form-label mt-2">Portrait URL</label>
+                    <div class="form-text" id="upload-status" data-uploading="@L["Uploading..."]" data-uploaded="@L["Uploaded."]" data-failed="@L["Upload failed."]"></div>
+                    <label asp-for="Card.Portrait" class="form-label mt-2">@L["Portrait URL"]</label>
                     <input asp-for="Card.Portrait" class="form-control" readonly />
                 </div>
                 <div class="col-md-4">
-                    <label asp-for="Card.Name" class="form-label">Name</label>
+                    <label asp-for="Card.Name" class="form-label">@L["Name"]</label>
                     <input asp-for="Card.Name" class="form-control" data-preview=".s-card-title" />
-                    <label asp-for="Card.AbilityId" class="form-label mt-2">Ability</label>
+                    <label asp-for="Card.AbilityId" class="form-label mt-2">@L["Ability"]</label>
                     <select asp-for="Card.AbilityId" class="form-select" data-preview=".s-card-ability">
-                        <option value="">(none)</option>
+                        <option value="">@L["(none)"]</option>
                         @foreach (var ability in Model.Abilities)
                         {
                             <option value="@ability.Id">@ability.Name</option>
                         }
                     </select>
-                    <label asp-for="Card.Kind" class="form-label mt-2">Kind</label>
+                    <label asp-for="Card.Kind" class="form-label mt-2">@L["Kind"]</label>
                     <select asp-for="Card.Kind" class="form-select" asp-items="Html.GetEnumSelectList<Souls.Model.Entities.CardKind>()"></select>
-                    <div class="form-text">Spells are cast from the hand (attack, health and armor are ignored).</div>
-                    <label asp-for="Card.RaceId" class="form-label mt-2">Race</label>
+                    <div class="form-text">@L["Spells are cast from the hand (attack, health and armor are ignored)."]</div>
+                    <label asp-for="Card.RaceId" class="form-label mt-2">@L["Race"]</label>
                     <select asp-for="Card.RaceId" class="form-select" id="race-select">
                         @foreach (var race in Model.Races)
                         {
                             <option value="@race.Id" data-texture="@race.CardUrl">@race.Name</option>
                         }
                     </select>
-                    <label asp-for="Card.ClassId" class="form-label mt-2">Class</label>
+                    <label asp-for="Card.ClassId" class="form-label mt-2">@L["Class"]</label>
                     <select asp-for="Card.ClassId" class="form-select">
-                        <option value="">Every class</option>
+                        <option value="">@L["Every class"]</option>
                         @foreach (var type in Model.Classes)
                         {
-                            <option value="@type.Id">@type.Name only</option>
+                            <option value="@type.Id">@L["{0} only", type.Name]</option>
                         }
                     </select>
                 </div>
                 <div class="col-md-4">
                     <div class="row g-2">
-                        <div class="col-6"><label asp-for="Card.Cost" class="form-label">Cost</label><input asp-for="Card.Cost" class="form-control" data-preview=".s-card-cost" /></div>
-                        <div class="col-6"><label asp-for="Card.Level" class="form-label">Level</label><input asp-for="Card.Level" class="form-control" /></div>
-                        <div class="col-6"><label asp-for="Card.Attack" class="form-label">Attack</label><input asp-for="Card.Attack" class="form-control" data-preview=".s-card-attack" /></div>
-                        <div class="col-6"><label asp-for="Card.Health" class="form-label">Health</label><input asp-for="Card.Health" class="form-control" data-preview=".s-card-health" /></div>
-                        <div class="col-6"><label asp-for="Card.Armor" class="form-label">Armor</label><input asp-for="Card.Armor" class="form-control" /></div>
-                        <div class="col-6"><label asp-for="Card.VendorPrice" class="form-label">Price</label><input asp-for="Card.VendorPrice" class="form-control" /></div>
-                        <div class="col-6"><label asp-for="Card.AbilityValue" class="form-label">Ability value</label><input asp-for="Card.AbilityValue" class="form-control" placeholder="default" /></div>
+                        <div class="col-6"><label asp-for="Card.Cost" class="form-label">@L["Cost"]</label><input asp-for="Card.Cost" class="form-control" data-preview=".s-card-cost" /></div>
+                        <div class="col-6"><label asp-for="Card.Level" class="form-label">@L["Level"]</label><input asp-for="Card.Level" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.Attack" class="form-label">@L["Attack"]</label><input asp-for="Card.Attack" class="form-control" data-preview=".s-card-attack" /></div>
+                        <div class="col-6"><label asp-for="Card.Health" class="form-label">@L["Health"]</label><input asp-for="Card.Health" class="form-control" data-preview=".s-card-health" /></div>
+                        <div class="col-6"><label asp-for="Card.Armor" class="form-label">@L["Armor"]</label><input asp-for="Card.Armor" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.VendorPrice" class="form-label">@L["Price"]</label><input asp-for="Card.VendorPrice" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Card.AbilityValue" class="form-label">@L["Ability value"]</label><input asp-for="Card.AbilityValue" class="form-control" placeholder="@L["default"]" /></div>
                         <div class="col-6">
-                            <label asp-for="Card.Rarity" class="form-label">Rarity</label>
+                            <label asp-for="Card.Rarity" class="form-label">@L["Rarity"]</label>
                             <select asp-for="Card.Rarity" class="form-select">
                                 @for (var r = Souls.Model.Rarity.Common; r <= Souls.Model.Rarity.Legendary; r++)
                                 {
-                                    <option value="@r">@Souls.Model.Rarity.Name(r)</option>
+                                    <option value="@r">@T(Souls.Model.Rarity.Text(r))</option>
                                 }
                             </select>
                         </div>
                     </div>
                 </div>
             </div>
-            <label asp-for="Card.Flavor" class="form-label mt-3">Flavor text</label>
+            <label asp-for="Card.Flavor" class="form-label mt-3">@L["Flavor text"]</label>
             <input asp-for="Card.Flavor" class="form-control" />
-            <button type="submit" class="s-btn s-btn-primary mt-3"><s-icon name="save" />@(card.Id is null ? "Create" : "Update")</button>
+            <button type="submit" class="s-btn s-btn-primary mt-3"><s-icon name="save" />@(card.Id is null ? L["Create"] : L["Update"])</button>
         </form>
     </div>
 </div>
 
 <div class="table-responsive mt-4">
     <table class="table table-sm align-middle">
-        <thead><tr><th>Name</th><th>Cost</th><th>Health</th><th>Attack</th><th>Price</th><th>Level</th><th>Ability</th><th>Race</th><th>Kind</th><th>Class</th></tr></thead>
+        <thead><tr><th>@L["Name"]</th><th>@L["Cost"]</th><th>@L["Health"]</th><th>@L["Attack"]</th><th>@L["Price"]</th><th>@L["Level"]</th><th>@L["Ability"]</th><th>@L["Race"]</th><th>@L["Kind"]</th><th>@L["Class"]</th></tr></thead>
         <tbody>
             @foreach (var c in Model.Cards)
             {

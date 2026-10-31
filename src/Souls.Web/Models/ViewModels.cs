@@ -135,10 +135,7 @@ public sealed class ShopViewModel
 }
 
 /// <summary>A card from a pack: the player's copy after the pack, and the coins paid back for a duplicate at the highest level.</summary>
-public sealed record PackCard(CardTile Card, int Coins)
-{
-    public string Result => Coins > 0 ? $"+{Coins} soul {(Coins == 1 ? "coin" : "coins")}" : Card.Level == 1 ? "New card" : $"Level {Card.Level}";
-}
+public sealed record PackCard(CardTile Card, int Coins);
 
 public sealed record PlayerSummary(string Name, int Money, int Rank, string Type, int Health, int BonusMana, string? Race)
 {

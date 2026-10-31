@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Souls.Model;
 using Souls.Model.Entities;
 using Souls.Web.Models;
@@ -11,11 +12,11 @@ namespace Souls.Web.Controllers;
 /// The deck builder: pick 20 cards from the cards you own (at most 4 copies of a common card, 1 of a legendary) and the
 /// hero power you play with. Another class's cards never show up or count (see <see cref="GameRules.CanUse"/>).
 /// </summary>
-public sealed class DeckController(SoulsDbContext db) : Controller
+public sealed class DeckController(SoulsDbContext db, IStringLocalizer<SharedResource> localizer) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "Deck";
+        ViewData["Title"] = localizer["Deck"].Value;
         var playerId = User.RequirePlayerId();
         var player = await db.Players.AsNoTracking().Where(p => p.Id == playerId)
             .Select(p => new { p.PlayerTypeId, p.HeroPowerId, Class = p.PlayerType!.Name }).SingleAsync(ct);
@@ -54,7 +55,7 @@ public sealed class DeckController(SoulsDbContext db) : Controller
         var deck = counts.Where(c => c.Value != 0).Select(c => (c.Key, c.Value)).ToList();
         var otherClass = owned.FirstOrDefault(pc => counts.GetValueOrDefault(pc.CardId) != 0 && !GameRules.CanUse(pc.ClassId, classId));
         var error = otherClass is not null
-            ? $"{otherClass.Name} is a card of another class."
+            ? localizer["{0} is a card of another class.", otherClass.Name].Value
             : Decks.Validate(deck, owned.ToDictionary(pc => pc.CardId, pc => pc.Rarity)) is { } invalid ? Localized.T(invalid) : null;
         if (error is not null)
         {
@@ -65,7 +66,7 @@ public sealed class DeckController(SoulsDbContext db) : Controller
         await db.DeckCards.Where(d => d.PlayerId == playerId).ExecuteDeleteAsync(ct);
         db.DeckCards.AddRange(deck.Select(d => new DeckCard { PlayerId = playerId, CardId = d.Key, Count = d.Value }));
         await db.SaveChangesAsync(ct);
-        TempData["Message"] = "Your deck was saved. It is used from your next game.";
+        TempData["Message"] = localizer["Your deck was saved. It is used from your next game."].Value;
         return RedirectToAction(nameof(Index));
     }
 
@@ -77,12 +78,12 @@ public sealed class DeckController(SoulsDbContext db) : Controller
         var classId = await db.Players.Where(p => p.Id == playerId).Select(p => p.PlayerTypeId).SingleAsync(ct);
         if (!GameRules.HeroPowers.TryGetValue(power, out var picked) || picked.ClassId != classId)
         {
-            TempData["Error"] = "Your class cannot use that hero power.";
+            TempData["Error"] = localizer["Your class cannot use that hero power."].Value;
             return RedirectToAction(nameof(Index));
         }
 
         await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.HeroPowerId, power), ct);
-        TempData["Message"] = $"You play with {picked.Name} from your next game.";
+        TempData["Message"] = localizer["You play with {0} from your next game.", Localized.T(picked.Name)].Value;
         return RedirectToAction(nameof(Index));
     }
 
@@ -92,7 +93,7 @@ public sealed class DeckController(SoulsDbContext db) : Controller
     {
         var playerId = User.RequirePlayerId();
         await db.DeckCards.Where(d => d.PlayerId == playerId).ExecuteDeleteAsync(ct);
-        TempData["Message"] = "You play with the automatic deck again.";
+        TempData["Message"] = localizer["You play with the automatic deck again."].Value;
         return RedirectToAction(nameof(Index));
     }
 }

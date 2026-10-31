@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Souls.Model;
 using Souls.Model.Hosting;
 using Souls.Model.Localization;
@@ -13,11 +14,11 @@ using Souls.Web.Services;
 namespace Souls.Web.Controllers;
 
 [AllowAnonymous]
-public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, TimeProvider time, ILogger<HomeController> logger) : Controller
+public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, TimeProvider time, ILogger<HomeController> logger, IStringLocalizer<SharedResource> localizer) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "Home";
+        ViewData["Title"] = localizer["Home"].Value;
         ViewData["GitHubRepository"] = configuration["Souls:GitHubRepository"];
 
         IReadOnlyList<QuestView>? quests = null;

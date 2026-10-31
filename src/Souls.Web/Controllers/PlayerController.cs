@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Souls.Model;
 using Souls.Model.Entities;
 using Souls.Model.Security;
@@ -12,7 +13,7 @@ using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
-public sealed class PlayerController(SoulsDbContext db, PasswordService passwords, SessionService sessions, TimeProvider time, ILogger<PlayerController> logger) : Controller
+public sealed class PlayerController(SoulsDbContext db, PasswordService passwords, SessionService sessions, TimeProvider time, ILogger<PlayerController> logger, IStringLocalizer<SharedResource> localizer) : Controller
 {
     /// <summary>Verified against when the user does not exist, so both cases take the same time.</summary>
     private static readonly Lazy<string> DummyHash = new(() => new PasswordService().Hash(Guid.NewGuid().ToString()));
@@ -26,7 +27,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
             return RedirectToAction("Index", "Home");
         }
 
-        ViewData["Title"] = "Login";
+        ViewData["Title"] = localizer["Login"].Value;
         return View(new LoginViewModel { ReturnUrl = returnUrl });
     }
 
@@ -35,7 +36,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginViewModel model, CancellationToken ct)
     {
-        ViewData["Title"] = "Login";
+        ViewData["Title"] = localizer["Login"].Value;
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -47,13 +48,13 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         if (player is null || check == PasswordCheck.Failed)
         {
             logger.LogInformation("Failed login for {Name}", model.Name);
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
+            ModelState.AddModelError(string.Empty, localizer["Invalid username or password."]);
             return View(model);
         }
 
         if (await sessions.IsBannedAsync(player.Id, ct))
         {
-            ModelState.AddModelError(string.Empty, "This account is banned.");
+            ModelState.AddModelError(string.Empty, localizer["This account is banned."]);
             return View(model);
         }
 
@@ -83,7 +84,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     [AllowAnonymous]
     public async Task<IActionResult> Register(CancellationToken ct)
     {
-        ViewData["Title"] = "Registration";
+        ViewData["Title"] = localizer["Registration"].Value;
         return View(await RegisterPageAsync(new RegisterViewModel(), ct));
     }
 
@@ -92,7 +93,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register([Bind(Prefix = "Form")] RegisterViewModel form, CancellationToken ct)
     {
-        ViewData["Title"] = "Registration";
+        ViewData["Title"] = localizer["Registration"].Value;
         var key = nameof(RegisterPageModel.Form) + ".";
 
         // Required already reports an empty password.
@@ -103,26 +104,26 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
 
         if (string.Equals(form.Username, SeedData.BotPlayerName, StringComparison.OrdinalIgnoreCase))
         {
-            ModelState.AddModelError(key + nameof(form.Username), "That username is reserved");
+            ModelState.AddModelError(key + nameof(form.Username), localizer["That username is reserved"]);
         }
 
         var cards = form.Cards.Distinct().ToList();
         var starterIds = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == form.PlayerType)).Select(c => c.Id).ToListAsync(ct);
         if (cards.Count != 5 || cards.Except(starterIds).Any())
         {
-            ModelState.AddModelError(key + nameof(form.Cards), "You must select 5 starter cards!");
+            ModelState.AddModelError(key + nameof(form.Cards), localizer["You must select 5 starter cards!"]);
         }
 
         if (form.PlayerType is { } typeId && !await db.PlayerTypes.AnyAsync(t => t.Id == typeId, ct))
         {
-            ModelState.AddModelError(key + nameof(form.PlayerType), "You must select a class");
+            ModelState.AddModelError(key + nameof(form.PlayerType), localizer["You must select a class"]);
         }
 
         // An empty username binds as null; its Required error is already in the model state.
         var normalized = ModelState.IsValid ? Player.Normalize(form.Username) : string.Empty;
         if (ModelState.IsValid && await db.Players.AnyAsync(p => p.NormalizedName == normalized, ct))
         {
-            ModelState.AddModelError(key + nameof(form.Username), "The username already exists");
+            ModelState.AddModelError(key + nameof(form.Username), localizer["The username already exists"]);
         }
 
         if (!ModelState.IsValid)
@@ -154,12 +155,12 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         catch (DbUpdateException)
         {
             // Lost a race against another registration with the same name.
-            ModelState.AddModelError(key + nameof(form.Username), "The username already exists");
+            ModelState.AddModelError(key + nameof(form.Username), localizer["The username already exists"]);
             return View(await RegisterPageAsync(form, ct));
         }
 
         logger.LogInformation("Registered player {Name}", player.Name);
-        TempData["Message"] = "Your account was created. Please log in.";
+        TempData["Message"] = localizer["Your account was created. Please log in."].Value;
         return RedirectToAction(nameof(Login));
     }
 
