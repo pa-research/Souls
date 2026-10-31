@@ -249,12 +249,13 @@ void main() {
     float wrapD = clamp((dot(N, Lk) + 0.4) / 1.4, 0.0, 1.0);
     float fall = mix(1.0 - uBodyFade, 1.0, smoothstep(uFadeLo, uFadeHi, uv.y)) * (0.7 + 0.6 * lightNear);
     vec3 Lb = normalize(vec3(toL, -0.2));
-    float back = pow(max(dot(N, Lb), 0.0), 2.0) * (1.0 - smoothstep(0.0, uBevelW * 2.0, det));
+    // back light catches the outer silhouette only: around inner cut-outs it would draw thin bright hairlines
+    float back = pow(max(dot(N, Lb), 0.0), 2.0) * (1.0 - smoothstep(0.0, uBevelW * 2.0, sil));
     float spec = pow(max(dot(N, normalize(Lk + V)), 0.0), uShin);
     bool metal = (mat > 1.5 && mat < 3.5) || mat > 10.5;
 
-    float groove = hole * uGroove;
-    float ao = (1.0 - 0.55 * groove) * (1.0 - 0.3 * (1.0 - smoothstep(0.0, uBevelW * 1.5, det)) * smoothstep(0.45, 0.9, blurM));
+    float groove = clamp(hole * uGroove, 0.0, 1.0);
+    float ao = (1.0 - 0.8 * groove) * (1.0 - 0.3 * (1.0 - smoothstep(0.0, uBevelW * 1.5, det)) * smoothstep(0.45, 0.9, blurM));
     vec3 lit;
     if (metal) {
       // polished metal reflects a sky-bright-above / dark-below environment
@@ -269,7 +270,8 @@ void main() {
     float rimEdge = (1.0 - smoothstep(0.0, uRimW, sil)) * pow(clamp(facing * 0.5 + 0.5, 0.0, 1.0), 2.0);
     vec2 gD = vec2(sDet(uv + vec2(px.x, 0)) - sDet(uv - vec2(px.x, 0)), sDet(uv + vec2(0, px.y)) - sDet(uv - vec2(0, px.y)));
     float rimDet = (1.0 - smoothstep(0.0, uRimW * 0.6, det)) * pow(clamp(dot(-normalize(gD + 1e-5), toL) * 0.5 + 0.5, 0.0, 1.0), 3.0) * (1.0 - hole);
-    lit += uRimCol * (back * uBackStr * fall + (rimEdge * 1.4 + rimDet * uDetRim) * uRimStr) * (0.45 + 0.8 * lightNear);
+    // grooves (icon cut-outs, gaps between layers) stay dark recesses: no back light inside them
+    lit += uRimCol * (back * uBackStr * fall * (1.0 - groove) + (rimEdge * 1.4 + rimDet * uDetRim) * uRimStr) * (0.45 + 0.8 * lightNear);
 
     if (mat > 6.5 && mat < 7.5) { // ethereal: glows from within, partly transparent
       float inner = smoothstep(0.0, uDomeW, sil);

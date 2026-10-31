@@ -1,5 +1,5 @@
 {
-  "_doc": "Card portrait specs. layers: game-icons names drawn back to front; x/y offset (icon units, 512 = icon size) from the centre, s scale, rot degrees, flip mirrors, accent uses accentMaterial. glow: emissive spots in the coordinates of glow.layer's icon (eyes, flames). light: [x, y] of the key light / moon / sun as fractions of the portrait (y down). tweak: raw uniform overrides (see style.js).",
+  "_doc": "Card portrait specs. layers: game-icons names drawn back to front; x/y offset (icon units, 512 = icon size) from the centre, s scale, rot degrees, flip mirrors, accent uses accentMaterial, cut carves the layer into the ones below as a groove. mood: one of the race's lighting set-ups in style.js MOODS. grow: thicken thin icons (icon units); dropSpecks: drop loose islands smaller than this fraction of the image. glow: emissive spots in the coordinates of glow.layer's icon (eyes, flames). light: [x, y] of the key light / moon / sun as fractions of the portrait (y down). tweak: raw uniform overrides (see style.js).",
   "cards": [
     {
       "id": 20,
@@ -54,6 +54,7 @@
       "name": "Mara",
       "race": "darkness",
       "rarity": "R",
+      "mood": "nightmare",
       "layers": [{"icon": "spectre"}],
       "material": "ethereal",
       "glow": [{"x": 341, "y": 112, "r": 26}, {"x": 408, "y": 140, "r": 24}, {"x": 345, "y": 200, "r": 34, "i": 0.6}],
@@ -93,6 +94,7 @@
       "name": "Pesta",
       "race": "darkness",
       "rarity": "E",
+      "mood": "plague",
       "layers": [{"icon": "witch-flight", "invert": {"cx": 253, "cy": 252, "r": 236}}],
       "material": "cloth",
       "particles": "motes",
@@ -117,29 +119,33 @@
       "name": "Blood Bat",
       "race": "vampiric",
       "rarity": "C",
+      "mood": "dusk",
       "layers": [{"icon": "evil-bat"}],
-      "motif": "castle",
-      "light": [0.5, 0.36],
+      "light": [0.5, 0.72],
       "fill": 0.78,
-      "tweak": {"LightR": 0.2, "BaseCol": "#1c0a0e", "Base2Col": "#3c141a"}
+      "tweak": {"LightR": 0.15, "BaseCol": "#1c0a0e", "Base2Col": "#3c141a"}
     },
     {
       "id": 31,
       "name": "Blood Thrall",
       "race": "vampiric",
       "rarity": "C",
+      "mood": "candle",
       "layers": [{"icon": "shambling-zombie"}],
       "material": "flesh",
-      "motif": "crypt",
-      "light": [0.7, 0.25],
+      "glow": [{"x": 138, "y": 52, "r": 11}],
+      "light": [0.66, 0.36],
       "tweak": {"BaseCol": "#4a3434", "Base2Col": "#6a4a46"},
-      "fill": 0.84
+      "fill": 0.84,
+      "grow": 4,
+      "dropSpecks": 0.004
     },
     {
       "id": 32,
       "name": "Vampire Bride",
       "race": "vampiric",
       "rarity": "R",
+      "mood": "rosewindow",
       "layers": [{"icon": "female-vampire"}],
       "material": "flesh",
       "glow": [{"x": 192, "y": 272, "r": 26}, {"x": 312, "y": 272, "r": 26}],
@@ -151,25 +157,26 @@
       "name": "Blood Priest",
       "race": "vampiric",
       "rarity": "C",
+      "mood": "candle",
       "layers": [{"icon": "chalice-drops"}],
       "material": "gold",
-      "motif": "crypt",
       "glow": [{"x": 256, "y": 190, "r": 95, "ry": 26, "i": 0.8}, {"x": 208, "y": 88, "r": 30}, {"x": 250, "y": 118, "r": 30}, {"x": 320, "y": 96, "r": 30}],
       "light": [0.5, 0.4],
-      "tweak": {"BaseCol": "#6a4418", "Base2Col": "#a87a34"},
-      "lightKind": "glow"
+      "tweak": {"BaseCol": "#6a4418", "Base2Col": "#a87a34"}
     },
     {
       "id": 34,
       "name": "Crimson Duelist",
       "race": "vampiric",
       "rarity": "R",
+      "mood": "dusk",
       "layers": [{"icon": "fencer"}],
       "material": "cloth",
-      "light": [0.76, 0.25],
+      "light": [0.62, 0.74],
       "maxW": 0.9,
       "motifOpts": {"castleX": 0.15},
-      "tweak": {"BaseCol": "#5a0c14", "Base2Col": "#8a1820"}
+      "tweak": {"BaseCol": "#5a0c14", "Base2Col": "#8a1820"},
+      "grow": 4
     },
     {
       "id": 35,
@@ -190,11 +197,11 @@
       "name": "Sanguine Knight",
       "race": "vampiric",
       "rarity": "C",
+      "mood": "dusk",
       "layers": [{"icon": "closed-barbute"}],
       "material": "iron",
-      "motif": "castle",
       "glow": [{"x": 164, "y": 216, "r": 72, "ry": 18}, {"x": 356, "y": 216, "r": 72, "ry": 18}],
-      "light": [0.24, 0.25],
+      "light": [0.3, 0.74],
       "tweak": {"BaseCol": "#4a1418", "Base2Col": "#7a2028", "SpecCol": "#ffb8a8"}
     },
     {
@@ -202,24 +209,28 @@
       "name": "Lord Varga",
       "race": "vampiric",
       "rarity": "L",
-      "layers": [{"icon": "bat-wing", "x": -190, "y": -40, "s": 0.85}, {"icon": "bat-wing", "x": 190, "y": -40, "s": 0.85, "flip": true}, {"icon": "vampire-dracula", "y": 20, "s": 0.92}],
+      "mood": "moonlit",
+      "layers": [{"icon": "bat-wing", "x": -190, "y": -40, "s": 0.85, "accent": true}, {"icon": "bat-wing", "x": 190, "y": -40, "s": 0.85, "flip": true, "accent": true}, {"icon": "vampire-dracula", "y": 20, "s": 0.92}],
       "material": "flesh",
+      "accentMaterial": "cloth",
       "glow": [{"layer": 2, "x": 187, "y": 283, "r": 28}, {"layer": 2, "x": 320, "y": 283, "r": 28}],
-      "light": [0.5, 0.3],
+      "light": [0.5, 0.26],
       "fill": 0.8,
       "maxW": 0.95,
-      "tweak": {"LightR": 0.24, "BaseCol": "#8a7a80", "Base2Col": "#b8a4a8", "KeyStr": 1.2}
+      "tweak": {"LightR": 0.17, "BaseCol": "#8a7a80", "Base2Col": "#b8a4a8", "KeyStr": 1.1, "AccentCol": "#4a1420"},
+      "holeMax": 0.08,
+      "closeR": 16
     },
     {
       "id": 38,
       "name": "Nosferatu",
       "race": "vampiric",
       "rarity": "E",
+      "mood": "candle",
       "layers": [{"icon": "goblin"}],
       "material": "flesh",
-      "motif": "crypt",
       "glow": [{"x": 200, "y": 280, "r": 38, "ry": 26}, {"x": 328, "y": 280, "r": 38, "ry": 26}],
-      "light": [0.5, 0.16],
+      "light": [0.5, 0.3],
       "tweak": {"BaseCol": "#3c3c36", "Base2Col": "#5e5e50"}
     },
     {
@@ -227,11 +238,13 @@
       "name": "Acolyte of Dawn",
       "race": "lightbringer",
       "rarity": "C",
-      "layers": [{"icon": "prayer"}],
-      "motif": "sky",
-      "light": [0.5, 0.44],
-      "center": [0.5, 0.55],
-      "tweak": {"LightR": 0.09}
+      "mood": "dawn",
+      "layers": [{"icon": "kneeling"}],
+      "material": "cloth",
+      "glow": [{"x": 410, "y": 215, "r": 40, "i": 0.8}],
+      "light": [0.5, 0.6],
+      "center": [0.52, 0.53],
+      "tweak": {"LightR": 0.27, "BaseCol": "#3a2c48", "Base2Col": "#5a4468", "RimStr": 2.2, "EmitCol": "#ffe0a0"}
     },
     {
       "id": 41,
@@ -318,6 +331,7 @@
       "name": "Wolf Pup",
       "race": "ferocious",
       "rarity": "C",
+      "mood": "moonwood",
       "layers": [{"icon": "wolf-howl", "invert": {"cx": 254, "cy": 250, "r": 231}}],
       "material": "fur",
       "glow": [{"x": 300, "y": 95, "r": 14, "i": 0.9}],
@@ -369,11 +383,10 @@
       "name": "Troll Chieftain",
       "race": "ferocious",
       "rarity": "R",
-      "layers": [{"icon": "wood-club", "x": 170, "y": 0, "s": 1.0, "rot": -5}, {"icon": "ogre", "y": 40, "s": 0.85}, {"icon": "crown", "y": -190, "s": 0.62, "accent": true}],
+      "layers": [{"icon": "ogre"}, {"icon": "crown", "y": -230, "s": 0.7, "accent": true}],
       "material": "stone",
       "accentMaterial": "gold",
       "light": [0.36, 0.25],
-      "maxW": 0.9,
       "tweak": {"BaseCol": "#4a4c3c", "Base2Col": "#6a6c50", "AccentCol": "#c89a40", "KeyStr": 1.25, "Groove": 1.6, "BodyFade": 0.25},
       "closeR": 16,
       "holeMax": 0.2
@@ -383,14 +396,10 @@
       "name": "Frost Jotun",
       "race": "ferocious",
       "rarity": "E",
-      "layers": [{"icon": "ice-golem"}],
+      "mood": "frost",
+      "layers": [{"icon": "rock-golem"}],
       "material": "ice",
-      "motif": "mountains",
-      "light": [0.68, 0.2],
-      "particles": "snow",
-      "particleColor": "#e8f6ff",
-      "tweak": {"SkyTop": "#030a12", "SkyBot": "#16303c", "GlowCol": "#a8dcf0", "DiscCol": "#f0faff", "CloudLit": "#5a8494", "CloudDark": "#0a1620", "FogCol": "#3a5866", "SceneFar": "#3a5a6a", "SceneMid": "#122028", "RimCol": "#e8faff", "AuraCol": "#8cd0f0", "KeyCol": "#b8d4e8", "BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "ShadowTint": "#0c3040", "HiTint": "#f0faff", "EmitCol": "#c8f4ff", "GlowStr": 0.7, "KeyStr": 0.75},
-      "glow": [{"x": 230, "y": 92, "r": 40, "ry": 16, "i": 0.8}]
+      "tweak": {"BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "KeyStr": 0.85}
     },
     {
       "id": 56,
@@ -412,12 +421,13 @@
       "name": "Soul Rend",
       "race": "darkness",
       "rarity": "C",
-      "layers": [{"icon": "floating-ghost"}, {"icon": "claw-slashes", "s": 0.9, "accent": true}],
+      "mood": "nightmare",
+      "layers": [{"icon": "ghost"}, {"icon": "claw-slashes", "s": 0.72, "x": 30, "y": 20, "cut": true}],
       "material": "ethereal",
-      "accentMaterial": "iron",
-      "light": [0.3, 0.24],
+      "glow": [{"layer": 1, "x": 256, "y": 256, "r": 210, "i": 0.55}],
+      "light": [0.5, 0.3],
       "particles": "wisps",
-      "tweak": {"AccentCol": "#d8d0e0"}
+      "tweak": {"BaseCol": "#6a7a9a", "Base2Col": "#c4d4f0"}
     },
     {
       "id": 61,
@@ -435,6 +445,7 @@
       "name": "Plague Wind",
       "race": "darkness",
       "rarity": "E",
+      "mood": "plague",
       "layers": [{"icon": "poison-gas"}],
       "material": "ethereal",
       "light": [0.5, 0.22],
@@ -447,21 +458,23 @@
       "name": "Blood Lance",
       "race": "vampiric",
       "rarity": "C",
-      "layers": [{"icon": "thrown-spear", "rot": -30}],
-      "material": "iron",
-      "light": [0.66, 0.26],
+      "mood": "moonlit",
+      "layers": [{"icon": "spear-hook"}],
+      "material": "blood",
+      "light": [0.36, 0.28],
       "particles": "blood",
-      "motif": "castle"
+      "grow": 3,
+      "tweak": {"LightR": 0.15}
     },
     {
       "id": 64,
       "name": "Blood Pact",
       "race": "vampiric",
       "rarity": "R",
+      "mood": "rosewindow",
       "layers": [{"icon": "bleeding-heart"}],
       "material": "flesh",
-      "light": [0.32, 0.26],
-      "motif": "crypt"
+      "light": [0.5, 0.3]
     },
     {
       "id": 65,
@@ -510,23 +523,21 @@
       "name": "Frostbite",
       "race": "ferocious",
       "rarity": "R",
+      "mood": "frost",
       "layers": [{"icon": "snowflake-1"}],
       "material": "ice",
-      "motif": "mountains",
-      "light": [0.68, 0.2],
-      "particles": "snow",
-      "particleColor": "#e8f6ff",
-      "tweak": {"SkyTop": "#030a12", "SkyBot": "#16303c", "GlowCol": "#a8dcf0", "DiscCol": "#f0faff", "CloudLit": "#5a8494", "CloudDark": "#0a1620", "FogCol": "#3a5866", "SceneFar": "#3a5a6a", "SceneMid": "#122028", "RimCol": "#e8faff", "AuraCol": "#8cd0f0", "KeyCol": "#b8d4e8", "BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "ShadowTint": "#0c3040", "HiTint": "#f0faff", "EmitCol": "#c8f4ff", "GlowStr": 0.7, "KeyStr": 0.75}
+      "tweak": {"BaseCol": "#2a4660", "Base2Col": "#6a9cc0", "KeyStr": 0.75}
     },
     {
       "id": 70,
       "name": "Rabid Ghoul",
       "race": "darkness",
       "rarity": "C",
+      "mood": "plague",
       "layers": [{"icon": "raise-zombie"}],
       "material": "flesh",
-      "light": [0.7, 0.24],
       "motif": "barrow",
+      "light": [0.7, 0.24],
       "particles": "motes",
       "tweak": {"BaseCol": "#4a5040", "Base2Col": "#7c846a"}
     },
@@ -535,33 +546,34 @@
       "name": "Night Terror",
       "race": "darkness",
       "rarity": "R",
+      "mood": "nightmare",
       "layers": [{"icon": "terror"}],
       "material": "ethereal",
       "light": [0.3, 0.24],
       "particles": "wisps",
-      "tweak": {"BaseCol": "#3c3450", "Base2Col": "#8a7cae"}
+      "tweak": {"BaseCol": "#6a6480", "Base2Col": "#d0c8e8"}
     },
     {
       "id": 72,
       "name": "Night Stalker",
       "race": "vampiric",
       "rarity": "C",
-      "layers": [{"icon": "hooded-assassin"}],
+      "mood": "moonlit",
+      "layers": [{"icon": "cloak-dagger"}],
       "material": "cloth",
-      "light": [0.72, 0.24],
-      "motif": "castle",
-      "tweak": {"BaseCol": "#2c1418", "Base2Col": "#5a2028"}
+      "light": [0.5, 0.36],
+      "tweak": {"LightR": 0.24, "BaseCol": "#2c1418", "Base2Col": "#5a2028"}
     },
     {
       "id": 73,
       "name": "Crimson Feast",
       "race": "vampiric",
       "rarity": "R",
+      "mood": "moonlit",
       "layers": [{"icon": "pouring-chalice"}],
       "material": "gold",
-      "light": [0.32, 0.26],
-      "particles": "blood",
-      "motif": "crypt"
+      "light": [0.62, 0.3],
+      "particles": "blood"
     },
     {
       "id": 74,
@@ -570,43 +582,43 @@
       "rarity": "C",
       "layers": [{"icon": "sun-spear", "rot": -20}],
       "material": "gold",
-      "light": [0.5, 0.26],
-      "motif": "sky"
+      "motif": "sky",
+      "light": [0.5, 0.26]
     },
     {
       "id": 75,
       "name": "Dawn Paladin",
       "race": "lightbringer",
       "rarity": "E",
+      "mood": "dawn",
       "layers": [{"icon": "mounted-knight"}],
-      "material": "iron",
-      "light": [0.66, 0.28],
+      "material": "gold",
+      "light": [0.6, 0.72],
       "maxW": 0.9,
-      "motif": "cathedral",
-      "tweak": {"BaseCol": "#8a8c98", "Base2Col": "#d0d2dc"}
+      "grow": 6
     },
     {
       "id": 76,
       "name": "Phantom Wolf",
       "race": "ferocious",
       "rarity": "C",
-      "layers": [{"icon": "hound"}],
+      "mood": "moonwood",
+      "layers": [{"icon": "direwolf", "rot": -30}],
       "material": "ethereal",
-      "light": [0.3, 0.24],
-      "lightKind": "moon",
-      "particles": "wisps",
+      "glow": [{"x": 232, "y": 240, "r": 20}],
+      "light": [0.76, 0.24],
       "motifOpts": {"treeSide": 1},
-      "tweak": {"BaseCol": "#4a6a7a", "Base2Col": "#a8d0dc"}
+      "tweak": {"BaseCol": "#3a5a6a", "Base2Col": "#9cc8d4"}
     },
     {
       "id": 77,
       "name": "Ironhide Bear",
       "race": "ferocious",
       "rarity": "R",
+      "mood": "frost",
       "layers": [{"icon": "bear-head"}],
       "material": "iron",
-      "light": [0.68, 0.28],
-      "motif": "mountains",
+      "light": [0.3, 0.24],
       "motifOpts": {"treeSide": -1},
       "tweak": {"BaseCol": "#4a4440", "Base2Col": "#8a8278"}
     },
