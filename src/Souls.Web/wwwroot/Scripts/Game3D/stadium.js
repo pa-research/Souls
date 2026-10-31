@@ -82,13 +82,13 @@ class Writer {
     }
 
     /** A planar quad p0..p3 (counter-clockwise seen from its front). `uvs`: four [u, v]; `aos`: four occlusions. */
-    quad(slot, p, o, uvs, aos = [1, 1, 1, 1], waves = null) {
+    quad(slot, p, o, uvs, aos = [1, 1, 1, 1]) {
         const s = this.slot(slot);
         const a = new THREE.Vector3(...p[1]).sub(new THREE.Vector3(...p[0]));
         const b = new THREE.Vector3(...p[2]).sub(new THREE.Vector3(...p[0]));
         const n = a.cross(b).normalize().toArray();
         const base = s.count;
-        for (let i = 0; i < 4; i++) this.vertex(s, p[i], n, uvs[i][0], uvs[i][1], o, aos[i], waves && waves[i]);
+        for (let i = 0; i < 4; i++) this.vertex(s, p[i], n, uvs[i][0], uvs[i][1], o, aos[i]);
         s.index.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
 
@@ -169,9 +169,8 @@ class Writer {
     }
 
     /** Appends a three.js geometry (transformed by `matrix`), its uvs scaled by 1 / (o.bw, o.bh). */
-    geometry(slot, geometry, matrix, o) {
+    geometry(slot, g, matrix, o) {
         const s = this.slot(slot);
-        const g = geometry.index ? geometry : geometry; // indexed or not, both handled below
         const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
         const nm = new THREE.Matrix3().getNormalMatrix(matrix);
         const p = new THREE.Vector3(), n = new THREE.Vector3();
@@ -180,9 +179,8 @@ class Writer {
         for (let i = 0; i < pos.count; i++) {
             p.fromBufferAttribute(pos, i).applyMatrix4(matrix);
             n.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
-            const u = uv ? uv.getX(i) * (o.uScale ?? 1) / bw : 0, v = uv ? uv.getY(i) * (o.vScale ?? 1) / bh : 0;
-            const ao = o.aoAt ? o.aoAt(p, n) : (o.ao ?? 1);
-            this.vertex(s, p.toArray(), n.toArray(), u, v, o, ao, o.waveAt ? o.waveAt(p, i) : null);
+            const u = uv ? uv.getX(i) / bw : 0, v = uv ? uv.getY(i) / bh : 0;
+            this.vertex(s, p.toArray(), n.toArray(), u, v, o, o.ao ?? 1);
         }
         if (g.index) for (let i = 0; i < g.index.count; i++) s.index.push(base + g.index.getX(i));
         else for (let i = 0; i < pos.count; i++) s.index.push(base + i);

@@ -85,6 +85,8 @@ async function main() {
     requestAnimationFrame(frame);
 
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
+    await stage.precompile([arena.stadium]);
+    arena.apply(); // the stadium's visibility follows its rise again
     stage.watchFrameRate();
 
     // Replays, watch and challenge links start right away; after switching clients mid-game, go straight back into

@@ -507,6 +507,24 @@ export class Stage {
     }
 
     /**
+     * Compiles the shaders of the scene, with `objects` shown for it (the stadium is still sunk in the ground), into
+     * the frame's target. Done while loading, so building them does not stall the first frames the frame-rate watch
+     * counts (on a slow phone that alone used to step the quality down).
+     */
+    async precompile(objects) {
+        const hidden = objects.filter(o => o && !o.visible);
+        for (const o of hidden) o.visible = true;
+        const r = this.renderer;
+        r.setRenderTarget(this.target);
+        try {
+            await r.compileAsync(this.scene, this.camera);
+        } finally {
+            r.setRenderTarget(null);
+            for (const o of hidden) o.visible = false;
+        }
+    }
+
+    /**
      * Steps the quality down (high, medium, low) while frames stay below 45 per second over five seconds, with
      * automatic quality only. The new level takes effect at once (pixel ratio, bloom) and is remembered for the next
      * visit, which also builds a lighter stadium.

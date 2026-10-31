@@ -5,9 +5,9 @@
 // light, rise delay, variant). Detail fades out with the pixel footprint (fwidth), so far stands do not shimmer.
 import * as THREE from '/lib/three/three.webgpu.js';
 import {
-    Fn, attribute, cameraPosition, color, cross, dFdx, dFdy, dot, exp, float, floor, fract, fwidth, hash, instancedBufferAttribute, max, min,
-    mix, mx_fractal_noise_float, mx_noise_float, mx_worley_noise_float, normalGeometry, normalView, normalWorld, positionLocal, positionView,
-    positionWorld, reflectVector, select, sin, smoothstep, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+    Fn, attribute, cross, dFdx, dFdy, dot, exp, float, floor, fract, fwidth, hash, instancedBufferAttribute, max, min,
+    mix, mx_fractal_noise_float, mx_noise_float, mx_worley_noise_float, normalGeometry, normalView, positionLocal, positionView,
+    positionWorld, reflectVector, select, sin, smoothstep, uniform, uv, varying, vec2, vec3, vec4,
 } from '/lib/three/three.tsl.js';
 import { GLOW_MAX } from './stadium.js';
 
@@ -204,13 +204,42 @@ function glowMaterial(u) {
 /** The stadium's materials by slot. Low quality: flat stone and roofs; medium: fewer noise layers than high. */
 export function stadiumMaterials(u, lightsNode, quality) {
     const detailed = quality !== 'low';
-    return {
+    const materials = {
         stone: stoneMaterial(u, lightsNode, detailed, quality === 'high'),
         metal: metalMaterial(u, lightsNode),
         cloth: clothMaterial(u, lightsNode),
         roof: roofMaterial(u, lightsNode, detailed),
         glow: glowMaterial(u),
     };
+    debugView(materials);
+    return materials;
+}
+
+/**
+ * `?stadiumDebug=ao|light|rise|variant|blocks` shows one of the baked per-vertex fields (or the block grid) instead of
+ * the surfaces, to check the plan's occlusion, fire light, rise order, surface variants and texture scale.
+ */
+function debugView(materials) {
+    const mode = new URLSearchParams(window.location.search).get('stadiumDebug');
+    if (!mode) return;
+    const aux = attribute('aux', 'vec4');
+    const field = {
+        ao: vec3(aux.x),
+        light: vec3(aux.y, aux.y.mul(0.6), aux.y.mul(0.3)),
+        rise: vec3(aux.z.mul(2.5), aux.z.mul(0.5), aux.z.oneMinus()),
+        variant: vec3(fract(aux.w.mul(255 * 0.37)), fract(aux.w.mul(255 * 0.61)), fract(aux.w.mul(255 * 0.89))),
+        blocks: vec3(fract(uv().x), fract(uv().y), 0.2),
+    }[mode];
+    if (!field) return;
+    for (const m of Object.values(materials)) {
+        if (m.isMeshStandardNodeMaterial) {
+            m.colorNode = vec3(0);
+            m.normalNode = null;
+            m.emissiveNode = field;
+        } else {
+            m.colorNode = field;
+        }
+    }
 }
 
 // ---- Sand ------------------------------------------------------------------------------------------------------------
@@ -372,4 +401,3 @@ export function hillsGeometry() {
     return g;
 }
 
-export { normalWorld, cameraPosition, uniformArray };
