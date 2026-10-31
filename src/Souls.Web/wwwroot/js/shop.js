@@ -74,6 +74,21 @@
     var revealAll = document.getElementById("pack-reveal-all");
     if (packCards.length > 0 && revealAll) {
         var status = document.getElementById("pack-status");
+        // Sounds (the game's sound switch mutes them too): the pack tears open at the first card, an epic or legendary
+        // card shines as it turns over. Browsers allow them after the tap.
+        var muted = false;
+        try { muted = window.localStorage.getItem("souls.muted") === "1"; } catch (e) { /* storage blocked */ }
+        var opened = false;
+        var play = function (name, volume) {
+            if (muted) {
+                return;
+            }
+
+            var audio = new Audio("/Content/Sound/" + name + ".ogg");
+            audio.volume = volume;
+            audio.play().catch(function () { /* blocked or not supported */ });
+            if (window.__soundTrace) window.__soundTrace("play", name);
+        };
         var hidden = function () {
             return packCards.filter(function (card) { return !card.parentElement.classList.contains("revealed"); });
         };
@@ -82,6 +97,13 @@
                 return;
             }
 
+            if (!opened) {
+                opened = true;
+                play("pack_open", 0.8);
+            }
+
+            var slot = card.parentElement.classList;
+            play(slot.contains("rarity-epic") || slot.contains("rarity-legendary") ? "rare_reveal" : "card_draw", 0.7);
             card.parentElement.classList.add("revealed");
             card.setAttribute("aria-label", card.dataset.label);
             status.textContent = card.dataset.label;

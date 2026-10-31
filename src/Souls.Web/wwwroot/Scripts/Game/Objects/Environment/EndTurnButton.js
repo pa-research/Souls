@@ -1,4 +1,4 @@
-﻿define("endturnbutton", ["jquery", "asset", "pixi", "conf", "messages"], function ($, Asset, Pixi, Conf, Message) {
+﻿﻿define("endturnbutton", ["jquery", "asset", "pixi", "conf", "messages"], function ($, Asset, Pixi, Conf, Message) {
 
     EndTurnButton = function (engine)
     {
@@ -55,7 +55,8 @@
         this.pendingTurn = !!activeAfter;
         if (this.spinning) return;
 
-        try { Asset.GetSound(Asset.Sound.END_TURN).play(); } catch (e) { }
+        // Our turn starting has its own sound (GameService, NextTurn).
+        if (!activeAfter) try { Asset.GetSound(Asset.Sound.END_TURN).play({ volume: 0.7 }); } catch (e) { }
 
         var positive = this.baseScaleY || this.scale.y;
         var position = { scaleY: positive };

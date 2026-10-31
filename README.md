@@ -178,11 +178,14 @@ forced with `/Game?mode=classic` or `/Game?mode=3d`, and defaults to 3D when the
   golden ward bubbles that shatter, ice crystals on paralyzed cards, venom plumes, rune circles for summons,
   slashes for Fury, spirals for Regenerate and blood bolts for Drain. Dead cards break into shards of their own
   face while their soul rises out of the arena; epic and legendary cards arrive in a column of light (legendaries
-  with a fanfare and their name across the screen) and carry a foil shimmer. Spell sounds are synthesized too.
+  with a fanfare and their name across the screen) and carry a foil shimmer.
   Matches open with a VS splash, heroes entering in columns of light, flame jets and fireworks; big hits punch
   the camera and send shockwaves across the sand; a victory ends in a fireworks finale. Bloom makes fire,
-  rings, screens and effects glow, and the crowd ambience and fireworks are synthesized with Web Audio (they
-  follow the sound toggle).
+  rings, screens and effects glow.
+  **Sound**: a sound set made with ElevenLabs for this game (`Content/Sound`, see its `CREDITS.md`): menu and
+  battle music that crossfade, a crowd that murmurs louder down in the stadium and cheers and gasps on the big
+  moments, a sound for every card action, attack, ability and spell, the VS splash, legendary entrances, the
+  hissing fuse and the victory and defeat stingers. Both clients use it; the sound toggle mutes it.
 
   Controls:
 
