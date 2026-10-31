@@ -133,11 +133,16 @@ several hundred games a minute) and reports win rates per card, race, class and 
 classes' health towards 50%, `--class id:attack,health,armor,mana` and `--card id:attack,health,armor,cost[,value]`
 try other numbers without a rebuild, and `--seed n` draws other classes and decks. The classes and the strongest
 cards were retuned with it against the lookahead Hard bot (three runs of 10 000 games): in the current report,
-[docs/balance.md](docs/balance.md), every class wins 48-51% and no matchup is worse than 42/58, races win 50-53%,
-the two hero powers of each class are within 46-54% against each other, the player going first wins 48.5% and a
-game lasts about 25 turns. Cards' "drawn" win rates spread over 48-60%: the expensive ones (5 mana and up) still
-read 55-60% because they are only drawn in the longer games, which the slower decks that hold them tend to win;
-their "in deck" win rates are 50-54%. The class cards are within 45-53% of decks like them.
+[docs/balance.md](docs/balance.md), every class wins 48-51% and no matchup is worse than 42/58, races win 51-53%,
+the two hero powers of each class are within 45-55% against each other, the player going first wins 48% and a
+game lasts about 25 turns. Cards are flagged on their "in deck" win rate (all within 48-56%); the "drawn" and
+"played" rates over-count expensive cards (the note under the card table explains why). The class cards are within
+46-53% of decks like them.
+
+The report also shows each class's win rate with each deck race. Players pick their races, and the classes still
+lean hard on them: Harrison (5 attack, 21 health) wins about 70% with the healing races, Vampiric and Lightbringer,
+and 36% without them; Fader and Lurker are the other way round (Fader 38-42% with the healing races, 58-60%
+without). This is not fixed yet.
 
 ```sh
 dotnet run --project tools/Souls.Sim -c Release -- --games 10000 --out docs/balance.md

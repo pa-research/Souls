@@ -12,6 +12,18 @@
     <div class="sg-loading-text">Entering the arena</div>
 </div>
 
+@* Asked by both clients before leaving a running game (SoulsGameMode.leave in /js/game-mode.js). *@
+<dialog id="sg-leave" class="s-panel s-modal sg-leave" aria-labelledby="sg-leave-title" aria-describedby="sg-leave-text" closedby="any">
+    <form method="dialog">
+        <div class="s-panel-head"><s-icon name="logout" /><h2 id="sg-leave-title">Leave the game?</h2></div>
+        <p id="sg-leave-text">You lose it if you do not come back within a minute.</p>
+        <div class="sg-leave-actions">
+            <button value="stay" class="s-btn s-btn-ghost"><s-icon name="arrow-left" />Stay</button>
+            <button value="leave" class="s-btn s-btn-danger" autofocus><s-icon name="logout" />Leave game</button>
+        </div>
+    </form>
+</dialog>
+
 @* Settings for the game client. JSON is HTML-escaped by the serializer, so it is safe inside the script element. *@
 <script type="application/json" id="souls-game-config">@Json.Serialize(Model)</script>
 

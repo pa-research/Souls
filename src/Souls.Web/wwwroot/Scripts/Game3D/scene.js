@@ -65,15 +65,22 @@ const FULL_SCREEN = { top: 1, bottom: -1 };
  * Portrait (aspect below 1): the classic 16:9 layout would leave the board a thin strip, so the screen is split into
  * bands, top to bottom (CSS pixels): the camera and settings buttons (two rows, see game3d.css), the opponent's hand,
  * the board (every view frames it there), a row with the player's status, End Turn and the turn fuse, the player's
- * hand, and the battle log and chat. `card` is the width of a hand card.
+ * hand, and the battle log and chat. `card` is the width of a hand card. The buttons and the log and chat keep clear of
+ * the notch and the home indicator (`inset`, the safe area), as game3d.css places them.
  */
-function portraitBands(width, height) {
+function portraitBands(width, height, inset) {
     const card = Math.round(THREE.MathUtils.clamp(width * 0.24, 86, 150)); // the frame art is about 0.82 of it
-    const buttons = 104;
-    const footer = height - 56;
+    const buttons = Math.max(12, inset.top) + 92;
+    const footer = height - Math.max(10, inset.bottom) - 46;
     const hand = footer - Math.round(card * 1.4) - 8;
     const action = hand - 78;
-    return { card, opponentHand: [buttons, buttons + 48], board: [buttons + 48, action], action: [action, hand], hand: [hand, footer] };
+    return { card, inset, opponentHand: [buttons, buttons + 48], board: [buttons + 48, action], action: [action, hand], hand: [hand, footer] };
+}
+
+/** The safe area (env(safe-area-inset-*), CSS pixels) as measured by `probe`, an element padded by it. */
+function safeArea(probe) {
+    const s = getComputedStyle(probe);
+    return { top: parseFloat(s.paddingTop) || 0, right: parseFloat(s.paddingRight) || 0, bottom: parseFloat(s.paddingBottom) || 0, left: parseFloat(s.paddingLeft) || 0 };
 }
 
 const QUALITIES = ['low', 'medium', 'high'];
@@ -137,6 +144,8 @@ export class Stage {
         renderer.domElement.className = 'souls3d-canvas';
         container.appendChild(renderer.domElement);
         this.renderer = renderer;
+        this.safeProbe = container.appendChild(document.createElement('div'));
+        this.safeProbe.style.cssText = 'position: absolute; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);';
 
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 10, 60000);
@@ -208,7 +217,7 @@ export class Stage {
         this.height = height;
         // Portrait: the bands of the screen, and the part of it (normalized device y) the views frame the board in.
         this.portrait = width < height;
-        this.bands = this.portrait ? portraitBands(width, height) : null;
+        this.bands = this.portrait ? portraitBands(width, height, safeArea(this.safeProbe)) : null;
         this.frame = this.portrait ? { top: 1 - 2 * this.bands.board[0] / height, bottom: 1 - 2 * this.bands.board[1] / height } : FULL_SCREEN;
         this.renderer.setSize(width, height, false);
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -438,10 +447,12 @@ export class Stage {
             cam.position.set(0, 430 * back, 930 * back);
             cam.lookAt(0, 0, -150);
         } else if (name === 'cinematic') {
-            // A slow orbit above the terraces (higher and wider behind the menu).
+            // A slow orbit above the terraces (higher and wider behind the menu). In a game it comes in over the sand and
+            // rises at the sides, inside the pillars (x = ±880), so they never pass in front of the board.
             cam.fov = 44;
             const a = now * 0.00005 + 0.6;
-            const radius = this.menu ? 1900 : 1500, height = this.menu ? 1500 : 1080;
+            const side = this.menu ? 0 : Math.sin(a) ** 2;
+            const radius = this.menu ? 1900 : 1500 - 940 * side, height = this.menu ? 1500 : 1080 + 470 * side;
             cam.position.set(Math.sin(a) * radius, height + Math.sin(now * 0.00011) * 90, Math.cos(a) * radius);
             cam.lookAt(0, this.menu ? 0 : 60, 0);
         } else {
