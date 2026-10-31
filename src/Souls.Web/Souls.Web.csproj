@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>Souls.Web</RootNamespace>
     <UserSecretsId>souls-web</UserSecretsId>
+    <!-- Dates and numbers are formatted in the page language (ICU; the image is the chiseled-extra one). -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>

@@ -55,7 +55,7 @@ public sealed class DeckController(SoulsDbContext db) : Controller
         var otherClass = owned.FirstOrDefault(pc => counts.GetValueOrDefault(pc.CardId) != 0 && !GameRules.CanUse(pc.ClassId, classId));
         var error = otherClass is not null
             ? $"{otherClass.Name} is a card of another class."
-            : Decks.Validate(deck, owned.ToDictionary(pc => pc.CardId, pc => pc.Rarity));
+            : Decks.Validate(deck, owned.ToDictionary(pc => pc.CardId, pc => pc.Rarity)) is { } invalid ? Localized.T(invalid) : null;
         if (error is not null)
         {
             TempData["Error"] = error;

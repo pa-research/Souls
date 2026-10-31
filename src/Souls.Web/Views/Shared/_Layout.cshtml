@@ -5,7 +5,7 @@
     string? Current(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "page" : null;
 }
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="@Language" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -61,6 +61,7 @@
                         }
                     </ul>
                     <div class="s-topbar-right">
+                        <partial name="_LanguagePicker" />
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             @await Component.InvokeAsync("ProfileChip")

@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Souls.Model;
 using Souls.Model.Entities;
+using Souls.Model.Localization;
+using static Souls.Web.Services.Localized;
 
 namespace Souls.Web.Models;
 
@@ -68,7 +70,7 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     public string? Description { get; init; }
 
     public int Rarity { get; init; } = Model.Rarity.Common;
-    public string RarityName => Model.Rarity.Name(Rarity);
+    public string RarityName => T(Model.Rarity.Text(Rarity));
     public string RarityCss => Model.Rarity.Css(Rarity);
     public int MaxCopies => Model.Rarity.MaxCopies(Rarity);
     public string? RaceName { get; init; }
@@ -81,34 +83,35 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
     /// <summary>The class that alone can play a class card (<see cref="Card.Class"/> must be loaded), else <c>null</c>.</summary>
     public string? ClassName { get; init; }
 
+    /// <summary>A card in the language of the request (its name and class stay as they are).</summary>
     public static CardTile From(Card c, bool owned = false, int level = 1)
     {
         var spell = c.Kind == CardKind.Spell;
         var bonus = spell ? 0 : GameRules.LevelBonus(level);
         var value = spell && c.AbilityId is { } a ? GameRules.SpellValue(a, c.AbilityValue, level) : c.AbilityValue;
         var lines = new List<string>();
-        var abilityText = c.AbilityId is { } ability ? GameRules.AbilityText(ability, value, c.RaceId) : null;
+        var abilityText = c.AbilityId is { } ability && GameRules.Abilities.ContainsKey(ability) ? T(GameRules.AbilityRules(ability, value, c.RaceId)) : null;
         if (c.Class?.Name is { } className)
         {
-            lines.Add($"{className} card: only {className} can play it.");
+            lines.Add(T(new GameText("card.classOnly", ("className", className))));
         }
 
         if (spell)
         {
-            lines.Add(GameRules.Keywords.Spell);
+            lines.Add(T(GameRules.Keywords.Spell));
         }
 
         if (c.AbilityId is { } id && !string.IsNullOrEmpty(abilityText))
         {
-            lines.Add($"{GameRules.AbilityLabel(id, value)}: {abilityText}");
+            lines.Add($"{T(GameRules.AbilityLabelText(id, value))}: {abilityText}");
         }
 
         if (c.RaceId is { } race && (!spell || GameRules.RaceWorksForSpells(race)) && GameRules.RaceTexts.TryGetValue(race, out var raceText))
         {
-            lines.Add($"{raceText.Name}. {raceText.Text}");
+            lines.Add($"{T(raceText.Name)}. {T(raceText.Text)}");
         }
 
-        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } l ? GameRules.AbilityLabel(l, value) : null,
+        return new CardTile(c.Id, c.Name, c.Cost, c.Attack + bonus, c.Health + bonus, c.AbilityId is { } l ? T(GameRules.AbilityLabelText(l, value)) : null,
             c.Race?.CardUrl, c.Portrait ?? DefaultPortrait, c.VendorPrice, owned)
         {
             Armor = c.Armor,
@@ -116,9 +119,9 @@ public sealed record CardTile(int Id, string Name, int Cost, int Attack, int Hea
             UpgradeCost = owned && level < GameRules.MaxCardLevel ? GameRules.UpgradeCost(c, level) : null,
             Description = string.Join(" ", lines),
             Rarity = c.Rarity,
-            RaceName = c.Race?.Name,
+            RaceName = c.RaceId is { } raceId ? T(GameRules.RaceName(raceId)) : c.Race?.Name,
             AbilityText = abilityText,
-            Flavor = c.Flavor,
+            Flavor = c.Flavor is null ? null : Strings.Has(Language, $"flavor.{c.Id}") ? Strings.Get(Language, $"flavor.{c.Id}") : c.Flavor,
             Spell = spell,
             ClassName = c.Class?.Name,
         };
@@ -210,7 +213,16 @@ public sealed record GameConfig(string WsBase, IReadOnlyList<CardPortrait> Cards
 
     /// <summary>The signed in player, for the game menu.</summary>
     public GameProfile? Profile { get; init; }
+
+    /// <summary>The page's language and the string table the clients show their texts from (see <c>/js/l10n.js</c>).</summary>
+    public string Lang { get; init; } = Model.Localization.Strings.Default;
+    public IReadOnlyDictionary<string, string> Strings { get; init; } = Model.Localization.Strings.Table(Model.Localization.Strings.Default);
+
+    /// <summary>The languages a player can switch to (code and name), for the clients' settings.</summary>
+    public IReadOnlyList<LanguageOption> Languages { get; init; } = [];
 }
+
+public sealed record LanguageOption(string Code, string Name);
 
 public sealed record GameProfile(string Name, int Type, string TypeName, int Rating, int Rank, string Tier, string TierCss, double RankProgress, int Money, IReadOnlyList<QuestView> Quests);
 
@@ -233,32 +245,39 @@ public sealed record RulesConfig(
     int MaxHandCards)
 {
     /// <summary>The emotes players can send in a game, by id.</summary>
-    public IReadOnlyList<string> Emotes => GameRules.Emotes;
+    public required IReadOnlyList<string> Emotes { get; init; }
 
+    /// <summary>The rules in the language of the request.</summary>
     public static RulesConfig Create(IEnumerable<PlayerType> heroTypes)
     {
         static string Key(int id) => id.ToString(CultureInfo.InvariantCulture);
         return new RulesConfig(
-            GameRules.AbilityTexts.ToDictionary(x => Key(x.Key), x => new AbilityInfo(x.Value.Name, x.Value.Text, GameRules.IsActivated(x.Key), GameRules.AbilityTargets(x.Key))),
-            GameRules.RaceTexts.ToDictionary(x => Key(x.Key), x => new RuleInfo(x.Value.Name, x.Value.Text)),
-            GameRules.HeroPowers.ToDictionary(x => Key(x.Key), x => new HeroPowerInfo(x.Value.Name, x.Value.Text, GameRules.HeroPowerCost, GameRules.PowerTargets(x.Value.Target))),
+            GameRules.AbilityTexts.ToDictionary(x => Key(x.Key), x => new AbilityInfo(T(x.Value.Name), T(x.Value.Text), GameRules.IsActivated(x.Key), GameRules.AbilityTargets(x.Key))),
+            GameRules.RaceTexts.ToDictionary(x => Key(x.Key), x => new RuleInfo(T(x.Value.Name), T(x.Value.Text))),
+            GameRules.HeroPowers.ToDictionary(x => Key(x.Key), x => new HeroPowerInfo(T(x.Value.Name), T(x.Value.Text), GameRules.HeroPowerCost, GameRules.PowerTargets(x.Value.Target))),
             heroTypes.ToDictionary(t => Key(t.Id), t => new HeroTypeInfo(t.Name, t.Attack, t.Health, t.Armor, t.Mana, t.RaceId)),
             new Dictionary<string, string>
             {
-                ["summoningSick"] = GameRules.Keywords.SummoningSick,
-                ["paralyzed"] = GameRules.Keywords.Paralyzed,
-                ["armor"] = GameRules.Keywords.Armor,
-                ["fatigue"] = GameRules.Keywords.Fatigue,
-                ["burned"] = GameRules.Keywords.Burned,
-                ["ward"] = GameRules.Keywords.Ward,
-                ["spell"] = GameRules.Keywords.Spell,
+                ["summoningSick"] = T(GameRules.Keywords.SummoningSick),
+                ["paralyzed"] = T(GameRules.Keywords.Paralyzed),
+                ["armor"] = T(GameRules.Keywords.Armor),
+                ["fatigue"] = T(GameRules.Keywords.Fatigue),
+                ["burned"] = T(GameRules.Keywords.Burned),
+                ["ward"] = T(GameRules.Keywords.Ward),
+                ["spell"] = T(GameRules.Keywords.Spell),
             },
             GameRules.DeckSize,
-            10);
+            10)
+        {
+            Emotes = [.. GameRules.Emotes.Select(T)],
+        };
     }
 }
 
 public sealed record CardPortrait(int Id, string Portrait);
+
+/// <summary>A line of a finished game's history, and its key in the string tables (none for older games).</summary>
+public sealed record StatsLine(string Text, string? Key);
 
 public sealed class GameStatsViewModel
 {
@@ -266,7 +285,7 @@ public sealed class GameStatsViewModel
     public required IReadOnlyList<Player> Players { get; init; }
     public Player? Winner { get; init; }
     public bool IsDraw { get; init; }
-    public required IReadOnlyList<string> Log { get; init; }
+    public required IReadOnlyList<StatsLine> Log { get; init; }
     public bool IsPractice { get; init; }
     public int Turns { get; init; }
     public bool HasReplay { get; init; }

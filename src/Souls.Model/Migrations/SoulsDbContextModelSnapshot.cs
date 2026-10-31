@@ -1454,6 +1454,16 @@ namespace Souls.Model.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("text");
 
+                    b.Property<string>("TextArgs")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("text_args");
+
+                    b.Property<string>("TextKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("text_key");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GameId");

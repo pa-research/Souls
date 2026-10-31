@@ -4,8 +4,11 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
+using Souls.Model.Hosting;
+using Souls.Model.Localization;
 using Souls.Model.Security;
 using Souls.Web.Models;
+using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
@@ -31,7 +34,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             quests = [.. (await Quests.EnsureTodayAsync(db, playerId, time, ct)).Select(q =>
             {
                 var definition = Quests.Get(q.Kind);
-                return new QuestView(definition.Text, q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
+                return new QuestView(Localized.T(definition.Text), q.Progress, definition.Target, definition.Reward, q.CompletedAt is not null);
             })];
 
             if (await Seasons.CurrentAsync(db, ct) is { } current)
@@ -118,6 +121,27 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         }
 
         return Json(new Dictionary<string, bool> { ["Game Server"] = gameServer, ["Database"] = database });
+    }
+
+    /// <summary>Remembers the language the player picked (a year, in a cookie) and goes back to the page.</summary>
+    [HttpPost]
+    public IActionResult Language(string language, string? returnUrl, [FromServices] IHostEnvironment environment)
+    {
+        if (Strings.Languages.Contains(language))
+        {
+            var secure = SoulsHostingExtensions.UseSecureCookies(configuration, environment);
+            Response.Cookies.Append(Localized.CookieName(secure), Localized.CookieValue(language), new CookieOptions
+            {
+                Expires = time.GetUtcNow().AddYears(1),
+                HttpOnly = true,
+                IsEssential = true,
+                Path = "/",
+                SameSite = SameSiteMode.Lax,
+                Secure = secure || Request.IsHttps,
+            });
+        }
+
+        return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 
     public IActionResult AccessDenied()

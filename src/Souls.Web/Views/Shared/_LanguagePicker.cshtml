@@ -1,0 +1,14 @@
+@* Switches the page language (HomeController.Language stores it in a cookie and comes back to this page). *@
+@{
+    var current = Language;
+    var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
+}
+<form asp-controller="Home" asp-action="Language" method="post" class="s-lang @ViewData["LanguageClass"]" role="group" aria-label="@L["Language"]">
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @foreach (var culture in Cultures)
+    {
+        var code = culture.Name;
+        <button type="submit" name="language" value="@code" lang="@code" class="s-lang-btn @(code == current ? "active" : null)"
+                aria-pressed="@(code == current ? "true" : "false")" aria-label="@LanguageName(code)" title="@LanguageName(code)">@code.ToUpperInvariant()</button>
+    }
+</form>

@@ -1,7 +1,25 @@
 @using Souls.Model
 @model GameStatsViewModel
 @{
-    static (string Icon, string Css) Kind(string line)
+    static (string Icon, string Css) Kind(StatsLine entry) => entry.Key switch
+    {
+        null => KindOfEnglish(entry.Text),
+        "log.win" or "log.draw" => ("trophy", "s-tl-end"),
+        "log.dies" or "log.heroFallen" => ("skull", "s-tl-death"),
+        "log.attack" or "log.burn" or "log.deathCurse" => ("sword", "s-tl-attack"),
+        "log.heal" or "log.drain" or "log.lifesteal" or "log.blessing" or "log.regenerate" or "log.sacrifice" => ("heart-pulse", "s-tl-heal"),
+        "log.turn" or "log.timeout" => ("hourglass", "s-tl-turn"),
+        "log.cast" or "log.castOn" => ("sparkles", "s-tl-play"),
+        "log.rally" or "log.rally2" or "log.grow" or "log.empower" => ("arrow-up", "s-tl-heal"),
+        "log.fatigue" => ("flame", "s-tl-attack"),
+        "log.plays" or "log.summon" => ("deck", "s-tl-play"),
+        "log.heroPower" or "log.paralyze" or "log.harden" => ("wand", "s-tl-play"),
+        "log.haunt" => ("ghost", "s-tl-death"),
+        _ => ("flag", ""),
+    };
+
+    // Games stored before the log had keys: by the English text.
+    static (string Icon, string Css) KindOfEnglish(string line)
     {
         if (line.Contains(" wins against ", StringComparison.Ordinal) || line.Contains(" play a draw", StringComparison.Ordinal)) return ("trophy", "s-tl-end");
         if (line.Contains(" dies", StringComparison.Ordinal) || line.Contains(" has fallen", StringComparison.Ordinal)) return ("skull", "s-tl-death");
@@ -75,7 +93,7 @@
         @foreach (var line in Model.Log)
         {
             var (icon, css) = Kind(line);
-            <li class="@css"><span class="s-tl-icon"><s-icon name="@icon" /></span><span>@line</span></li>
+            <li class="@css"><span class="s-tl-icon"><s-icon name="@icon" /></span><span>@line.Text</span></li>
         }
     </ol>
 </section>

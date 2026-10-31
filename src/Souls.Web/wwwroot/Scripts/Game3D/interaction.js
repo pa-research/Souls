@@ -455,9 +455,9 @@ export class Interaction {
         game.ui.hideTooltip();
         const ability = this.ability && this.source instanceof Card3D ? game.abilityOf(this.source) : null;
         const candidates = this.ability
-            ? game.candidates(ability ? ability.targets : [], ability && ability.name === 'Sacrifice' ? this.source : null)
+            ? game.candidates(ability ? ability.targets : [], ability && this.source.abilityId === 2 ? this.source : null) // 2: Sacrifice
             : game.attackCandidates();
-        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source || (ability && ability.name === 'Heal')));
+        const target = this.pick(this.ndc, candidates.filter(c => c !== this.source || (ability && this.source.abilityId === 1))); // 1: Heal
         const color = this.arrowColor();
         this.setTarget(target, color);
         const from = game.targetPoint(this.source);

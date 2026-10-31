@@ -98,7 +98,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         // Required already reports an empty password.
         if (!string.IsNullOrEmpty(form.Password) && PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
         {
-            ModelState.AddModelError(key + nameof(form.Password), passwordProblem);
+            ModelState.AddModelError(key + nameof(form.Password), Localized.T(passwordProblem));
         }
 
         if (string.Equals(form.Username, SeedData.BotPlayerName, StringComparison.OrdinalIgnoreCase))

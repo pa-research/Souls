@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Souls.Model.Localization;
 using Souls.Server.Game;
 using Souls.Server.Objects;
 
@@ -119,14 +120,14 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
             existing.DisconnectedAt = null;
             state.GameClients[connection] = existing;
             connection.LoggedIn = true;
-            connection.Send(new Response(ServiceResponse.LoginOk, $"Logged in as {existing.Name}"));
+            connection.Send(new Response(ServiceResponse.LoginOk, new GameText("service.loggedIn", ("name", existing.Name))));
             return;
         }
 
         var player = await players.LoadPlayerAsync(user.Id);
         if (player is null)
         {
-            connection.Send(new Response(ServiceResponse.LoginNotLoggedIn, "Please Login!"));
+            connection.Send(new Response(ServiceResponse.LoginNotLoggedIn, new GameText("service.pleaseLogin")));
             connection.Close("Not logged in");
             return;
         }
@@ -134,7 +135,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         player.GameContext = connection;
         state.GameClients[connection] = player;
         connection.LoggedIn = true;
-        connection.Send(new Response(ServiceResponse.LoginOk, $"Logged in as {player.Name}"));
+        connection.Send(new Response(ServiceResponse.LoginOk, new GameText("service.loggedIn", ("name", player.Name))));
         logger.LogInformation("{Player} logged in to the game server ({Online} online)", player.Name, state.GameClients.Count);
     }
 
@@ -146,11 +147,11 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         }
 
         engine.RemoveFromQueues(player);
-        engine.DropChallenge(player, $"{player.Name} left.");
+        engine.DropChallenge(player, new GameText("challenge.left", ("name", player.Name)));
         await engine.ForfeitAsync(player);
         state.GameClients.Remove(connection);
         connection.LoggedIn = false;
-        connection.Send(new Response(ServiceResponse.Disconnected, "You are now logged out!"));
+        connection.Send(new Response(ServiceResponse.Disconnected, new GameText("service.loggedOut")));
     }
 
     public async Task OnDisconnectedAsync(Connection connection)
@@ -163,7 +164,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
 
         engine.RemoveFromQueues(player);
         engine.StopSpectating(player);
-        engine.DropChallenge(player, $"{player.Name} left.");
+        engine.DropChallenge(player, new GameText("challenge.left", ("name", player.Name)));
         if (player.GPlayer?.GameRoom is { IsEnded: false })
         {
             if (player.IsBot || player.GetOpponent()?.IsBot == true)
