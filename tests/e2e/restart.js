@@ -2,8 +2,8 @@
 // 1. A 3D practice game against the bot: restarted during the mulligan and during the bot's turn.
 // 2. A ranked game between a 3D player (A) and a classic player (B), watched by a 3D spectator (C): restarted in the
 //    middle of A's turn, then stopped and started again (redeploy) during B's turn.
-// Every client reconnects by itself, the games finish with a winner, the rating changes once, the replays are complete,
-// and a finished game is not resumed by a later restart.
+// Every client reconnects by itself, the game chat works after a restart, the games finish with a winner, the rating
+// changes once, the replays are complete, and a finished game is not resumed by a later restart.
 // Usage: node restart.js <baseUrl> <outDir> [restart command] [redeploy command]
 //   restart command:  default $SOULS_RESTART_CMD, else "docker compose restart server"
 //   redeploy command: default $SOULS_REDEPLOY_CMD, else the restart command; for example
@@ -30,10 +30,14 @@ async function session(label) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
-  const s = { label, browser, page, frames: [], problems: [], sockets: 0, closes: 0 };
+  const s = { label, browser, page, frames: [], chat: [], problems: [], sockets: 0, closes: 0 };
   page.on('console', m => { if (m.type() === 'error' && !EXPECTED.test(m.text())) s.problems.push(m.text()); });
   page.on('pageerror', e => s.problems.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' / ')));
   page.on('websocket', ws => {
+    if (ws.url().endsWith('/chat')) {
+      ws.on('framereceived', f => { try { s.chat.push(JSON.parse(f.payload)); } catch (e) {} });
+      return;
+    }
     if (!ws.url().endsWith('/game')) return;
     s.sockets++;
     ws.on('close', () => s.closes++);
@@ -51,6 +55,14 @@ async function waitFrame(s, pred, from = 0, timeout = 15000) {
   return null;
 }
 const last = (s, pred) => [...s.frames].reverse().find(pred);
+async function waitChat(s, pred, from = 0, timeout = 15000) {
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    for (let i = from; i < s.chat.length; i++) if (pred(s.chat[i])) return s.chat[i];
+    await sleep(100);
+  }
+  return null;
+}
 async function snap(s, name) {
   try { await s.page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${s.label}-${name}.jpg`, type: 'jpeg', quality: 75, timeout: 90000 }); } catch (e) { console.log(`(screenshot ${name} skipped)`); }
 }
@@ -327,7 +339,20 @@ async function ranked(id) {
         step('ranked: the game continues from the same state', !!syncA && board(syncA.p) === board(before) && Object.keys(a.p.player.hand).sort().join(',') === handBefore,
           syncA ? `turn ${syncA.p.turn}, ${syncA.p.turnEndsIn} ms left of the turn` : 'no sync');
         await sleep(3000);
+        // The game's chat room is back: a line A types in 3D reaches B's classic chat.
+        const line = `still here ${id}`;
+        const chatMark = B.chat.length;
+        try {
+          await A.page.click('.souls3d-chat-header', { timeout: 10000 });
+          await A.page.fill('.souls3d-chat-input', line, { timeout: 10000 });
+          await A.page.press('.souls3d-chat-input', 'Enter');
+        } catch (e) { console.log('chat input: ' + e.message.split('\n')[0]); }
+        const heard = await waitChat(B, m => m.Type === 1003 && m.Payload.message === line, chatMark, 15000);
+        await sleep(800);
+        const shown = await B.page.$eval('.souls-classic-chat .sg-log-list', e => e.textContent).catch(() => '');
+        step('ranked: a chat line after the restart arrives', !!heard && shown.includes(line), heard ? `room ${heard.Payload.room}, shown in B's chat: ${shown.includes(line)}` : 'no ChatMessage for B');
         await snap(A, 'after-restart'); await snap(B, 'after-restart'); await snap(C, 'after-restart');
+        await A.page.click('.souls3d-chat-header', { timeout: 10000 }).catch(() => {});
         await turn3d(A, identA);
         continue;
       }

@@ -181,6 +181,9 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(3, result["Payload"]!["quests"]!.AsArray().Count);
             Assert.True((int)result["Payload"]!["coins"]! >= 0);
             Assert.Null(result["Payload"]!["ratingChange"]); // practice games are not rated
+            Assert.Null(result["Payload"]!["season"]);
+            Assert.Null(result["Payload"]!["friendly"]);
+            Assert.Equal((int)result["Payload"]!["coins"]!, await app.WithDbAsync(db => db.Players.Where(p => p.Name == name).Select(p => p.Money).SingleAsync()));
 
             // Attacks are reported as events, followed by the full state.
             Assert.Contains(game.Received, m => Type(m) == 235 && m["Payload"]!["events"]!.AsArray().Any(e => (string?)e!["t"] == "attack"));
@@ -212,7 +215,10 @@ public class GameServerTests(SoulsAppFixture app)
         }
     }
 
-    /// <summary>A challenges B by name; B declines, then accepts; they emote until B mutes A; A leaves and B wins, unrated.</summary>
+    /// <summary>
+    /// A challenges B by name; B declines, then accepts; they emote until B mutes A; A leaves and B wins. A friendly
+    /// game earns nothing (two accounts could farm it): no coins, quests, rating or season points, but it is stored.
+    /// </summary>
     [Fact]
     public async Task FriendlyChallengeStartsAnUnrankedGameWithEmotes()
     {
@@ -258,19 +264,87 @@ public class GameServerTests(SoulsAppFixture app)
             await b.ReceiveAsync(m => Type(m) == 5 && (int)m["Payload"]!["last"]! == 2);
             Assert.DoesNotContain(b.Received, m => Type(m) == 299 && (int)m["Payload"]!["emote"]! == 2);
 
-            // A leaves: B wins, and nobody's rating moves.
+            // A leaves: B wins, and earns nothing.
             await a.SendAsync(1);
             var result = (await b.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
             Assert.Equal(230, Type(b.Received[^1]));
+            Assert.True((bool)result["friendly"]!);
+            Assert.Equal(0, (int)result["coins"]!);
             Assert.Null(result["ratingChange"]);
+            Assert.Null(result["quests"]);
+            Assert.Null(result["season"]);
             var gameId = (int)result["statistics"]!;
-            var (game, ratings) = await app.WithDbAsync(async db => (
+            var (game, replay, players, quests) = await app.WithDbAsync(async db => (
                 await db.Games.SingleAsync(g => g.Id == gameId),
-                await db.Players.Where(p => p.Name == nameA || p.Name == nameB).Select(p => p.Rating).ToListAsync()));
+                await db.GameReplays.AnyAsync(r => r.GameId == gameId),
+                await db.Players.Where(p => p.Name == nameA || p.Name == nameB).Select(p => new { p.Rating, p.Money }).ToListAsync(),
+                await db.PlayerQuests.CountAsync(q => q.Player!.Name == nameA || q.Player!.Name == nameB)));
             Assert.True(game.IsPractice);
+            Assert.True(replay);
             Assert.Equal(0, game.Player1RatingChange);
             Assert.Equal(0, game.Player2RatingChange);
-            Assert.All(ratings, r => Assert.Equal(Souls.Model.Ratings.Initial, r));
+            Assert.All(players, p => Assert.Equal((Souls.Model.Ratings.Initial, 0), (p.Rating, p.Money)));
+            Assert.Equal(0, quests);
+        }
+    }
+
+    /// <summary>
+    /// A ranked game pays coins, counts for the daily quests and moves both ratings, and the result shows the season:
+    /// the winner is promoted from Bronze III to Bronze II, the loser demoted from Bronze II to Bronze III.
+    /// </summary>
+    [Fact]
+    public async Task ARankedGameEarnsCoinsQuestsRatingAndShowsTheSeason()
+    {
+        var (browserA, nameA) = await LoggedInPlayerAsync();
+        var (browserB, nameB) = await LoggedInPlayerAsync(2);
+        using (browserA)
+        using (browserB)
+        {
+            await app.WithDbAsync(async db =>
+                await db.Players.Where(p => p.Name == nameA).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1050)) +
+                await db.Players.Where(p => p.Name == nameB).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1040)));
+            await using var a = await GameSocket.ConnectAsync(app.Server, "ws/game", browserA.AuthCookie);
+            await using var b = await GameSocket.ConnectAsync(app.Server, "ws/game", browserB.AuthCookie);
+            await a.SendAsync(0);
+            await a.ReceiveTypeAsync(10);
+            await b.SendAsync(0);
+            await b.ReceiveTypeAsync(10);
+            await a.SendAsync(100);
+            await b.SendAsync(100);
+            await a.ReceiveTypeAsync(206);
+            await b.ReceiveTypeAsync(206);
+
+            // A leaves: B wins.
+            await a.SendAsync(1);
+            var lost = (await a.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
+            var won = (await b.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
+            Assert.Equal(231, Type(a.Received[^1]));
+            Assert.Equal(230, Type(b.Received[^1]));
+            Assert.Null(won["friendly"]);
+            Assert.Equal((3, 16, 1056, 3), ((int)won["coins"]!, (int)won["ratingChange"]!, (int)won["rating"]!, won["quests"]!.AsArray().Count));
+            Assert.Equal((1, -16, 1034, 3), ((int)lost["coins"]!, (int)lost["ratingChange"]!, (int)lost["rating"]!, lost["quests"]!.AsArray().Count));
+
+            var season = (await app.WithDbAsync(db => Souls.Model.Seasons.CurrentAsync(db)))!;
+            AssertSeason(won["season"], 1040, 1, "Bronze III", 1056, 2, "Bronze II", promoted: true);
+            AssertSeason(lost["season"], 1050, 2, "Bronze II", 1034, 1, "Bronze III", promoted: false);
+
+            var stored = await app.WithDbAsync(db => db.Players.Where(p => p.Name == nameA || p.Name == nameB).OrderBy(p => p.Name == nameB)
+                .Select(p => new { p.Money, p.Rating, p.Rank }).ToListAsync());
+            Assert.Equal([(1, 1034, 1), (3, 1056, 2)], stored.Select(p => (p.Money, p.Rating, p.Rank)));
+
+            void AssertSeason(JsonNode? actual, int ratingBefore, int rankBefore, string tierBefore, int ratingAfter, int rankAfter, string tierAfter, bool promoted)
+            {
+                var expected = new JsonObject
+                {
+                    ["number"] = season.Number,
+                    ["name"] = season.Name,
+                    ["before"] = new JsonObject { ["rating"] = ratingBefore, ["rank"] = rankBefore, ["tier"] = tierBefore, ["css"] = "tier-bronze" },
+                    ["after"] = new JsonObject { ["rating"] = ratingAfter, ["rank"] = rankAfter, ["tier"] = tierAfter, ["css"] = "tier-bronze" },
+                    ["promoted"] = promoted,
+                    ["demoted"] = !promoted,
+                };
+                Assert.True(JsonNode.DeepEquals(expected, actual), actual?.ToJsonString());
+            }
         }
     }
 

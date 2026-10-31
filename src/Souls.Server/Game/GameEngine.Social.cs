@@ -140,9 +140,9 @@ public sealed partial class GameEngine
             StopSpectating(p);
         }
 
-        // Unranked: friendly games are stored and rewarded like practice games (no rating change, see EndGameAsync).
+        // Friendly games are stored like practice games but earn nothing, or two accounts could farm them (see EndGameAsync).
         var (first, second) = Random.Shared.Next(2) == 0 ? (challenge.From, challenge.To) : (challenge.To, challenge.From);
-        CreateGame(new Pair<Player>(first, second), practice: true);
+        CreateGame(new Pair<Player>(first, second), friendly: true);
     }
 
     public void CancelChallenge(Player player)

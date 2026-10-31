@@ -66,8 +66,8 @@ function progress(parent, fraction, extra = '') {
     return bar;
 }
 
-function rankBadge(parent, rating, { compact = false } = {}) {
-    const tier = tierOf(rating);
+/** The rank emblem (theme.css); `tier` ({name, css}) when the server names it, else from the rating. */
+function rankBadge(parent, rating, { compact = false, tier = tierOf(rating) } = {}) {
     const badge = el('span', `s-rank ${tier.css}`, parent);
     badge.appendChild(icon('emblem', 's-emblem'));
     if (!compact) {
@@ -1086,10 +1086,12 @@ export class UI {
     // ---- End of the game -----------------------------------------------------------------------------------------
 
     /**
-     * The end screen: the result, coins and rating earned (counting up), daily quest progress, and links to the
-     * statistics and the replay. Players are taken to the statistics after a while (spectators stay).
+     * The end screen: the result, coins and rating earned (counting up), the season rank before and after a ranked
+     * game, daily quest progress, and links to the statistics and the replay. A friendly game earns nothing. Players
+     * are taken to the statistics after a while (spectators stay).
      */
     showEnd(text, result = {}, { redirect = true, detail, friendly = false } = {}) {
+        friendly = friendly || result.friendly === true;
         this.hideTimer();
         this.setPower(null);
         this.setStatus3d('player', null);
@@ -1108,7 +1110,7 @@ export class UI {
         if (result.text || detail) el('div', 'sg-end-sub', end, detail || result.text);
 
         const rewards = el('div', 'sg-rewards', end);
-        if (typeof result.coins === 'number') {
+        if (typeof result.coins === 'number' && !friendly) {
             const r = el('div', 's-panel sg-reward', rewards);
             r.appendChild(icon('coin'));
             const value = el('b', '', r, '+0');
@@ -1129,9 +1131,10 @@ export class UI {
             const r = el('div', 's-panel sg-reward', rewards);
             r.appendChild(icon(friendly ? 'users' : 'bot'));
             el('b', '', r, '–');
-            el('span', '', r, friendly ? 'Friendly · unranked' : 'Practice · unrated');
+            el('span', '', r, friendly ? 'Friendly game: no rewards' : 'Practice · unrated');
         }
         if (!rewards.childElementCount) rewards.remove();
+        if (result.season) this.seasonResult(end, result.season);
 
         if (Array.isArray(result.quests) && result.quests.length) {
             const quests = el('section', 's-panel sg-end-quests', end);
@@ -1169,6 +1172,24 @@ export class UI {
             }, 1000);
         }
         this.endLayer = layer;
+    }
+
+    /** A ranked game's season: the rank emblem before and after, and a promotion or demotion. */
+    seasonResult(parent, season) {
+        const change = season.promoted ? 'promoted' : season.demoted ? 'demoted' : '';
+        const panel = el('section', `s-panel sg-end-season ${change}`.trim(), parent);
+        const head = el('div', 's-panel-head', panel);
+        head.appendChild(icon('trophy'));
+        el('h3', '', head, String(season.name ?? 'Season'));
+        if (change) {
+            const label = el('span', 'sg-season-change', head);
+            label.append(icon(season.promoted ? 'arrow-up' : 'chevron-down'), season.promoted ? 'Promoted' : 'Demoted');
+        }
+        const ranks = el('div', 'sg-season-ranks', panel);
+        const badge = r => rankBadge(ranks, Number(r.rating), { tier: { name: String(r.tier ?? ''), css: String(r.css ?? '') } });
+        badge(season.before || {}).classList.add('before');
+        ranks.appendChild(icon('chevron-right', 's-icon sg-season-arrow'));
+        badge(season.after || {}).classList.add('after');
     }
 
     countUp(element, target, prefix, delay) {
