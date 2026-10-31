@@ -32,6 +32,8 @@ var tune = Arg("--tune", 0);
 var seed = Arg("--seed", 0);
 var vsLegacy = args.Contains("--vs-legacy");
 const int MaxTurns = 80;
+// Flag band of the card table, on the in-deck win rate (see the note under the table).
+const double InDeckBand = 0.035;
 
 // --class id:attack,health,armor,mana overrides a hero class (repeatable).
 var classes = SeedData.PlayerTypes;
@@ -257,6 +259,26 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
         sb.AppendLine($"| {c.Name} | {mine.Count} | {Pct(wins / (double)Math.Max(1, mine.Count))} | {string.Join(" | ", cells)} |");
     }
 
+    // Players pick their deck's races, so a class must hold up with every race, its own included.
+    sb.AppendLine();
+    sb.AppendLine("## Classes and deck races");
+    sb.AppendLine();
+    sb.AppendLine("Win rate of each class's decks that hold the race (decks hold one or two races; mirror matches left out). Players pick their races, so every cell should be near 50%. The class's own race is in bold.");
+    sb.AppendLine();
+    sb.AppendLine("| Class | " + string.Join(" | ", SeedData.Races.Select(r => r.Name)) + " |");
+    sb.AppendLine("|---|" + string.Concat(SeedData.Races.Select(_ => "---:|")));
+    foreach (var c in classes)
+    {
+        var cells = SeedData.Races.Select(race =>
+        {
+            var mine = results.SelectMany(r => new[] { (r, ident: 1, me: r.Sides[0], them: r.Sides[1]), (r, ident: 2, me: r.Sides[1], them: r.Sides[0]) })
+                .Where(x => x.me.Class == c.Id && x.them.Class != c.Id && x.me.Races.Contains(race.Id)).ToList();
+            var cell = $"{Pct(mine.Count(x => x.r.Winner == x.ident) / (double)Math.Max(1, mine.Count))} ({mine.Count})";
+            return race.Id == c.RaceId ? $"**{cell}**" : cell;
+        });
+        sb.AppendLine($"| {c.Name} | {string.Join(" | ", cells)} |");
+    }
+
     // Each bot picks one of its class's two powers at random. "Against the other power" compares the two powers of a
     // class: the head-to-head win rate their log-odds imply (both win rates are against the same mix of opponents).
     sb.AppendLine();
@@ -297,7 +319,7 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
     sb.AppendLine();
     sb.AppendLine("## Cards");
     sb.AppendLine();
-    sb.AppendLine("*Drawn* is the win rate of games in which the card was drawn (\"game in hand\"), the best single measure of a card's strength; *played* counts games in which it was played. Cards far from the average are flagged. Both lean towards expensive cards, which are only drawn (and played) in the longer games, the games the slower decks that hold them win more often. *In deck* counts every game of a deck that holds the card, drawn or not: it has no such lean, but a smaller spread.");
+    sb.AppendLine("*Drawn* is the win rate of games in which the card was drawn (\"game in hand\"); *played* counts games in which it was played; *in deck* counts every game of a deck that holds the card, drawn or not. Cards more than 3.5 points from the average *in deck* are flagged (see the note below the table).");
     sb.AppendLine();
     var mean = Sides(results).Where(x => x.decided).Average(x => x.won ? 1.0 : 0.0);
     sb.AppendLine("| Card | Race | Rarity | Cost | Stats | Ability | Drawn | Drawn win rate | Played win rate | In deck win rate | |");
@@ -317,9 +339,12 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
     string RaceOf(Souls.Model.Entities.Card card) => SeedData.Races.Single(r => r.Id == card.RaceId).Name;
     foreach (var (card, drawnCount, gih, pwr, dwr) in rows.Where(r => r.card.ClassId is null))
     {
-        var flag = drawnCount < 100 ? "few games" : gih > mean + 0.05 ? "strong" : gih < mean - 0.05 ? "weak" : "";
+        var flag = drawnCount < 100 ? "few games" : dwr > mean + InDeckBand ? "strong" : dwr < mean - InDeckBand ? "weak" : "";
         sb.AppendLine($"| {card.Name} | {RaceOf(card)} | {Rarity.Name(card.Rarity)} | {card.Cost} | {StatsOf(card)} | {AbilityOf(card)} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {Pct(dwr)} | {flag} |");
     }
+
+    sb.AppendLine();
+    sb.AppendLine("Why the flag uses *in deck*: *drawn* and *played* over-count expensive cards. A card is only drawn (and played) in the games that last long enough for it, and the long games are, most likely, the ones the slower decks holding the expensive cards win more often; so a 6-9 mana card reads several points higher drawn than in deck, and its drawn rate hardly moves when its stats change. *In deck* has no such lean, but a smaller spread, since a player draws only about 70% of the deck in a 25-turn game: its band is the old 5 points on *drawn* times 0.7.");
 
     // A class card only shows up in its class's decks that hold its race, so its raw win rates mostly measure the
     // class: the adjusted rate compares it with those decks (50% + played win rate - their win rate).
