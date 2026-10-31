@@ -26,9 +26,11 @@ public sealed class ChatService(ServerState state, ChatEngine chat) : IClientSer
 
                     return Task.CompletedTask;
                 case ChatRequest.NewGameRoom:
-                    if (player.GetOpponent()?.ChPlayer is { } opponent && !ch.MemberRooms.Values.Any(r => r.IsStatic && r.Clients.Contains(opponent)))
+                    if (player.GPlayer?.GameRoom is { } game && player.GetOpponent()?.ChPlayer is { } opponent && !ch.MemberRooms.Values.Any(r => r.IsStatic && r.Clients.Contains(opponent)))
                     {
-                        chat.RequestNewGameRoom(new Pair<ChatPlayer>(ch, opponent));
+                        // Saved with the game: the room comes back after a restart (see GameEngine.Resume).
+                        game.ChatRoomId = chat.RequestNewGameRoom(new Pair<ChatPlayer>(ch, opponent)).Id;
+                        game.Dirty = true;
                     }
 
                     return Task.CompletedTask;

@@ -39,13 +39,16 @@ public sealed partial class GameRoom
     /// <summary>The game changed since it was last saved. Set by <see cref="Record"/>, cleared by <see cref="GameStore"/>.</summary>
     public bool Dirty { get; set; } = true;
 
-    /// <summary>How many messages of the <see cref="Replay"/> are saved.</summary>
+    /// <summary>How many messages of the <see cref="Replay"/> are saved (handed to the writer of the <see cref="GameStore"/>).</summary>
     public int SavedReplay { get; set; }
+
+    /// <summary>The players' chat room in this game (see <see cref="Chat.ChatEngine.RequestNewGameRoom"/>), made again after a restart.</summary>
+    public int? ChatRoomId { get; set; }
 
     /// <summary>The game without its replay, which is saved message by message.</summary>
     internal sealed record SavedGame(
         int GameId, bool IsPractice, DateTimeOffset StartedAt, TimeSpan TurnTime, TimeSpan MulliganTime, bool InMulligan, int Turn, int Round,
-        int Current, long TurnEndsIn, SavedPlayer First, SavedPlayer Second, List<GameLog> Log, List<JsonObject> Events);
+        int Current, long TurnEndsIn, SavedPlayer First, SavedPlayer Second, List<GameLog> Log, List<JsonObject> Events, bool IsFriendly = false, int? ChatRoomId = null);
 
     /// <summary>A player as the game needs it. The collection, deck and connections come back when the player reconnects.</summary>
     internal sealed record SavedPlayer(int Id, string Name, int Rank, int Rating, PlayerTypeInfo PlayerType, int? HeroPower, bool IsBot, int Difficulty, GamePlayer Game);
@@ -53,7 +56,7 @@ public sealed partial class GameRoom
     /// <summary>The game as JSON. Taken between two actions, so there are no pending events.</summary>
     public string Snapshot() => JsonSerializer.Serialize(new SavedGame(
         GameId, IsPractice, StartedAt, TurnTime, MulliganTime, InMulligan, Turn, Round, CurrentPlaying.GPlayer!.Ident, TurnEndsIn,
-        Save(Players.First), Save(Players.Second), [.. Logger.Records], _events), SnapshotJson);
+        Save(Players.First), Save(Players.Second), [.. Logger.Records], _events, IsFriendly, ChatRoomId), SnapshotJson);
 
     private static SavedPlayer Save(Player p) => new(p.Id, p.Name, p.Rank, p.Rating, p.PlayerType, p.HeroPower, p.IsBot, p.Difficulty, p.GPlayer!);
 
@@ -66,6 +69,8 @@ public sealed partial class GameRoom
         _time = time;
         GameId = saved.GameId;
         IsPractice = saved.IsPractice;
+        IsFriendly = saved.IsFriendly;
+        ChatRoomId = saved.ChatRoomId;
         StartedAt = saved.StartedAt;
         TurnTime = saved.TurnTime;
         MulliganTime = saved.MulliganTime;

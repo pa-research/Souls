@@ -28,6 +28,8 @@ var games = Arg("--games", 2000);
 var parallel = Arg("--parallel", Environment.ProcessorCount);
 var output = ArgString("--out");
 var tune = Arg("--tune", 0);
+// --seed n: another draw of classes, powers and decks (shuffles and bot choices vary from run to run anyway).
+var seed = Arg("--seed", 0);
 var vsLegacy = args.Contains("--vs-legacy");
 const int MaxTurns = 80;
 
@@ -50,10 +52,23 @@ var pool = SeedData.Cards.Select(c =>
     c.Race = SeedData.Races.SingleOrDefault(r => r.Id == c.RaceId);
     return c;
 }).ToList();
+// --card id:attack,health,armor,cost[,ability value] overrides a card's numbers (repeatable).
+for (var i = 0; i < args.Length - 1; i++)
+{
+    if (args[i] == "--card")
+    {
+        var parts = args[i + 1].Split(':');
+        var stats = parts[1].Split(',').Select(x => int.Parse(x, CultureInfo.InvariantCulture)).ToArray();
+        var card = pool.Single(c => c.Id == int.Parse(parts[0], CultureInfo.InvariantCulture));
+        (card.Attack, card.Health, card.Armor, card.Cost) = (stats[0], stats[1], stats[2], stats[3]);
+        card.AbilityValue = stats.Length > 4 ? stats[4] : card.AbilityValue;
+    }
+}
+
 // --tune n: n rounds of adjusting each class's health towards a 50% win rate.
 for (var round = 0; round < tune; round++)
 {
-    var sample = await RunAsync(games, round * 100_003);
+    var sample = await RunAsync(games, seed + round * 100_003);
     var line = new StringBuilder($"round {round + 1}:");
     foreach (var c in classes)
     {
@@ -67,7 +82,7 @@ for (var round = 0; round < tune; round++)
     Console.Error.WriteLine(line);
 }
 
-var results = await RunAsync(games, 0);
+var results = await RunAsync(games, seed);
 var plans = results.SelectMany(r => r.PlanTimes).ToList();
 if (plans.Count > 0)
 {
@@ -282,26 +297,28 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
     sb.AppendLine();
     sb.AppendLine("## Cards");
     sb.AppendLine();
-    sb.AppendLine("*Drawn* is the win rate of games in which the card was drawn (\"game in hand\"), the best single measure of a card's strength; *played* counts games in which it was played. Cards far from the average are flagged.");
+    sb.AppendLine("*Drawn* is the win rate of games in which the card was drawn (\"game in hand\"), the best single measure of a card's strength; *played* counts games in which it was played. Cards far from the average are flagged. Both lean towards expensive cards, which are only drawn (and played) in the longer games, the games the slower decks that hold them win more often. *In deck* counts every game of a deck that holds the card, drawn or not: it has no such lean, but a smaller spread.");
     sb.AppendLine();
     var mean = Sides(results).Where(x => x.decided).Average(x => x.won ? 1.0 : 0.0);
-    sb.AppendLine("| Card | Race | Rarity | Cost | Stats | Ability | Drawn | Drawn win rate | Played win rate | |");
-    sb.AppendLine("|---|---|---|---:|---|---|---:|---:|---:|---|");
+    sb.AppendLine("| Card | Race | Rarity | Cost | Stats | Ability | Drawn | Drawn win rate | Played win rate | In deck win rate | |");
+    sb.AppendLine("|---|---|---|---:|---|---|---:|---:|---:|---:|---|");
     var rows = pool.Select(card =>
     {
         var drawnSides = Sides(results).Where(x => x.decided && x.side.Drawn.Contains(card.Id)).ToList();
         var playedSides = Sides(results).Where(x => x.decided && x.side.Played.Contains(card.Id)).ToList();
         var gih = drawnSides.Count == 0 ? double.NaN : drawnSides.Count(x => x.won) / (double)drawnSides.Count;
         var pwr = playedSides.Count == 0 ? double.NaN : playedSides.Count(x => x.won) / (double)playedSides.Count;
-        return (card, drawn: drawnSides.Count, gih, pwr);
+        var deckSides = Sides(results).Where(x => x.decided && x.side.Deck.Contains(card.Id)).ToList();
+        var dwr = deckSides.Count == 0 ? double.NaN : deckSides.Count(x => x.won) / (double)deckSides.Count;
+        return (card, drawn: drawnSides.Count, gih, pwr, dwr);
     }).OrderByDescending(r => r.gih).ToList();
     string StatsOf(Souls.Model.Entities.Card card) => card.Kind == CardKind.Spell ? "spell" : $"{card.Attack}/{card.Health}{(card.Armor > 0 ? $" +{card.Armor}" : "")}";
     string AbilityOf(Souls.Model.Entities.Card card) => card.AbilityId is { } id ? GameRules.AbilityLabel(id, card.AbilityValue) : "-";
     string RaceOf(Souls.Model.Entities.Card card) => SeedData.Races.Single(r => r.Id == card.RaceId).Name;
-    foreach (var (card, drawnCount, gih, pwr) in rows.Where(r => r.card.ClassId is null))
+    foreach (var (card, drawnCount, gih, pwr, dwr) in rows.Where(r => r.card.ClassId is null))
     {
         var flag = drawnCount < 100 ? "few games" : gih > mean + 0.05 ? "strong" : gih < mean - 0.05 ? "weak" : "";
-        sb.AppendLine($"| {card.Name} | {RaceOf(card)} | {Rarity.Name(card.Rarity)} | {card.Cost} | {StatsOf(card)} | {AbilityOf(card)} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {flag} |");
+        sb.AppendLine($"| {card.Name} | {RaceOf(card)} | {Rarity.Name(card.Rarity)} | {card.Cost} | {StatsOf(card)} | {AbilityOf(card)} | {drawnCount} | {Pct(gih)} | {Pct(pwr)} | {Pct(dwr)} | {flag} |");
     }
 
     // A class card only shows up in its class's decks that hold its race, so its raw win rates mostly measure the
@@ -313,7 +330,7 @@ static string Report(List<GameResult> results, List<Souls.Model.Entities.Card> p
     sb.AppendLine();
     sb.AppendLine("| Card | Class | Race | Rarity | Cost | Stats | Ability | Drawn | Drawn win rate | Played win rate | Decks like it | Played, adjusted |");
     sb.AppendLine("|---|---|---|---|---:|---|---|---:|---:|---:|---:|---:|");
-    foreach (var (card, drawnCount, gih, pwr) in rows.Where(r => r.card.ClassId is not null).OrderBy(r => r.card.Id))
+    foreach (var (card, drawnCount, gih, pwr, _) in rows.Where(r => r.card.ClassId is not null).OrderBy(r => r.card.Id))
     {
         var like = Sides(results).Where(x => x.decided && x.side.Class == card.ClassId && x.side.Races.Contains(card.RaceId ?? 0)).ToList();
         var likeRate = like.Count(x => x.won) / (double)Math.Max(1, like.Count);

@@ -17,7 +17,6 @@ import { ABILITY_COLORS } from './game.js';
 const ATTACK_COLOR = 0xff3b30;
 const POWER_COLOR = 0xffd34d;
 
-const HAND_X = 165, HAND_SPACING = 60, HAND_TOP = 880;
 const HOLD_MS = 320; // touch: hold a hand card to look at it
 const ABILITY_HOLD_MS = 450; // hold a board card to switch to its ability
 const DRAG_START = 10; // pixels before a press becomes a drag
@@ -57,15 +56,11 @@ export class Interaction {
         return hit ? toClassic(hit) : null;
     }
 
-    /** Hand cards are HUD laid out like the classic client, so hit-test them the classic way (60px slices). */
+    /** Hand cards are HUD laid out like the classic client, so hit-test them the classic way (in slices, Game.handIndexAt). */
     handCardAt(ndc) {
-        const classic = this.stage.classicAtScreen(ndc);
-        const cards = [...this.game.player.hand.values()];
-        if (!classic || cards.length === 0 || classic.y < HAND_TOP) return null;
-        const left = HAND_X - 75;
-        const right = HAND_X + HAND_SPACING * (cards.length - 1) + 75;
-        if (classic.x < left || classic.x > right) return null;
-        const card = cards[Math.min(cards.length - 1, Math.max(0, Math.floor((classic.x - left) / HAND_SPACING)))];
+        const index = this.game.handIndexAt(this.stage.classicAtScreen(ndc));
+        if (index < 0) return null;
+        const card = [...this.game.player.hand.values()][index];
         return card.pending || card.dragging ? null : card;
     }
 

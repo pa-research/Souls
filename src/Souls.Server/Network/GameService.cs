@@ -4,7 +4,7 @@ using Souls.Server.Objects;
 
 namespace Souls.Server.Network;
 
-/// <summary>The <c>/ws/game</c> endpoint. With a <paramref name="store"/> the games a request changed are saved after it.</summary>
+/// <summary>The <c>/ws/game</c> endpoint. With a <paramref name="store"/> the games a request changed are saved after it (in the background).</summary>
 public sealed class GameService(ServerState state, GameEngine engine, PlayerRepository players, TimeProvider time, ILogger<GameService> logger, GameStore? store = null) : IClientService
 {
     public async Task ProcessAsync(Connection connection, Message message)
@@ -15,10 +15,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         }
 
         await HandleAsync(connection, message);
-        if (store is not null)
-        {
-            await store.SaveAsync();
-        }
+        store?.Save();
     }
 
     private async Task HandleAsync(Connection connection, Message message)
