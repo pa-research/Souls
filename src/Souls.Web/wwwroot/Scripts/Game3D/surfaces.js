@@ -5,9 +5,9 @@
 // light, rise delay, variant). Detail fades out with the pixel footprint (fwidth), so far stands do not shimmer.
 import * as THREE from '/lib/three/three.webgpu.js';
 import {
-    Fn, attribute, cross, dFdx, dFdy, dot, exp, float, floor, fract, fwidth, hash, instancedBufferAttribute, max, min,
+    Fn, attribute, cos, cross, dFdx, dFdy, dot, exp, float, floor, fract, fwidth, hash, instancedBufferAttribute, max, min,
     mix, mx_fractal_noise_float, mx_noise_float, mx_worley_noise_float, normalGeometry, normalView, positionLocal, positionView,
-    positionWorld, reflectVector, select, sin, smoothstep, uniform, uv, varying, vec2, vec3, vec4,
+    positionWorld, reflectVector, select, sin, smoothstep, transformNormalToView, uniform, uv, varying, vec2, vec3, vec4,
 } from '/lib/three/three.tsl.js';
 import { GLOW_MAX } from './stadium.js';
 
@@ -132,26 +132,53 @@ function metalMaterial(u, lightsNode) {
     return m;
 }
 
-/** Banner cloth: team colour, a woven texture, a gold border and an emblem; flutters in the wind. */
+/**
+ * Banner cloth: team colour, a woven texture, a gold border and an emblem drawn in the cloth's own proportions (round on
+ * tall banners, wide panels and pennants alike), anti-aliased by their pixel footprint. It moves in the wind from its
+ * pinned edge (wave.x is 0 there): cloth on a wall billows only away from the stone, free cloth swings both ways.
+ * Its normal follows the moved surface (the analytic gradient of the displacement, smooth across the cloth) and is
+ * turned towards the viewer, so both sides of a flag are lit like its front.
+ */
 function clothMaterial(u, lightsNode) {
     const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
     const aux = attribute('aux', 'vec4');
     m.lightsNode = lightsNode;
-    const wave = attribute('wave', 'vec2');
+    const wave = attribute('wave', 'vec4');
     const t = u.uTime;
-    const flutter = sin(t.mul(2.3).add(wave.y).add(positionLocal.y.mul(0.04)).add(positionLocal.x.mul(0.02)))
-        .add(sin(t.mul(3.7).add(wave.y.mul(1.7)).add(positionLocal.z.mul(0.03))).mul(0.5));
-    const moved = positionLocal.add(normalGeometry.mul(flutter.mul(wave.x).mul(9))).add(vec3(0, sin(t.mul(1.9).add(wave.y)).mul(wave.x).mul(3), 0));
-    m.positionNode = rise(u, aux.z, moved);
+    const pin = attribute('pin', 'vec3');
+    const p = positionLocal;
+    // Three travelling waves; s in -1..1 and its gradient (per world unit).
+    const a1 = t.mul(2.3).add(wave.y).add(p.y.mul(0.04)).add(p.x.mul(0.02));
+    const a2 = t.mul(3.7).add(wave.y.mul(1.7)).add(p.z.mul(0.03));
+    const a3 = t.mul(5.1).add(wave.y.mul(2.3)).add(p.x.add(p.z).mul(0.09)).sub(p.y.mul(0.05));
+    const s = sin(a1).add(sin(a2).mul(0.5)).add(sin(a3).mul(0.35)).div(1.85);
+    const ds = vec3(0.02, 0.04, 0).mul(cos(a1)).add(vec3(0, 0, 0.015).mul(cos(a2))).add(vec3(0.0315, -0.0175, 0.0315).mul(cos(a3))).div(1.85);
+    const billow = mix(s, s.mul(0.5).add(0.5), wave.z);
+    const slope = mix(float(1), float(0.5), wave.z);
+    const bob = sin(t.mul(1.9).add(wave.y)).mul(wave.x).mul(wave.z.oneMinus()).mul(0.25);
+    m.positionNode = rise(u, aux.z, p.add(normalGeometry.mul(wave.x.mul(billow))).add(vec3(0, bob, 0)));
+    // Normal of the displaced sheet: n - the in-plane gradient of the displacement wave.x * billow.
+    const n0 = normalGeometry;
+    const grad = ds.mul(slope).mul(wave.x).add(pin.mul(billow));
+    const bent = varying(n0.sub(grad.sub(n0.mul(dot(grad, n0)))).normalize());
+    const nv = transformNormalToView(bent).normalize();
+    m.normalNode = nv.mul(select(dot(nv, positionView).lessThan(0), float(1), float(-1)));
     const tint = srgb(attribute('tint', 'vec4').rgb);
     const q = uv();
-    const gold = vec3(0.62, 0.42, 0.13);
-    const border = smoothstep(0.37, 0.4, q.x.sub(0.5).abs()).max(smoothstep(0.93, 0.96, q.y.oneMinus()));
-    const d = vec2(q.x.sub(0.5), q.y.sub(0.42).mul(0.8)).length();
-    const ring = fall(0.015, 0.03, d.sub(0.17).abs());
-    const diamond = fall(0.085, 0.1, q.x.sub(0.5).abs().add(q.y.sub(0.42).abs().mul(0.75)));
-    const weave = sin(q.x.mul(380)).mul(sin(q.y.mul(420))).mul(0.04).add(1);
+    // Emblem space: the cloth's shorter side is 1.
+    const aspect = wave.w.max(0.05);
+    const tall = aspect.lessThan(1);
+    const size = vec2(aspect.max(1), aspect.reciprocal().max(1));
+    const e = vec2(q.x.sub(0.5), q.y.sub(select(tall, 0.42, 0.5))).mul(size);
+    const fw = fwidth(e.x).max(fwidth(e.y)).add(0.0005);
+    const band = (dist, edge) => smoothstep(edge.sub(fw), edge.add(fw), dist).oneMinus();
+    const radius = select(tall, 0.17, 0.3);
+    const ring = band(e.length().sub(radius).abs(), radius.mul(0.1));
+    const diamond = band(e.x.abs().add(e.y.abs().mul(0.75)), radius.mul(0.5));
+    const border = band(min(q.x.sub(0.5).abs().oneMinus().sub(0.5).mul(size.x), q.y.mul(size.y)), float(0.07));
+    const weave = sin(q.x.mul(380)).mul(sin(q.y.mul(420))).mul(0.04).mul(smoothstep(0.002, 0.008, fwidth(q).length()).oneMinus()).add(1);
     const emblem = ring.max(diamond).max(border);
+    const gold = vec3(0.62, 0.42, 0.13);
     const col = mix(tint.mul(weave), gold, emblem).mul(mix(float(0.75), float(1), aux.x));
     m.colorNode = col;
     m.roughnessNode = mix(float(0.88), float(0.45), emblem);

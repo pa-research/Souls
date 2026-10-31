@@ -6,7 +6,9 @@
 //   tint  sRGB albedo tint (alpha unused)
 //   aux   x ambient occlusion authored per profile point, y warm light baked from the fires around it (0..1 of
 //         GLOW_MAX), z the delay of its rise out of the ground (0..1 of the transition), w the surface variant
-//   wave  (cloth only) how free this point is to flutter, and its phase
+//   wave  (cloth only) x how far this point may flutter (world units, 0 where the cloth is pinned), y its phase,
+//         z 1 if the cloth hangs against a wall (it only billows away from it), w the cloth's width / height
+//   pin   (cloth only) the gradient of wave.x (per world unit): which way, and how fast, the cloth frees itself
 //
 // Units are the classic stage's pixels (a spectator is about 45 tall, so one unit is roughly 3.5 cm).
 import * as THREE from '/lib/three/three.webgpu.js';
@@ -33,6 +35,8 @@ export const GALLERY_Y = TOP + 34;
 export const ATTIC_TOP = GALLERY_Y + 170;
 export const PILLAR_H = 1250;
 export const GLOW_MAX = 3;
+/** How far cloth hung on a wall stands off the stone. */
+const GAP_CLOTH = 2;
 /** Gate towers: on the arena wall at the four corners of the board. */
 export const GATE_TOWERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => new THREE.Vector3(sx * 348, 0, sz * 612));
 /** The stadium screens: above each tunnel mouth, facing the sand, turned a little towards the player's end. */
@@ -64,20 +68,20 @@ class Writer {
     slot(name) {
         let s = this.slots.get(name);
         if (!s) {
-            s = { pos: [], nor: [], uv: [], tint: [], aux: [], wave: [], index: [], count: 0 };
+            s = { pos: [], nor: [], uv: [], tint: [], aux: [], wave: [], pin: [], index: [], count: 0 };
             this.slots.set(name, s);
         }
         return s;
     }
 
-    vertex(s, p, n, u, v, o, ao = 1, wave = null) {
+    vertex(s, p, n, u, v, o, ao = 1, wave = null, pin = null) {
         s.pos.push(p[0], p[1], p[2]);
         s.nor.push(n[0], n[1], n[2]);
         s.uv.push(u, v);
         const c = o.color;
         s.tint.push(c.r, c.g, c.b);
         s.aux.push(ao, 0, o.delay ?? 0, o.kind ?? 0);
-        if (o.cloth) s.wave.push(wave ? wave[0] : 0, wave ? wave[1] : 0);
+        if (o.cloth) s.wave.push(...(wave || [0, 0, 0, 1]), ...(pin || [0, 0, 0]));
         return s.count++;
     }
 
@@ -215,7 +219,11 @@ class Writer {
             }
             g.setAttribute('tint', new THREE.BufferAttribute(tint, 4, true));
             g.setAttribute('aux', new THREE.BufferAttribute(aux, 4, true));
-            if (s.wave.length) g.setAttribute('wave', new THREE.Float32BufferAttribute(s.wave, 2));
+            if (s.wave.length) {
+                const cloth = new THREE.InterleavedBuffer(new Float32Array(s.wave), 7);
+                g.setAttribute('wave', new THREE.InterleavedBufferAttribute(cloth, 4, 0));
+                g.setAttribute('pin', new THREE.InterleavedBufferAttribute(cloth, 3, 4));
+            }
             g.setIndex(s.count > 65535 ? new THREE.Uint32BufferAttribute(s.index, 1) : new THREE.Uint16BufferAttribute(s.index, 1));
             g.computeBoundingSphere();
             out[name] = g;
@@ -369,7 +377,7 @@ function stands(w, segs, fires) {
                 const n = Math.max(1, Math.round((t1 - t0) * r / 60));
                 for (let i = 0; i < n; i++) {
                     const ta = t0 + (t1 - t0) * (i + 0.12) / n, tb = t0 + (t1 - t0) * (i + 0.88) / n;
-                    clothPanel(w, ta, tb, r, h + 1, h + TIER_RISE - 5, team, i * 1.7 + k);
+                    clothPanel(w, ta, tb, r + 1, h + 3, h + TIER_RISE - 6, team, i * 1.7 + k, 1.6, 0);
                 }
             }
             // A torch on an iron post beside every stairway on the walkway: warm light up in the stands.
@@ -385,48 +393,75 @@ function stands(w, segs, fires) {
     }
 }
 
-/** A banner hanging flat against a curved wall (radius r, facing the centre) from angle ta to tb, between y0 and y1. */
-function clothPanel(w, ta, tb, r, y0, y1, color, phase, sway = 0.25) {
+/**
+ * A cloth hung flat against a curved wall (radius `r`, facing the centre) from angle ta to tb: pinned along its top
+ * edge at y1, its pointed hem reaching down to y0. It hangs `GAP_CLOTH` in front of the stone and billows only away
+ * from it, by up to `sway` units at the hem.
+ */
+function clothPanel(w, ta, tb, r, y0, y1, color, phase, sway, delay) {
     const s = w.slot('cloth');
-    const o = { color: C(color), cloth: true, kind: 0 };
-    const cols = 3, rows = 4, base = s.count;
+    const o = { color: C(color), cloth: true, delay };
+    const cols = 4, rows = 4, base = s.count;
+    const width = (tb - ta) * r, aspect = width / (y1 - y0);
     for (let j = 0; j <= rows; j++) {
         for (let i = 0; i <= cols; i++) {
-            const t = ta + (tb - ta) * i / cols, y = y1 - (y1 - y0) * j / rows;
-            const n = [-Math.cos(t), 0, -Math.sin(t)];
-            // A pointed hem: the middle hangs lower.
-            const dip = (1 - Math.abs(i / cols - 0.5) * 2) * (y1 - y0) * 0.12 * (j / rows);
-            w.vertex(s, pol(t, r - 0.5, y - dip), n, i / cols, j / rows, o, 1, [sway * (j / rows), phase]);
+            const t = ta + (tb - ta) * i / cols, f = j / rows;
+            const hem = y0 + Math.abs(i / cols - 0.5) * 2 * (y1 - y0) * 0.12; // the middle hangs lowest, at y0
+            w.vertex(s, pol(t, r - GAP_CLOTH, y1 + (hem - y1) * f), [-Math.cos(t), 0, -Math.sin(t)], i / cols, f, o, 1, [sway * f, phase, 1, aspect],
+                [0, -sway / (y1 - hem), 0]);
         }
     }
-    for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-            const a = base + j * (cols + 1) + i, b = a + 1, c = a + cols + 2, d = a + cols + 1;
-            s.index.push(a, d, c, a, c, b);
-        }
-    }
+    gridIndex(s, base, cols, rows);
 }
 
-/** A swallow-tailed banner hanging from a rod at (x, y, z), its front facing direction `face` (radians about y). */
-function hangingBanner(w, x, y, z, face, width, len, color, phase) {
+/**
+ * A swallow-tailed banner on a rod at (x, y, z), hanging `len` down with its front facing `face` (radians about y).
+ * `wall`: it hangs in front of a wall and billows only away from it; otherwise it swings both ways. The rod is
+ * pinned; the cloth may move up to `swing` units at the tails.
+ */
+function hangingBanner(w, x, y, z, face, width, len, color, phase, delay, swing = 7, wall = true) {
     const s = w.slot('cloth');
-    const o = { color: C(color), cloth: true };
-    const cols = 4, rows = 6, base = s.count;
+    const o = { color: C(color), cloth: true, delay };
+    const cols = 4, rows = 10, base = s.count;
     const nx = Math.sin(face), nz = Math.cos(face);
     const tx = Math.cos(face), tz = -Math.sin(face);
     for (let j = 0; j <= rows; j++) {
         for (let i = 0; i <= cols; i++) {
             const a = i / cols - 0.5, f = j / rows;
             const notch = Math.max(0, f - 0.75) / 0.25 * (1 - Math.abs(a) * 2) * len * 0.18;
-            w.vertex(s, [x + tx * a * width, y - f * len + notch, z + tz * a * width], [nx, 0, nz], i / cols, f, o, 1, [f, phase]);
+            w.vertex(s, [x + tx * a * width, y - f * len + notch, z + tz * a * width], [nx, 0, nz], i / cols, f, o, 1,
+                [swing * f ** 1.3, phase, wall ? 1 : 0, width / len], [0, -1.3 * swing * f ** 0.3 / len, 0]);
         }
     }
+    gridIndex(s, base, cols, rows);
+}
+
+/** Triangles of a (cols + 1) x (rows + 1) vertex grid written row by row from `base`, wound towards its normal. */
+function gridIndex(s, base, cols, rows) {
     for (let j = 0; j < rows; j++) {
         for (let i = 0; i < cols; i++) {
             const a = base + j * (cols + 1) + i, b = a + 1, c = a + cols + 2, d = a + cols + 1;
-            s.index.push(a, c, b, a, d, c);
+            s.index.push(a, d, c, a, c, b);
         }
     }
+    // Wind every triangle to agree with its vertex normals (the grids are laid out in different directions).
+    const P = q => new THREE.Vector3(s.pos[q * 3], s.pos[q * 3 + 1], s.pos[q * 3 + 2]);
+    for (let k = s.index.length - cols * rows * 6; k < s.index.length; k += 3) {
+        const [a, b, c] = [s.index[k], s.index[k + 1], s.index[k + 2]];
+        const n = P(b).sub(P(a)).cross(P(c).sub(P(a)));
+        if (n.x * s.nor[a * 3] + n.y * s.nor[a * 3 + 1] + n.z * s.nor[a * 3 + 2] < 0) [s.index[k + 1], s.index[k + 2]] = [c, b];
+    }
+}
+
+/** A banner rod held out from a wall: the rod (width `len` across `face`) and two brackets reaching back `reach`. */
+function bannerRod(w, x, y, z, face, len, reach, delay) {
+    const o = { color: C(TINT.iron), delay };
+    const nx = Math.sin(face), nz = Math.cos(face), tx = Math.cos(face), tz = -Math.sin(face);
+    w.box('metal', x, y, z, len, 3.5, 3.5, face, o);
+    for (const a of [-0.36, 0.36]) {
+        w.box('metal', x + tx * a * len - nx * reach / 2, y, z + tz * a * len - nz * reach / 2, 2.5, 2.5, reach, face, o);
+    }
+    for (const a of [-0.5, 0.5]) w.box('metal', x + tx * a * len, y, z + tz * a * len, 5, 5, 5, face, o); // finials
 }
 
 /** Pilasters, banners and torch sconces on the arena wall; a bronze railing along its top. */
@@ -476,7 +511,7 @@ function wallDressing(w, fires) {
             } else {
                 // A team banner on the wall face.
                 const tw = 46 / WALL_R;
-                clothPanel(w, tm - tw / 2, tm + tw / 2, WALL_R - 1.5, 14, 57, teamOf(t), n * 0.7, 0.15);
+                clothPanel(w, tm - tw / 2, tm + tw / 2, WALL_R, 15, 57, teamOf(t), n * 0.7, 2.5, 0.05);
             }
         }
     }
@@ -529,8 +564,9 @@ function gateTower(w, center, segs, fires, torches) {
     // A long team banner facing the sand.
     const face = Math.atan2(-x, -z);
     const [fx, fz] = [Math.sin(face), Math.cos(face)];
-    hangingBanner(w, x + fx * 160, 188, z + fz * 160, face, 64, 120, z > 0 ? TINT.blue : TINT.red, x * 0.02);
-    w.box('metal', x + fx * 161, 189, z + fz * 161, 74, 4, 4, face, { color: C(TINT.iron), delay: 0.25 });
+    // Hung from a rod in front of the parapet (r 170), clear of the corbels and the string course below.
+    hangingBanner(w, x + fx * 177, 190, z + fz * 177, face, 64, 118, z > 0 ? TINT.blue : TINT.red, x * 0.02, 0.25);
+    bannerRod(w, x + fx * 177.5, 191, z + fz * 177.5, face, 74, 9, 0.25);
 }
 
 /** The gatehouse at side ±1 (x): a portal with a vaulted tunnel, turrets, the stadium screen and a tall soul spire. */
@@ -654,7 +690,9 @@ function gatehouse(w, side, segs, fires, screens) {
         ], 0, Math.PI * 2, Math.max(12, segs >> 3), { ...stone }, cx, cz);
         w.ring('roof', [{ r: 0, y: H + 200 }, { r: 60, y: H + 68, ao: 0.7 }, { r: 54, y: H + 64 }], 0, Math.PI * 2, Math.max(12, segs >> 3), { color: C(0x4a4f5e), kind: 1, delay: 0.15, bw: 16, bh: 12 }, cx, cz);
         w.box('metal', cx, H + 215, cz, 3, 34, 3, 0, { color: C(TINT.bronze), delay: 0.15 });
-        hangingBanner(w, cx - side * 50, H + 40, cz, side > 0 ? -Math.PI / 2 : Math.PI / 2, 46, 140, TINT.gold, cz * 0.03);
+        // A gold banner facing the sand, held out on a rod past the portal's pilaster (its face is at front - 27).
+        hangingBanner(w, X(front - 33), H + 40, cz, side > 0 ? -Math.PI / 2 : Math.PI / 2, 46, 140, TINT.gold, cz * 0.03, 0.15);
+        bannerRod(w, X(front - 33.5), H + 41, cz, side > 0 ? -Math.PI / 2 : Math.PI / 2, 54, 17, 0.15);
     }
 
     // The stadium screen in a bronze frame, held out from the portal on iron struts.
@@ -768,9 +806,9 @@ function facade(w, segs, quality) {
             // Long banners on the attic, every few bays.
             if (i % 5 === 2) {
                 const face = Math.atan2(Math.cos(t), Math.sin(t));
-                const [bx, , bz] = pol(t, r + 7, 0);
-                hangingBanner(w, bx, ATTIC_TOP - 26, bz, face, 64, 132, teamOf(t), i * 0.9);
-                w.box('metal', bx, ATTIC_TOP - 25, bz, 74, 3, 3, face, { color: C(TINT.iron), delay: 0.1 });
+                const [bx, , bz] = pol(t, r + 11, 0); // the attic face is at r + 4
+                hangingBanner(w, bx, ATTIC_TOP - 27, bz, face, 64, 128, teamOf(t), i * 0.9, 0.1);
+                bannerRod(w, ...pol(t, r + 11.5, 0).map((v, k) => (k === 1 ? ATTIC_TOP - 26 : v)), face, 74, 8, 0.1);
             }
             // Engaged column at the pier between bays.
             const tc = a0 + i * da;
@@ -837,26 +875,22 @@ function flags(w) {
         if (Math.abs(Math.cos(a)) > Math.cos(GAP * 1.8)) continue;
         const [x, , z] = pol(a, OUTER_R - 4, 0);
         w.ring('metal', [{ r: 0, y: ATTIC_TOP + 230 }, { r: 2.4, y: ATTIC_TOP + 226 }, { r: 3.2, y: ATTIC_TOP - 2 }], 0, Math.PI * 2, 6, { color: C(TINT.bronze), delay: 0.45 }, x, z);
+        // A tapering pennant flying from the pole: pinned along the pole, free to wave both ways towards its tip.
         const s = w.slot('cloth');
         const color = [TINT.red, TINT.blue, TINT.gold][i % 3];
-        const o = { color: C(color), cloth: true };
-        const cols = 8, rows = 3, base = s.count, L = 120, H = 62;
+        const o = { color: C(color), cloth: true, delay: 0.45 };
+        const cols = 12, rows = 4, base = s.count, L = 120, H = 62;
         const dir = -a + Math.PI / 2; // along the tangent
         const tx = Math.cos(dir), tz = -Math.sin(dir);
         for (let j = 0; j <= rows; j++) {
             for (let k = 0; k <= cols; k++) {
                 const f = k / cols;
-                const hh = H * (1 - 0.45 * f); // tapering pennant
-                const y = ATTIC_TOP + 222 - H / 2 + (j / rows - 0.5) * hh;
-                w.vertex(s, [x + tx * f * L, y, z + tz * f * L], [-tz, 0, tx], f, j / rows, o, 1, [f, i * 1.7]);
+                const hh = H * (1 - 0.45 * f);
+                const y = ATTIC_TOP + 222 - H / 2 + (0.5 - j / rows) * hh;
+                w.vertex(s, [x + tx * (2 + f * L), y, z + tz * (2 + f * L)], [-tz, 0, tx], f, j / rows, o, 1, [12 * f, i * 1.7, 0, L / H], [tx * 12 / L, 0, tz * 12 / L]);
             }
         }
-        for (let j = 0; j < rows; j++) {
-            for (let k = 0; k < cols; k++) {
-                const p = base + j * (cols + 1) + k;
-                s.index.push(p, p + 1, p + cols + 2, p, p + cols + 2, p + cols + 1);
-            }
-        }
+        gridIndex(s, base, cols, rows);
     }
 }
 
