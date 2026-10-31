@@ -87,7 +87,6 @@ class EndTurnSign extends THREE.Group {
     }
 
     spin() {
-        sound.play('END_TURN', 0.5);
         return tweens.run(800, t => { this.body.rotation.x = t * Math.PI * 4; }, Ease.linear);
     }
 }
@@ -399,6 +398,7 @@ export class Game {
             card.setPose(start);
             tweens.wait(deal ? k * 120 : 0).then(() => {
                 if (side.hand.get(card.cid) !== card || card.dragging || card.pending || card.opponentDragging) return;
+                sound.play('card_draw', side.isPlayer ? 0.55 : 0.35, { gap: 90 });
                 card.moveTo(this.handPose(side, [...side.hand.keys()].indexOf(card.cid), card === this.hovered, card), 650, Ease.cubicOut);
             });
         });
@@ -586,7 +586,7 @@ export class Game {
         this.ui.hideTooltip();
         card.dragging = true;
         this.liftOut(card);
-        sound.play('CARD_PICKUP', 0.5);
+        sound.play('card_pickup', 0.7);
         this.showSlots(!card.spell);
         this.lastMove = 0;
     }
@@ -688,6 +688,7 @@ export class Game {
     endTurn() {
         if (!this.yourTurn || this.ended || this.spectator) return;
         this.yourTurn = false;
+        sound.play('end_turn', 0.7);
         this.sign.spin().then(() => this.sign.setActive(false));
         this.ui.setTurn(false);
         this.gameSocket.send(Request.NEXT_TURN);
@@ -759,7 +760,7 @@ export class Game {
                     this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept: false });
                     break;
                 }
-                sound.play('CHAT_MESSAGE', 0.6);
+                sound.play('emote', 0.7);
                 this.ui.showInvite(p, accept => {
                     if (accept) this.friendlyGame = true;
                     this.gameSocket.send(Request.CHALLENGE_ANSWER, { accept });
@@ -785,7 +786,7 @@ export class Game {
         const side = this.sideByIdent(p.ident);
         if (!this.active || (side === this.opponent && this.emotesMuted)) return;
         this.ui.emote(side.isPlayer ? 'player' : 'opponent', String(p.text ?? ''));
-        sound.play('CHAT_MESSAGE', 0.4);
+        sound.play('emote', 0.6);
     }
 
     enqueue(m) {
@@ -868,8 +869,7 @@ export class Game {
         this.root.visible = true;
         this.stage.leaveMenu();
         this.active = true;
-        sound.stopMusic();
-        sound.playMusic('GAME_MUSIC', 0.1);
+        sound.playMusic('music_battle');
         // A new game cuts from the queue straight to the VS splash; a rejoined one fades in.
         this.ui.hideQueue(!p.create);
         this.ui.showViews(true, { chat: !this.spectator });
@@ -940,7 +940,8 @@ export class Game {
                 this.flameJets(1.2, 4);
                 this.cheer(1);
             }
-            sound.play('CARD_MOUNT', 0.5);
+            sound.play('card_play', 0.8);
+            if (data.taunt) sound.play('taunt', 0.8);
             this.effects.burst(card.position.clone().setY(8), { color: 0xd9b26f, count: 26, speed: 160, size: 34, life: 600, gravity: -300, up: 0.3 });
             this.effects.shockwave(card.position, side.isPlayer ? 0x8fd3ff : 0xff9a8f, 220);
             this.effects.shake(5);
@@ -969,7 +970,7 @@ export class Game {
         const color = ABILITY_COLORS[card.abilityId] ?? 0xb98cff;
         const below = toWorld(960, 540, 4);
         const pose = { position: below.clone().setY(150), quaternion: this.stage.camera.quaternion.clone(), scale: 1.1 };
-        this.crowd.spell('insight', 0.7);
+        this.crowd.spell('whoosh');
         if (Number(data.rarity) >= 3) this.effects.lightPillar(below, color, 1400);
         return card.moveTo(pose, side.isPlayer ? 380 : 650, Ease.cubicOut, { arc: 60 }).then(() => {
             card.setGlow(color, 0.9);
@@ -1002,7 +1003,7 @@ export class Game {
         this.effects.lightPillar(pose.position, legendary ? 0xffd36b : 0xc77dff, legendary ? 2400 : 1500);
         this.effects.sigil(pose.position, legendary ? 0xffc04d : 0xb26bff, legendary ? 420 : 300, legendary ? 1800 : 1200);
         if (legendary) {
-            this.crowd.spell('legendary');
+            this.crowd.spell('legendary', 1.4);
             this.ui.legendary(String(card.data.name ?? ''), side.isPlayer ? null : 'enemy');
             this.celebrate(4, [0xffd34d, 0xffffff, 0xffb02e]);
         } else {
@@ -1023,6 +1024,7 @@ export class Game {
                 card.setPose({ ...at, scale: 0.01 });
                 card.setOpacity(0.6);
                 side.hand.set(card.cid, card);
+                sound.play('card_draw', 0.5, { gap: 90 });
                 card.moveTo({ ...at, scale: 1.3 * row.scale }, 350, Ease.backOut).then(() => { card.setOpacity(1); this.layoutHand(side); });
             }
             return wait(450);
@@ -1050,6 +1052,7 @@ export class Game {
     onMulligan(side, p) {
         for (const card of side.hand.values()) card.dispose();
         side.hand.clear();
+        if (side.isPlayer) sound.play('card_shuffle', 0.8);
         if (side.isPlayer) this.hovered = null;
         else this.opponentReplaced = Number(p.replaced) || 0;
         this.addHandCards(side, p.hand || []);
@@ -1074,8 +1077,10 @@ export class Game {
         }
         if (p.turnEndsIn) this.ui.setTimer(performance.now() + p.turnEndsIn, p.turnEndsIn, this.yourTurn);
         if (this.yourTurn) {
+            sound.play('turn_start', 0.7);
             this.sign.spin().then(() => this.sign.setActive(true));
         } else {
+            if (this.spectator) sound.play('end_turn', 0.5);
             this.sign.setActive(false);
         }
         this.bannerPending = true;
@@ -1189,7 +1194,7 @@ export class Game {
         const attacker = this.resolve(e.src);
         const defender = this.resolve(e.dst);
         if (!attacker || !defender) return null;
-        sound.play('ATTACK', 0.5);
+        sound.play('attack', 0.7);
         const target = this.targetPoint(defender);
         if (attacker instanceof Hero3D) {
             tweens.to(attacker.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 200, Ease.backOut);
@@ -1222,7 +1227,8 @@ export class Game {
     }
 
     impact(defender, point) {
-        sound.play('DEFEND', 0.5);
+        if (defender instanceof Hero3D) sound.play('hero_hit', 0.85);
+        else sound.play('block', 0.7);
         this.effects.shake(defender instanceof Hero3D ? 22 : 14);
         this.cheer(defender instanceof Hero3D ? 0.55 : 0.35);
         this.effects.shockwave(defender instanceof Hero3D ? defender.podium.position : point.clone(), defender instanceof Hero3D ? 0xff6a3a : 0xffd27a, defender instanceof Hero3D ? 380 : 200);
@@ -1243,7 +1249,10 @@ export class Game {
                 target.flash(2);
                 this.arena.screenFlash(`-${e.amount}`);
                 this.stage.punch(4 + Math.min(6, e.amount));
-                if (e.amount >= 5) this.flameJets(0.8, 2);
+                if (e.amount >= 5) {
+                    this.flameJets(0.8, 2);
+                    this.crowd.gasp();
+                }
             }
         } else {
             target.setData({ health: e.health, armor: e.armor });
@@ -1251,6 +1260,7 @@ export class Game {
         }
         if (e.amount > 0) this.textAbove(target, `-${e.amount}`, '#ff4136');
         if (e.armorLost > 0) {
+            sound.play('block', 0.5, { gap: 200 });
             const point = this.targetPoint(target);
             this.effects.floatText(`◆-${e.armorLost}`, point.setY(point.y + 140), '#9fc3ff', 60);
             this.effects.burst(this.targetPoint(target), { color: 0xc8d6e5, count: 14, speed: 220, size: 26, life: 450 });
@@ -1262,7 +1272,8 @@ export class Game {
         if (!target || !(e.amount > 0)) return;
         if (target instanceof Hero3D) target.setInfo({ health: String(e.health) });
         else target.setData({ health: e.health });
-        sound.play('ABILITY_HEAL', 0.2);
+        // Not again right after the healing ability or spell that caused it.
+        sound.play('heal', 0.45, { gap: 900 });
         this.effects.sparkle(this.targetPoint(target), 0x9dff8a, 34);
         this.effects.spiral(this.targetPoint(target).setY(10), 0xffe9a0, { count: 18, radius: 60, height: 160, duration: 600, size: 22 });
         this.textAbove(target, `+${e.amount}`, '#4cd328');
@@ -1273,6 +1284,7 @@ export class Game {
         if (!target) return;
         if (target instanceof Hero3D) target.setInfo({ armor: e.armor });
         else target.setData({ armor: e.armor });
+        sound.play('ward', 0.45, { gap: 900 });
         this.effects.shockwave(target instanceof Hero3D ? target.podium.position : target.position, 0xc0c8d0, 200);
         this.effects.sparkle(this.targetPoint(target), 0xd9e2ec, 24);
         this.textAbove(target, `+${e.amount}◆`, '#9fc3ff', 70);
@@ -1282,6 +1294,7 @@ export class Game {
         const target = this.resolve(e.to);
         if (!target) return;
         const source = e.src ? this.resolve(e.src) : null;
+        sound.play('rally', 0.4, { gap: 900 });
         if (source && source !== target) {
             this.effects.projectile(this.targetPoint(source), this.targetPoint(target), ABILITY_COLORS[ABILITY.RALLY], 320, 30);
             this.textAbove(target, `+${Math.max(0, Number(e.attack) - Number(target.data?.attack ?? e.attack))}\u2694`, '#ffc04d', 64);
@@ -1300,6 +1313,7 @@ export class Game {
         const source = this.resolve(e.src);
         const hero = this.resolve(e.to);
         if (!hero) return;
+        sound.play('drain', 0.4, { gap: 900 });
         if (source) await this.effects.projectile(this.targetPoint(source), this.targetPoint(hero), 0xd0104a, 380, 34);
         hero.setInfo({ health: String(e.health) });
         this.textAbove(hero, `+${e.amount}`, '#4cd328', 70);
@@ -1307,6 +1321,7 @@ export class Game {
 
     showBlessing(e) {
         const card = this.cardByCid(e.cid);
+        sound.play('heal', 0.4, { gap: 900 });
         if (card) this.effects.lightPillar(card.position, 0xfff1a8, 1400);
         const hero = this.resolve(e.to);
         if (hero) this.effects.sparkle(this.targetPoint(hero), 0xfff1a8, 30);
@@ -1323,7 +1338,7 @@ export class Game {
         const to = this.targetPoint(target);
         switch (e.abilityId) {
             case ABILITY.SACRIFICE: { // the card flies into its target as a soul
-                sound.play('ABILITY_SACRIFICE', 0.3);
+                this.crowd.spell('drain', 0.8);
                 source.dying = true;
                 this.effects.soul(from, 0xc77dff);
                 await source.moveTo({ position: to.clone().setY(to.y + 60), quaternion: FLAT_FACE_UP.clone(), scale: 0.4 }, 650, Ease.quadIn, { arc: 160 });
@@ -1353,12 +1368,12 @@ export class Game {
                 this.effects.shockwave(target instanceof Hero3D ? target.podium.position : to.clone().setY(4), 0xc0c8d0, 240);
                 return;
             case ABILITY.HEAL:
-                sound.play('ABILITY_HEAL', 0.2);
                 this.crowd.spell('heal');
                 this.effects.beam(from, to, color, 700);
                 await wait(260);
                 return;
             default:
+                this.crowd.spell('whoosh', 0.8);
                 this.effects.beam(from, to, color, 700);
                 await wait(260);
         }
@@ -1455,6 +1470,7 @@ export class Game {
         const hero = this.heroOf(e.id);
         const target = this.resolve(e.dst);
         const color = POWER_COLORS[e.power] ?? 0xffd34d;
+        sound.play('hero_power', 0.75);
         this.textAbove(hero, e.name || 'Hero power', '#ffd98a', 60);
         tweens.to(hero.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 180, Ease.backOut).then(() => tweens.to(hero.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut));
         if (!target || target === hero) {
@@ -1479,6 +1495,8 @@ export class Game {
         if (side.board.has(e.card.cid)) return;
         const card = this.addBoardCard(side, e.card);
         const pose = this.boardPose(side, card);
+        sound.play('summon', 0.45, { gap: 900 });
+        if (e.card.taunt) sound.play('taunt', 0.7);
         card.setPose({ ...pose, scale: 0.01 });
         this.effects.sigil(card.position, 0x9b59b6, 240, 1100);
         this.effects.lightPillar(card.position, 0x9b59b6, 1200);
@@ -1521,6 +1539,7 @@ export class Game {
         card.setPose({ ...this.stage.hudPose(960, 520, HOVER_LIFT, 2.2) });
         this.ui.screenMessage(`${e.card.name} burns, the hand is full!`);
         await wait(900);
+        sound.play('fire', 0.5);
         card.setGlow(0xff5a1a, 1);
         await tweens.run(600, t => { card.setOpacity(1 - t); card.body.rotation.z = t * 0.4; }, Ease.quadIn);
         card.dispose();
@@ -1528,12 +1547,14 @@ export class Game {
 
     showFatigue(e) {
         const hero = this.heroOf(e.id);
+        sound.play('fatigue', 0.8);
         hero.flash(3, 0x8e44ad);
         this.textAbove(hero, `Fatigue ${e.amount}`, '#c39bd3', 60);
     }
 
     /** Start of a new match: VS splash, heroes enter in columns of light, fireworks and a wave. */
     kickOff() {
+        sound.play('versus', 0.9);
         this.ui.showVersus(this.player.hero.info, this.opponent.hero.info);
         this.cheer(1);
         this.arena.wave();
@@ -1552,12 +1573,12 @@ export class Game {
         const first = Math.floor(Math.random() * all.length);
         const torches = [...all.slice(first), ...all.slice(0, first)].slice(0, count);
         torches.forEach((t, i) => tweens.wait(i * 90).then(() => this.effects.flameJet(t, strength)));
-        this.crowd.boom(0.5 * strength);
+        this.crowd.flames(strength);
     }
 
-    /** Fireworks over the stadium with a boom for each. */
+    /** Fireworks over the stadium with a bang for each. */
     celebrate(count, colors) {
-        this.effects.fireworks(count, colors, () => this.crowd.boom(0.6));
+        this.effects.fireworks(count, colors, () => this.crowd.firework());
     }
 
     /** The crowd reacts (0..1): jumping spectators and a roar. */
@@ -1584,7 +1605,7 @@ export class Game {
         this.effects.burst(center, { color: 0x9b59b6, count: 40, speed: 220, size: 46, life: 1000, gravity: 120 });
         // A moment for the killing blow to land, then the card breaks apart and its soul leaves the arena.
         tweens.wait(160).then(() => {
-            this.crowd.spell('shatter', 0.8);
+            sound.play('card_death', 0.8);
             this.effects.soul(center, card.rarity === 4 ? 0xffd36b : 0xb9a8ff);
             return card.shatter(this.root, { force: card.rarity === 4 ? 1.4 : 1 });
         }).then(() => {
@@ -1596,6 +1617,8 @@ export class Game {
     heroDeath(hero) {
         if (hero.dead) return;
         hero.dead = true;
+        sound.play('hero_hit', 0.9, { rate: 0.85 });
+        this.crowd.gasp();
         tweens.run(1200, t => { hero.body.rotation.z = t * 0.35; hero.body.position.y = -t * 40; }, Ease.quadIn);
         this.effects.burst(hero.position.clone(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
         this.effects.shake(30);
@@ -1635,6 +1658,7 @@ export class Game {
     onEnd(text, p) {
         this.stopPlaying();
         this.clearInGame();
+        this.endMusic(text === 'Victory!' ? 'victory' : text === 'Defeat!' ? 'defeat' : null);
         this.cheer(1);
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
         this.arena.wave();
@@ -1648,8 +1672,17 @@ export class Game {
         this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame });
     }
 
+    /** The battle music gives way to the result's stinger (a gasp for a draw), then the menu music comes back. */
+    endMusic(stinger) {
+        sound.stopMusic(0.6);
+        if (stinger) sound.play(stinger, 0.9);
+        else this.crowd.gasp();
+        setTimeout(() => sound.playMusic('music_menu'), 4800);
+    }
+
     onSpectateEnd(p) {
         this.stopPlaying();
+        this.endMusic(p.winner ? 'victory' : null);
         this.cheer(1);
         this.arena.wave();
         this.celebrate(10);
@@ -1762,7 +1795,7 @@ export class Game {
                 break;
             case Response.CHAT_MESSAGE:
                 this.ui.chatLine(`[${p.name}]: ${p.message}`);
-                sound.play('CHAT_MESSAGE', 0.5);
+                sound.play('emote', 0.45);
                 break;
             case Response.CHAT_CLIENT_DISCONNECT:
                 this.ui.chatLine(`[SERVER]: ${p}`);

@@ -1,6 +1,6 @@
 // Emotes: a button next to the settings opens the emotes (from the page config) and a switch that mutes the
 // opponent's; what a hero says shows as a speech bubble above the player's hero or below the opponent's.
-define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
+define("emotes", ["hud", "conf", "messages", "asset"], function (Hud, Conf, Message, Asset) {
 
     var EMOTE = Message.Type.Game.EMOTE;
     var MUTE_EMOTES = Message.Type.Game.MUTE_EMOTES;
@@ -73,6 +73,7 @@ define("emotes", ["hud", "conf", "messages"], function (Hud, Conf, Message) {
 
         var mine = hero === engine.player;
         var key = mine ? 'mine' : 'theirs';
+        try { Asset.GetSound(Asset.Sound.EMOTE).play({ volume: 0.6 }); } catch (e) { /* sound is optional */ }
         var old = this.bubbles[key];
         if (old) old.Remove();
 
