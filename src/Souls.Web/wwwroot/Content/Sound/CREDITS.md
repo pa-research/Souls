@@ -82,7 +82,7 @@ From the MP3s ElevenLabs delivers (44.1 kHz effects, 48 kHz music) with ffmpeg:
 | `shatter.ogg` | Sound Effects v2 | `T89pR2Q3hUN9gNowpiA7` | 1.09 s | -16.1 LUFS | -1.4 dBTP | stereo, 96 kb/s | 10.1 KB |
 | `spell_whoosh.ogg` | Sound Effects v2 | `Jcaw0AVRLvBPcduffkSe` | 0.70 s | -15.9 LUFS | -3.1 dBTP | stereo, 96 kb/s | 7.3 KB |
 | `summon.ogg` | Sound Effects v2 | `C25bIGXSRcg3SkFGKacO` | 1.18 s | -19.2 LUFS | -1.0 dBTP | mono, 64 kb/s | 8.4 KB |
-| `taunt.ogg` | Sound Effects v2 | `5E3VIrxUFhoul7G4UV7r` | 1.21 s | -19.4 LUFS | -2.1 dBTP | mono, 64 kb/s | 8.4 KB |
+| `taunt.ogg` | Sound Effects v2, layered (see below) | `5E3VIrxUFhoul7G4UV7r` + `2TefLFJ4xYF84i7O2WZ1` | 1.21 s | -16.3 LUFS | -1.7 dBTP | mono, 64 kb/s | 10.4 KB |
 | `timer_warning.ogg` | Sound Effects v2 | `vdqc7A9TigizWs06VCMA` | 2.01 s | -16.0 LUFS | -7.1 dBTP | stereo, 96 kb/s | 21.5 KB |
 | `turn_start.ogg` | Sound Effects v2 | `ud3eVHwnpD4Ssz4fhmog` | 1.77 s | -16.0 LUFS | -5.9 dBTP | mono, 64 kb/s | 15.3 KB |
 | `ui_click.ogg` | Sound Effects v2 | `DyWJFhwwFyRuTMoaieQz` | 0.49 s | -21.0 LUFS | -1.9 dBTP | mono, 64 kb/s | 4.1 KB |
@@ -93,5 +93,9 @@ From the MP3s ElevenLabs delivers (44.1 kHz effects, 48 kHz music) with ffmpeg:
 
 Total 3.4 MB (the music 2.7 MB of it, streamed when it plays; the effects 0.75 MB, loaded at start).
 
-`emote` and `taunt` are second takes (the better of two each; the first takes were `l1doOV9e4Sx8xQGhBG30` and
-`tH09FtdR1SEzjtZo3xyn`). `taunt` is still almost all below 300 Hz, so it is faint on phone speakers.
+`emote` is a second take (the better of two; the first was `l1doOV9e4Sx8xQGhBG30`). `taunt` is made here from two
+generations, since every Taunt take (`tH09FtdR1SEzjtZo3xyn`, `5E3VIrxUFhoul7G4UV7r`, `9nWVRmtSnmaNpPayNBHi`) was
+almost all below 300 Hz, inaudible on phone speakers: the rumble of `5E3VIrxUFhoul7G4UV7r` with the sword-on-shield
+clang of the `block` take (`2TefLFJ4xYF84i7O2WZ1`) over it, pitched 2.5 semitones down (a heavier tower shield),
+low-passed at 6 kHz and starting with the rumble's hit. 61% of its energy is above 300 Hz (1% before). It got up to
+6 dB of limiting to reach -16 LUFS.
