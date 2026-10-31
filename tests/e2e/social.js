@@ -100,6 +100,10 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
   step('Both get the game', !!createA && !!createB);
   await A.page.waitForFunction(() => window.__souls3d && window.__souls3d.state().active, null, { timeout: 30000 }).catch(() => null);
   await sleep(5000); // the versus splash
+  // Both keep their starting hand (the mulligan screen covers the emote buttons).
+  await A.page.click('.sg-mulligan-confirm'); await B.page.click('.sg-mulligan-confirm');
+  await waitFrame(A, f => f.dir === 'in' && f.type === 226, fromA, 30000);
+  await sleep(2000);
   await snap(A, 'game');
   await snap(B, 'game');
 
@@ -153,10 +157,11 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
   await B.page.goto(base + '/');
   await B.page.evaluate(() => sessionStorage.clear());
   step('A wins when B resigns', !!end && end.type === 230);
-  step('No rating change in the result', !!end && end.p.ratingChange === null, end && JSON.stringify({ coins: end.p.coins, ratingChange: end.p.ratingChange }));
+  step('A friendly game earns nothing', !!end && end.p.friendly === true && end.p.coins === 0 && end.p.ratingChange === null && !end.p.quests && !end.p.season,
+    end && JSON.stringify({ friendly: end.p.friendly, coins: end.p.coins, ratingChange: end.p.ratingChange, quests: end.p.quests, season: end.p.season }));
   await sleep(2500);
   const reward = await A.page.$$eval('.sg-reward span', els => els.map(e => e.textContent).join(' | ')).catch(() => '');
-  step('A\'s end screen says friendly and unranked', reward.includes('Friendly · unranked'), reward);
+  step('A\'s end screen says a friendly game has no rewards', reward === 'Friendly game: no rewards', reward);
   await snap(A, 'end');
   if (end && end.p.statistics) {
     await A.page.goto(`${base}/Game/Stats/${end.p.statistics}`);

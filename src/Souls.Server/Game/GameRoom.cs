@@ -35,7 +35,7 @@ public sealed partial class GameRoom
     private readonly List<JsonObject> _replay = [];
 
     /// <summary>Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over.</summary>
-    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false)
+    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false)
     {
         _time = time;
         GameId = Interlocked.Increment(ref _gameCounter);
@@ -44,6 +44,7 @@ public sealed partial class GameRoom
         TurnTime = turnTime;
         MulliganTime = mulliganTime;
         IsPractice = practice;
+        IsFriendly = friendly;
         CurrentPlaying = players.First;
 
         foreach (var player in new[] { players.First, players.Second })
@@ -130,6 +131,9 @@ public sealed partial class GameRoom
     public int Turn { get; private set; }
     public int Round { get; private set; } = 1;
     public bool IsPractice { get; }
+
+    /// <summary>A friendly challenge (also <see cref="IsPractice"/>): it earns nothing, see <see cref="GameEngine.EndGameAsync"/>.</summary>
+    public bool IsFriendly { get; }
     public TimeSpan TurnTime { get; }
     /// <summary>When the turn (or the mulligan) runs out.</summary>
     public DateTimeOffset TurnDeadline { get; private set; }

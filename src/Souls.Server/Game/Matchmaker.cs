@@ -85,12 +85,14 @@ public sealed class Matchmaker(
 
     /// <summary>
     /// The server is stopping (SIGTERM on a restart or redeploy), before the web host stops: saves every game for the
-    /// next instance and closes all connections so the clients reconnect to it. Afterwards nothing changes the games.
+    /// next instance (and waits until everything is written) and closes all connections so the clients reconnect to
+    /// it. Afterwards nothing changes the games.
     /// </summary>
     public Task StoppingAsync(CancellationToken cancellationToken) => state.RunExclusiveAsync(async () =>
     {
         state.ShuttingDown = true;
-        await store.SaveAsync(all: true);
+        store.Save(all: true);
+        await store.FlushAsync();
         foreach (var connection in registry.Snapshot())
         {
             connection.Close(RestartReason);
@@ -133,7 +135,7 @@ public sealed class Matchmaker(
             await ForfeitAbandonedAsync();
             await engine.CheckTurnTimersAsync();
             engine.ExpireChallenges();
-            await store.SaveAsync();
+            store.Save();
         });
 
         _bots.RemoveAll(t => t.IsCompleted);
@@ -216,7 +218,9 @@ public sealed class Matchmaker(
         var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
         bot.GameContext = connection;
         bot.ChatContext = connection;
-        bot.ChPlayer = new ChatPlayer(bot.Name) { ChatContext = connection };
+        // A restored bot keeps its place in the game's chat room.
+        bot.ChPlayer ??= new ChatPlayer(bot.Name);
+        bot.ChPlayer.ChatContext = connection;
         state.GameClients[connection] = bot;
 
         var logger = loggerFactory.CreateLogger<AiPlayer>();
