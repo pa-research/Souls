@@ -873,6 +873,9 @@ function flags(w) {
     for (let i = 0; i < 30; i++) {
         const a = (i / 30) * Math.PI * 2 + 0.05;
         if (Math.abs(Math.cos(a)) > Math.cos(GAP * 1.8)) continue;
+        // None behind the player's end: the portrait views (and the cinematic sway) look out over it, a pole would
+        // cross the board.
+        if (Math.sin(a) > Math.cos(deg(48))) continue;
         const [x, , z] = pol(a, OUTER_R - 4, 0);
         w.ring('metal', [{ r: 0, y: ATTIC_TOP + 230 }, { r: 2.4, y: ATTIC_TOP + 226 }, { r: 3.2, y: ATTIC_TOP - 2 }], 0, Math.PI * 2, 6, { color: C(TINT.bronze), delay: 0.45 }, x, z);
         // A tapering pennant flying from the pole: pinned along the pole, free to wave both ways towards its tip.
