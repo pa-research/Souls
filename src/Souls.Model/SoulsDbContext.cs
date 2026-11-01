@@ -29,6 +29,8 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
     public DbSet<SeasonStanding> SeasonStandings => Set<SeasonStanding>();
     public DbSet<RunningGame> RunningGames => Set<RunningGame>();
     public DbSet<RunningGameReplay> RunningGameReplays => Set<RunningGameReplay>();
+    public DbSet<Persona> Personas => Set<Persona>();
+    public DbSet<PlayerEvent> PlayerEvents => Set<PlayerEvent>();
 
     /// <summary>ASP.NET Core Data Protection key ring, shared by the web and game server.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -120,6 +122,7 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.Created).HasColumnName("created");
             e.Property(x => x.PlayerPermissionId).HasColumnName("fk_permission");
             e.Property(x => x.IsSystem).HasColumnName("is_system");
+            e.Property(x => x.IsAi).HasColumnName("is_ai");
             e.Ignore(x => x.IsAdmin);
             e.HasIndex(x => x.Name).IsUnique();
             e.HasIndex(x => x.NormalizedName).IsUnique();
@@ -237,6 +240,31 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.UploadedById).HasColumnName("fk_uploaded_by");
             e.Ignore(x => x.Url);
             e.HasOne<Player>().WithMany().HasForeignKey(x => x.UploadedById).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Persona>(e =>
+        {
+            e.ToTable("persona");
+            e.HasKey(x => x.PlayerId);
+            e.Property(x => x.PlayerId).HasColumnName("fk_player").ValueGeneratedNever();
+            e.Property(x => x.Skill).HasColumnName("skill");
+            e.Property(x => x.UtcOffset).HasColumnName("utc_offset");
+            e.Property(x => x.PlayFrom).HasColumnName("play_from");
+            e.Property(x => x.PlayHours).HasColumnName("play_hours");
+            e.Property(x => x.Streak).HasColumnName("streak");
+            e.HasOne(x => x.Player).WithOne().HasForeignKey<Persona>(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PlayerEvent>(e =>
+        {
+            e.ToTable("player_event");
+            Key(e);
+            e.Property(x => x.Created).HasColumnName("created");
+            e.Property(x => x.PlayerId).HasColumnName("fk_player");
+            e.Property(x => x.Kind).HasColumnName("kind");
+            e.Property(x => x.Value).HasColumnName("value");
+            e.HasIndex(x => x.Created);
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DeckCard>(e =>

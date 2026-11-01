@@ -991,4 +991,25 @@
   <data name="1 player" xml:space="preserve">
     <value>1 spiller</value>
   </data>
+  <data name="Watch {0} vs {1}" xml:space="preserve">
+    <value>Se {0} mot {1}</value>
+  </data>
+  <data name="{0} players online" xml:space="preserve">
+    <value>{0} spillere pålogget</value>
+  </data>
+  <data name="It is quiet right now." xml:space="preserve">
+    <value>Det er stille akkurat nå.</value>
+  </data>
+  <data name="Community" xml:space="preserve">
+    <value>Fellesskap</value>
+  </data>
+  <data name="{0} reached {1}" xml:space="preserve">
+    <value>{0} nådde {1}</value>
+  </data>
+  <data name="{0} won {1} games in a row" xml:space="preserve">
+    <value>{0} vant {1} kamper på rad</value>
+  </data>
+  <data name="{0} got a new card: {1}" xml:space="preserve">
+    <value>{0} fikk et nytt kort: {1}</value>
+  </data>
 </root>

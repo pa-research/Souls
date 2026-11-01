@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Souls.Model;
 using Souls.Model.Localization;
 using Souls.Model.Entities;
+using Souls.Server.Ai;
 using Souls.Server.Network;
 using Player = Souls.Server.Objects.Player;
 
@@ -36,7 +37,7 @@ public sealed partial class GameEngine
         var text = winner is null
             ? new GameText("log.draw", ("first", player.Name), ("second", opponent.Name))
             : new GameText("log.win", ("winner", winner.Name), ("loser", loser!.Name));
-        metrics.GameFinished(room.IsPractice ? "practice" : "normal", isDraw ? "draw" : player.GPlayer!.IsDead || opponent.GPlayer!.IsDead ? "win" : "forfeit");
+        metrics.GameFinished(room.IsPractice ? "practice" : player.IsPersona && opponent.IsPersona ? "ai" : "normal", isDraw ? "draw" : player.GPlayer!.IsDead || opponent.GPlayer!.IsDead ? "win" : "forfeit");
         room.Logger.Add(isDraw ? GameLogKind.Draw : GameLogKind.Won, (winner ?? player).Id, (loser ?? opponent).Id, "Player", "Player", text);
         room.LogLine(text);
         room.FlushEvents();
@@ -96,6 +97,11 @@ public sealed partial class GameEngine
 
         foreach (var p in new[] { player, opponent })
         {
+            if (p.IsPersona)
+            {
+                state.PersonasPlayed.Add(p.Id);
+            }
+
             if (p.IsBot)
             {
                 p.Send(new Response(GameResponse.GameBotDisconnect, "Bot disconnect"));
@@ -133,7 +139,8 @@ public sealed partial class GameEngine
     {
         var player = room.Players.First;
         var opponent = room.Players.Second;
-        var rated = !room.IsPractice && !player.IsBot && !opponent.IsBot;
+        // Personas of the community rate each other like players; nobody is rated against a bot.
+        var rated = !room.IsPractice && (!player.IsBot && !opponent.IsBot || player.IsPersona && opponent.IsPersona);
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
         var ratings = rated ? await RateAsync(db, player, opponent, winner, isDraw) : [];
@@ -161,15 +168,29 @@ public sealed partial class GameEngine
             Turns = room.Turn + 1,
         };
         db.Games.Add(game);
-        room.Logger.AddTo(db, game);
-        db.GameReplays.Add(new GameReplay { Game = game, Data = new JsonArray([.. room.Replay.Select(r => (JsonNode)r.DeepClone())]).ToJsonString() });
+        // A headless game (the AI community's, played away) has no log or replay to keep.
+        if (!room.Headless)
+        {
+            room.Logger.AddTo(db, game);
+            db.GameReplays.Add(new GameReplay { Game = game, Data = new JsonArray([.. room.Replay.Select(r => (JsonNode)r.DeepClone())]).ToJsonString() });
+        }
 
         var rewards = new Dictionary<Player, Reward>();
         foreach (var (p, change) in new[] { (player, change1), (opponent, change2) })
         {
             // A friendly game earns nothing: no coins, quests, rating or season points.
-            if (p.IsBot || p.GPlayer is not { } gp || room.IsFriendly)
+            if (p.GPlayer is not { } gp || room.IsFriendly)
             {
+                continue;
+            }
+
+            if (p.IsBot)
+            {
+                if (p.IsPersona && ratings.TryGetValue(p.Id, out var ai))
+                {
+                    await AiCommunity.AfterGameAsync(db, p.Id, ai, isDraw ? null : winner == p, time.GetUtcNow());
+                }
+
                 continue;
             }
 
@@ -193,6 +214,11 @@ public sealed partial class GameEngine
             }
 
             entity.Rank = Ratings.RankOf(entity.Rating);
+            if (AiCommunity.IsNewTier(Ratings.RankOf(before), entity.Rank))
+            {
+                db.PlayerEvents.Add(new PlayerEvent { PlayerId = p.Id, Created = time.GetUtcNow(), Kind = PlayerEventKind.Tier, Value = entity.Rank });
+            }
+
             rewards[p] = new Reward(coins + questCoins, change, entity.Rating, new JsonArray([.. quests.Select(q =>
             {
                 var definition = Quests.Get(q.Kind);

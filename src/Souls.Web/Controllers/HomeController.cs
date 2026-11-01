@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Souls.Model;
+using Souls.Model.Entities;
 using Souls.Model.Hosting;
 using Souls.Model.Localization;
 using Souls.Model.Security;
@@ -58,9 +59,8 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             .Take(10)
             .Select(p => new { p.Name, p.Rating, p.Rank, Type = p.PlayerType!.Name })
             .ToListAsync(ct);
-        // ponytail: every rating of the season's players for the ladder strip; count by rating in SQL if it gets crowded.
         var ladder = await Seasons.CurrentAsync(db, ct) is { } now
-            ? LadderRung.Of([.. (await Seasons.Standings(db, now.StartsAt).Select(s => s.Rating).ToListAsync(ct)).Select(Ratings.RankOf)])
+            ? LadderRung.Of([.. (await Seasons.Ladder(db, now.StartsAt).Select(r => r.Rating).ToListAsync(ct)).Select(Ratings.RankOf)])
             : [];
         return View(new HomeViewModel
         {
@@ -83,6 +83,55 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             .ToListAsync(ct);
         return Json(games.Select(g => g with { player1 = Localized.PlayerName(g.player1), player2 = Localized.PlayerName(g.player2) }));
     }
+
+    /// <summary>
+    /// The community on the home page: who is online and a few free to challenge, and the games to watch, from the game
+    /// server, and the latest lines of the activity feed.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Community(CancellationToken ct)
+    {
+        CommunityStatus? online = null;
+        if (Uri.TryCreate(configuration["Souls:GameServerHealthUrl"], UriKind.Absolute, out var health))
+        {
+            try
+            {
+                online = await httpClients.CreateClient("status").GetFromJsonAsync<CommunityStatus>(new Uri(health, "/community"), ct);
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+            {
+                online = null;
+            }
+        }
+
+        var feed = await db.PlayerEvents.AsNoTracking()
+            .OrderByDescending(a => a.Id)
+            .Take(15)
+            .Select(a => new { a.Player!.Name, a.Kind, a.Value, Card = db.Cards.Where(c => c.Id == a.Value).Select(c => c.Name).FirstOrDefault(), a.Created })
+            .ToListAsync(ct);
+        return Json(new
+        {
+            players = online?.Players,
+            live = online?.Live ?? [],
+            idle = online?.Idle ?? [],
+            feed = feed.Select(a => new
+            {
+                name = a.Name,
+                text = a.Kind switch
+                {
+                    PlayerEventKind.Tier => localizer["{0} reached {1}", a.Name, Localized.T(Ratings.TierOf(a.Value).Text)].Value,
+                    PlayerEventKind.Streak => localizer["{0} won {1} games in a row", a.Name, a.Value].Value,
+                    _ => localizer["{0} got a new card: {1}", a.Name, a.Card ?? "?"].Value,
+                },
+                kind = a.Kind.ToString().ToLowerInvariant(),
+                created = a.Created,
+            }),
+        });
+    }
+
+    private sealed record CommunityStatus(int Players, List<LiveGame> Live, List<string>? Idle);
+
+    private sealed record LiveGame(int GameId, string[] Players);
 
     [HttpGet]
     public async Task<IActionResult> GetNews(CancellationToken ct)

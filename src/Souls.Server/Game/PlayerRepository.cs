@@ -11,8 +11,11 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
     private readonly SemaphoreSlim _botLock = new(1, 1);
     private (int Id, PlayerTypeInfo Type)? _bot;
 
-    /// <summary>Loads a player with the cards they own, or <c>null</c> if the account does not exist.</summary>
-    public async Task<Objects.Player?> LoadPlayerAsync(int playerId, CancellationToken ct = default)
+    /// <summary>
+    /// Loads a player with the cards they own, or <c>null</c> if the account does not exist. With a
+    /// <paramref name="skill"/>, a persona of the community (a bot, see <see cref="Ai.AiCommunity"/>).
+    /// </summary>
+    public async Task<Objects.Player?> LoadPlayerAsync(int playerId, CancellationToken ct = default, double? skill = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
@@ -45,6 +48,8 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
             HeroPower = player.HeroPowerId,
             OwningCards = cards,
             Deck = Decks.Build(cards, c => c.Id, c => c.Rarity, deck.Select(d => (d.CardId, d.Count))),
+            IsBot = skill is not null,
+            Skill = skill,
         };
     }
 

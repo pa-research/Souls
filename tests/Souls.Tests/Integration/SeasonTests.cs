@@ -67,7 +67,9 @@ public class SeasonTests(SoulsAppFixture app)
             Assert.Equal([(47, 1325, 7), (12, 950, 1), (7, 1150, 4)], players.Select(p => (p.Money, p.Rating, p.Rank)));
             Assert.All(players, p => Assert.Equal(Ratings.SeasonDeviation, p.RatingDeviation));
 
+            // A rated game sets when they were rated (the live table goes by it).
             db.Games.Add(new Game { Player1Id = ids[1], Player2Id = ids[2], WinnerId = ids[2], Created = DateTimeOffset.UtcNow });
+            await db.Players.Where(p => p.Id == ids[1] || p.Id == ids[2]).ExecuteUpdateAsync(s => s.SetProperty(p => p.RatedAt, DateTimeOffset.UtcNow));
             return await db.SaveChangesAsync();
         });
 

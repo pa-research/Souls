@@ -34,9 +34,10 @@ public sealed class SeasonController(SoulsDbContext db) : Controller
         LadderMe? mine = null;
         if (current)
         {
-            // ponytail: the whole live table for the ladder's counts; count by rating in SQL if seasons get crowded.
-            var all = await Seasons.Standings(db, season.StartsAt).ToListAsync(ct);
-            standings = [.. all.Take(Top).Select((s, i) => new SeasonEntry(i + 1, s.Name, s.Rating, Ratings.RankOf(s.Rating), s.Games, s.Wins))];
+            // The ladder's counts and the player's place from the ratings alone; the games counted for the top rows only.
+            var all = await Seasons.Ladder(db, season.StartsAt).ToListAsync(ct);
+            var top = await Seasons.Standings(db, season.StartsAt).Take(Top).ToListAsync(ct);
+            standings = [.. top.Select((s, i) => new SeasonEntry(i + 1, s.Name, s.Rating, Ratings.RankOf(s.Rating), s.Games, s.Wins))];
             ranks = [.. all.Select(s => Ratings.RankOf(s.Rating))];
             if (me is { } playerId && await db.Players.AsNoTracking().Where(p => p.Id == playerId).Select(p => (int?)p.Rating).SingleOrDefaultAsync(ct) is { } rating)
             {

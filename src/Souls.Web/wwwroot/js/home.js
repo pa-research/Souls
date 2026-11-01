@@ -35,6 +35,36 @@
         });
     }
 
+    // The community: who is online, games to watch, players to challenge and the activity feed.
+    var community = $("#community-panel");
+    if (community.length) {
+        var communityTexts = community[0].dataset;
+        $.getJSON("/Home/Community").done(function (status) {
+            community.prop("hidden", false);
+            if (status.players !== null) {
+                $("#community-online").text(window.soulsFormat(communityTexts.online, status.players));
+            }
+            $.each(status.live, function (_, game) {
+                var link = $("<a>").attr("href", "/Game?watch=" + encodeURIComponent(game.gameId));
+                link.append(icon("eye"), $("<span>").text(window.soulsFormat(communityTexts.watch, game.players[0], game.players[1])));
+                $("#community-live").append($("<li>").append(link));
+            });
+            // Free for a game: a challenge link each.
+            $.each(status.idle, function (_, name) {
+                $("#community-idle").append($("<a class='s-chip'>").attr("href", "/Game?challenge=" + encodeURIComponent(name)).append(icon("swords"), $("<span>").text(name)));
+            });
+            var feed = $("#community-feed");
+            if (!status.feed.length) {
+                feed.append($("<li class='s-muted s-small'>").text(communityTexts.empty));
+            }
+            $.each(status.feed, function (_, line) {
+                var link = $("<a>").attr("href", "/Player/Profile/" + encodeURIComponent(line.name));
+                link.append(icon(line.kind === "tier" ? "crown" : line.kind === "streak" ? "flame" : "deck"), $("<span>").text(line.text));
+                feed.append($("<li>").append(link));
+            });
+        });
+    }
+
     var news = $(".news-wrapper");
     if (news.length) {
         $.getJSON("/Home/GetNews").done(function (list) {

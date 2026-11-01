@@ -45,17 +45,30 @@ public static class Seasons
     public static Task<Season?> CurrentAsync(SoulsDbContext db, CancellationToken ct = default) =>
         db.Seasons.AsNoTracking().OrderByDescending(s => s.Number).FirstOrDefaultAsync(ct);
 
-    /// <summary>Players who started a normal game in [<paramref name="from"/>, <paramref name="to"/>), best rating first.</summary>
+    /// <summary>
+    /// Players who played a normal game in [<paramref name="from"/>, <paramref name="to"/>), best rating first. The final
+    /// standings (with <paramref name="to"/>) count exactly; the live table (without) takes those rated since
+    /// <paramref name="from"/> and orders by rating alone, so the database counts the games of the rows it shows only.
+    /// </summary>
     public static IQueryable<Standing> Standings(SoulsDbContext db, DateTimeOffset from, DateTimeOffset? to = null)
     {
         var games = db.Games.Where(g => !g.IsPractice && g.Created >= from && (to == null || g.Created < to));
-        return db.Players
-            .Where(p => !p.IsSystem)
-            .Select(p => new { p.Id, p.Name, p.Rating, Games = games.Count(g => g.Player1Id == p.Id || g.Player2Id == p.Id), Wins = games.Count(g => g.WinnerId == p.Id) })
-            .Where(x => x.Games > 0)
-            .OrderByDescending(x => x.Rating).ThenByDescending(x => x.Wins).ThenBy(x => x.Id)
+        var rows = db.Players
+            .Where(p => !p.IsSystem && (to != null || p.RatedAt >= from))
+            .Select(p => new { p.Id, p.Name, p.Rating, Games = games.Count(g => g.Player1Id == p.Id || g.Player2Id == p.Id), Wins = games.Count(g => g.WinnerId == p.Id) });
+        return (to is null
+                ? rows.OrderByDescending(x => x.Rating).ThenBy(x => x.Id)
+                : rows.Where(x => x.Games > 0).OrderByDescending(x => x.Rating).ThenByDescending(x => x.Wins).ThenBy(x => x.Id))
             .Select(x => new Standing(x.Id, x.Name, x.Rating, x.Games, x.Wins));
     }
+
+    /// <summary>The season's ladder without the counts: who was rated since <paramref name="from"/>, best rating first.</summary>
+    public static IQueryable<Rung> Ladder(SoulsDbContext db, DateTimeOffset from) => db.Players
+        .Where(p => !p.IsSystem && p.RatedAt >= from)
+        .OrderByDescending(p => p.Rating).ThenBy(p => p.Id)
+        .Select(p => new Rung(p.Id, p.Rating));
+
+    public sealed record Rung(int PlayerId, int Rating);
 
     /// <summary>
     /// Ends the current season once its end has passed: stores the final standings, pays the rewards, resets every

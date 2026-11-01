@@ -23,9 +23,9 @@ public sealed class MatchmakerOptions
 }
 
 /// <summary>
-/// Pairs queued players, starts practice games against the bot, cleans up abandoned players and ends seasons. It also
-/// restores the running games saved by the previous instance when the server starts, and saves them when it stops
-/// (see <see cref="GameStore"/>).
+/// Pairs queued players, starts practice games against the bot and the AI community's games on the server, cleans up
+/// abandoned players and ends seasons. It also restores the running games saved by the previous instance when the
+/// server starts, and saves them when it stops (see <see cref="GameStore"/>).
 /// </summary>
 public sealed class Matchmaker(
     ServerState state,
@@ -38,6 +38,7 @@ public sealed class Matchmaker(
     TimeProvider time,
     IOptions<MatchmakerOptions> options,
     IOptions<AiOptions> aiOptions,
+    IOptions<CommunityOptions> community,
     IOptions<SeasonOptions> seasonOptions,
     GameMetrics metrics,
     ILoggerFactory loggerFactory) : BackgroundService, IHostedLifecycleService
@@ -132,6 +133,7 @@ public sealed class Matchmaker(
             RemoveDisconnected(state.PracticeQueue);
             MatchNormal();
             MatchPractice(bots, ct);
+            MatchPersonas(ct);
             SeatRestoredBots(ct);
             await ForfeitAbandonedAsync();
             await engine.CheckTurnTimersAsync();
@@ -211,6 +213,33 @@ public sealed class Matchmaker(
         }
     }
 
+    /// <summary>
+    /// The AI community on the server (see <see cref="AiCommunity"/>): a persona accepts a challenge after a moment, and a
+    /// few games between online personas run here at human pace, for players to watch. One game starts a tick.
+    /// </summary>
+    private void MatchPersonas(CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        foreach (var challenge in state.Challenges.Where(c => c.To.IsPersona && now - c.Sent >= community.Value.AnswerDelay).ToList())
+        {
+            SeatBot(challenge.To, ct);
+            engine.AnswerChallenge(challenge.To, accept: true);
+        }
+
+        var live = state.Rooms.Values.Count(r => r.Players.First.IsPersona && r.Players.Second.IsPersona);
+        var free = state.Personas.Values.Where(state.IsFree).ToList();
+        if (live >= community.Value.LiveGames || free.Count < 2)
+        {
+            return;
+        }
+
+        var one = free[Random.Shared.Next(free.Count)];
+        var two = free.Where(p => p != one).MinBy(p => Math.Abs(p.Rating - one.Rating))!;
+        SeatBot(one, ct);
+        SeatBot(two, ct);
+        engine.CreateGame(new Pair<Player>(one, two));
+    }
+
     /// <summary>Connects an AI to the bot player; it plays through an in-memory connection.</summary>
     private void SeatBot(Player bot, CancellationToken ct)
     {
@@ -230,7 +259,8 @@ public sealed class Matchmaker(
             bot.Difficulty,
             logger,
             engine,
-            () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
+            () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()),
+            bot.Skill);
         _bots.Add(Task.Run(() => ai.RunAsync(ct), ct));
     }
 

@@ -1745,6 +1745,37 @@ namespace Souls.Model.Migrations
                     b.ToTable("news", (string)null);
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.Persona", b =>
+                {
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<int>("PlayFrom")
+                        .HasColumnType("integer")
+                        .HasColumnName("play_from");
+
+                    b.Property<int>("PlayHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("play_hours");
+
+                    b.Property<double>("Skill")
+                        .HasColumnType("double precision")
+                        .HasColumnName("skill");
+
+                    b.Property<int>("Streak")
+                        .HasColumnType("integer")
+                        .HasColumnName("streak");
+
+                    b.Property<int>("UtcOffset")
+                        .HasColumnType("integer")
+                        .HasColumnName("utc_offset");
+
+                    b.HasKey("PlayerId");
+
+                    b.ToTable("persona", (string)null);
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.Player", b =>
                 {
                     b.Property<int>("Id")
@@ -1762,6 +1793,10 @@ namespace Souls.Model.Migrations
                     b.Property<int?>("HeroPowerId")
                         .HasColumnType("integer")
                         .HasColumnName("hero_power");
+
+                    b.Property<bool>("IsAi")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_ai");
 
                     b.Property<bool>("IsSystem")
                         .HasColumnType("boolean")
@@ -1899,6 +1934,41 @@ namespace Souls.Model.Migrations
                         .IsUnique();
 
                     b.ToTable("player_cards", (string)null);
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.PlayerEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.HasIdentityOptions(b.Property<int>("Id"), 1000L, null, null, null, null, null);
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Created");
+
+                    b.HasIndex("PlayerId");
+
+                    b.ToTable("player_event", (string)null);
                 });
 
             modelBuilder.Entity("Souls.Model.Entities.PlayerLogin", b =>
@@ -2400,6 +2470,17 @@ namespace Souls.Model.Migrations
                     b.Navigation("Game");
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.Persona", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithOne()
+                        .HasForeignKey("Souls.Model.Entities.Persona", "PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.Player", b =>
                 {
                     b.HasOne("Souls.Model.Entities.PlayerPermission", "PlayerPermission")
@@ -2445,6 +2526,17 @@ namespace Souls.Model.Migrations
                         .IsRequired();
 
                     b.Navigation("Card");
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.PlayerEvent", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Player");
                 });

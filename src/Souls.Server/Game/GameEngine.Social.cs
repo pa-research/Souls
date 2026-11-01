@@ -91,7 +91,9 @@ public sealed partial class GameEngine
 
         state.ChallengeClocks[player.Id] = clock;
         var normalized = Model.Entities.Player.Normalize(name);
-        var target = state.GameClients.Values.FirstOrDefault(p => !p.IsBot && p.DisconnectedAt is null && Model.Entities.Player.Normalize(p.Name) == normalized);
+        // A persona of the AI community online now takes challenges too (the matchmaker answers for it).
+        var target = state.GameClients.Values.FirstOrDefault(p => !p.IsBot && p.DisconnectedAt is null && Model.Entities.Player.Normalize(p.Name) == normalized)
+            ?? state.Personas.GetValueOrDefault(normalized);
         if (target is null)
         {
             ChallengeClosed(player, new GameText("challenge.offline", ("name", name.Trim())));
@@ -99,7 +101,7 @@ public sealed partial class GameEngine
         }
 
         var problem = target == player ? new GameText("challenge.self")
-            : target.GPlayer is not null || target.Spectating is not null ? new GameText("challenge.busy", ("name", target.Name))
+            : target.GPlayer is not null || target.Spectating is not null || state.PersonasAway.Contains(target.Id) ? new GameText("challenge.busy", ("name", target.Name))
             : state.ChallengeOf(target) is not null ? new GameText("challenge.pending", ("name", target.Name))
             : null;
         if (problem is not null)
@@ -109,7 +111,7 @@ public sealed partial class GameEngine
         }
 
         var timeout = options.Value.ChallengeTimeout;
-        state.Challenges.Add(new Challenge(player, target, now + timeout));
+        state.Challenges.Add(new Challenge(player, target, now + timeout, now));
         player.Send(new Response(GameResponse.ChallengeSent, new JsonObject { ["name"] = target.Name, ["expiresIn"] = (long)timeout.TotalMilliseconds }));
         target.Send(new Response(GameResponse.ChallengeInvite, new JsonObject
         {

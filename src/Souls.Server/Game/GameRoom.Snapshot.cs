@@ -51,14 +51,14 @@ public sealed partial class GameRoom
         int Current, long TurnEndsIn, SavedPlayer First, SavedPlayer Second, List<GameLog> Log, List<JsonObject> Events, bool IsFriendly = false, int? ChatRoomId = null);
 
     /// <summary>A player as the game needs it. The collection, deck and connections come back when the player reconnects.</summary>
-    internal sealed record SavedPlayer(int Id, string Name, int Rank, int Rating, PlayerTypeInfo PlayerType, int? HeroPower, bool IsBot, int Difficulty, GamePlayer Game);
+    internal sealed record SavedPlayer(int Id, string Name, int Rank, int Rating, PlayerTypeInfo PlayerType, int? HeroPower, bool IsBot, int Difficulty, GamePlayer Game, double? Skill = null);
 
     /// <summary>The game as JSON. Taken between two actions, so there are no pending events.</summary>
     public string Snapshot() => JsonSerializer.Serialize(new SavedGame(
         GameId, IsPractice, StartedAt, TurnTime, MulliganTime, InMulligan, Turn, Round, CurrentPlaying.GPlayer!.Ident, TurnEndsIn,
         Save(Players.First), Save(Players.Second), [.. Logger.Records], _events, IsFriendly, ChatRoomId), SnapshotJson);
 
-    private static SavedPlayer Save(Player p) => new(p.Id, p.Name, p.Rank, p.Rating, p.PlayerType, p.HeroPower, p.IsBot, p.Difficulty, p.GPlayer!);
+    private static SavedPlayer Save(Player p) => new(p.Id, p.Name, p.Rank, p.Rating, p.PlayerType, p.HeroPower, p.IsBot, p.Difficulty, p.GPlayer!, p.Skill);
 
     /// <summary>A game saved by <see cref="Snapshot"/>, with the replay messages saved so far. Nobody is connected yet.</summary>
     public static GameRoom Restore(string snapshot, IEnumerable<string> replay, TimeProvider time) =>
@@ -108,6 +108,7 @@ public sealed partial class GameRoom
                 Deck = [],
                 IsBot = p.IsBot,
                 Difficulty = p.Difficulty,
+                Skill = p.Skill,
                 GPlayer = p.Game,
             };
         }
