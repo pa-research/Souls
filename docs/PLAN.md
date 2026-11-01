@@ -97,9 +97,9 @@ Pull requests merged from 30 October to 1 November:
 | Content and features | #3, #10, #12 to #15, #17, #19, #28 to #30 | Expansion, card packs, seasons, smarter bot, mulligan, emotes and friendly challenges, spells, hero power choice, class cards, art pass, class retune, season results |
 | Operations | #4 to #7, #9, #18, #23, #30 | Card statistics, observability, encrypted keys, backups, browser tests in CI, persistent games |
 
-Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 11 migrations
+Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 12 migrations
 (`InitialCreate`, `RestoreHuyCard`, `GameplayOverhaul`, `ExpansionCardSet`, `Seasons`, `Spells`, `HeroChoice`,
-`RunningGames`, `ClassRetune`, `GameLogTextKeys`, `PaintedPortraits`), 192 .NET tests, 2 languages.
+`RunningGames`, `ClassRetune`, `GameLogTextKeys`, `PaintedPortraits`, `GlickoRatings`), 192 .NET tests, 2 languages.
 
 ## 4. Architecture at a glance
 
@@ -240,13 +240,15 @@ Ordered by priority. Done items are struck through.
 7. ~~Card packs~~ (#10), ~~Spells~~ (#17), ~~More hero choice~~ (#19), ~~Mulligan~~ (#14), ~~Seasons~~ (#12, end
    screen #30), ~~Smarter Hard bot~~ (#13), ~~Emotes and friendly challenges~~ (#15, no rewards #30): **Done**.
 8. **Lost original cards**: only with an old persoft.no backup.
+9. **Ranked bots** ([ranked-bots.md](ranked-bots.md)): AI opponents of the right strength when no player is waiting,
+   disclosed to players. Phase 1, Glicko-2 ratings, is in progress.
 
 ### P3: platform and operations
 
-9. ~~Persistent games~~ (#23, #30), ~~encrypted Data Protection keys~~ (#7), ~~observability~~ (#6, opt-in in
-   production), ~~backups~~ (#9): **Done**.
-10. **More than one game server replica**: not planned (see section 7); the design is in the README.
-11. **Import the legacy MySQL data** if the old database turns up.
+10. ~~Persistent games~~ (#23, #30), ~~encrypted Data Protection keys~~ (#7), ~~observability~~ (#6, opt-in in
+    production), ~~backups~~ (#9): **Done**.
+11. **More than one game server replica**: not planned (see section 7); the design is in the README.
+12. **Import the legacy MySQL data** if the old database turns up.
 
 ## 9. Decisions taken (31 October)
 
@@ -270,8 +272,8 @@ Still open, because they need the owner's accounts or hardware:
 
 ## 10. Picking the work up in a new session
 
-1. Clone and stay on `main`.
-2. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (192 tests).
-3. `./deploy/compose/init-secrets.sh` and `docker compose up -d --build`; open <https://localhost>.
-4. For browser tests: `cd tests/e2e && npm ci`, then the commands in its README.
-5. Read sections 6 to 9 above and start at the first item that is not done.
+2. Clone and stay on `main`.
+3. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (192 tests).
+4. `./deploy/compose/init-secrets.sh` and `docker compose up -d --build`; open <https://localhost>.
+5. For browser tests: `cd tests/e2e && npm ci`, then the commands in its README.
+6. Read sections 6 to 9 above and start at the first item that is not done.

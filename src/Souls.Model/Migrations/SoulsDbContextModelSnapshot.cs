@@ -1801,11 +1801,27 @@ namespace Souls.Model.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rank");
 
+                    b.Property<DateTimeOffset?>("RatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rated_at");
+
                     b.Property<int>("Rating")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(1000)
                         .HasColumnName("rating");
+
+                    b.Property<double>("RatingDeviation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(350.0)
+                        .HasColumnName("rating_deviation");
+
+                    b.Property<double>("RatingVolatility")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.059999999999999998)
+                        .HasColumnName("rating_volatility");
 
                     b.HasKey("Id");
 

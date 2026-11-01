@@ -20,7 +20,9 @@ public class BotTests
     [InlineData(1, false)]
     [InlineData(2, false)]
     [InlineData(2, true)]
-    public async Task BotPlaysCardsAttacksAndEndsItsTurns(int difficulty, bool lookahead)
+    [InlineData(1, true, 0.0)] // ranked bots: the weakest and the strongest skill
+    [InlineData(1, true, 1.0)]
+    public async Task BotPlaysCardsAttacksAndEndsItsTurns(int difficulty, bool lookahead, double? skill = null)
     {
         var state = new ServerState();
         var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
@@ -39,7 +41,7 @@ public class BotTests
         state.GameClients[connection] = bot;
         var ai = new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)),
             new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero }, difficulty, NullLogger.Instance,
-            lookahead ? engine : null, () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()));
+            lookahead ? engine : null, () => state.RunExclusiveAsync(() => bot.GPlayer?.GameRoom?.Copy()), skill);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var running = Task.Run(() => ai.RunAsync(cts.Token));
 
@@ -52,7 +54,7 @@ public class BotTests
             await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
         });
 
-        // The bot sends back its expensive starting cards (easy bots keep them), then the game starts.
+        // The bot sends back its expensive starting cards (easy bots and weak ranked bots keep them), then the game starts.
         var mulliganEnds = DateTime.UtcNow.AddSeconds(15);
         while (room!.InMulligan && DateTime.UtcNow < mulliganEnds)
         {
@@ -67,7 +69,8 @@ public class BotTests
             replaced = (int?)m["Type"] == (int)GameResponse.GameOpponentMulligan ? (int)m["Payload"]!["replaced"]! : replaced;
         }
 
-        Assert.Equal(difficulty == 0 ? 0 : expensive, replaced);
+        var mulligans = skill is { } level ? level >= BotSkill.MulliganSkill : difficulty > 0;
+        Assert.Equal(mulligans ? expensive : 0, replaced);
         var botTurns = 0;
         for (var turn = 0; turn < 12 && !room!.IsEnded; turn++)
         {
@@ -265,5 +268,24 @@ public class BotTests
         await cts.CancelAsync();
         await running;
         return (room, bot, me, ai);
+    }
+
+    [Fact]
+    public void ASkillPlaysAtEachRating()
+    {
+        // Below the ladder the weakest, above it the strongest; in between rising with the rating.
+        Assert.Equal(0, BotSkill.ForRating(BotSkill.Anchor - 100));
+        Assert.Equal(0, BotSkill.ForRating(BotSkill.Anchor));
+        Assert.Equal(1, BotSkill.ForRating(BotSkill.Anchor + 2000));
+        Assert.Equal(0.5, BotSkill.ForRating(BotSkill.Anchor + 167), 3);
+        var skills = Enumerable.Range(0, 60).Select(i => BotSkill.ForRating(BotSkill.Anchor + i * 10)).ToList();
+        Assert.Equal(skills.Order(), skills);
+
+        // The dial's settings: weaker means hotter, blinder and more random, with less search.
+        Assert.True(BotSkill.Temperature(0) > BotSkill.Temperature(0.5) && BotSkill.Temperature(1) == 0);
+        Assert.True(BotSkill.MissLethal(0) > BotSkill.MissLethal(0.5) && BotSkill.MissLethal(1) == 0);
+        Assert.True(BotSkill.Wander(0) > BotSkill.Wander(0.5) && BotSkill.Wander(1) == 0);
+        Assert.Equal((10_000, 20), BotSkill.Search(1, 10_000, 20));
+        Assert.Equal((300, 2), BotSkill.Search(0, 10_000, 20));
     }
 }

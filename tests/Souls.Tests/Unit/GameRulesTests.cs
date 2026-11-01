@@ -1242,9 +1242,27 @@ public class GameRulesTests
     [Fact]
     public void RatingsMoveTowardsTheResult()
     {
-        Assert.Equal(16, Ratings.Change(1000, 1000, 1));
-        Assert.Equal(-16, Ratings.Change(1000, 1000, 0));
-        Assert.True(Ratings.Change(1000, 1400, 1) > 16);
+        // Expected values from an independent Glicko-2 that reproduces Glickman's worked example (1464.06, 151.52).
+        static void AssertUpdate(Ratings.Glicko player, double opponent, double opponentDeviation, double score, double rating, double deviation)
+        {
+            var after = Ratings.Update(player, opponent, opponentDeviation, score);
+            Assert.Equal(rating, after.Rating, 0.01);
+            Assert.Equal(deviation, after.Deviation, 0.01);
+            Assert.InRange(after.Volatility, 0.0599, 0.0601);
+        }
+
+        // A new player's first win moves a lot, a settled player's about 15 (the Elo K of 32 before).
+        AssertUpdate(new(1000, 350, 0.06), 1000, 350, 1, 1162.31, 290.32);
+        AssertUpdate(new(1000, 75, 0.06), 1000, 75, 1, 1015.36, 75);
+        AssertUpdate(new(1000, 75, 0.06), 1000, 75, 0, 984.64, 75);
+        AssertUpdate(new(1050, 120, 0.06), 1040, 120, 0, 1013.73, 114.59);
+        AssertUpdate(new(1000, 75, 0.06), 1400, 75, 1, 1028.57, 75.14);
+
+        // Away for a year: the deviation grows (one rating period a week), but never past a new player's.
+        Assert.Equal(75, Ratings.Aged(75, 0.06, TimeSpan.Zero));
+        Assert.InRange(Ratings.Aged(75, 0.06, TimeSpan.FromDays(364)), 100, 110);
+        Assert.Equal(Ratings.InitialDeviation, Ratings.Aged(300, 0.5, TimeSpan.FromDays(3650)));
+
         Assert.Equal(1, Ratings.RankOf(900));
         Assert.Equal(1, Ratings.RankOf(1000));
         Assert.Equal(3, Ratings.RankOf(1100));
