@@ -17,7 +17,23 @@ export const Ease = {
 export class Tweens {
     constructor() {
         this.active = [];
+        // Tweens run on their own clock: it stops for a hit-stop and runs slower in slow motion.
         this.now = 0;
+        this.last = null; // the real time of the last update
+        this.freeze = 0; // ms of real time the clock still stands still
+        this.scale = 1;
+        this.slowUntil = 0;
+    }
+
+    /** Stops every animation for `ms` (the frame-freeze that gives a hit its weight); the screen keeps rendering. */
+    hitStop(ms) {
+        this.freeze = Math.max(this.freeze, ms);
+    }
+
+    /** Animations run at `scale` (0..1) for the next `ms` of real time. */
+    slowMo(scale, ms) {
+        this.scale = Math.min(this.scale, scale);
+        this.slowUntil = Math.max(this.slowUntil, (this.last ?? 0) + ms);
     }
 
     /**
@@ -64,8 +80,20 @@ export class Tweens {
         return this.to({ v: 0 }, { v: 1 }, ms, Ease.linear);
     }
 
+    /** Advances the tween clock to the real time `now`; returns how far it moved (ms), for effects that follow it. */
     update(now) {
-        this.now = now;
+        const real = this.last === null ? 0 : Math.max(0, now - this.last);
+        this.last = now;
+        if (now >= this.slowUntil) this.scale = 1;
+        const frozen = Math.min(this.freeze, real);
+        this.freeze -= frozen;
+        const step = (real - frozen) * this.scale;
+        this.now += step;
+        this.advance(this.now);
+        return step;
+    }
+
+    advance(now) {
         // Iterate over a snapshot: callbacks may start new tweens.
         for (const t of [...this.active]) {
             if (t.done || now < t.start) continue;

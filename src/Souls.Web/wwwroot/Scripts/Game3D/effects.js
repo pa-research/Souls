@@ -6,6 +6,8 @@ import { spriteGeometry } from './scene.js';
 import { tweens, Ease } from './tween.js';
 
 const MAX_PARTICLES = 6000;
+// Camera shake and knocks are gentler for people who ask for less motion.
+const MOTION = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0.3 : 1;
 
 export class Effects {
     constructor(stage) {
@@ -314,10 +316,21 @@ export class Effects {
     }
 
     shake(amount = 12) {
-        this.shakeAmount = Math.max(this.shakeAmount, amount);
+        this.shakeAmount = Math.max(this.shakeAmount, amount * MOTION);
+    }
+
+    /** Knocks the camera `amount` along `direction` (a hit's direction), springing back over a few frames. */
+    kick(direction, amount = 12) {
+        const d = direction.clone().setY(0);
+        if (d.lengthSq() < 1e-6) return;
+        this.kickOffset = (this.kickOffset || new THREE.Vector3()).addScaledVector(d.normalize(), amount * MOTION);
     }
 
     applyShake(camera) {
+        if (this.kickOffset && this.kickOffset.lengthSq() > 0.01) {
+            camera.position.add(this.kickOffset);
+            this.kickOffset.multiplyScalar(0.8);
+        }
         if (this.shakeAmount < 0.1) return;
         camera.position.x += (Math.random() - 0.5) * this.shakeAmount;
         camera.position.y += (Math.random() - 0.5) * this.shakeAmount;
