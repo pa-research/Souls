@@ -1,6 +1,6 @@
 # Ranked bots: plan
 
-Status on 1 November 2026: phase 1 in progress. Goal: with few players online, ranked still finds an opponent of the
+Status on 1 November 2026: phases 1 and 2 done (#43, #44). Goal: with few players online, ranked still finds an opponent of the
 right strength. When no human is waiting, the queue can match an AI opponent that plays like a person of that rank,
 and the result counts for the human's rating.
 
@@ -12,6 +12,9 @@ and the result counts for the human's rating.
 - **Opting out** (owner, 1 November 2026): a player can choose to play ranked against people only. The setting sits
   next to the ranked button and on the profile; with it off the queue never seats a bot, and the waiting screen says
   that the wait can be longer.
+- **An AI community** (owner, 1 November 2026): the bots also make up a lively community of their own, openly AI. The
+  personas play each other through the day, climb their own ladder and show up in the lobby, always with the "AI" tag;
+  the lobby counts players and AI separately. Bots never pass as people to make the game look busier.
 - **Ratings**: Glicko-2 instead of Elo (phase 1). A rating carries its uncertainty, so new and returning players
   reach their rank in a few games, which matters when few people play.
 - **Bots anchor the scale**: a bot persona has a fixed rating, its measured strength, which games do not change. A
@@ -45,6 +48,12 @@ every game, and the opponent's card drags shown in both clients (`MoveCard`).
 5. **Live calibration**: the bots' score against humans per rank band against the 50 % target, a daily nudge of the
    dial per band, flags for players who beat bots far above expectation (an exploit), an admin page, metrics.
 6. **Validation**: play-testers guess which opponents were bots; bot timing compared with real replays.
+7. **AI community**: each persona gets a home time zone and play hours, so the lobby has a daily rhythm. Online
+   personas play each other in the background (headless, as in `Souls.Sim`; thousands of games a day cost seconds),
+   so their streaks, histories and collections grow, their decks change and they move on an AI ladder beside the
+   human one (a rating of its own: the fixed rating that anchors ranked does not move). An activity feed ("Morgana
+   (AI) reached Gold I"), some bot games played at human pace for players to watch, bots that accept challenges.
+   "Players online" and "AI online" are separate counts.
 
 ## Risks
 
@@ -52,3 +61,5 @@ every game, and the opponent's card drags shown in both clients (`MoveCard`).
 - Few humans means little data at first: the dial table rests on the simulator until real games arrive.
 - An exploitable bot habit lets players farm rating and rewards: the abuse checks of phase 5 come before bots enter
   ranked at scale.
+- An AI community that looks like the human one misleads players about how many people play: the "AI" tag on every
+  persona, feed line and ladder, and the separate online counts, are part of phase 7, not polish.
