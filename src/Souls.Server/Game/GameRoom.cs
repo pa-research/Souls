@@ -35,10 +35,14 @@ public sealed partial class GameRoom
     private readonly List<JsonObject> _events = [];
     private readonly List<JsonObject> _replay = [];
 
-    /// <summary>Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over.</summary>
-    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false)
+    /// <summary>
+    /// Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over. A
+    /// <paramref name="random"/> makes the game reproducible (the simulator); otherwise it uses the shared one.
+    /// </summary>
+    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false, Random? random = null)
     {
         _time = time;
+        Random = random ?? Random.Shared;
         GameId = Interlocked.Increment(ref _gameCounter);
         Players = players;
         StartedAt = time.GetUtcNow();
@@ -52,7 +56,8 @@ public sealed partial class GameRoom
         {
             var gp = player.GPlayer!;
             gp.GameRoom = this;
-            foreach (var card in player.Deck.OrderBy(_ => Random.Shared.Next()))
+            gp.MulliganRandom = random is null ? Random.Shared : new Random(Random.Next());
+            foreach (var card in player.Deck.OrderBy(_ => Random.Next()))
             {
                 gp.Deck.Add(card.NewInstance());
             }
@@ -83,7 +88,7 @@ public sealed partial class GameRoom
     private GameRoom(GameRoom source)
     {
         _time = source._time;
-        Random = source.IsCopy ? source.Random : new Random();
+        Random = source.IsCopy ? source.Random : new Random(source.Random.Next());
         IsCopy = true;
         Logger = GameLogger.Off;
         Turn = source.Turn;
@@ -122,8 +127,8 @@ public sealed partial class GameRoom
     /// <summary>A copy made by <see cref="Copy"/>: it sends no events or state and is never stored.</summary>
     public bool IsCopy { get; }
 
-    /// <summary>For death curses. A copy has its own (shared with copies of the copy).</summary>
-    public Random Random { get; } = Random.Shared;
+    /// <summary>For shuffles and death curses. A copy has its own (shared with copies of the copy).</summary>
+    public Random Random { get; }
 
     /// <summary>In-memory id while running; replaced by the database id when the game is saved.</summary>
     public int GameId { get; set; }

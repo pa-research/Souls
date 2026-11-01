@@ -16,6 +16,9 @@ public sealed class AiOptions
 
     /// <summary>Pause between the bot's actions.</summary>
     public TimeSpan AttackDelay { get; set; } = TimeSpan.FromMilliseconds(700);
+
+    /// <summary>Seeds the bot's choices, so a game can be replayed exactly (the simulator).</summary>
+    public int? Seed { get; set; }
 }
 
 /// <summary>
@@ -107,7 +110,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
     private readonly Dictionary<int, Card> _hand = [];
     private readonly HashSet<string> _failed = [];
-    private readonly Random _random = new();
+    private readonly Random _random = options.Seed is { } seed ? new Random(seed) : new Random();
     private int _ident;
     private int _turn = -1;
     private bool _myTurn;

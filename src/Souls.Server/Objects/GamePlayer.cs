@@ -81,6 +81,12 @@ public sealed class GamePlayer
     /// <summary>The player has chosen which starting cards to replace (or kept them).</summary>
     public bool MulliganDone { get; set; }
 
+    /// <summary>
+    /// Shuffles the cards a player sends back in the mulligan into their deck. Each player has their own, seeded from
+    /// the game's, so a reproducible game does not depend on whose mulligan arrives first.
+    /// </summary>
+    public Random MulliganRandom { get; set; } = Random.Shared;
+
     /// <summary>Hero stats as strings, like the original server sent them, plus the new stats.</summary>
     public JsonObject GetPlayerData() => new()
     {

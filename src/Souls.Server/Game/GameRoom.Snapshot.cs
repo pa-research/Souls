@@ -66,6 +66,7 @@ public sealed partial class GameRoom
 
     private GameRoom(SavedGame saved, IEnumerable<string> replay, TimeProvider time)
     {
+        Random = Random.Shared;
         _time = time;
         GameId = saved.GameId;
         IsPractice = saved.IsPractice;

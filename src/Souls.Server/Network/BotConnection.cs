@@ -13,7 +13,15 @@ public sealed class BotConnection : Connection
 
     public ChannelReader<string> Inbox => _inbox.Reader;
 
-    public override void Send(Response response) => _inbox.Writer.TryWrite(response.ToJson());
+    /// <summary>When set, every message sent to the bot is also added here (the simulator's --trace).</summary>
+    public List<string>? Transcript { get; set; }
+
+    public override void Send(Response response)
+    {
+        var json = response.ToJson();
+        Transcript?.Add(json);
+        _inbox.Writer.TryWrite(json);
+    }
 
     public override void Close(string reason) => _inbox.Writer.TryComplete();
 }

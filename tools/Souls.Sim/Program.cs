@@ -34,6 +34,9 @@ using Player = Souls.Server.Objects.Player;
 var games = Arg("--games", 2000);
 var parallel = Arg("--parallel", Environment.ProcessorCount);
 var output = ArgString("--out");
+// --trace file: every game is reproducible from its seed; writes one line per game with a hash of every message the
+// server sent to the bots (compare two builds: the same seed must give the same lines). Use with --parallel 1.
+var trace = ArgString("--trace");
 var tune = Arg("--tune", 0);
 // --seed n: another draw of classes, powers and decks (shuffles and bot choices vary from run to run anyway).
 var seed = Arg("--seed", 0);
@@ -101,6 +104,12 @@ if (plans.Count > 0)
     Console.Error.WriteLine($"Lookahead: {plans.Count} decisions, average {plans.Average():0.0} ms, 95th percentile {plans.Order().ElementAt(plans.Count * 95 / 100):0.0} ms, max {plans.Max():0.0} ms");
 }
 
+if (trace is not null)
+{
+    await File.WriteAllLinesAsync(trace, results.OrderBy(r => r.Index).Select(r => $"{r.Index} {r.Winner} {r.Turns} {r.Trace}"));
+    Console.Error.WriteLine($"Wrote {trace}");
+}
+
 var report = levels is not null ? Ladder(results, levels) : vsLegacy ? HeadToHead(results) : Report(results, pool, classes);
 Console.WriteLine(report);
 if (output is not null)
@@ -121,7 +130,7 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
         // Against the legacy bot and on the ladder, games 2n and 2n+1 share classes and decks and swap the seats.
         var random = new Random(seed + (swapSeats ? i / 2 : i) * 7919 + 17);
         (double?, double?) skills = levels is null ? (null, null) : i % 2 == 0 ? pairs[i / 2 % pairs.Count] : (pairs[i / 2 % pairs.Count].B, pairs[i / 2 % pairs.Count].A);
-        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0, skills));
+        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0, skills, i, trace is not null));
         var n = Interlocked.Increment(ref done);
         if (n % 1000 == 0)
         {
@@ -133,16 +142,19 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
 
 // legacySeat: the player (1 or 2) whose Hard bot plays without the lookahead, 0 for none. skills: ranked bots instead
 // of the Hard bot, for players 1 and 2.
-static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random, int legacySeat, (double? One, double? Two) skills)
+static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random, int legacySeat, (double? One, double? Two) skills,
+    int index, bool trace)
 {
     var state = new ServerState();
     var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
     var scopes = services.GetRequiredService<IServiceScopeFactory>();
-    var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, TimeProvider.System,
+    // Traced games run on a stopped clock: the messages carry turn deadlines.
+    var clock = trace ? new StoppedClock() : TimeProvider.System;
+    var engine = new GameEngine(state, new ChatEngine(state, NullLogger<ChatEngine>.Instance), scopes, clock,
         Options.Create(new GameOptions { TurnTime = TimeSpan.FromHours(1) }),
         new GameMetrics(services.GetRequiredService<IMeterFactory>(), state), NullLogger<GameEngine>.Instance);
-    var service = new GameService(state, engine, new PlayerRepository(scopes), TimeProvider.System, NullLogger<GameService>.Instance);
-    var aiOptions = new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero };
+    var service = new GameService(state, engine, new PlayerRepository(scopes), clock, NullLogger<GameService>.Instance);
+    List<string>? transcript = trace ? [] : null;
     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
     // Each bot plays the cards its class may use and one of its class's hero powers at random.
@@ -151,7 +163,9 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
         var deck = Decks.Themed([.. pool.Where(c => GameRules.CanUse(c.ClassId, type.Id))], c => c.Id, c => c.Rarity, c => c.RaceId, c => c.Cost, random);
         var cards = deck.Select(c => Card.FromEntity(c)).ToList();
         var powers = GameRules.PowersOf(type.Id);
-        var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true };
+        var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true, Transcript = transcript };
+        // Traced: the second bot thinks a little first, so the mulligans (which hand out new card ids) never overlap.
+        var aiOptions = new AiOptions { ThinkDelay = trace && id == 2 ? TimeSpan.FromMilliseconds(50) : TimeSpan.Zero, AttackDelay = TimeSpan.Zero, Seed = random.Next() };
         var player = new Player
         {
             Id = id,
@@ -180,7 +194,7 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     var drawn = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
     await state.RunExclusiveAsync(() =>
     {
-        room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true);
+        room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true, random: new Random(random.Next()));
         return Task.CompletedTask;
     });
 
@@ -224,7 +238,16 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
 
     var winner = room.Winner is null || !room.IsEnded ? 0 : room.Winner.Id;
     return new GameResult(class1.Id, class2.Id, winner, room.Turn + 1,
-        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells, skills.One, skills.Two);
+        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells, skills.One, skills.Two)
+    {
+        Index = index,
+        Trace = transcript is null ? null : Hash(transcript),
+    };
+
+    // The bots' mulligans and greetings run at the same time, so those messages (227, 228, 299) come in either order;
+    // they change nothing else.
+    static string Hash(List<string> transcript) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n',
+        transcript.Where(m => !m.StartsWith("{\"Type\":227,", StringComparison.Ordinal) && !m.StartsWith("{\"Type\":228,", StringComparison.Ordinal) && !m.StartsWith("{\"Type\":299,", StringComparison.Ordinal))))))[..16];
 
     SideResult Side(int ident, List<Souls.Model.Entities.Card> deck) =>
         new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()],
@@ -475,7 +498,18 @@ string? ArgString(string name)
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 }
 
+internal sealed class StoppedClock : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+}
+
 internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races, int Class, int Power);
 
 internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells,
-    double? Skill1 = null, double? Skill2 = null);
+    double? Skill1 = null, double? Skill2 = null)
+{
+    public int Index { get; init; }
+
+    /// <summary>A hash of every message the server sent to the bots (--trace).</summary>
+    public string? Trace { get; init; }
+}

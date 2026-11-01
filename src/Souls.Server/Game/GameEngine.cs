@@ -39,14 +39,14 @@ public sealed partial class GameEngine(
     GameStore? store = null)
 {
     /// <summary>Starts a game between two players with the mulligan (see <see cref="RequestMulliganAsync"/>).</summary>
-    public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false)
+    public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false, Random? random = null)
     {
         DropChallenge(players.First, new GameText("challenge.otherGame", ("name", players.First.Name)));
         DropChallenge(players.Second, new GameText("challenge.otherGame", ("name", players.Second.Name)));
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
-        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice || friendly, friendly);
+        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice || friendly, friendly, random);
         state.Rooms[room.GameId] = room;
 
         var response = room.GenerateGameUpdate(create: true);
@@ -312,7 +312,7 @@ public sealed partial class GameEngine(
 
         foreach (var card in returned)
         {
-            gp.Deck.Insert(Random.Shared.Next(gp.Deck.Count + 1), card.NewInstance());
+            gp.Deck.Insert(gp.MulliganRandom.Next(gp.Deck.Count + 1), card.NewInstance());
         }
 
         player.Send(new Response(GameResponse.GameMulligan, new JsonObject
