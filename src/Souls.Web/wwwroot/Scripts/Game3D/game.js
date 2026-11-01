@@ -6,7 +6,7 @@ import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
-import { Hero3D } from './heroes.js';
+import { Hero3D, FIGURE_HEIGHT } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
@@ -142,7 +142,7 @@ export class Game {
 
         this.player = new Side(true);
         this.opponent = new Side(false);
-        for (const side of [this.player, this.opponent]) this.root.add(side.hero, side.hero.podium);
+        for (const side of [this.player, this.opponent]) this.root.add(side.hero, side.hero.podium, side.hero.figureRoot);
 
         // The End Turn sign and the hand cards are HUD: they stay put on screen in every camera view.
         this.sign = new EndTurnSign();
@@ -1263,6 +1263,8 @@ export class Game {
         sound.play('attack', 0.7);
         const target = this.targetPoint(defender);
         if (attacker instanceof Hero3D) {
+            attacker.play('attack');
+            if (defender instanceof Hero3D) setTimeout(() => defender.play('hit'), 320);
             tweens.to(attacker.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 200, Ease.backOut);
             if (defender instanceof Hero3D) defender.flash(4);
             this.effects.beam(attacker.position.clone(), target, 0xffd34d, 900);
@@ -1316,6 +1318,7 @@ export class Game {
         if (target instanceof Hero3D) {
             target.setInfo({ health: String(e.health), armor: e.armor });
             if (e.amount > 0) {
+                if (target.current?.getClip().name !== 'hit') target.play('hit');
                 target.flash(2);
                 this.arena.screenFlash(`-${e.amount}`);
                 this.stage.punch(4 + Math.min(6, e.amount));
@@ -1549,6 +1552,7 @@ export class Game {
         const target = this.resolve(e.dst);
         const color = POWER_COLORS[e.power] ?? 0xffd34d;
         sound.play('hero_power', 0.75);
+        hero.play('cast');
         this.textAbove(hero, serverText(e, 'name') || t('g3d.heroPower'), '#ffd98a', 60);
         tweens.to(hero.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 180, Ease.backOut).then(() => tweens.to(hero.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut));
         if (!target || target === hero) {
@@ -1699,6 +1703,7 @@ export class Game {
     heroDeath(hero) {
         if (hero.dead) return;
         hero.dead = true;
+        hero.play('death');
         tweens.hitStop(160);
         tweens.slowMo(0.3, 1400);
         this.speak(hero === this.player.hero ? this.player : this.opponent, 'defeat');
@@ -1757,7 +1762,10 @@ export class Game {
         this.stopPlaying();
         this.clearInGame();
         this.endMusic(kind === 'victory' || kind === 'defeat' ? kind : null);
-        if (kind !== 'draw') setTimeout(() => this.speak(kind === 'victory' ? this.player : this.opponent, 'victory'), 1800);
+        if (kind !== 'draw') {
+            (kind === 'victory' ? this.player : this.opponent).hero.play('victory');
+            setTimeout(() => this.speak(kind === 'victory' ? this.player : this.opponent, 'victory'), 1800);
+        }
         this.cheer(1);
         const text = { victory: t('g3d.end.victory'), defeat: t('g3d.end.defeat'), draw: t('g3d.end.draw') }[kind];
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
@@ -1786,6 +1794,7 @@ export class Game {
         this.cheer(1);
         this.arena.wave();
         this.celebrate(10);
+        if (p.winner) this.heroOf(p.winner).play('victory');
         const winner = p.winner ? this.heroOf(p.winner).info.name : null;
         const text = winner ? t('g3d.end.wins', { name: winner }) : t('g3d.end.draw');
         this.arena.screenFlash(winner ? t('g3d.end.winnerFlash') : t('g3d.end.draw').replace('!', '').toUpperCase());
@@ -1950,16 +1959,33 @@ export class Game {
         for (const side of [this.player, this.opponent]) {
             const hero = side.hero;
             const a = hero.anchorPose;
-            // The medallion stands on the podium (44 high); 125 is half its height at scale 1.
-            const onPodium = hero.podium.position.clone().setY(56 + 125 * (hero.viewScale ?? 0.85));
+            // The medallion stands on the podium (44 high); 125 is half its height at scale 1. With the hero's figure there
+            // it is smaller: over the player's figure's head, and in front of the opponent's (above it would leave the top
+            // of the screen in the arena view), towards the board.
+            const medal = hero.figure ? (side.isPlayer ? 0.6 : 0.85) : 1;
+            const figureUp = hero.figure && side.isPlayer ? FIGURE_HEIGHT : 0;
+            const onPodium = hero.podium.position.clone().setY(56 + figureUp + 125 * medal * (hero.viewScale ?? 0.85));
+            if (hero.figure && !side.isPlayer) onPodium.z += 130;
             hero.position.lerpVectors(a.position, onPodium, blend);
             // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
             const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
             hero.viewScale = (hero.viewScale ?? viewScale) + (viewScale - (hero.viewScale ?? viewScale)) * Math.min(1, dt / 300);
-            hero.scale.setScalar(a.scale + (hero.viewScale - a.scale) * blend);
+            hero.scale.setScalar(a.scale + (hero.viewScale * medal - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
             hero.podium.scale.y = Math.max(0.001, blend);
             hero.podium.visible = blend > 0.001;
+            // The figure rises with the podium and faces between the board's middle and the camera.
+            const figure = hero.figureRoot;
+            figure.visible = blend > 0.001 && !!hero.figure;
+            // The field view looks over the player's shoulder: the figure steps off its podium, clear of the opponent.
+            const aside = side.isPlayer && !!this.stage.viewInfo.playerHero;
+            figure.position.copy(hero.podium.position).setY(aside ? 0 : 44 * blend);
+            if (aside) figure.position.x -= 190 * blend;
+            figure.scale.setScalar(Math.max(0.001, blend));
+            const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
+            const toCamera = this.stage.camera.position.clone().sub(hero.podium.position).setY(0).normalize();
+            const facing = toCenter.add(toCamera);
+            if (facing.lengthSq() > 1e-6) figure.rotation.y = Math.atan2(facing.x, facing.z);
             hero.update(now);
         }
         // Board cards stand up to face the camera in the low views; ready cards breathe.

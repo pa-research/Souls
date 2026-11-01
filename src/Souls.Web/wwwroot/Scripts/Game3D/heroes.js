@@ -1,6 +1,9 @@
-// Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it.
+// Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it, and in the
+// stadium views the hero itself: an animated figure of its class on its podium (Content/Models/Heroes, made with Tripo).
 import * as THREE from '/lib/three/three.webgpu.js';
 import { float, texture } from '/lib/three/three.tsl.js';
+import { GLTFLoader } from '/lib/three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from '/lib/three/addons/utils/SkeletonUtils.js';
 import { Images, loadImage } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
@@ -12,6 +15,19 @@ const MANA_COLOR = new THREE.Color(0x6e93b3);
 const MANA_OK = new THREE.Color(0x4cd328);
 const MANA_SHORT = new THREE.Color(0xfffe00);
 const MANA_MISSING = new THREE.Color(0xe52a2a);
+
+/** How tall a hero's figure stands on its podium (a board card is 210 long). */
+export const FIGURE_HEIGHT = 300;
+
+// One load per class; each hero plays a copy (both heroes may be the same class).
+const figures = new Map();
+function fetchFigure(type) {
+    if (!figures.has(type)) figures.set(type, new GLTFLoader().loadAsync(`/Content/Models/Heroes/${type}.glb`).catch(() => null));
+    return figures.get(type);
+}
+
+// The figures' animations (tools/heroes/prepare.py names them): idle loops, the others play once.
+const LOOPS = new Set(['idle', 'victory']);
 
 function ellipseShape(rx, ry) {
     const shape = new THREE.Shape();
@@ -89,7 +105,63 @@ export class Hero3D extends THREE.Group {
         glow.rotation.x = -Math.PI / 2;
         glow.position.y = 1;
         this.podium.add(base, rim, glow);
+
+        // The figure stands on the podium (the game places and turns it); none until its model has loaded.
+        this.figureRoot = new THREE.Group();
+        this.figureRoot.name = this.name + '-figure';
+        this.figure = null;
+        this.actions = {};
         this.repaint();
+    }
+
+    /** Loads the figure of the hero's class (once it is known), which greets and then waits. */
+    async loadFigure(type) {
+        if (this._figureType === type) return;
+        this._figureType = type;
+        const gltf = await fetchFigure(type);
+        if (this._figureType !== type) return;
+        if (this.figure) this.figureRoot.remove(this.figure);
+        this.figure = null;
+        this.mixer = null;
+        this.actions = {};
+        this.current = null;
+        if (!gltf) return;
+        const figure = cloneSkinned(gltf.scene);
+        // Feet on the podium, FIGURE_HEIGHT tall, whatever units the model has.
+        const box = new THREE.Box3().setFromObject(figure);
+        const scale = FIGURE_HEIGHT / Math.max(1e-3, box.max.y - box.min.y);
+        figure.scale.setScalar(scale);
+        figure.position.y = -box.min.y * scale;
+        figure.traverse(o => {
+            if (!o.isMesh) return;
+            o.castShadow = o.receiveShadow = true;
+            o.frustumCulled = false; // the bounds are the bind pose's; an animated arm may reach out of them
+        });
+        this.mixer = new THREE.AnimationMixer(figure);
+        for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
+        this.figureRoot.add(figure);
+        this.figure = figure;
+        if (!this.play('greet')) this.play('idle');
+    }
+
+    /**
+     * Plays one of the figure's animations (idle, greet, attack, hit, cast, death, victory), blending from the one
+     * before; a one-shot goes back to idle when it ends (death stays down). Returns its length in ms (0: no figure).
+     */
+    play(name) {
+        const action = this.actions[name];
+        if (!action || (this.dead && name !== 'death')) return 0;
+        const once = !LOOPS.has(name);
+        action.reset();
+        action.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = once;
+        action.play();
+        if (this.current && this.current !== action) action.crossFadeFrom(this.current, 0.25, false);
+        this.current = action;
+        const ms = action.getClip().duration * 1000;
+        clearTimeout(this._backToIdle);
+        if (once && name !== 'death') this._backToIdle = setTimeout(() => { if (this.current === action) this.play('idle'); }, Math.max(0, ms - 250));
+        return ms;
     }
 
     get pickables() { return [this.face, this.plate]; }
@@ -101,6 +173,7 @@ export class Hero3D extends THREE.Group {
             if (info[key] !== undefined && info[key] !== null && info[key] !== '') this.info[key] = info[key];
         }
         if (info.mana !== undefined && info.mana !== null) this.info.mana = Number(info.mana) || 0;
+        if (this.info.type && this.info.type !== 'NA') this.loadFigure(Number(this.info.type));
         this.repaint();
         this.previewCost(this._previewCost);
     }
@@ -216,8 +289,10 @@ export class Hero3D extends THREE.Group {
         step();
     }
 
-    /** Idle animation: gems bob and spin; a ready hero glows. */
+    /** Idle animation: gems bob and spin; a ready hero glows; the figure moves. */
     update(now) {
+        if (this.mixer) this.mixer.update(Math.min(0.1, (now - (this._lastNow ?? now)) / 1000));
+        this._lastNow = now;
         if (this.ready) {
             this.plate.material.emissive.set(0x2ecc71);
             this.plate.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(now * 0.005);

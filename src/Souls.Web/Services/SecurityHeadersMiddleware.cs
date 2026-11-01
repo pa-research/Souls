@@ -15,7 +15,8 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
         {
             var headers = context.Response.Headers;
             var host = context.Request.Host.Value;
-            var connect = $"'self' wss://{host}" + (context.Request.IsHttps ? string.Empty : $" ws://{host}")
+            // blob: the 3D client's GLTFLoader reads the textures packed in a model through blob URLs of this page.
+            var connect = $"'self' blob: wss://{host}" + (context.Request.IsHttps ? string.Empty : $" ws://{host}")
                 + (_gameServerOrigin is null ? string.Empty : $" {_gameServerOrigin}")
                 + (_githubApi is null ? string.Empty : $" {_githubApi}");
 
