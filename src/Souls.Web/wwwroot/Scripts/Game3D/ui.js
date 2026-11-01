@@ -888,7 +888,8 @@ export class UI {
         const host = this.root.getBoundingClientRect();
         // Between `at.top` and the point it goes above, or `at.floor` (portrait: below the buttons, above the player's
         // hero and hero power); a tooltip too tall for that drops its flavour text, then shrinks.
-        const top = (at && at.top) || 8;
+        // (A box `at`, beside which the tooltip goes, is no upper limit: its tooltip may reach up to the screen edge.)
+        const top = (at && at.width === undefined && at.top) || 8;
         const fenced = !!at && (at.above || at.floor !== undefined);
         const floor = !fenced ? host.height - 8 : at.above ? at.y : at.floor;
         let box = t.getBoundingClientRect();
