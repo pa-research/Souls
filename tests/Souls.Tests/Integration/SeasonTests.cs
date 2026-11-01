@@ -27,7 +27,7 @@ public class SeasonTests(SoulsAppFixture app)
             int[] ratings = [1650, 900, 1300];
             for (var i = 0; i < playerIds.Length; i++)
             {
-                await db.Players.Where(p => p.Id == playerIds[i]).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, ratings[i]).SetProperty(p => p.Money, 7));
+                await db.Players.Where(p => p.Id == playerIds[i]).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, ratings[i]).SetProperty(p => p.Money, 7).SetProperty(p => p.RatingDeviation, 80));
             }
 
             db.Games.Add(new Game { Player1Id = playerIds[0], Player2Id = playerIds[1], WinnerId = playerIds[0], Created = DateTimeOffset.UtcNow });
@@ -61,9 +61,11 @@ public class SeasonTests(SoulsAppFixture app)
             Assert.Equal(Rarity.Legendary, await db.Cards.Where(c => c.Id == diamond.RewardCardId).Select(c => c.Rarity).SingleAsync());
             Assert.True(await db.PlayerCards.AnyAsync(pc => pc.PlayerId == ids[0] && pc.CardId == diamond.RewardCardId));
 
-            // Rewards were paid once; every rating moved halfway back to 1000, also of the player who did not play.
-            var players = await db.Players.Where(p => ids.Contains(p.Id)).OrderBy(p => p.Id).Select(p => new { p.Money, p.Rating, p.Rank }).ToListAsync();
+            // Rewards were paid once; every rating moved halfway back to 1000, also of the player who did not play, and
+            // became less certain, so the new season finds everyone's level quickly.
+            var players = await db.Players.Where(p => ids.Contains(p.Id)).OrderBy(p => p.Id).Select(p => new { p.Money, p.Rating, p.Rank, p.RatingDeviation }).ToListAsync();
             Assert.Equal([(47, 1325, 7), (12, 950, 1), (7, 1150, 4)], players.Select(p => (p.Money, p.Rating, p.Rank)));
+            Assert.All(players, p => Assert.Equal(Ratings.SeasonDeviation, p.RatingDeviation));
 
             db.Games.Add(new Game { Player1Id = ids[1], Player2Id = ids[2], WinnerId = ids[2], Created = DateTimeOffset.UtcNow });
             return await db.SaveChangesAsync();

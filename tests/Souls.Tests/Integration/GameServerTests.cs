@@ -301,8 +301,8 @@ public class GameServerTests(SoulsAppFixture app)
         using (browserB)
         {
             await app.WithDbAsync(async db =>
-                await db.Players.Where(p => p.Name == nameA).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1050)) +
-                await db.Players.Where(p => p.Name == nameB).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1040)));
+                await db.Players.Where(p => p.Name == nameA).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1050).SetProperty(p => p.RatingDeviation, 120)) +
+                await db.Players.Where(p => p.Name == nameB).ExecuteUpdateAsync(s => s.SetProperty(p => p.Rating, 1040).SetProperty(p => p.RatingDeviation, 120)));
             await using var a = await GameSocket.ConnectAsync(app.Server, "ws/game", browserA.AuthCookie);
             await using var b = await GameSocket.ConnectAsync(app.Server, "ws/game", browserB.AuthCookie);
             await a.SendAsync(0);
@@ -321,16 +321,19 @@ public class GameServerTests(SoulsAppFixture app)
             Assert.Equal(231, Type(a.Received[^1]));
             Assert.Equal(230, Type(b.Received[^1]));
             Assert.Null(won["friendly"]);
-            Assert.Equal((3, 16, 1056, 3), ((int)won["coins"]!, (int)won["ratingChange"]!, (int)won["rating"]!, won["quests"]!.AsArray().Count));
-            Assert.Equal((1, -16, 1034, 3), ((int)lost["coins"]!, (int)lost["ratingChange"]!, (int)lost["rating"]!, lost["quests"]!.AsArray().Count));
+            // Glicko-2 (see RatingsMoveTowardsTheResult): 1040 beats 1050, both with a deviation of 120.
+            Assert.Equal((3, 36, 1076, 3), ((int)won["coins"]!, (int)won["ratingChange"]!, (int)won["rating"]!, won["quests"]!.AsArray().Count));
+            Assert.Equal((1, -36, 1014, 3), ((int)lost["coins"]!, (int)lost["ratingChange"]!, (int)lost["rating"]!, lost["quests"]!.AsArray().Count));
 
             var season = (await app.WithDbAsync(db => Souls.Model.Seasons.CurrentAsync(db)))!;
-            AssertSeason(won["season"], 1040, 1, "Bronze III", 1056, 2, "Bronze II", promoted: true);
-            AssertSeason(lost["season"], 1050, 2, "Bronze II", 1034, 1, "Bronze III", promoted: false);
+            AssertSeason(won["season"], 1040, 1, "Bronze III", 1076, 2, "Bronze II", promoted: true);
+            AssertSeason(lost["season"], 1050, 2, "Bronze II", 1014, 1, "Bronze III", promoted: false);
 
             var stored = await app.WithDbAsync(db => db.Players.Where(p => p.Name == nameA || p.Name == nameB).OrderBy(p => p.Name == nameB)
-                .Select(p => new { p.Money, p.Rating, p.Rank }).ToListAsync());
-            Assert.Equal([(1, 1034, 1), (3, 1056, 2)], stored.Select(p => (p.Money, p.Rating, p.Rank)));
+                .Select(p => new { p.Money, p.Rating, p.Rank, p.RatingDeviation, p.RatedAt }).ToListAsync());
+            Assert.Equal([(1, 1014, 1), (3, 1076, 2)], stored.Select(p => (p.Money, p.Rating, p.Rank)));
+            Assert.All(stored, p => Assert.Equal(114.59, p.RatingDeviation, 0.01));
+            Assert.All(stored, p => Assert.NotNull(p.RatedAt));
 
             void AssertSeason(JsonNode? actual, int ratingBefore, int rankBefore, string tierBefore, int ratingAfter, int rankAfter, string tierAfter, bool promoted)
             {
