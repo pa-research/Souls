@@ -24,9 +24,14 @@ public sealed class AiOptions
 /// bot then picks one action at a time: lethal if it can, spells, cards to play, abilities, trades, the hero power, and
 /// finally ends the turn. Difficulty: 0 easy (random), 1 normal (greedy), 2 hard (careful trades, plays to its outs).
 /// Given the engine and a way to copy its game, hard looks ahead instead (see <see cref="PlanAsync"/>).
+/// <para>
+/// A <paramref name="skill"/> (0 to 1, see <see cref="BotSkill"/>) replaces the difficulty: the bot always looks ahead,
+/// with a search budget that grows with the skill, and picks its next action at random among the best each action can
+/// lead to, the weaker the more often a worse one (see <see cref="Pick"/>).
+/// </para>
 /// </summary>
 public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send, AiOptions options, int difficulty, ILogger logger,
-    GameEngine? engine = null, Func<Task<GameRoom?>>? copyGame = null)
+    GameEngine? engine = null, Func<Task<GameRoom?>>? copyGame = null, double? skill = null)
 {
     /// <summary>
     /// Simulated actions per decision, and positions kept after each step of the search: a few milliseconds per
@@ -40,6 +45,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// board), so only a spell pays it: a spell must gain more than the card it uses up, and drawing cards is worth it.
     /// </summary>
     private const int HandCardWorth = 6;
+
+    /// <summary>The score of a won game (and, negative, of a lost one).</summary>
+    private const int WinScore = 1_000_000;
 
     private sealed class Unit
     {
@@ -191,9 +199,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
                 if ((bool?)payload["mulligan"]?["done"] == false)
                 {
+                    var mulligans = skill is { } s ? s >= BotSkill.MulliganSkill : difficulty > 0;
                     _mulligan = Message.Create(GameRequest.Mulligan, new JsonObject
                     {
-                        ["replace"] = new JsonArray([.. _hand.Values.Where(c => difficulty > 0 && c.Cost > MulliganMaxCost).Select(c => (JsonNode)c.Cid)]),
+                        ["replace"] = new JsonArray([.. _hand.Values.Where(c => mulligans && c.Cost > MulliganMaxCost).Select(c => (JsonNode)c.Cid)]),
                     });
                 }
 
@@ -302,7 +311,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         _turnStarted = true;
 
         Message? action;
-        if (difficulty >= 2 && engine is not null && copyGame is not null)
+        if ((difficulty >= 2 || skill is not null) && engine is not null && copyGame is not null)
         {
             var watch = Stopwatch.StartNew();
             action = await PlanAsync() is { } planned ? Try(planned) : null;
@@ -683,9 +692,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
         var best = Score(root);
         Message? bestFirst = null;
+        // The best score each first action leads to (for a bot with a skill, which may not take the best).
+        var firsts = new Dictionary<string, (Message Move, int Score)>();
         var seen = new HashSet<int> { Signature(root) };
         List<(GameRoom Room, Message? First, int Score)> beam = [(root, null, best)];
-        var budget = LookaheadBudget;
+        var (budget, beamWidth) = skill is { } s ? BotSkill.Search(s, LookaheadBudget, BeamWidth) : (LookaheadBudget, BeamWidth);
         while (beam.Count > 0 && budget > 0)
         {
             var next = new List<(GameRoom Room, Message? First, int Score)>();
@@ -711,6 +722,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         (best, bestFirst) = (score, first ?? move);
                     }
 
+                    var key = Key(first ?? move);
+                    if (!firsts.TryGetValue(key, out var known) || score > known.Score)
+                    {
+                        firsts[key] = (first ?? move, score);
+                    }
+
                     if (!copy.IsEnded)
                     {
                         next.Add((copy, first ?? move, score));
@@ -718,10 +735,47 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                 }
             }
 
-            beam = [.. next.OrderByDescending(x => x.Score).Take(BeamWidth)];
+            beam = [.. next.OrderByDescending(x => x.Score).Take(beamWidth)];
         }
 
-        return bestFirst;
+        return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst;
+    }
+
+    /// <summary>
+    /// A bot with a skill picks its next action (or ending the turn, worth <paramref name="endTurn"/>) at random, each
+    /// weighted by a softmax of the best score it leads to (<see cref="BotSkill.Temperature"/>): a strong bot nearly
+    /// always takes the best, a weak one often a worse one. Now and then a weak bot does not see that an action wins
+    /// the game (<see cref="BotSkill.MissLethal"/>): it values it like its best ordinary one, and a beginner sometimes
+    /// does anything at all (<see cref="BotSkill.Wander"/>). Actions the server refused this turn are left out.
+    /// </summary>
+    private Message? Pick(double level, int endTurn, Dictionary<string, (Message Move, int Score)> firsts)
+    {
+        List<(Message? Move, double Score)> options = [(null, endTurn), .. firsts.Where(f => !_failed.Contains(f.Key)).Select(f => ((Message?)f.Value.Move, (double)f.Value.Score))];
+        if (_random.NextDouble() < BotSkill.Wander(level))
+        {
+            return options[_random.Next(options.Count)].Move;
+        }
+
+        if (_random.NextDouble() < BotSkill.MissLethal(level))
+        {
+            var ordinary = options.Where(o => o.Score < WinScore).Max(o => o.Score);
+            options = [.. options.Select(o => (o.Move, Math.Min(o.Score, ordinary)))];
+        }
+
+        var temperature = BotSkill.Temperature(level);
+        var top = options.Max(o => o.Score);
+        var weights = options.Select(o => temperature <= 0 ? (o.Score == top ? 1 : 0) : Math.Exp((o.Score - top) / temperature)).ToList();
+        var roll = _random.NextDouble() * weights.Sum();
+        for (var i = 0; i < options.Count; i++)
+        {
+            roll -= weights[i];
+            if (roll <= 0)
+            {
+                return options[i].Move;
+            }
+        }
+
+        return options[^1].Move;
     }
 
     /// <summary>
@@ -736,12 +790,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         var enemy = room.Other(me);
         if (me.Health < 1)
         {
-            return -1_000_000;
+            return -WinScore;
         }
 
         if (enemy.Health < 1)
         {
-            return 1_000_000;
+            return WinScore;
         }
 
         static int Cards(GamePlayer gp) => gp.BoardCards.Values.Sum(c => Unit.Of(c).Value);
