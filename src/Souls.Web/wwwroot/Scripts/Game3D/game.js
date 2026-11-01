@@ -4,7 +4,7 @@
 // all numbers. The same code plays live games, spectated games and recorded replays.
 import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
-import { Images, loadImage, textureFrom, sound } from './assets.js';
+import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
 import { Hero3D } from './heroes.js';
 import { slotPosition } from './arena.js';
@@ -834,7 +834,24 @@ export class Game {
         const side = this.sideByIdent(p.ident);
         if (!this.active || (side === this.opponent && this.emotesMuted)) return;
         this.ui.emote(side.isPlayer ? 'player' : 'opponent', serverText(p));
-        sound.play('emote', 0.6);
+        sound.play('emote', 0.35);
+        this.speak(side, VOICE_LINES[Number(p.emote)]);
+    }
+
+    /** The side's hero says a voice line (assets.js VOICE_LINES), if its hero type has a voice. */
+    speak(side, line, maxDelay) {
+        const url = line && voiceLine(side.hero.info.type, line);
+        if (url) sound.say(side.isPlayer ? 'player' : 'opponent', url, 1, maxDelay);
+    }
+
+    /** Loads both heroes' voice lines in the background, so they play without delay. */
+    loadVoices() {
+        for (const side of [this.player, this.opponent]) {
+            for (const line of VOICE_LINES) {
+                const url = voiceLine(side.hero.info.type, line);
+                if (url) sound.loadVoice(url);
+            }
+        }
     }
 
     enqueue(m) {
@@ -982,6 +999,7 @@ export class Game {
         if (rarity >= 3) this.rareEntrance(card, rarity, side);
         return card.moveTo(this.boardPose(side, card), side.isPlayer ? 380 : 750, Ease.cubicOut, { arc: side.isPlayer ? 40 : 220 }).then(() => {
             if (rarity === 4) {
+                tweens.hitStop(140);
                 this.effects.shockwave(card.position, 0xffc04d, 700);
                 this.effects.shake(26);
                 this.stage.punch(10);
@@ -1250,7 +1268,7 @@ export class Game {
             this.effects.beam(attacker.position.clone(), target, 0xffd34d, 900);
             await wait(320);
             tweens.to(attacker.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut);
-            this.impact(defender, target);
+            this.impact(defender, target, target.clone().sub(attacker.position));
             return { finish: () => wait(300) };
         }
         const home = this.boardPose(this.sideOf(attacker), attacker);
@@ -1260,7 +1278,7 @@ export class Game {
         await attacker.moveTo({ position: windup, quaternion: lean, scale: 1.25 }, 380, Ease.quadOut);
         const hit = home.position.clone().lerp(target, 0.8).setY(defender instanceof Hero3D ? target.y : 40);
         await attacker.moveTo({ position: hit, quaternion: FLAT_FACE_UP.clone(), scale: 1.1 }, 190, Ease.quadIn);
-        this.impact(defender, hit);
+        this.impact(defender, hit, dir);
         if (attacker.abilityId === ABILITY.FURY) {
             this.effects.slash(hit, ABILITY_COLORS[ABILITY.FURY]);
             this.crowd.spell('whoosh');
@@ -1274,10 +1292,14 @@ export class Game {
         };
     }
 
-    impact(defender, point) {
-        if (defender instanceof Hero3D) sound.play('hero_hit', 0.85);
+    /** A blow lands: the action freezes for a few frames and the camera is knocked along `direction` (the blow's). */
+    impact(defender, point, direction) {
+        const hero = defender instanceof Hero3D;
+        if (hero) sound.play('hero_hit', 0.85);
         else sound.play('block', 0.7);
-        this.effects.shake(defender instanceof Hero3D ? 22 : 14);
+        tweens.hitStop(hero ? 90 : 60);
+        if (direction) this.effects.kick(direction, hero ? 16 : 9);
+        this.effects.shake(hero ? 22 : 14);
         this.cheer(defender instanceof Hero3D ? 0.55 : 0.35);
         this.effects.shockwave(defender instanceof Hero3D ? defender.podium.position : point.clone(), defender instanceof Hero3D ? 0xff6a3a : 0xffd27a, defender instanceof Hero3D ? 380 : 200);
         this.effects.burst(point, { color: 0xffa040, count: 36, speed: 320, size: 42, life: 650 });
@@ -1306,7 +1328,15 @@ export class Game {
             target.setData({ health: e.health, armor: e.armor });
             if (!target.dying) this.shakeCard(target);
         }
-        if (e.amount > 0) this.textAbove(target, `-${e.amount}`, '#ff4136');
+        if (e.amount > 0) {
+            // Bigger hits: a bigger number, a longer freeze and more shake.
+            const weight = Math.min(1, e.amount / 8);
+            this.textAbove(target, `-${e.amount}`, '#ff4136', 80 + 70 * weight);
+            if (e.amount >= 5) {
+                tweens.hitStop(60 + 60 * weight);
+                this.effects.shake(14 + 16 * weight);
+            }
+        }
         if (e.armorLost > 0) {
             sound.play('block', 0.5, { gap: 200 });
             const point = this.targetPoint(target);
@@ -1604,6 +1634,9 @@ export class Game {
     kickOff() {
         sound.play('versus', 0.9);
         this.ui.showVersus(this.player.hero.info, this.opponent.hero.info);
+        this.loadVoices();
+        setTimeout(() => this.speak(this.player, 'intro', 2500), 900);
+        setTimeout(() => this.speak(this.opponent, 'intro', 2500), 3000);
         this.cheer(1);
         this.arena.wave();
         tweens.wait(700).then(() => {
@@ -1644,6 +1677,7 @@ export class Game {
     killCard(card) {
         if (card.killed) return;
         card.killed = card.dying = true;
+        tweens.hitStop(70);
         card.setReady(false);
         card.setGlow(0xff2020, 1);
         this.cheer(0.6);
@@ -1665,11 +1699,26 @@ export class Game {
     heroDeath(hero) {
         if (hero.dead) return;
         hero.dead = true;
+        tweens.hitStop(160);
+        tweens.slowMo(0.3, 1400);
+        this.speak(hero === this.player.hero ? this.player : this.opponent, 'defeat');
         sound.play('hero_hit', 0.9, { rate: 0.85 });
         this.crowd.gasp();
         tweens.run(1200, t => { hero.body.rotation.z = t * 0.35; hero.body.position.y = -t * 40; }, Ease.quadIn);
         this.effects.burst(hero.position.clone(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
         this.effects.shake(30);
+    }
+
+    /** When a hero falls into danger (low health) it says so once; the player's danger tints the screen's edges. */
+    watchHealth() {
+        for (const side of [this.player, this.opponent]) {
+            const info = side.hero.info;
+            const health = Number(info.health);
+            const low = this.active && health > 0 && health <= Math.max(8, Math.round((Number(info.maxHealth) || 30) * 0.3));
+            if (low && side.healthy) this.speak(side, 'low');
+            side.healthy = health > 0 && !low;
+            if (side.isPlayer) this.ui.setDanger(low);
+        }
     }
 
     pulse(card) {
@@ -1708,6 +1757,7 @@ export class Game {
         this.stopPlaying();
         this.clearInGame();
         this.endMusic(kind === 'victory' || kind === 'defeat' ? kind : null);
+        if (kind !== 'draw') setTimeout(() => this.speak(kind === 'victory' ? this.player : this.opponent, 'victory'), 1800);
         this.cheer(1);
         const text = { victory: t('g3d.end.victory'), defeat: t('g3d.end.defeat'), draw: t('g3d.end.draw') }[kind];
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
@@ -1915,6 +1965,7 @@ export class Game {
         // Board cards stand up to face the camera in the low views; ready cards breathe.
         this.tilt += (this.stage.viewInfo.cardTilt - this.tilt) * Math.min(1, dt / 250);
         updateFoil(now);
+        this.watchHealth();
         // Soft contact shadows on the sand under the podiums and the cards lying (or standing) on the board.
         const contacts = [];
         for (const side of [this.player, this.opponent]) {

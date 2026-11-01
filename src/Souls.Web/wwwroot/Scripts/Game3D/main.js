@@ -70,10 +70,11 @@ async function main() {
     const frame = now => {
         const dt = Math.min(50, now - last);
         last = now;
-        tweens.update(now);
+        // Particles follow the tween clock, so they hang in the air during a hit-stop and drift in slow motion.
+        const step = Math.min(50, tweens.update(now));
         stage.updateCamera(now);
         effects.applyShake(stage.camera);
-        effects.update(dt);
+        effects.update(step);
         arena.update(now, dt);
         if (arena.stadium && arena.stadium.visible) effects.embers(torches || (torches = arena.torches), dt);
         crowd.presence = stage.viewInfo.stadium ? (stage.view === 'field' ? 1 : 0.7) : 0.25;

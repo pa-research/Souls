@@ -46,6 +46,17 @@ const EFFECTS = [
 ];
 export const Sounds = Object.fromEntries([...EFFECTS, 'music_menu', 'music_battle'].map(name => [name, `${SND}${name}.ogg`]));
 
+// The heroes' voice lines (Content/Sound/Voice/CREDITS.md): the six emotes in their order (GameRules.Emotes), then the
+// lines the game speaks by itself. Each hero type with a voice has every line in English and Norwegian.
+export const VOICE_LINES = ['greet', 'wellPlayed', 'thanks', 'oops', 'threaten', 'sorry', 'intro', 'low', 'victory', 'defeat'];
+const VOICED = new Set([1, 2, 3, 4]);
+const VOICE_LANGS = new Set(['en', 'nb']);
+/** The URL of a hero type's voice line in the page's language, or null if that hero has no voice. */
+export const voiceLine = (type, line) => {
+    const lang = String(window.SoulsL10n?.lang || 'en').toLowerCase().split('-')[0];
+    return VOICED.has(Number(type)) ? `${SND}Voice/${VOICE_LANGS.has(lang) ? lang : 'en'}/${Number(type)}-${line}.ogg` : null;
+};
+
 const imageCache = new Map();
 
 /** Loads an image (cached). Missing images resolve to null instead of failing the game. */
@@ -121,12 +132,19 @@ class SoundBoard {
         return !!this.ctx && this.ctx.state === 'running';
     }
 
+    /** An offline context for decoding: it needs no gesture, and its buffers play in the real one. */
+    get decoder() {
+        if (this._decoder === undefined) {
+            const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+            this._decoder = Offline ? new Offline(1, 1, 48000) : null;
+        }
+        return this._decoder;
+    }
+
     /** Fetches and decodes the effects (not the music) in the background; never blocks the game. */
     preload() {
         if (this.loading) return this.loading;
-        const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        // Decoding needs no gesture in an offline context; its buffers play in the real one.
-        const decoder = Offline ? new Offline(1, 1, 48000) : null;
+        const decoder = this.decoder;
         const ogg = document.createElement('audio').canPlayType('audio/ogg; codecs="opus"') !== '';
         this.loading = Promise.all(EFFECTS.map(name => fetch(Sounds[name])
             .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
@@ -213,6 +231,66 @@ class SoundBoard {
         this.last.set(name, now);
         trace('play', name);
         return true;
+    }
+
+    /**
+     * Fetches and decodes a hero's voice line once. Resolves to its buffer; 'element' when only a media element can play
+     * it (Web Audio cannot decode Ogg Opus here); null when there is no such line.
+     */
+    loadVoice(url) {
+        this.voiceBuffers ??= new Map();
+        if (!this.voiceBuffers.has(url)) {
+            this.voiceBuffers.set(url, fetch(url)
+                .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+                .then(bytes => (this.decoder ? this.decoder.decodeAudioData(bytes) : Promise.reject(new Error('no Web Audio')))
+                    .catch(() => 'element'), () => null));
+        }
+        return this.voiceBuffers.get(url);
+    }
+
+    /**
+     * Speaks a voice line (`url`) for `speaker` once it has loaded: a new line cuts the speaker's last one, and the
+     * music dips under the voice. Lines that come too late (`maxDelay` ms after the call) are dropped.
+     */
+    async say(speaker, url, volume = 1, maxDelay = 1500) {
+        const asked = performance.now();
+        const buffer = await this.loadVoice(url);
+        if (!buffer || this.muted || !this.running || performance.now() - asked > maxDelay) return false;
+        this.speaking ??= new Map();
+        const last = this.speaking.get(speaker);
+        if (last) try { last.stop(); } catch (e) { /* already ended */ }
+        let length;
+        if (buffer !== 'element') {
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+            const gain = this.ctx.createGain();
+            gain.gain.value = volume;
+            source.connect(gain).connect(this.sfx);
+            source.start();
+            this.speaking.set(speaker, source);
+            length = buffer.duration;
+        } else {
+            const audio = new Audio(url);
+            audio.volume = Math.min(1, volume);
+            audio.play().catch(() => { });
+            this.speaking.set(speaker, { stop: () => audio.pause() });
+            length = 2;
+        }
+        this.duck(length);
+        trace('say', url);
+        return true;
+    }
+
+    /** Lowers the music for `seconds` (a voice line), then brings it back. */
+    duck(seconds) {
+        const deck = this.current;
+        if (!deck || !this.wanted) return;
+        const g = deck.gain.gain, t = this.ctx.currentTime, full = this.wanted.volume;
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(g.value, t);
+        g.linearRampToValueAtTime(full * 0.45, t + 0.15);
+        g.setValueAtTime(full * 0.45, t + seconds);
+        g.linearRampToValueAtTime(full, t + seconds + 0.6);
     }
 
     /** Crossfades to a music track ('music_menu', 'music_battle'); it starts with the audio if that is still locked. */

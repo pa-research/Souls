@@ -1117,6 +1117,13 @@ export class UI {
         if (open) this.toggleSettings(false);
     }
 
+    /** A red pulse round the edges of the screen while the player's hero is low on health. */
+    setDanger(on) {
+        if (this.danger === on) return;
+        this.danger = on;
+        this.root.classList.toggle('sg-danger', on);
+    }
+
     /** A speech bubble by a hero ('player' or 'opponent') for a few seconds; placeEmote moves it every frame. */
     emote(side, text) {
         if (this.bubbles[side]) this.bubbles[side].remove();

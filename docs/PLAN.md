@@ -22,13 +22,17 @@ Souls is a 2014 browser card game (ASP.NET MVC 5, NHibernate, MySQL) that has be
   48-51 % of bot games.
 - **Clients**: the original PixiJS client ("Classic", modernised HUD) and a three.js client ("Modern 3D") that renders
   with WebGPU (WebGL 2 fallback), with a crafted stadium (architecture, procedural materials, an animated crowd), camera
-  views, touch controls, a portrait layout for phones held upright and an effect for every ability.
-- **Sound**: 41 sound effects, a menu theme and a battle theme generated with ElevenLabs, in both clients.
+  views, touch controls, a portrait layout for phones held upright and an effect for every ability; blows land with a
+  frame-freeze and a camera knock, the killing blow on a hero plays in slow motion, and the screen's edges pulse red
+  while the player's hero is low.
+- **Sound**: 41 sound effects, a menu theme and a battle theme generated with ElevenLabs, in both clients; in the 3D
+  client every hero speaks (emotes, an intro, low health, victory and defeat) in English and Norwegian.
 - **Languages**: English and Norwegian Bokmål (site, game texts, both clients); more languages are more resource files.
 - **Look**: one dark-fantasy design system for the site and both clients, with a finished polish pass over every page
   and both clients.
 
-Everything is merged into `main`, which is the default branch on GitHub.
+Everything is merged into `main`, which is the default branch on GitHub. The demo runs at <https://souls.perception.no>
+(deployed through the owner's per-arne-agent infrastructure repository: Flux, `infrastructure/souls-demo`).
 
 ## 2. Branches and pull requests
 
@@ -78,6 +82,8 @@ Pull requests merged from 30 October to 1 November:
 | #36 | Localization: English and Norwegian Bokmål |
 | #37 | Stadium rebuild: architecture, procedural materials, crowd, lighting, banners, new site backdrop |
 | #38 | Two flaky browser checks |
+| #40 | rules3d: the battle log is read before the end screen leaves; CI plays the Normal bot |
+| #41 | 3D client: card and hero tooltips go beside what is hovered |
 
 ## 3. What has been built
 
@@ -184,8 +190,9 @@ Everything below is also in the README; this is the short version for picking th
   owner's account); OpenAI's terms give the output's rights to the user, but AI images may get little copyright
   protection. The prompts are in `tools/card-art/prompts.json`; the 2014 originals (third-party images) are kept in
   `original-2014/` folders and are not used.
-- The sounds and music are generated with ElevenLabs. Commercial use needs a paid ElevenLabs plan at the time of
-  generation; check the account's plan before selling the game (`Content/Sound/CREDITS.md`).
+- The sounds, music and hero voices are generated with ElevenLabs. Commercial use needs a paid ElevenLabs plan at the
+  time of generation; check the account's plan before selling the game (`Content/Sound/CREDITS.md`,
+  `Content/Sound/Voice/CREDITS.md`).
 - The lost original cards (Paul and others) cannot be restored without an old persoft.no backup.
 
 **Clients**
@@ -213,8 +220,9 @@ Ordered by priority. Done items are struck through.
 ### P0: ship it
 
 1. ~~Pull request for the expansion~~ (#3), ~~default branch~~, ~~two-player check~~: **Done**.
-2. **Deploy**: tested locally (Compose, and Kubernetes on kind). *Still to do* (needs a host and its credentials):
-   back up the database, run the migrations on a copy of production data, deploy, smoke test.
+2. ~~Deploy~~: **Done** (1 November): <https://souls.perception.no>, on the owner's k3s cluster through Flux
+   (per-arne-agent `infrastructure/souls-demo`, digest-pinned images). The backup before it was waived by the owner.
+   *Still to do by the owner*: log in and play a practice game there.
 
 ### P1: confidence and quality
 
@@ -256,9 +264,9 @@ The owner delegated the open decisions:
 
 Still open, because they need the owner's accounts or hardware:
 
-- **Hosting**: which cluster or VM (Compose and Kubernetes with the Gateway API are ready).
-- **Old branches**: the merged remote branches (`feature/*`, `fix/*`, `polish/*`, `balance/*`, `art/*`, `docs/*`,
-  `modernize/dotnet10`) can be deleted; the session was not allowed to delete remote branches.
+- **Data Protection certificate** for the demo, and turning observability on there.
+- **ElevenLabs plan**: check that the account was on a paid plan when the sounds and voices were generated, before
+  selling the game.
 
 ## 10. Picking the work up in a new session
 
