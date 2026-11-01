@@ -1,6 +1,6 @@
 // Cards: a thin 3D card with the classic artwork painted on the front and the card back on the reverse.
 import * as THREE from '/lib/three/three.webgpu.js';
-import { abs, clamp, color, dot, exp, mix, mod, normalView, positionGeometry, positionViewDirection, pow, select, sin, uniform, uv, vec3, vec4 } from '/lib/three/three.tsl.js';
+import { abs, clamp, color, dot, exp, mix, mod, normalView, positionGeometry, positionViewDirection, pow, select, sin, texture, uniform, uv, vec3, vec4 } from '/lib/three/three.tsl.js';
 import { Images, loadImage, textureFrom } from './assets.js';
 import { tweens, Ease } from './tween.js';
 
@@ -15,6 +15,7 @@ const RIM = 3; // width of the glow rim around the card's frame
 // around it is transparent.
 const FRAME_W = CARD_W * 280 / 330;
 const FRAME_H = CARD_H * 400 / 450;
+const FRAME_Y = CARD_H * 1.5 / 450;
 const FACE_SCALE = 2; // the face is painted at 2x the 330x450 card texture so it stays sharp when zoomed
 
 // Card JSON fields that change what the face looks like.
@@ -79,14 +80,13 @@ const shared = {};
 function sharedGeometry() {
     if (!shared.face) {
         shared.face = faceGeometry(CARD_W, CARD_H, 9);
-        shared.edge = new THREE.ExtrudeGeometry(roundedRect(CARD_W, CARD_H, 9), { depth: THICKNESS, bevelEnabled: false, curveSegments: 6 });
-        shared.edge.translate(0, 0, -THICKNESS / 2);
+        // The card's thickness runs around the painted frame, not around the transparent margin of the face.
+        shared.edge = new THREE.ExtrudeGeometry(roundedRect(FRAME_W, FRAME_H, 2), { depth: THICKNESS, bevelEnabled: false, curveSegments: 6 });
+        shared.edge.translate(0, FRAME_Y, -THICKNESS / 2);
         // Glows (ready, hover, hits) are a thin rim hugging the painted frame, not a plate behind the whole card.
         const rim = roundedRect(FRAME_W + 2 * RIM, FRAME_H + 2 * RIM, 2 + RIM);
         rim.holes.push(roundedRect(FRAME_W, FRAME_H, 2));
-        shared.glow = new THREE.ShapeGeometry(rim, 6).translate(0, CARD_H * 1.5 / 450, 0);
-        shared.taunt = faceGeometry(CARD_W + 30, CARD_H + 34, 20);
-        shared.tauntMaterial = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.75, roughness: 0.35, emissive: 0x1c2833 });
+        shared.glow = new THREE.ShapeGeometry(rim, 6).translate(0, FRAME_Y, 0);
         shared.edgeMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.7 });
         shared.hiddenMaterial = new THREE.MeshBasicMaterial({ visible: false });
     }
@@ -130,16 +130,21 @@ function wrapLines(g, text, maxWidth) {
     return lines;
 }
 
+/** A heater shield outline, 60x68 at scale 1, centred on (x, y). */
+function shieldPath(g, x, y, s = 1) {
+    g.beginPath();
+    g.moveTo(x, y - 34 * s);
+    g.quadraticCurveTo(x + 26 * s, y - 30 * s, x + 30 * s, y - 24 * s);
+    g.quadraticCurveTo(x + 30 * s, y + 14 * s, x, y + 34 * s);
+    g.quadraticCurveTo(x - 30 * s, y + 14 * s, x - 30 * s, y - 24 * s);
+    g.quadraticCurveTo(x - 26 * s, y - 30 * s, x, y - 34 * s);
+    g.closePath();
+}
+
 /** A steel shield with the armor value (bottom centre, between attack and health). */
 function drawArmor(g, x, y, value) {
     g.save();
-    g.beginPath();
-    g.moveTo(x, y - 34);
-    g.quadraticCurveTo(x + 26, y - 30, x + 30, y - 24);
-    g.quadraticCurveTo(x + 30, y + 14, x, y + 34);
-    g.quadraticCurveTo(x - 30, y + 14, x - 30, y - 24);
-    g.quadraticCurveTo(x - 26, y - 30, x, y - 34);
-    g.closePath();
+    shieldPath(g, x, y);
     const metal = g.createLinearGradient(x, y - 34, x, y + 34);
     metal.addColorStop(0, '#d9e2ec');
     metal.addColorStop(0.5, '#7b8794');
@@ -151,6 +156,28 @@ function drawArmor(g, x, y, value) {
     g.stroke();
     g.restore();
     drawText(g, String(value), x, y + 2, { size: 38, align: 'center', baseline: 'middle' });
+}
+
+/** Taunt: a steel shield with a gold rim and boss on the portrait (the card must be attacked first). */
+function drawTaunt(g, x, y) {
+    g.save();
+    shieldPath(g, x, y, 0.8);
+    const metal = g.createLinearGradient(x, y - 27, x, y + 27);
+    metal.addColorStop(0, '#d9e2ec');
+    metal.addColorStop(1, '#52606d');
+    g.fillStyle = metal;
+    g.fill();
+    g.lineWidth = 5;
+    g.strokeStyle = '#d4a72c';
+    g.stroke();
+    g.beginPath();
+    g.arc(x, y - 3, 8, 0, Math.PI * 2);
+    g.fillStyle = '#d4a72c';
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = '#5c3d00';
+    g.stroke();
+    g.restore();
 }
 
 function drawStar(g, x, y, r) {
@@ -342,6 +369,7 @@ async function paintFace(canvas, data, portraits) {
     const rarity = Number(data.rarity) || 0;
     if (rarity && !data.token) drawGem(g, 165, 287, rarity);
     drawRarityFrame(g, rarity);
+    if (data.taunt) drawTaunt(g, 256, 246);
     if (data.kind === 'spell') {
         drawSpellPlate(g, ABILITY_COLORS[ability && ability.id] ?? 0xb98cff);
         return;
@@ -389,6 +417,9 @@ export class Card3D extends THREE.Group {
         this.faceMaterial = new THREE.MeshStandardNodeMaterial({ map: this.faceTexture, roughness: 0.55, metalness: 0.05, transparent: true });
         this.foil = uniform(0);
         this.faceMaterial.emissiveNode = foilSheen(this.foil);
+        // The face casts the card's shadow (both sides, so face up too), only where the frame is painted.
+        this.faceMaterial.shadowSide = THREE.DoubleSide;
+        this.faceMaterial.maskShadowNode = texture(this.faceTexture).a.greaterThan(0.5);
         this.backMaterial = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05, transparent: true });
         cardBackTexture().then(t => { this.backMaterial.map = t; this.backMaterial.needsUpdate = true; });
 
@@ -398,7 +429,8 @@ export class Card3D extends THREE.Group {
         this.back.rotation.y = Math.PI;
         this.back.position.z = -THICKNESS / 2 - 0.05;
         this.edge = new THREE.Mesh(s.edge, [s.hiddenMaterial, s.edgeMaterial]);
-        for (const m of [this.front, this.back, this.edge]) { m.castShadow = true; m.userData.card = this; }
+        for (const m of [this.front, this.back, this.edge]) m.userData.card = this;
+        this.front.castShadow = this.edge.castShadow = true;
         this.front.receiveShadow = this.back.receiveShadow = true;
 
         this.glowMaterial = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -419,7 +451,6 @@ export class Card3D extends THREE.Group {
         }
         if (data.ability === null) this.data.ability = null;
         this.revealed = true;
-        this.setTaunt(!!this.data.taunt);
         this.setWard(!!this.data.ward);
         this.setFrozen(!!this.data.paralyzed);
         const rarity = Number(this.data.rarity) || 0;
@@ -568,16 +599,6 @@ export class Card3D extends THREE.Group {
         });
     }
 
-    /** A steel plate behind the card: it has Taunt and must be attacked first. */
-    setTaunt(on) {
-        if (on && !this.tauntPlate) {
-            this.tauntPlate = new THREE.Mesh(sharedGeometry().taunt, sharedGeometry().tauntMaterial);
-            this.tauntPlate.position.z = -THICKNESS / 2 - 0.6;
-            this.body.add(this.tauntPlate);
-        }
-        if (this.tauntPlate) this.tauntPlate.visible = on;
-    }
-
     /** A pulsing green outline: the card can attack or use its ability now. */
     setReady(on) {
         if (on === this.ready) return;
@@ -613,7 +634,7 @@ export class Card3D extends THREE.Group {
 
     /** Cards in hand float like UI and cast no shadow; on (or above) the board they do. */
     set castsShadow(on) {
-        this.front.castShadow = this.back.castShadow = this.edge.castShadow = on;
+        this.front.castShadow = this.edge.castShadow = on;
     }
 
     /** Hit-test meshes for the raycaster. */
