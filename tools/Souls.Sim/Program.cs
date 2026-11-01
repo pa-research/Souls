@@ -23,6 +23,10 @@ using Player = Souls.Server.Objects.Player;
 //
 // --vs-legacy instead pits the Hard bot against the Hard bot without its lookahead, seats swapped every other game
 // (same classes and decks), and reports the head-to-head result.
+//
+// --ladder 0,0.25,0.5,0.75,1 instead plays ranked bots of those skills (BotSkill) against each other, each pair of
+// skills at most three steps apart in turn, seats swapped every other game, and fits a rating to every skill
+// (Bradley-Terry, on the Elo scale, the weakest at 0): what the dial is worth.
 
 var games = Arg("--games", 2000);
 var parallel = Arg("--parallel", Environment.ProcessorCount);
@@ -31,6 +35,9 @@ var tune = Arg("--tune", 0);
 // --seed n: another draw of classes, powers and decks (shuffles and bot choices vary from run to run anyway).
 var seed = Arg("--seed", 0);
 var vsLegacy = args.Contains("--vs-legacy");
+var levels = ArgString("--ladder")?.Split(',').Select(x => double.Parse(x, CultureInfo.InvariantCulture)).ToArray();
+List<(double A, double B)> pairs = levels is null ? [] : [.. levels.SelectMany((a, i) => levels.Skip(i + 1).Take(3).Select(b => (a, b)))];
+var swapSeats = vsLegacy || levels is not null;
 const int MaxTurns = 80;
 // Flag band of the card table, on the in-deck win rate (see the note under the table).
 const double InDeckBand = 0.035;
@@ -91,7 +98,7 @@ if (plans.Count > 0)
     Console.Error.WriteLine($"Lookahead: {plans.Count} decisions, average {plans.Average():0.0} ms, 95th percentile {plans.Order().ElementAt(plans.Count * 95 / 100):0.0} ms, max {plans.Max():0.0} ms");
 }
 
-var report = vsLegacy ? HeadToHead(results) : Report(results, pool, classes);
+var report = levels is not null ? Ladder(results, levels) : vsLegacy ? HeadToHead(results) : Report(results, pool, classes);
 Console.WriteLine(report);
 if (output is not null)
 {
@@ -108,9 +115,10 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
     var done = 0;
     await Parallel.ForEachAsync(Enumerable.Range(0, count), new ParallelOptions { MaxDegreeOfParallelism = parallel }, async (i, ct) =>
     {
-        // Against the legacy bot, games 2n and 2n+1 share classes and decks and swap the seats.
-        var random = new Random(seed + (vsLegacy ? i / 2 : i) * 7919 + 17);
-        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0));
+        // Against the legacy bot and on the ladder, games 2n and 2n+1 share classes and decks and swap the seats.
+        var random = new Random(seed + (swapSeats ? i / 2 : i) * 7919 + 17);
+        (double?, double?) skills = levels is null ? (null, null) : i % 2 == 0 ? pairs[i / 2 % pairs.Count] : (pairs[i / 2 % pairs.Count].B, pairs[i / 2 % pairs.Count].A);
+        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0, skills));
         var n = Interlocked.Increment(ref done);
         if (n % 1000 == 0)
         {
@@ -120,8 +128,9 @@ async Task<List<GameResult>> RunAsync(int count, int seed)
     return [.. bag];
 }
 
-// legacySeat: the player (1 or 2) whose Hard bot plays without the lookahead, 0 for none.
-static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random, int legacySeat)
+// legacySeat: the player (1 or 2) whose Hard bot plays without the lookahead, 0 for none. skills: ranked bots instead
+// of the Hard bot, for players 1 and 2.
+static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, PlayerType class1, PlayerType class2, Random random, int legacySeat, (double? One, double? Two) skills)
 {
     var state = new ServerState();
     var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
@@ -156,7 +165,7 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
         var ai = id == legacySeat
             ? new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance)
             : new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance,
-                engine, () => state.RunExclusiveAsync(() => player.GPlayer?.GameRoom?.Copy()));
+                engine, () => state.RunExclusiveAsync(() => player.GPlayer?.GameRoom?.Copy()), id == 1 ? skills.One : skills.Two);
         return (player, Task.Run(() => ai.RunAsync(cts.Token)), deck, ai);
     }
 
@@ -212,7 +221,7 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
 
     var winner = room.Winner is null || !room.IsEnded ? 0 : room.Winner.Id;
     return new GameResult(class1.Id, class2.Id, winner, room.Turn + 1,
-        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells);
+        [Side(1, one.Deck), Side(2, two.Deck)], legacySeat, [.. one.Bot.PlanTimes, .. two.Bot.PlanTimes], spells, skills.One, skills.Two);
 
     SideResult Side(int ident, List<Souls.Model.Entities.Card> deck) =>
         new([.. deck.Select(c => c.Id).Distinct()], drawn[ident], playedCards[ident], [.. deck.Select(c => c.RaceId ?? 0).Distinct().Order()],
@@ -387,6 +396,70 @@ static string HeadToHead(List<GameResult> results)
         """);
 }
 
+// Fits a Bradley-Terry strength to every skill from the ladder's games (draws count half a win each, MM algorithm) and
+// reports it on the Elo scale with the weakest skill at 0, next to the score of each pair.
+static string Ladder(List<GameResult> results, double[] levels)
+{
+    var wins = new double[levels.Length, levels.Length];
+    foreach (var r in results)
+    {
+        var (a, b) = (Array.IndexOf(levels, r.Skill1!.Value), Array.IndexOf(levels, r.Skill2!.Value));
+        var score = r.Winner == 1 ? 1 : r.Winner == 2 ? 0 : 0.5;
+        wins[a, b] += score;
+        wins[b, a] += 1 - score;
+    }
+
+    var strength = Enumerable.Repeat(1.0, levels.Length).ToArray();
+    for (var round = 0; round < 2000; round++)
+    {
+        var next = new double[levels.Length];
+        for (var i = 0; i < levels.Length; i++)
+        {
+            double won = 0, sum = 0;
+            for (var j = 0; j < levels.Length; j++)
+            {
+                var games = wins[i, j] + wins[j, i];
+                won += wins[i, j];
+                sum += games == 0 ? 0 : games / (strength[i] + strength[j]);
+            }
+
+            // A skill that never wins gets a small strength rather than none (it would fall off the scale).
+            next[i] = Math.Max(won, 0.5) / Math.Max(sum, 1e-9);
+        }
+
+        var norm = next[0];
+        strength = [.. next.Select(x => x / norm)];
+    }
+
+    var text = new StringBuilder(string.Create(CultureInfo.InvariantCulture, $"Ranked bot ladder: {results.Count} games, {results.Count(r => r.Winner == 0)} draws.\n\n| Skill | Rating | Games | Score |\n|---|---|---|---|\n"));
+    for (var i = 0; i < levels.Length; i++)
+    {
+        double won = 0, games = 0;
+        for (var j = 0; j < levels.Length; j++)
+        {
+            won += wins[i, j];
+            games += wins[i, j] + wins[j, i];
+        }
+
+        text.Append(CultureInfo.InvariantCulture, $"| {levels[i]:0.00} | {400 * Math.Log10(strength[i]):0} | {games:0} | {won / Math.Max(1, games):P1} |\n");
+    }
+
+    text.Append("\nPairs (score of the stronger skill):\n\n");
+    for (var i = 0; i < levels.Length; i++)
+    {
+        for (var j = i + 1; j < levels.Length; j++)
+        {
+            var games = wins[i, j] + wins[j, i];
+            if (games > 0)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"- {levels[j]:0.00} against {levels[i]:0.00}: {wins[j, i] / games:P1} of {games:0}\n");
+            }
+        }
+    }
+
+    return text.ToString();
+}
+
 int Arg(string name, int fallback)
 {
     var i = Array.IndexOf(args, name);
@@ -401,4 +474,5 @@ string? ArgString(string name)
 
 internal sealed record SideResult(IReadOnlyList<int> Deck, IReadOnlySet<int> Drawn, IReadOnlySet<int> Played, IReadOnlyList<int> Races, int Class, int Power);
 
-internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells);
+internal sealed record GameResult(int Class1, int Class2, int Winner, int Turns, IReadOnlyList<SideResult> Sides, int LegacySeat, IReadOnlyList<double> PlanTimes, int Spells,
+    double? Skill1 = null, double? Skill2 = null);
