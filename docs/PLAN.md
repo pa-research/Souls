@@ -1,6 +1,6 @@
 # Souls: project plan and handover
 
-Status on 31 October 2026, after the second working session. This document says where everything stands, how to pick
+Status on 1 November 2026, after the second working session and the AAA round. This document says where everything stands, how to pick
 the work up again, and what to do next, in order of priority. The [README](../README.md) describes the product;
 [game-protocol.md](game-protocol.md) the rules and the protocol; [balance.md](balance.md) the latest balance report.
 
@@ -17,12 +17,14 @@ Souls is a 2014 browser card game (ASP.NET MVC 5, NHibernate, MySQL) that has be
   seasons with tier rewards, daily quests, card upgrades, card packs, emotes, friendly challenges, spectating and
   replays, and a practice bot with three difficulty levels (Hard looks one turn ahead). Friendly games give no
   rewards; ranked games show the season tier change on the end screen.
-- **Content**: 59 cards: the 8 original cards with their original art, a 33-card expansion, 10 spells and 8 class
-  cards (12 of the 59 are spells), with generated art. Balanced with a bot-versus-bot simulator: every class wins
+- **Content**: 59 cards: the 8 original cards, a 33-card expansion, 10 spells and 8 class cards (12 of the 59 are
+  spells), all with painted art (OpenAI image generation through Codex) in one style, and painted heroes. Balanced with a bot-versus-bot simulator: every class wins
   48-51 % of bot games.
 - **Clients**: the original PixiJS client ("Classic", modernised HUD) and a three.js client ("Modern 3D") that renders
-  with WebGPU (WebGL 2 fallback), with a stadium, camera views, touch controls, a portrait layout for phones held
-  upright and an effect for every ability.
+  with WebGPU (WebGL 2 fallback), with a crafted stadium (architecture, procedural materials, an animated crowd), camera
+  views, touch controls, a portrait layout for phones held upright and an effect for every ability.
+- **Sound**: 41 sound effects, a menu theme and a battle theme generated with ElevenLabs, in both clients.
+- **Languages**: English and Norwegian Bokmål (site, game texts, both clients); more languages are more resource files.
 - **Look**: one dark-fantasy design system for the site and both clients, with a finished polish pass over every page
   and both clients.
 
@@ -32,11 +34,11 @@ Everything is merged into `main`, which is the default branch on GitHub.
 
 | Branch | State |
 |---|---|
-| `main` | Default branch. Holds everything below (pull requests #2 to #32) |
+| `main` | Default branch. Holds everything below (pull requests #2 to #38) |
 | `dev`, `master` | The original 2014/2015 code. Untouched |
 | `modernize/dotnet10`, `feature/*`, `fix/*`, `polish/*` | Merged. Their remote branches were not deleted (the session was not allowed to delete remote branches); they can all go |
 
-Pull requests merged on 30 and 31 October:
+Pull requests merged from 30 October to 1 November:
 
 | # | What |
 |---|---|
@@ -70,6 +72,12 @@ Pull requests merged on 30 and 31 October:
 | #30 | Friendly games give no rewards, season on the end screen, game chat restored after a restart, database saves off the game lock |
 | #31 | Client polish: themed leave dialog, toasts off the heroes, classic board keeps 16:9, safe areas, cinematic camera clear of the pillars |
 | #32 | Balance report: class × deck-race table; cards flagged by their in-deck win rate |
+| #33 | Audio: ElevenLabs sound effects and music in both clients |
+| #34 | Painted card, hero and shop art (Codex image generation); third-party 2014 images moved to `original-2014/` |
+| #35 | AAA leftovers: landscape safe areas, tooltips, opponent hand, shop on phones, menu camera, classic arena frames and hand, touch wording, cheaper bloom |
+| #36 | Localization: English and Norwegian Bokmål |
+| #37 | Stadium rebuild: architecture, procedural materials, crowd, lighting, banners, new site backdrop |
+| #38 | Two flaky browser checks |
 
 ## 3. What has been built
 
@@ -79,13 +87,13 @@ Pull requests merged on 30 and 31 October:
 | Modern 3D client | `988895f`, `406f1b8`, `63cb41d`, #11, #16, #20 | three.js r186 client next to the classic one (switch top right), stadium with crowd, pillars and screens, camera views, bloom, touch controls, phone layouts, adaptive quality, WebGPU with WebGL 2 fallback |
 | Original content | `c038258`, `26853bd` | The original April 2014 card art and card names restored |
 | Gameplay overhaul | `57b84e7` | Armor, decks with fatigue, races, abilities, hero powers, Taunt, turn timer, bot (Easy/Normal/Hard), Elo rating and matchmaking, quests, upgrades, deck builder, spectating, replays, events protocol |
-| AAA interface | `ead6547`, `28879f4`, #21, #22, #24 to #26, #31 | Design system (theme.css, game-hud.css, fonts, icons, rank emblems), every site page, 3D HUD and menus, classic HUD; then a polish pass over all three (transitions, overlaps, phone layouts, card tiles, empty and error states) |
+| AAA interface | `ead6547`, `28879f4`, #21, #22, #24 to #26, #31, #33 to #37 | Design system (theme.css, game-hud.css, fonts, icons, rank emblems), every site page, 3D HUD and menus, classic HUD; polish passes over all three; painted art, ElevenLabs audio, the stadium rebuild, two languages |
 | Content and features | #3, #10, #12 to #15, #17, #19, #28 to #30 | Expansion, card packs, seasons, smarter bot, mulligan, emotes and friendly challenges, spells, hero power choice, class cards, art pass, class retune, season results |
 | Operations | #4 to #7, #9, #18, #23, #30 | Card statistics, observability, encrypted keys, backups, browser tests in CI, persistent games |
 
-Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 9 migrations
+Numbers today: 59 cards (12 spells, 8 class cards), 20 abilities, 4 classes with 8 hero powers, 11 migrations
 (`InitialCreate`, `RestoreHuyCard`, `GameplayOverhaul`, `ExpansionCardSet`, `Seasons`, `Spells`, `HeroChoice`,
-`RunningGames`, `ClassRetune`), 175 .NET tests.
+`RunningGames`, `ClassRetune`, `GameLogTextKeys`, `PaintedPortraits`), 192 .NET tests, 2 languages.
 
 ## 4. Architecture at a glance
 
@@ -124,7 +132,7 @@ Everything below is also in the README; this is the short version for picking th
 
 1. **Run it**: `./deploy/compose/init-secrets.sh`, then `docker compose up -d --build`, then open
    <https://localhost>. The admin password is in `deploy/compose/secrets/Souls__Admin__Password`.
-2. **.NET tests** (needs Docker for PostgreSQL): `dotnet test --project tests/Souls.Tests`. Expect 175 passing.
+2. **.NET tests** (needs Docker for PostgreSQL): `dotnet test --project tests/Souls.Tests`. Expect 192 passing.
 3. **Browser tests** against a running stack: see [tests/e2e/README.md](../tests/e2e/README.md). Without a GPU, start
    the stack with `COMPOSE_FILE=compose.yaml:tests/e2e/compose.ci.yaml` (long turns and mulligan, higher login rate
    limit), as CI does.
@@ -149,7 +157,10 @@ Everything below is also in the README; this is the short version for picking th
 | Two players with a spectator (`pvp_rules.js`) | 14 / 14, incl. live events for the spectator and the season on both end screens | After #31 |
 | Friendly challenges and emotes (`social.js`) | 24 / 24, no rewards for friendly games | After #30 |
 | Restart survival (`restart.js`) | 23 / 23: restarts during the mulligan, the bot's turn and a ranked turn, a redeploy, the game chat comes back, ratings applied once, complete replays | After #30 |
-| Website pages, desktop and phone (`ui_capture.js`) | No console errors, no page scrolls sideways; covers the new pages | After #28 |
+| Localization (`LocalizationTests`, `ui_capture.js <lang>`, `l10n_games.js`) | Every key in English and Norwegian, every server text sent with a key; no English left in the Norwegian site or games (desktop and phone) | After #36 |
+| Sound (instrumented runs of `rules3d.js`, `spells.js`, `classic_ui.js`) | Every sound decodes and plays at its event in both clients, no 404s; loudness-normalized (effects −16 LUFS, music −20 LUFS). Not listened to on real speakers | After #33 |
+| Stadium (`rules3d.js` on WebGL 2 and WebGPU, `portrait.js`, `spells.js`) | Pass; 90 draw calls per frame (was 98), CPU the same or lower; no orbit position hides the board | After #37 |
+| Website pages, desktop and phone (`ui_capture.js`) | No console errors, no page scrolls sideways, no image or sound 404s; covers the new pages | After #37 |
 | Balance (three runs of 10 000 bot games) | Classes 48.0-51.2 %, worst matchup 42-45 %, hero powers 45.7-54.3 % against the class's other power, races 50.2-52.6 %, first player 48.4-48.6 %, 24.7 turns. Expensive cards read 55-60 % drawn win rate but 50-54 % counted over every game of a deck that holds them | After #29 |
 | Upgrade from the previous release | Players registered on the old version all have 20-card decks after the migrations | Test database, P0-3 check |
 | Kubernetes | Deployed locally on kind with ingress-nginx; smoke test passes | P0-3 check |
@@ -168,20 +179,24 @@ Everything below is also in the README; this is the short version for picking th
 - The balance comes from the bot playing itself, not from people. The "Card statistics" admin page shows real win
   rates once people play.
 
-**Art**
-- All new portraits (expansion, spells, class cards) are generated "lit emblems" built from game-icons.net
-  silhouettes (CC BY 3.0), not paintings; #28 made them more varied and cleaner.
-- The original cards use their 2014 art, which includes third-party images (photos, a Sonic character, a film
-  still). Kept on purpose for a hobby project; replace before any commercial use.
+**Art and sound**
+- Every card, hero, the shop mascots and the classic backdrop are painted with OpenAI image generation (Codex, the
+  owner's account); OpenAI's terms give the output's rights to the user, but AI images may get little copyright
+  protection. The prompts are in `tools/card-art/prompts.json`; the 2014 originals (third-party images) are kept in
+  `original-2014/` folders and are not used.
+- The sounds and music are generated with ElevenLabs. Commercial use needs a paid ElevenLabs plan at the time of
+  generation; check the account's plan before selling the game (`Content/Sound/CREDITS.md`).
 - The lost original cards (Paul and others) cannot be restored without an old persoft.no backup.
 
 **Clients**
 - WebGPU is tested on Chromium with an NVIDIA GPU only. On one Linux setup (ANGLE on GL, WebGPU on Vulkan) canvas
   textures came out blank; `willReadFrequently` canvases fix it there, not yet confirmed on other machines.
 - The classic client asks you to turn a phone held upright; the 3D client plays upright.
-- About one frame in a thousand of the classic client was drawn without the arena (cause unknown; the stage colour
-  hides it).
-- In landscape the 3D hand and End Turn do not avoid side notches (portrait does).
+- On hardware GL a few classic frames in several thousand are still drawn without the arena (below Pixi; the
+  multisampled buffer is off, the stage colour hides it; the browser test allows 1 in 1000).
+- The new stadium's fragment shaders are heavier than before; CPU cost is the same or lower, GPU cost still needs a
+  real mid-range phone.
+- Card names, player names and news posts are not translated; games stored before #36 show their log in English.
 
 **Platform**
 - The game server runs as one replica (decided: restart survival is enough at this scale). A second replica needs
@@ -236,6 +251,8 @@ The owner delegated the open decisions:
 - **Friendly games**: no coins, quests, rating or season points (#30).
 - **Game server replicas**: one, with restart survival.
 - **Lost cards**: not searched further.
+- **AAA round (1 November)**: painted art for every card and hero with Codex, the 2014 images archived; sound and
+  music with ElevenLabs; the stadium rebuilt procedurally (no bought assets); Norwegian Bokmål as the second language.
 
 Still open, because they need the owner's accounts or hardware:
 
@@ -246,7 +263,7 @@ Still open, because they need the owner's accounts or hardware:
 ## 10. Picking the work up in a new session
 
 1. Clone and stay on `main`.
-2. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (175 tests).
+2. Install the .NET 10 SDK and Docker; run `dotnet test --project tests/Souls.Tests` (192 tests).
 3. `./deploy/compose/init-secrets.sh` and `docker compose up -d --build`; open <https://localhost>.
 4. For browser tests: `cd tests/e2e && npm ci`, then the commands in its README.
 5. Read sections 6 to 9 above and start at the first item that is not done.
