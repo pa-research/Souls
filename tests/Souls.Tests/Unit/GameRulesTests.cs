@@ -1081,6 +1081,29 @@ public class GameRulesTests
     }
 
     [Fact]
+    public async Task CopiesOfACopyShareItsDeckUntilTheyDraw()
+    {
+        var game = TestGame.Start();
+        var copy = game.Room.Copy();
+        var deck = copy.Players.Second.GPlayer!.Deck;
+
+        // The first copy has its own deck cards; a copy of it (the bot's lookahead) shares them.
+        Assert.DoesNotContain(deck, c => game.G2.Deck.Contains(c));
+        var nested = copy.Copy();
+        Assert.Equal(deck, nested.Players.Second.GPlayer!.Deck);
+
+        // Ending the nested copy's turn makes player two draw: the drawn card is the nested copy's own.
+        var top = deck[^1];
+        var (count, health) = (deck.Count, top.Health);
+        await game.Engine.RequestNextTurnAsync(nested.Players.First);
+        var drawn = nested.Players.Second.GPlayer!.HandCards.Values.Single(c => c.Cid == top.Cid);
+        Assert.NotSame(top, drawn);
+        drawn.Health += 5;
+        Assert.Equal((count, health), (deck.Count, top.Health));
+        Assert.Same(top, deck[^1]);
+    }
+
+    [Fact]
     public async Task SpellsAreCastOnTheirTargetAndNeverTakeASlot()
     {
         var game = TestGame.Start();

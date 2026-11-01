@@ -216,8 +216,11 @@ public sealed partial class GameEngine(
         card.HasAttacked = !card.HasCharge;
 
         JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData() };
-        player.Send(new Response(GameResponse.GameUseCardOk, Payload()));
-        opponent.Send(new Response(GameResponse.GameOpponentUseCardOk, Payload()));
+        if (!room.IsCopy)
+        {
+            player.Send(new Response(GameResponse.GameUseCardOk, Payload()));
+            opponent.Send(new Response(GameResponse.GameOpponentUseCardOk, Payload()));
+        }
 
         var text = new GameText("log.plays", ("player", gp.Name), ("card", card.Name));
         room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);

@@ -85,6 +85,7 @@ public sealed partial class GameRoom
         _time = source._time;
         Random = source.IsCopy ? source.Random : new Random();
         IsCopy = true;
+        Logger = GameLogger.Off;
         Turn = source.Turn;
         Round = source.Round;
         IsPractice = source.IsPractice;
@@ -112,7 +113,7 @@ public sealed partial class GameRoom
     }
 
     /// <summary>
-    /// A deep copy for the bot to try moves on. It has its own players (without connections), random numbers and log,
+    /// A deep copy for the bot to try moves on. It has its own players (without connections) and random numbers, no log,
     /// and reshuffled decks so it does not reveal the next draws. Nothing it does reaches the players, spectators, the
     /// replay or the database (see <see cref="IsCopy"/>).
     /// </summary>
@@ -216,6 +217,11 @@ public sealed partial class GameRoom
     /// <summary>A line for the battle log: the English text with its key and arguments (see <see cref="GameText.WriteTo"/>).</summary>
     public void LogLine(GameText text)
     {
+        if (IsCopy)
+        {
+            return;
+        }
+
         var data = new JsonObject();
         text.WriteTo(data, "text");
         Event("log", data);
