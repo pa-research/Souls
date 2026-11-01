@@ -35,10 +35,17 @@ public sealed partial class GameRoom
     private readonly List<JsonObject> _events = [];
     private readonly List<JsonObject> _replay = [];
 
-    /// <summary>Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over.</summary>
-    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false)
+    /// <summary>
+    /// Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over. A
+    /// <paramref name="random"/> makes the game reproducible (the simulator); otherwise it uses the shared one.
+    /// </summary>
+    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false, Random? random = null,
+        bool headless = false)
     {
         _time = time;
+        Headless = headless;
+        Random = random ?? Random.Shared;
+        Logger = new GameLogger();
         GameId = Interlocked.Increment(ref _gameCounter);
         Players = players;
         StartedAt = time.GetUtcNow();
@@ -52,7 +59,8 @@ public sealed partial class GameRoom
         {
             var gp = player.GPlayer!;
             gp.GameRoom = this;
-            foreach (var card in player.Deck.OrderBy(_ => Random.Shared.Next()))
+            gp.MulliganRandom = random is null ? Random.Shared : new Random(Random.Next());
+            foreach (var card in player.Deck.OrderBy(_ => Random.Next()))
             {
                 gp.Deck.Add(card.NewInstance());
             }
@@ -83,7 +91,7 @@ public sealed partial class GameRoom
     private GameRoom(GameRoom source)
     {
         _time = source._time;
-        Random = source.IsCopy ? source.Random : new Random();
+        Random = source.IsCopy ? source.Random : new Random(source.Random.Next());
         IsCopy = true;
         Logger = GameLogger.Off;
         Turn = source.Turn;
@@ -104,8 +112,8 @@ public sealed partial class GameRoom
             Id = p.Id,
             Name = p.Name,
             PlayerType = p.PlayerType,
-            OwningCards = [],
-            Deck = [],
+            OwningCards = Array.Empty<Card>(),
+            Deck = Array.Empty<Card>(),
             IsBot = p.IsBot,
             Difficulty = p.Difficulty,
             GPlayer = p.GPlayer!.Copy(this),
@@ -119,11 +127,48 @@ public sealed partial class GameRoom
     /// </summary>
     public GameRoom Copy() => new(this);
 
+    /// <summary>
+    /// Like <see cref="Copy"/> (of a copy), but into <paramref name="target"/>, an earlier copy of the same game that the
+    /// bot no longer needs: the lookahead reuses its copies instead of allocating thousands per decision.
+    /// </summary>
+    public GameRoom CopyInto(GameRoom target)
+    {
+        if (!IsCopy || !target.IsCopy || target.Players.First.Id != Players.First.Id || target.Players.Second.Id != Players.Second.Id)
+        {
+            throw new ArgumentException("Only a copy of the same game can be reused", nameof(target));
+        }
+
+        target.Random = Random; // a spare from an earlier decision had that decision's copy's
+        target.Turn = Turn;
+        target.Round = Round;
+        target.InMulligan = InMulligan;
+        target.TurnDeadline = TurnDeadline;
+        target.IsEnded = IsEnded;
+        target.Winner = null;
+        Players.First.GPlayer!.CopyInto(target.Players.First.GPlayer!);
+        Players.Second.GPlayer!.CopyInto(target.Players.Second.GPlayer!);
+        target.CurrentPlaying = CurrentPlaying == Players.First ? target.Players.First : target.Players.Second;
+        return target;
+    }
+
     /// <summary>A copy made by <see cref="Copy"/>: it sends no events or state and is never stored.</summary>
     public bool IsCopy { get; }
 
-    /// <summary>For death curses. A copy has its own (shared with copies of the copy).</summary>
-    public Random Random { get; } = Random.Shared;
+    /// <summary>
+    /// Whether anyone sees this game: <c>false</c> for a copy, where the rules only change the state, so the engine
+    /// builds no events, log lines or messages for it (the bot's lookahead plays thousands of moves in copies).
+    /// </summary>
+    public bool Live => !IsCopy;
+
+    /// <summary>
+    /// A game between bots that nobody watches (the simulator): the rules and the log work as usual, but the engine
+    /// builds no events, battle log lines, full state or replay. The state message comes without its payload, and the
+    /// bots read the game itself (see <see cref="Ai.AiPlayer"/>).
+    /// </summary>
+    public bool Headless { get; }
+
+    /// <summary>For shuffles and death curses. A copy has its own (shared with copies of the copy).</summary>
+    public Random Random { get; private set; }
 
     /// <summary>In-memory id while running; replaced by the database id when the game is saved.</summary>
     public int GameId { get; set; }
@@ -145,7 +190,7 @@ public sealed partial class GameRoom
     public Player CurrentPlaying { get; private set; }
     public bool IsEnded { get; set; }
     public Player? Winner { get; set; }
-    public GameLogger Logger { get; } = new();
+    public GameLogger Logger { get; }
     public DateTimeOffset StartedAt { get; }
 
     public List<Player> Spectators { get; } = [];
@@ -205,7 +250,7 @@ public sealed partial class GameRoom
 
     public void Event(string type, JsonObject data)
     {
-        if (IsCopy)
+        if (IsCopy || Headless)
         {
             return;
         }
@@ -217,7 +262,7 @@ public sealed partial class GameRoom
     /// <summary>A line for the battle log: the English text with its key and arguments (see <see cref="GameText.WriteTo"/>).</summary>
     public void LogLine(GameText text)
     {
-        if (IsCopy)
+        if (IsCopy || Headless)
         {
             return;
         }
@@ -250,7 +295,7 @@ public sealed partial class GameRoom
         }
 
         FlushEvents();
-        var response = new Response(GameResponse.GameSync, SyncPayload());
+        var response = new Response(GameResponse.GameSync, Headless ? null : SyncPayload());
         Players.First.Send(response);
         Players.Second.Send(response);
     }
@@ -319,7 +364,7 @@ public sealed partial class GameRoom
     /// <summary>Called for every message player one receives.</summary>
     public void Mirror(Response response)
     {
-        if (IsCopy || !MirroredTypes.Contains(response.Type))
+        if (IsCopy || Headless || !MirroredTypes.Contains(response.Type))
         {
             return;
         }
@@ -370,11 +415,16 @@ public sealed partial class GameRoom
     /// <summary>Adds a message to the replay only. Every change players can see is recorded, so it marks the room <see cref="Dirty"/>.</summary>
     public void Record(Response response)
     {
+        if (Headless)
+        {
+            return;
+        }
+
         Dirty = true;
         _replay.Add(new JsonObject
         {
             ["t"] = (long)(_time.GetUtcNow() - StartedAt).TotalMilliseconds,
-            ["m"] = JsonNode.Parse(response.ToJson()),
+            ["m"] = response.ToJsonNode(),
         });
     }
 

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Diagnostics.Metrics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,9 +96,9 @@ public class GameRulesTests
         {
             var list = new List<JsonNode>();
             var inbox = ((BotConnection)p.GameContext!).Inbox;
-            while (inbox.TryRead(out var json))
+            while (inbox.TryRead(out var response))
             {
-                list.Add(JsonNode.Parse(json)!);
+                list.Add(response.ToJsonNode());
             }
 
             return list;
@@ -1081,7 +1082,32 @@ public class GameRulesTests
     }
 
     [Fact]
-    public async Task CopiesOfACopyShareItsDeckUntilTheyDraw()
+    public void CopyToCopiesEveryFieldOfACard()
+    {
+        // CopyTo (a reused copy's card) must stay in step with Copy (MemberwiseClone): a new field has to be added to both.
+        var card = NewCard(3, 4);
+        var n = 0;
+        foreach (var field in typeof(Card).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            if (field.FieldType == typeof(int))
+            {
+                field.SetValue(card, ++n * 7);
+            }
+            else if (field.FieldType == typeof(bool))
+            {
+                field.SetValue(card, !(bool)field.GetValue(card)!);
+            }
+        }
+
+        var copied = card.CopyTo(NewCard(1, 1));
+        foreach (var field in typeof(Card).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            Assert.Equal(field.GetValue(card), field.GetValue(copied));
+        }
+    }
+
+    [Fact]
+    public async Task CopiesOfACopyShareItsHandAndDeckUntilTheyDraw()
     {
         var game = TestGame.Start();
         var copy = game.Room.Copy();
@@ -1090,7 +1116,9 @@ public class GameRulesTests
         // The first copy has its own deck cards; a copy of it (the bot's lookahead) shares them.
         Assert.DoesNotContain(deck, c => game.G2.Deck.Contains(c));
         var nested = copy.Copy();
-        Assert.Equal(deck, nested.Players.Second.GPlayer!.Deck);
+        Assert.Same(deck, nested.Players.Second.GPlayer!.Deck);
+        var hand = copy.Players.Second.GPlayer!.HandCards;
+        Assert.Same(hand, nested.Players.Second.GPlayer!.HandCards);
 
         // Ending the nested copy's turn makes player two draw: the drawn card is the nested copy's own.
         var top = deck[^1];
@@ -1101,6 +1129,7 @@ public class GameRulesTests
         drawn.Health += 5;
         Assert.Equal((count, health), (deck.Count, top.Health));
         Assert.Same(top, deck[^1]);
+        Assert.DoesNotContain(top.Cid, hand.Keys);
     }
 
     [Fact]

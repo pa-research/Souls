@@ -187,9 +187,9 @@ public partial class LocalizationTests
         foreach (var player in new[] { p1, p2 })
         {
             var inbox = ((BotConnection)player.GameContext!).Inbox;
-            while (inbox.TryRead(out var json))
+            while (inbox.TryRead(out var response))
             {
-                CheckTexts(JsonNode.Parse(json)!, problems, keys);
+                CheckTexts(response.ToJsonNode(), problems, keys);
             }
         }
 

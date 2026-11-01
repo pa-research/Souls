@@ -25,7 +25,10 @@ public readonly record struct Response(int Type, JsonNode? Payload)
 
     public GameText? Text { get; init; }
 
-    public string ToJson()
+    public string ToJson() => ToJsonNode().ToJsonString();
+
+    /// <summary>The message as sent (see <see cref="ToJson"/>), as a JSON object of its own.</summary>
+    public JsonObject ToJsonNode()
     {
         var json = new JsonObject
         {
@@ -41,7 +44,7 @@ public readonly record struct Response(int Type, JsonNode? Payload)
             }
         }
 
-        return json.ToJsonString();
+        return json;
     }
 }
 

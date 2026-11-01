@@ -16,6 +16,9 @@ public sealed class AiOptions
 
     /// <summary>Pause between the bot's actions.</summary>
     public TimeSpan AttackDelay { get; set; } = TimeSpan.FromMilliseconds(700);
+
+    /// <summary>Seeds the bot's choices, so a game can be replayed exactly (the simulator).</summary>
+    public int? Seed { get; set; }
 }
 
 /// <summary>
@@ -31,7 +34,7 @@ public sealed class AiOptions
 /// </para>
 /// </summary>
 public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send, AiOptions options, int difficulty, ILogger logger,
-    GameEngine? engine = null, Func<Task<GameRoom?>>? copyGame = null, double? skill = null)
+    GameEngine? engine = null, Func<Task<GameRoom?>>? copyGame = null, double? skill = null, Func<Action<GameRoom>, Task>? inspectGame = null)
 {
     /// <summary>
     /// Simulated actions per decision, and positions kept after each step of the search: a few milliseconds per
@@ -70,22 +73,6 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         public int Toughness => Health + Armor;
         public int Value => Attack * 2 + Health + Armor + (Taunt ? 2 : 0) + (Ability is not null ? 2 : 0) + (Ward ? 2 : 0) + (Venom ? 3 : 0);
 
-        public static Unit Of(Card c) => new()
-        {
-            Cid = c.Cid,
-            Attack = c.Attack,
-            Health = c.Health,
-            MaxHealth = c.MaxHealth,
-            Armor = c.Armor,
-            Taunt = c.HasTaunt,
-            CanAct = c.CanAct,
-            Ability = c.AbilityId,
-            AbilityValue = c.AbilityValue,
-            Race = c.RaceId,
-            SlotId = c.SlotId,
-            Ward = c.Ward,
-        };
-
         /// <summary>Whether an attack of <paramref name="damage"/> (from a venom card or not) kills this unit.</summary>
         public bool DiesTo(int damage, bool venom) => !Ward && damage > 0 && (venom || damage >= Toughness);
     }
@@ -107,7 +94,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
 
     private readonly Dictionary<int, Card> _hand = [];
     private readonly HashSet<string> _failed = [];
-    private readonly Random _random = new();
+    private readonly Random _random = options.Seed is { } seed ? new Random(seed) : new Random();
     private int _ident;
     private int _turn = -1;
     private bool _myTurn;
@@ -122,6 +109,24 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     private bool _greet;
     private Message? _mulligan;
 
+    /// <summary>
+    /// Copies of the game the lookahead no longer needs, reused for its next copies (<see cref="GameRoom.CopyInto"/>):
+    /// a decision tries thousands of moves, each on a copy. At most <see cref="MaxSpareRooms"/> are kept.
+    /// </summary>
+    private readonly Stack<GameRoom> _spareRooms = new();
+
+    // Reused by Moves.
+    private readonly List<GameAction> _moves = [];
+    private readonly List<int> _free = [];
+    private readonly List<Card> _attackable = [];
+    private readonly HashSet<int> _seenCards = [];
+    // The lookahead's working sets, reused from one decision to the next (see PlanAsync).
+    private readonly HashSet<long> _seen = [];
+    private readonly Dictionary<GameAction, int> _firsts = [];
+    private readonly List<(GameRoom Room, GameAction? First, int Score, int Order)> _beam = [];
+    private readonly List<(GameRoom Room, GameAction? First, int Score, int Order)> _next = [];
+    private const int MaxSpareRooms = 4096;
+
     /// <summary>The mulligan sends back starting cards that cost more than this (easy bots keep their hand).</summary>
     private const int MulliganMaxCost = 4;
 
@@ -132,40 +137,50 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     {
         try
         {
-            await foreach (var json in connection.Inbox.ReadAllAsync(ct))
+            // Not ReadAllAsync: its awaits leave the caller's context (the simulator plays a game on one thread).
+            while (await connection.Inbox.WaitToReadAsync(ct))
             {
-                try
+                while (connection.Inbox.TryRead(out var message))
                 {
-                    if (!Handle(JsonNode.Parse(json)!))
+                    try
                     {
-                        break;
-                    }
-
-                    if (_greet)
-                    {
-                        _greet = false;
-                        await send(Message.Create(GameRequest.Emote, new JsonObject { ["emote"] = 0 }));
-                    }
-
-                    if (_mulligan is { } mulligan)
-                    {
-                        _mulligan = null;
-                        await Task.Delay(options.ThinkDelay, ct);
-                        await send(mulligan);
-                    }
-
-                    // Act once everything the server sent has been read.
-                    while (connection.Inbox.Count == 0 && _myTurn && _synced && !_ended)
-                    {
-                        if (!await StepAsync(ct))
+                        if (!Handle(message))
                         {
-                            break;
+                            return;
+                        }
+
+                        if (_readState && inspectGame is not null)
+                        {
+                            _readState = false;
+                            await inspectGame(ReadState);
+                        }
+
+                        if (_greet)
+                        {
+                            _greet = false;
+                            await send(Message.Create(GameRequest.Emote, new JsonObject { ["emote"] = 0 }));
+                        }
+
+                        if (_mulligan is { } mulligan)
+                        {
+                            _mulligan = null;
+                            await Task.Delay(options.ThinkDelay, ct);
+                            await send(mulligan);
+                        }
+
+                        // Act once everything the server sent has been read.
+                        while (connection.Inbox.Count == 0 && _myTurn && _synced && !_ended)
+                        {
+                            if (!await StepAsync(ct))
+                            {
+                                break;
+                            }
                         }
                     }
-                }
-                catch (Exception e) when (e is not OperationCanceledException)
-                {
-                    logger.LogWarning(e, "Bot failed to process a message");
+                    catch (Exception e) when (e is not OperationCanceledException)
+                    {
+                        logger.LogWarning(e, "Bot failed to process a message");
+                    }
                 }
             }
         }
@@ -180,10 +195,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     }
 
     /// <returns><c>false</c> when the bot should disconnect.</returns>
-    private bool Handle(JsonNode message)
+    private bool Handle(Response message)
     {
-        var payload = message["Payload"];
-        switch ((GameResponse?)(int?)message["Type"])
+        var payload = message.Payload;
+        switch ((GameResponse)message.Type)
         {
             case GameResponse.GameCreate:
                 _ident = (int?)payload!["ident"] ?? 2;
@@ -228,6 +243,9 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             case GameResponse.GameUseCardSpell:
                 _hand.Remove((int?)payload!["card"]?["cid"] ?? 0);
                 break;
+            case GameResponse.GameSync when payload is null:
+                _readState = true; // a headless game: read the game itself (see GameRoom.Headless)
+                break;
             case GameResponse.GameSync:
                 ReadSync(payload!);
                 break;
@@ -269,6 +287,58 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         _enemy = ReadHero(sync["heroes"]?[enemyIdent.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
         _myBoard = ReadBoard(sync["board"]?[_ident.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
         _enemyBoard = ReadBoard(sync["board"]?[enemyIdent.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+    }
+
+    private bool _readState;
+
+    /// <summary>Like <see cref="ReadSync"/>, from the game itself (a headless game sends the state without its payload).</summary>
+    private void ReadState(GameRoom room)
+    {
+        _synced = true;
+        var turn = room.Turn;
+        _myTurn = (room.InMulligan ? 0 : room.CurrentPlaying.GPlayer!.Ident) == _ident;
+        if (turn != _turn)
+        {
+            _turn = turn;
+            _failed.Clear();
+            _turnStarted = false;
+        }
+
+        var me = room.PlayerOf(_ident).GPlayer!;
+        var enemy = room.Other(me);
+        _me = HeroOf(me);
+        _enemy = HeroOf(enemy);
+        _myBoard = BoardOf(me);
+        _enemyBoard = BoardOf(enemy);
+
+        // The same values as GameRoom.SyncPayload sends.
+        static Hero HeroOf(GamePlayer gp) => new()
+        {
+            Health = gp.Health,
+            MaxHealth = gp.MaxHealth,
+            Armor = gp.Armor,
+            Attack = gp.Attack,
+            Mana = gp.Mana,
+            Power = gp.Power,
+            CanAttack = gp.IsPlayerTurn() && !gp.HasAttacked && gp.Attack > 0,
+            CanUsePower = gp.IsPlayerTurn() && !gp.HeroPowerUsed && gp.Mana >= GameRules.HeroPowerCost,
+        };
+
+        static List<Unit> BoardOf(GamePlayer gp) => [.. gp.BoardCards.Values.OrderBy(c => c.SlotId).Select(c => new Unit
+        {
+            Cid = c.Cid,
+            Attack = c.Attack,
+            Health = c.Health,
+            MaxHealth = c.MaxHealth,
+            Armor = c.Armor,
+            Taunt = c.HasTaunt,
+            CanAct = gp.IsPlayerTurn() && c.CanAct,
+            Ability = c.AbilityId,
+            AbilityValue = c.AbilityValue,
+            Race = c.RaceId,
+            SlotId = c.SlotId,
+            Ward = c.Ward,
+        })];
     }
 
     private static int Int(JsonNode? node) => node is JsonValue v && v.TryGetValue<int>(out var i) ? i
@@ -691,16 +761,21 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         var best = Score(root);
-        Message? bestFirst = null;
+        GameAction? bestFirst = null;
         // The best score each first action leads to (for a bot with a skill, which may not take the best).
-        var firsts = new Dictionary<string, (Message Move, int Score)>();
-        var seen = new HashSet<int> { Signature(root) };
-        List<(GameRoom Room, Message? First, int Score)> beam = [(root, null, best)];
+        var firsts = _firsts;
+        firsts.Clear();
+        var seen = _seen;
+        seen.Clear();
+        seen.Add(Signature(root));
+        var (beam, next) = (_beam, _next);
+        beam.Clear();
+        beam.Add((root, null, best, 0));
         var (budget, beamWidth) = skill is { } s ? BotSkill.Search(s, LookaheadBudget, BeamWidth) : (LookaheadBudget, BeamWidth);
         while (beam.Count > 0 && budget > 0)
         {
-            var next = new List<(GameRoom Room, Message? First, int Score)>();
-            foreach (var (room, first, _) in beam)
+            next.Clear();
+            foreach (var (room, first, _, _) in beam)
             {
                 foreach (var move in Moves(room))
                 {
@@ -709,10 +784,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         break;
                     }
 
-                    var copy = room.Copy();
-                    await ApplyAsync(copy, move);
+                    var copy = _spareRooms.TryPop(out var spare) ? room.CopyInto(spare) : room.Copy();
+                    engine!.Simulate(copy.PlayerOf(_ident), move);
                     if (!seen.Add(Signature(copy)))
                     {
+                        Spare(copy);
                         continue; // refused, or a position already reached in another order
                     }
 
@@ -722,23 +798,60 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         (best, bestFirst) = (score, first ?? move);
                     }
 
-                    var key = Key(first ?? move);
-                    if (!firsts.TryGetValue(key, out var known) || score > known.Score)
+                    var key = first ?? move;
+                    if (!firsts.TryGetValue(key, out var known) || score > known)
                     {
-                        firsts[key] = (first ?? move, score);
+                        firsts[key] = score;
                     }
 
                     if (!copy.IsEnded)
                     {
-                        next.Add((copy, first ?? move, score));
+                        next.Add((copy, first ?? move, score, next.Count));
+                    }
+                    else
+                    {
+                        Spare(copy);
                     }
                 }
             }
 
-            beam = [.. next.OrderByDescending(x => x.Score).Take(beamWidth)];
+            // The positions just expanded, and those the beam drops, become spares for the next copies.
+            foreach (var expanded in beam)
+            {
+                Spare(expanded.Room);
+            }
+
+            // The best go on; equal scores in the order they were reached.
+            next.Sort(static (a, b) => a.Score != b.Score ? b.Score.CompareTo(a.Score) : a.Order.CompareTo(b.Order));
+            beam.Clear();
+            for (var i = 0; i < next.Count; i++)
+            {
+                if (i < beamWidth)
+                {
+                    beam.Add(next[i]);
+                }
+                else
+                {
+                    Spare(next[i].Room);
+                }
+            }
         }
 
-        return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst;
+        foreach (var left in beam)
+        {
+            Spare(left.Room);
+        }
+
+        // The first copy of the real game is never reused: the other copies share its hand and deck cards.
+        void Spare(GameRoom copy)
+        {
+            if (copy != root && _spareRooms.Count < MaxSpareRooms)
+            {
+                _spareRooms.Push(copy);
+            }
+        }
+
+        return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst?.ToMessage();
     }
 
     /// <summary>
@@ -748,9 +861,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// the game (<see cref="BotSkill.MissLethal"/>): it values it like its best ordinary one, and a beginner sometimes
     /// does anything at all (<see cref="BotSkill.Wander"/>). Actions the server refused this turn are left out.
     /// </summary>
-    private Message? Pick(double level, int endTurn, Dictionary<string, (Message Move, int Score)> firsts)
+    private Message? Pick(double level, int endTurn, Dictionary<GameAction, int> firsts)
     {
-        List<(Message? Move, double Score)> options = [(null, endTurn), .. firsts.Where(f => !_failed.Contains(f.Key)).Select(f => ((Message?)f.Value.Move, (double)f.Value.Score))];
+        List<(Message? Move, double Score)> options = [(null, endTurn), .. firsts.Select(f => (Message: f.Key.ToMessage(), f.Value)).Where(f => !_failed.Contains(Key(f.Message)))
+            .Select(f => ((Message?)f.Message, (double)f.Value))];
         if (_random.NextDouble() < BotSkill.Wander(level))
         {
             return options[_random.Next(options.Count)].Move;
@@ -798,84 +912,139 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return WinScore;
         }
 
-        static int Cards(GamePlayer gp) => gp.BoardCards.Values.Sum(c => Unit.Of(c).Value);
-        var threat = Cards(enemy) - enemy.BoardCards.Values.Where(c => c.Paralyzed).Sum(c => 2 * c.Attack);
+        // Loops, not LINQ: the lookahead scores every position it reaches.
+        static int Cards(GamePlayer gp)
+        {
+            var sum = 0;
+            foreach (var c in gp.BoardCards.Values)
+            {
+                sum += c.Attack * 2 + c.Health + c.Armor + (c.HasTaunt ? 2 : 0) + (c.AbilityId is not null ? 2 : 0) + (c.Ward ? 2 : 0) + (c.HasVenom ? 3 : 0);
+            }
+
+            return sum;
+        }
+
+        var threat = Cards(enemy);
+        foreach (var c in enemy.BoardCards.Values)
+        {
+            if (c.Paralyzed)
+            {
+                threat -= 2 * c.Attack;
+            }
+        }
+
         return 2 * (Cards(me) + me.Health + me.Armor - enemy.Health - enemy.Armor) - 3 * threat + HandCardWorth * (me.HandCards.Count + me.CardsPlayed - me.Used.Count);
     }
 
     /// <summary>Identifies a position, to drop actions that changed nothing and positions reached in another order.</summary>
-    // ponytail: a 32-bit hash; a rare collision drops one candidate. Use a full key if that ever shows up in play.
-    private static int Signature(GameRoom room)
+    // ponytail: a 64-bit hash (FNV-1a over the fields); a collision would drop one candidate. Use a full key if that
+    // ever shows up in play.
+    private static long Signature(GameRoom room)
     {
-        var hash = new HashCode();
-        foreach (var gp in new[] { room.Players.First.GPlayer!, room.Players.Second.GPlayer! })
+        var hash = Add(14695981039346656037UL, room.Players.First.GPlayer!);
+        return (long)Add(hash, room.Players.Second.GPlayer!);
+
+        static ulong Add(ulong hash, GamePlayer gp)
         {
-            hash.Add(HashCode.Combine(gp.Health, gp.Armor, gp.Attack, gp.Mana, gp.HasAttacked, gp.HeroPowerUsed, gp.HandCards.Count));
+            hash = Mix(Mix(Mix(Mix(Mix(Mix(hash, gp.Health), gp.Armor), gp.Attack), gp.Mana), (gp.HasAttacked ? 1 : 0) | (gp.HeroPowerUsed ? 2 : 0)), gp.HandCards.Count);
             for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
             {
                 if (gp.BoardCards.TryGetValue(slot, out var c))
                 {
-                    hash.Add(HashCode.Combine(c.Cid, c.Attack, c.Health, c.Armor, c.HasAttacked, c.Ward, c.Paralyzed, c.AttacksThisTurn));
+                    hash = Mix(Mix(Mix(Mix(Mix(Mix(hash, c.Cid), c.Attack), c.Health), c.Armor), c.AttacksThisTurn), (c.HasAttacked ? 1 : 0) | (c.Ward ? 2 : 0) | (c.Paralyzed ? 4 : 0));
                 }
             }
+
+            return hash;
         }
 
-        return hash.ToHashCode();
+        static ulong Mix(ulong hash, int value) => (hash ^ (uint)value) * 1099511628211UL;
     }
 
     /// <summary>
-    /// Every action the bot could take: each card once (in the slot <see cref="PickSlot"/> picks), each spell once on
-    /// every target, every attack and ability target.
+    /// Every action the bot could take (into <see cref="_moves"/>, reused): each card once (in the slot
+    /// <see cref="PickSlot"/> picks), each spell once on every target, every attack and ability target. Loops, not
+    /// LINQ: this runs for every position the lookahead expands.
     /// </summary>
-    private IEnumerable<Message> Moves(GameRoom room)
+    private List<GameAction> Moves(GameRoom room)
     {
+        var moves = _moves;
+        moves.Clear();
         var me = room.PlayerOf(_ident).GPlayer!;
         var enemy = room.Other(me);
-        var free = Enumerable.Range(0, GamePlayer.BoardSlots).Where(s => !me.BoardCards.ContainsKey(s)).ToList();
-        var holdInferno = enemy.BoardCards.Count < 2 && me.HandCards.Count < 8;
-        foreach (var card in me.HandCards.Values.Where(c => c.Cost <= me.Mana).DistinctBy(c => c.Id))
+        var free = _free;
+        free.Clear();
+        for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
         {
+            if (!me.BoardCards.ContainsKey(slot))
+            {
+                free.Add(slot);
+            }
+        }
+
+        var holdInferno = enemy.BoardCards.Count < 2 && me.HandCards.Count < 8;
+        _seenCards.Clear();
+        foreach (var card in me.HandCards.Values)
+        {
+            if (card.Cost > me.Mana || !_seenCards.Add(card.Id))
+            {
+                continue;
+            }
+
             if (card.IsSpell && GameRules.IsActivated(card.AbilityId))
             {
-                foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value)))
-                {
-                    yield return Cast(card.Cid, type, target);
-                }
+                AddTargets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value), GameAction.Cast(card.Cid));
             }
             else if (card.IsSpell)
             {
-                yield return Cast(card.Cid);
+                moves.Add(GameAction.Cast(card.Cid));
             }
             else if (free.Count > 0 && !(holdInferno && card.AbilityId == AbilityIds.Inferno))
             {
-                yield return Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = PickSlot(card, free) });
+                moves.Add(GameAction.Play(card.Cid, PickSlot(card, free)));
             }
         }
 
         // Enemy cards before the hero: on equal scores the bot trades.
-        var taunts = enemy.BoardCards.Values.Where(c => c.HasTaunt).ToList();
-        var attackable = taunts.Count > 0 ? taunts : [.. enemy.BoardCards.Values];
-        foreach (var unit in me.BoardCards.Values.Where(c => c.CanAct))
+        var attackable = _attackable;
+        attackable.Clear();
+        foreach (var c in enemy.BoardCards.Values)
         {
+            if (c.HasTaunt)
+            {
+                attackable.Add(c);
+            }
+        }
+
+        var taunts = attackable.Count;
+        if (taunts == 0)
+        {
+            attackable.AddRange(enemy.BoardCards.Values);
+        }
+
+        foreach (var unit in me.BoardCards.Values)
+        {
+            if (!unit.CanAct)
+            {
+                continue;
+            }
+
             if (unit.Attack > 0)
             {
                 foreach (var target in attackable)
                 {
-                    yield return AttackMessage(unit.Cid, target.Cid, 0);
+                    moves.Add(GameAction.Attack(unit.Cid, target.Cid, 0));
                 }
 
-                if (taunts.Count == 0)
+                if (taunts == 0)
                 {
-                    yield return AttackMessage(unit.Cid, -1, 1);
+                    moves.Add(GameAction.Attack(unit.Cid, -1, 1));
                 }
             }
 
             if (unit.AbilityId is { } ability && GameRules.IsActivated(ability))
             {
-                foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(ability)))
-                {
-                    yield return Ability(unit.Cid, type, target);
-                }
+                AddTargets(me, enemy, GameRules.AbilityTargets(ability), new GameAction(GameActionKind.UseAbility, unit.Cid));
             }
         }
 
@@ -883,48 +1052,62 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         {
             foreach (var target in attackable)
             {
-                yield return AttackMessage(-1, target.Cid, 2);
+                moves.Add(GameAction.Attack(-1, target.Cid, 2));
             }
 
-            if (taunts.Count == 0)
+            if (taunts == 0)
             {
-                yield return AttackMessage(-1, -1, 3);
+                moves.Add(GameAction.Attack(-1, -1, 3));
             }
         }
 
         if (!me.HeroPowerUsed && me.Mana >= GameRules.HeroPowerCost && GameRules.HeroPowers.TryGetValue(me.Power, out var power))
         {
             var kinds = GameRules.PowerTargets(power.Target);
-            foreach (var (type, target) in kinds.Count == 0 ? [(TargetType.OwnHero, -1)] : Targets(me, enemy, kinds))
+            if (kinds.Count == 0)
             {
-                yield return Power(type, target);
+                moves.Add(GameAction.Power(TargetType.OwnHero, -1));
+            }
+            else
+            {
+                AddTargets(me, enemy, kinds, new GameAction(GameActionKind.HeroPower));
             }
         }
-    }
 
-    private static IEnumerable<(TargetType Type, int Cid)> Targets(GamePlayer me, GamePlayer enemy, IReadOnlyList<string> kinds)
-    {
-        return kinds.SelectMany(Of);
+        return moves;
 
-        IEnumerable<(TargetType Type, int Cid)> Of(string kind) => kind switch
+        // The action on the targets of each kind, in the order of the kinds.
+        void AddTargets(GamePlayer me, GamePlayer enemy, IReadOnlyList<string> kinds, GameAction action)
         {
-            "friendlyCard" => me.BoardCards.Values.Select(c => (TargetType.FriendlyCard, c.Cid)),
-            "enemyCard" => enemy.BoardCards.Values.Select(c => (TargetType.EnemyCard, c.Cid)),
-            "ownHero" => [(TargetType.OwnHero, -1)],
-            _ => [(TargetType.EnemyHero, -1)],
-        };
-    }
+            GameAction Make(TargetType type, int target) => action with { Type = (int)type, Target = target };
 
-    private Task ApplyAsync(GameRoom room, Message move)
-    {
-        var player = room.PlayerOf(_ident);
-        return (GameRequest)move.Type switch
-        {
-            GameRequest.UseCard => engine!.RequestUseCardAsync(player, move),
-            GameRequest.Attack => engine!.RequestAttackAsync(player, move),
-            GameRequest.UseAbility => engine!.RequestUseAbilityAsync(player, move),
-            _ => engine!.RequestHeroPowerAsync(player, move),
-        };
+            foreach (var kind in kinds)
+            {
+                switch (kind)
+                {
+                    case "friendlyCard":
+                        foreach (var c in me.BoardCards.Values)
+                        {
+                            moves.Add(Make(TargetType.FriendlyCard, c.Cid));
+                        }
+
+                        break;
+                    case "enemyCard":
+                        foreach (var c in enemy.BoardCards.Values)
+                        {
+                            moves.Add(Make(TargetType.EnemyCard, c.Cid));
+                        }
+
+                        break;
+                    case "ownHero":
+                        moves.Add(Make(TargetType.OwnHero, -1));
+                        break;
+                    default:
+                        moves.Add(Make(TargetType.EnemyHero, -1));
+                        break;
+                }
+            }
+        }
     }
 
     // ---- Messages -------------------------------------------------------------------------------------------------

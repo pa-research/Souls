@@ -63,9 +63,9 @@ public class BotTests
 
         var inbox = ((BotConnection)human.GameContext!).Inbox;
         var replaced = -1;
-        while (inbox.TryRead(out var json))
+        while (inbox.TryRead(out var response))
         {
-            var m = JsonNode.Parse(json)!;
+            var m = response.ToJsonNode();
             replaced = (int?)m["Type"] == (int)GameResponse.GameOpponentMulligan ? (int)m["Payload"]!["replaced"]! : replaced;
         }
 

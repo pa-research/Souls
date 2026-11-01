@@ -49,9 +49,9 @@ public class SocialTests
     private static List<JsonNode> Messages(Player p)
     {
         var list = new List<JsonNode>();
-        while (((BotConnection)p.GameContext!).Inbox.TryRead(out var json))
+        while (((BotConnection)p.GameContext!).Inbox.TryRead(out var response))
         {
-            list.Add(JsonNode.Parse(json)!);
+            list.Add(response.ToJsonNode());
         }
 
         return list;
