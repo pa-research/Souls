@@ -10,6 +10,11 @@ const { t, text: serverText } = window.SoulsL10n;
 export const CARD_W = 150;
 export const CARD_H = 210;
 const THICKNESS = 3;
+const RIM = 3; // width of the glow rim around the card's frame
+// The frame painted on the face (x 25-304, y 24-423 of the 330x450 race texture, 1.5 px above its centre): the mesh
+// around it is transparent.
+const FRAME_W = CARD_W * 280 / 330;
+const FRAME_H = CARD_H * 400 / 450;
 const FACE_SCALE = 2; // the face is painted at 2x the 330x450 card texture so it stays sharp when zoomed
 
 // Card JSON fields that change what the face looks like.
@@ -76,7 +81,10 @@ function sharedGeometry() {
         shared.face = faceGeometry(CARD_W, CARD_H, 9);
         shared.edge = new THREE.ExtrudeGeometry(roundedRect(CARD_W, CARD_H, 9), { depth: THICKNESS, bevelEnabled: false, curveSegments: 6 });
         shared.edge.translate(0, 0, -THICKNESS / 2);
-        shared.glow = faceGeometry(CARD_W + 26, CARD_H + 26, 18);
+        // Glows (ready, hover, hits) are a thin rim hugging the painted frame, not a plate behind the whole card.
+        const rim = roundedRect(FRAME_W + 2 * RIM, FRAME_H + 2 * RIM, 2 + RIM);
+        rim.holes.push(roundedRect(FRAME_W, FRAME_H, 2));
+        shared.glow = new THREE.ShapeGeometry(rim, 6).translate(0, CARD_H * 1.5 / 450, 0);
         shared.taunt = faceGeometry(CARD_W + 30, CARD_H + 34, 20);
         shared.tauntMaterial = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.75, roughness: 0.35, emissive: 0x1c2833 });
         shared.edgeMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.7 });
@@ -585,7 +593,7 @@ export class Card3D extends THREE.Group {
 
     /** Called every frame: the ready outline breathes. */
     pulse(now) {
-        if (this.ready && this.readyMaterial) this.readyMaterial.opacity = 0.35 + 0.25 * Math.sin(now * 0.005 + this.cid);
+        if (this.ready && this.readyMaterial) this.readyMaterial.opacity = 0.6 + 0.3 * Math.sin(now * 0.005 + this.cid);
     }
 
     get abilityId() { return this.data.ability ? this.data.ability.id : undefined; }
