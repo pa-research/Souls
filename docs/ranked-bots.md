@@ -9,6 +9,9 @@ and the result counts for the human's rating.
 - **Disclosure** (owner, 1 November 2026): bots play like people in every respect, but players are told. The rules
   page and the terms say that ranked can match an AI opponent when no player is waiting, and the end screen and the
   bot's profile carry an "AI" tag. Bots never type free chat as if they were people and never fake a disconnect.
+- **Opting out** (owner, 1 November 2026): a player can choose to play ranked against people only. The setting sits
+  next to the ranked button and on the profile; with it off the queue never seats a bot, and the waiting screen says
+  that the wait can be longer.
 - **Ratings**: Glicko-2 instead of Elo (phase 1). A rating carries its uncertainty, so new and returning players
   reach their rank in a few games, which matters when few people play.
 - **Bots anchor the scale**: a bot persona has a fixed rating, its measured strength, which games do not change. A
@@ -38,7 +41,7 @@ every game, and the opponent's card drags shown in both clients (`MoveCard`).
 4. **Bots in ranked**: about 200 persona accounts (name, favourite class, rank band, style, collection, match
    history, profile; system accounts, so off the standings), a bot only after a realistic wait (20-60 s, longer high
    up) and never when a human is waiting, a persona close to the player's rating, challenges declined. The disclosure
-   above ships with this phase.
+   and the opt-out above ship with this phase.
 5. **Live calibration**: the bots' score against humans per rank band against the 50 % target, a daily nudge of the
    dial per band, flags for players who beat bots far above expectation (an exploit), an admin page, metrics.
 6. **Validation**: play-testers guess which opponents were bots; bot timing compared with real replays.
