@@ -49,7 +49,7 @@ async function main() {
     await stage.init();
     const ui = new UI(host, config);
     const effects = new Effects(stage);
-    const arena = new Arena(stage.scene, stage.quality, stage.backend);
+    const arena = new Arena(stage.scene, stage.quality, stage.backend, stage.camera);
     const crowd = new CrowdAudio();
     let game = null;
     let torches = null;
@@ -85,6 +85,8 @@ async function main() {
     requestAnimationFrame(frame);
 
     await Promise.all([arena.build(), preload(config.cards, p => ui.setProgress(p))]);
+    await stage.precompile([arena.stadium]);
+    arena.apply(); // the stadium's visibility follows its rise again
     stage.watchFrameRate();
 
     // Replays, watch and challenge links start right away; after switching clients mid-game, go straight back into
@@ -155,6 +157,8 @@ function exposeTestHooks(stage, game, ui) {
         ui,
         // Plays game events (as the server sends them) so tests can show effects that are rare in real games.
         playEvents: events => game.playEvents(events),
+        // A Mexican wave around the stands (it also starts by itself every now and then).
+        wave: () => game.arena.wave(),
         // A card entering the arena as if a side played it (legendary entrances).
         useCard: (card, opponent = true) => game.onUseCard(opponent ? game.opponent : game.player, { card, pInfo: (opponent ? game.opponent : game.player).hero.info }),
         log: () => ui.logLines(),

@@ -68,7 +68,8 @@ const RESULT = [230, 231, 233];
   const snap = async name => {
     try { await page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${name}.jpg`, type: 'jpeg', quality: 75, timeout: 60000 }); } catch (e) { console.log('(screenshot skipped)'); }
   };
-  const hook = expr => page.evaluate(`window.__souls3d.${expr}`);
+  // null once the page has left the game (the end screen moves on to the statistics page by itself).
+  const hook = expr => page.evaluate(`window.__souls3d ? window.__souls3d.${expr} : null`);
   const drag = async (from, to, button = 'left') => {
     if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
     await page.mouse.move(from.x, from.y, { steps: 3 }); await sleep(250);
@@ -182,6 +183,7 @@ const RESULT = [230, 231, 233];
     const playCards = async () => {
       for (let k = 0; k < 4; k++) {
         const st = await hook('state()');
+        if (!st || st.ended) break;
         const taken = new Set(st.board.map(b => b.slotId));
         const slot = [3, 2, 4, 1, 5, 0, 6].find(i => !taken.has(i));
         const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending);
@@ -203,7 +205,7 @@ const RESULT = [230, 231, 233];
     for (let k = 0; k < 8; k++) {
       sync = await hook('sync()');
       const st = await hook('state()');
-      if (!sync || st.ended || sync.current !== ident) break;
+      if (!sync || !st || st.ended || sync.current !== ident) break;
       const ready = (sync.board[ident] || []).filter(c => c.canAct);
       if (ready.length === 0) break;
       const card = ready[0];
@@ -236,7 +238,7 @@ const RESULT = [230, 231, 233];
       if (frames.slice(from).some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
     }
     result = frames.find(f => f.dir === 'in' && RESULT.includes(f.type));
-    if (result) break;
+    if (result || !(await hook('state()'))) break;
 
     // Hero attack, then end the turn.
     sync = await hook('sync()');
