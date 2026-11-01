@@ -323,6 +323,32 @@ export class Game {
         return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     }
 
+    /** Where a tooltip goes beside `obj`: its screen box in page coordinates (a hovered hand card's once lifted). */
+    tipBeside(obj) {
+        const index = obj === this.hovered ? [...this.player.hand.values()].indexOf(obj) : -1;
+        let r;
+        if (index >= 0) {
+            // Measure the hover pose the card is moving to, then put it back where its animation has it.
+            const saved = [obj.position.clone(), obj.quaternion.clone(), obj.scale.clone()];
+            const pose = this.handPose(this.player, index, true, obj);
+            obj.position.copy(pose.position);
+            if (pose.quaternion) obj.quaternion.copy(pose.quaternion);
+            obj.scale.setScalar(pose.scale);
+            obj.updateMatrixWorld(true);
+            r = this.screenRect(obj);
+            obj.position.copy(saved[0]);
+            obj.quaternion.copy(saved[1]);
+            obj.scale.copy(saved[2]);
+            obj.updateMatrixWorld(true);
+        } else {
+            r = this.screenRect(obj);
+        }
+        if (!r || !(r.w > 0)) return null;
+        const canvas = this.stage.renderer.domElement.getBoundingClientRect();
+        const left = canvas.left + r.x, top = canvas.top + r.y;
+        return { left, top, right: left + r.w, bottom: top + r.h, width: r.w, height: r.h };
+    }
+
     /** End Turn sign: its classic spot, or the right of the row above the hand in portrait. */
     signPoint() {
         return this.rows ? this.rows.sign : { x: 1610, y: 550, scale: 1 };
@@ -556,6 +582,8 @@ export class Game {
         // the player's hero and hero power too, below the buttons.
         if (this.rows && obj instanceof Card3D && this.player.hand.get(obj.cid) === obj) at = this.tipPoint();
         else if (this.rows && obj) at = { ...at, top: this.stage.bands.opponentHand[0], floor: this.tipPoint().y };
+        // Otherwise the rules go beside the card or hero (a hovered hand card: beside its lifted pose), never on it.
+        else if (obj && (obj instanceof Card3D || obj === this.player.hero || obj === this.opponent.hero)) at = this.tipBeside(obj) || at;
         this.ui.showTooltip(obj ? this.describe(obj) : null, at);
     }
 
