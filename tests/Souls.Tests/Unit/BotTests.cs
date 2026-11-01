@@ -54,7 +54,7 @@ public class BotTests
             await engine.RequestMulliganAsync(human, Message.Create(GameRequest.Mulligan));
         });
 
-        // The bot sends back its expensive starting cards (easy bots keep them), then the game starts.
+        // The bot sends back its expensive starting cards (easy bots and weak ranked bots keep them), then the game starts.
         var mulliganEnds = DateTime.UtcNow.AddSeconds(15);
         while (room!.InMulligan && DateTime.UtcNow < mulliganEnds)
         {
@@ -69,7 +69,8 @@ public class BotTests
             replaced = (int?)m["Type"] == (int)GameResponse.GameOpponentMulligan ? (int)m["Payload"]!["replaced"]! : replaced;
         }
 
-        Assert.Equal(difficulty == 0 ? 0 : expensive, replaced);
+        var mulligans = skill is { } level ? level >= BotSkill.MulliganSkill : difficulty > 0;
+        Assert.Equal(mulligans ? expensive : 0, replaced);
         var botTurns = 0;
         for (var turn = 0; turn < 12 && !room!.IsEnded; turn++)
         {
