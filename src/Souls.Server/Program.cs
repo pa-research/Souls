@@ -31,6 +31,7 @@ builder.Services.Configure<WebSocketOptionsConfig>(builder.Configuration.GetSect
 builder.Services.Configure<MatchmakerOptions>(builder.Configuration.GetSection("Souls:Matchmaker"));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Souls:Bot"));
 builder.Services.Configure<GameOptions>(builder.Configuration.GetSection("Souls:Game"));
+builder.Services.Configure<CommunityOptions>(builder.Configuration.GetSection("Souls:Community"));
 
 builder.Services.AddSingleton<ServerState>();
 builder.Services.AddSingleton<GameMetrics>();
@@ -44,6 +45,7 @@ builder.Services.AddSingleton<AdminService>();
 builder.Services.AddSingleton<ConnectionRegistry>();
 builder.Services.AddSingleton<OriginPolicy>();
 builder.Services.AddHostedService<Matchmaker>();
+builder.Services.AddHostedService<AiCommunity>();
 
 var app = builder.Build();
 
@@ -64,6 +66,17 @@ app.UseAuthentication();
 app.MapSoulsHealthChecks();
 app.MapSoulsWebSockets();
 app.MapGet("/", () => "Souls game server");
+
+// Who is online, for the site's lobby: players and the AI community apart, and the AI games running here to watch.
+app.MapGet("/community", (ServerState state) => state.RunExclusiveAsync(() => new
+{
+    players = state.GameClients.Values.Concat(state.ChatClients.Values).Where(p => !p.IsBot && p.DisconnectedAt is null).Select(p => p.Id).Distinct().Count(),
+    ai = state.Personas.Count,
+    // A few who are free now, by account name, to challenge from the lobby.
+    idle = state.Personas.Values.Where(state.IsFree).Select(p => p.Name[..^Souls.Model.Localization.Strings.PersonaTag.Length]).Order().Take(8).ToList(),
+    live = state.Rooms.Values.Where(r => r.Players.First.IsPersona && r.Players.Second.IsPersona && !r.IsEnded)
+        .Select(r => new { gameId = r.GameId, players = new[] { r.Players.First.Name, r.Players.Second.Name } }).ToList(),
+}));
 
 await app.RunAsync();
 return 0;

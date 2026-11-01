@@ -56,6 +56,14 @@ public static class BotSkill
         return 1;
     }
 
+    /// <summary>The rating a skill plays at: the inverse of <see cref="ForRating"/>.</summary>
+    public static int RatingOf(double skill, int anchor = Anchor)
+    {
+        var at = Math.Clamp(skill, 0, 1) * (Ladder.Length - 1);
+        var i = Math.Min((int)at, Ladder.Length - 2);
+        return anchor + (int)Math.Round(Ladder[i] + (at - i) * (Ladder[i + 1] - Ladder[i]));
+    }
+
     /// <summary>Simulated actions and beam width of the lookahead: a little at skill 0, the Hard bot's at 1.</summary>
     public static (int Budget, int Beam) Search(double skill, int budget, int beam)
     {

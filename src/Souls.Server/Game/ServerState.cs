@@ -31,6 +31,22 @@ public sealed class ServerState
     /// <summary>Rate limit of challenges by account id (survives reconnects), see <see cref="GameEngine.Throttle"/>.</summary>
     public Dictionary<int, DateTimeOffset> ChallengeClocks { get; } = [];
 
+    /// <summary>
+    /// The personas of the AI community who are online now, by normalized name (see <see cref="Ai.AiCommunity"/>); one
+    /// in a game stays here.
+    /// </summary>
+    public Dictionary<string, Player> Personas { get; } = [];
+
+    /// <summary>Personas playing each other away from the server (<see cref="Ai.AiCommunity"/>), by id: busy here.</summary>
+    public HashSet<int> PersonasAway { get; } = [];
+
+    /// <summary>
+    /// A persona that can start a game now. A game restored after a restart has its own player for the persona, so the
+    /// rooms are checked by id.
+    /// </summary>
+    public bool IsFree(Player persona) => persona.GPlayer is null && !PersonasAway.Contains(persona.Id) && ChallengeOf(persona) is null
+        && !Rooms.Values.Any(r => r.Players.First.Id == persona.Id || r.Players.Second.Id == persona.Id);
+
     public Dictionary<int, ChatRoom> ChatRooms { get; } = [];
     public int ChatRoomCounter { get; set; }
 
@@ -82,4 +98,4 @@ public sealed class ServerState
 }
 
 /// <summary>A friendly challenge from one online player to another, open until it expires.</summary>
-public sealed record Challenge(Player From, Player To, DateTimeOffset ExpiresAt);
+public sealed record Challenge(Player From, Player To, DateTimeOffset ExpiresAt, DateTimeOffset Sent = default);

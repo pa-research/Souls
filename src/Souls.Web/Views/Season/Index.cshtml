@@ -10,6 +10,7 @@
         <div class="s-eyebrow">@(Model.IsCurrent ? L["Ranked season · ends {0} UTC", season.EndsAt.ToString(L["d MMM yyyy HH:mm"], CultureInfo.CurrentCulture)] : L["Final standings · {0} to {1}", Date(season.StartsAt), Date(season.EndsAt)])</div>
         <h1 class="s-h1 s-gold-text">@SeasonName(season)</h1>
         <p>@L["When a season ends, every rating moves halfway back to {0} and everyone who played a ranked game in it is paid for the tier they finished in.", Ratings.Initial]</p>
+        <a class="s-small" asp-action="Ai"><s-icon name="bot" /> @L["The AI ladder"]</a>
     </div>
     @if (Model.Seasons.Count > 1)
     {

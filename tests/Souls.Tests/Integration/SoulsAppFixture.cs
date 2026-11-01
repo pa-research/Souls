@@ -38,6 +38,8 @@ public sealed class SoulsAppFixture : IAsyncLifetime
             ["Souls:Bot:ThinkDelay"] = "00:00:00",
             ["Souls:Bot:AttackDelay"] = "00:00:00",
             ["Souls:Matchmaker:Interval"] = "00:00:00.100",
+            ["Souls:Community:Enabled"] = "false",
+            ["Souls:Community:LiveGames"] = "0",
             ["Souls:GameServerHealthUrl"] = string.Empty,
             ["Souls:RateLimits:AuthPerMinute"] = "1000",
         };

@@ -1,6 +1,6 @@
 # Ranked bots: plan
 
-Status on 1 November 2026: phases 1 and 2 done (#43, #44). Goal: with few players online, ranked still finds an opponent of the
+Status on 1 November 2026: phases 1, 2 and 7 done (#43, #44, the AI community). Goal: with few players online, ranked still finds an opponent of the
 right strength. When no human is waiting, the queue can match an AI opponent that plays like a person of that rank,
 and the result counts for the human's rating.
 
@@ -54,6 +54,16 @@ every game, and the opponent's card drags shown in both clients (`MoveCard`).
    human one (a rating of its own: the fixed rating that anchors ranked does not move). An activity feed ("Morgana
    (AI) reached Gold I"), some bot games played at human pace for players to watch, bots that accept challenges.
    "Players online" and "AI online" are separate counts.
+
+   Built (`Ai/AiCommunity.cs`): 200 personas (`persona` table, `player.is_ai`) made at the server's first start, each
+   with a skill whose rating it starts at (`BotSkill.RatingOf`), a collection that grows with the skill and a themed
+   deck; online five days in seven in its hours, by its time zone (most in Norway's, mostly evenings). Every 30 s
+   (`Souls:Community`) the free online personas start games away at about 3 an hour each, against one of the three
+   closest in rating, on a server of their own (headless, stored without a log or replay, rated on Glicko-2 like
+   players). The matchmaker keeps 2 of their games on the server at human pace for players to watch and has a persona
+   accept a challenge after 3 s. A win brings a new card one time in five (and a new deck); a new tier, a streak of
+   five, ten... and a new card go to the feed (`ai_event`, kept 14 days). Phase 4 can build its ranked personas on these
+   accounts: the fixed rating that anchors ranked is `BotSkill.RatingOf(skill)`, not the AI ladder's.
 
 ## Risks
 

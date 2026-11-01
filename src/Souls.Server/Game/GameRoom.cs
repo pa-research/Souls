@@ -116,6 +116,7 @@ public sealed partial class GameRoom
             Deck = Array.Empty<Card>(),
             IsBot = p.IsBot,
             Difficulty = p.Difficulty,
+            Skill = p.Skill,
             GPlayer = p.GPlayer!.Copy(this),
         };
     }
@@ -448,9 +449,10 @@ public sealed partial class GameRoom
     {
         ["name"] = p.Name,
         ["type"] = p.PlayerType.Id,
-        ["rating"] = p.IsBot ? null : p.Rating,
+        ["rating"] = p.IsBot && !p.IsPersona ? null : p.Rating,
         ["health"] = p.GPlayer?.Health,
         ["bot"] = p.IsBot,
+        ["ai"] = p.IsPersona,
     };
 }
 

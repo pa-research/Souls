@@ -45,12 +45,15 @@ public static class Seasons
     public static Task<Season?> CurrentAsync(SoulsDbContext db, CancellationToken ct = default) =>
         db.Seasons.AsNoTracking().OrderByDescending(s => s.Number).FirstOrDefaultAsync(ct);
 
-    /// <summary>Players who started a normal game in [<paramref name="from"/>, <paramref name="to"/>), best rating first.</summary>
-    public static IQueryable<Standing> Standings(SoulsDbContext db, DateTimeOffset from, DateTimeOffset? to = null)
+    /// <summary>
+    /// Players who started a normal game in [<paramref name="from"/>, <paramref name="to"/>), best rating first; with
+    /// <paramref name="ai"/> the AI community's ladder instead (its personas are never on the players' one).
+    /// </summary>
+    public static IQueryable<Standing> Standings(SoulsDbContext db, DateTimeOffset from, DateTimeOffset? to = null, bool ai = false)
     {
         var games = db.Games.Where(g => !g.IsPractice && g.Created >= from && (to == null || g.Created < to));
         return db.Players
-            .Where(p => !p.IsSystem)
+            .Where(p => !p.IsSystem && p.IsAi == ai)
             .Select(p => new { p.Id, p.Name, p.Rating, Games = games.Count(g => g.Player1Id == p.Id || g.Player2Id == p.Id), Wins = games.Count(g => g.WinnerId == p.Id) })
             .Where(x => x.Games > 0)
             .OrderByDescending(x => x.Rating).ThenByDescending(x => x.Wins).ThenBy(x => x.Id)

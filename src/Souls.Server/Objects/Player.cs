@@ -28,6 +28,11 @@ public sealed class Player
     /// <summary>Bot strength: 0 easy, 1 normal, 2 hard.</summary>
     public int Difficulty { get; init; } = 1;
 
+    /// <summary>The skill of a persona of the AI community (a bot, see <see cref="Ai.AiCommunity"/>); <c>null</c> for others.</summary>
+    public double? Skill { get; init; }
+
+    public bool IsPersona => Skill is not null;
+
     public bool InQueue { get; set; }
     public DateTimeOffset QueuedAt { get; set; }
 

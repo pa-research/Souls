@@ -172,7 +172,7 @@ public sealed record SeasonEntry(int Position, string Name, int Rating, int Rank
 }
 
 /// <summary>A game on a player's profile, seen from their side. Result: "won", "lost" or "draw".</summary>
-public sealed record ProfileGame(int GameId, DateTimeOffset? Date, bool IsPractice, string Opponent, int OpponentType, bool OpponentIsBot, string Result, int RatingChange, int Turns);
+public sealed record ProfileGame(int GameId, DateTimeOffset? Date, bool IsPractice, string Opponent, int OpponentType, bool OpponentIsBot, string Result, int RatingChange, int Turns, bool OpponentIsAi = false);
 
 /// <summary>A player's final place in an ended season.</summary>
 public sealed record ProfileSeason(Season Season, int Position, int Rank, int Rating);
@@ -188,6 +188,9 @@ public sealed class ProfileViewModel
     public int RankedGames { get; init; }
     public int RankedWins { get; init; }
     public int OtherGames { get; init; }
+
+    /// <summary>A persona of the AI community: its hours, by its own clock.</summary>
+    public Model.Entities.Persona? Persona { get; init; }
 
     /// <summary>The rating before each ranked game of the current season, oldest first, then the rating now.</summary>
     public required IReadOnlyList<int> RatingHistory { get; init; }

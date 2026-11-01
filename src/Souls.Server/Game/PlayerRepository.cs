@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
 using Souls.Model.Entities;
+using Souls.Model.Localization;
 using Souls.Server.Objects;
 
 namespace Souls.Server.Game;
@@ -11,8 +12,11 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
     private readonly SemaphoreSlim _botLock = new(1, 1);
     private (int Id, PlayerTypeInfo Type)? _bot;
 
-    /// <summary>Loads a player with the cards they own, or <c>null</c> if the account does not exist.</summary>
-    public async Task<Objects.Player?> LoadPlayerAsync(int playerId, CancellationToken ct = default)
+    /// <summary>
+    /// Loads a player with the cards they own, or <c>null</c> if the account does not exist. With a
+    /// <paramref name="skill"/>, a persona of the AI community: a bot, its name tagged as AI.
+    /// </summary>
+    public async Task<Objects.Player?> LoadPlayerAsync(int playerId, CancellationToken ct = default, double? skill = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
@@ -38,13 +42,15 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
         return new Objects.Player
         {
             Id = player.Id,
-            Name = player.Name,
+            Name = skill is null ? player.Name : Strings.PersonaName(player.Name),
             Rank = player.Rank,
             Rating = player.Rating,
             PlayerType = ToInfo(player.PlayerType),
             HeroPower = player.HeroPowerId,
             OwningCards = cards,
             Deck = Decks.Build(cards, c => c.Id, c => c.Rarity, deck.Select(d => (d.CardId, d.Count))),
+            IsBot = skill is not null,
+            Skill = skill,
         };
     }
 

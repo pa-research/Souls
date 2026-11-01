@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Souls.Model;
+using Souls.Model.Entities;
 using Souls.Model.Hosting;
 using Souls.Model.Localization;
 using Souls.Model.Security;
@@ -53,7 +54,7 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         }
 
         var top = await db.Players.AsNoTracking()
-            .Where(p => !p.IsSystem)
+            .Where(p => !p.IsSystem && !p.IsAi)
             .OrderByDescending(p => p.Rating).ThenBy(p => p.Id)
             .Take(10)
             .Select(p => new { p.Name, p.Rating, p.Rank, Type = p.PlayerType!.Name })
@@ -72,17 +73,70 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         });
     }
 
-    /// <summary>The 20 most recent games for the "Recent games" feed.</summary>
+    /// <summary>The 20 most recent games with a player in them for the "Recent games" feed (the AI community has its own).</summary>
     [HttpGet]
     public async Task<IActionResult> GetGames(CancellationToken ct)
     {
         var games = await db.Games.AsNoTracking()
+            .Where(g => !g.Player1!.IsAi || !g.Player2!.IsAi)
             .OrderByDescending(g => g.Id)
             .Take(20)
-            .Select(g => new { gameId = g.Id, player1 = g.Player1!.Name, player2 = g.Player2!.Name, practice = g.IsPractice })
+            .Select(g => new { gameId = g.Id, player1 = g.Player1!.Name, player2 = g.Player2!.Name, practice = g.IsPractice, ai1 = g.Player1!.IsAi, ai2 = g.Player2!.IsAi })
             .ToListAsync(ct);
-        return Json(games.Select(g => g with { player1 = Localized.PlayerName(g.player1), player2 = Localized.PlayerName(g.player2) }));
+        string Name(string name, bool ai) => ai ? Strings.PersonaName(name) : Localized.PlayerName(name);
+        return Json(games.Select(g => new { g.gameId, player1 = Name(g.player1, g.ai1), player2 = Name(g.player2, g.ai2), g.practice }));
     }
+
+    /// <summary>
+    /// The AI community for the home page: who is online (players and AI apart) and the AI games to watch, from the game
+    /// server, and the latest lines of the AI activity feed.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Community(CancellationToken ct)
+    {
+        CommunityStatus? online = null;
+        if (Uri.TryCreate(configuration["Souls:GameServerHealthUrl"], UriKind.Absolute, out var health))
+        {
+            try
+            {
+                online = await httpClients.CreateClient("status").GetFromJsonAsync<CommunityStatus>(new Uri(health, "/community"), ct);
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+            {
+                online = null;
+            }
+        }
+
+        var cards = await db.Cards.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+        var feed = await db.AiEvents.AsNoTracking()
+            .OrderByDescending(a => a.Id)
+            .Take(15)
+            .Select(a => new { a.Player!.Name, a.Kind, a.Value, a.Created })
+            .ToListAsync(ct);
+        return Json(new
+        {
+            players = online?.Players,
+            ai = online?.Ai,
+            live = online?.Live ?? [],
+            idle = online?.Idle ?? [],
+            feed = feed.Select(a => new
+            {
+                name = a.Name,
+                text = a.Kind switch
+                {
+                    AiEventKind.Tier => localizer["{0} (AI) reached {1}", a.Name, Localized.T(Ratings.TierOf(a.Value).Text)].Value,
+                    AiEventKind.Streak => localizer["{0} (AI) won {1} games in a row", a.Name, a.Value].Value,
+                    _ => localizer["{0} (AI) got a new card: {1}", a.Name, cards.GetValueOrDefault(a.Value, "?")].Value,
+                },
+                kind = a.Kind.ToString().ToLowerInvariant(),
+                created = a.Created,
+            }),
+        });
+    }
+
+    private sealed record CommunityStatus(int Players, int Ai, List<LiveAiGame> Live, List<string>? Idle);
+
+    private sealed record LiveAiGame(int GameId, string[] Players);
 
     [HttpGet]
     public async Task<IActionResult> GetNews(CancellationToken ct)

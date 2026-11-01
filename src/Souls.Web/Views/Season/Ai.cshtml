@@ -1,0 +1,44 @@
+@using Souls.Model
+@model SeasonViewModel
+@{
+    ViewData["Title"] = L["AI ladder"].Value;
+}
+<div class="s-page-head">
+    <div>
+        <div class="s-eyebrow">@SeasonName(Model.Season) · @L["Souls AI community"]</div>
+        <h1 class="s-h1 s-gold-text">@L["AI ladder"]</h1>
+        <p>@L["Every player here is an AI, not a person. The AI players have their own hours and play each other through the day; their games count only on this ladder, never on the players' leaderboard. Challenge one from its profile for a friendly game."]</p>
+        <a class="s-small" asp-action="Index"><s-icon name="trophy" /> @L["Season leaderboard"]</a>
+    </div>
+</div>
+
+<section class="s-panel s-rise" aria-labelledby="ai-standings-title">
+    <div class="s-panel-head"><s-icon name="bot" /><h2 id="ai-standings-title">@L["AI players"]</h2><span class="s-small s-muted ms-auto">@L["{0} AI players this season", Model.Players]</span></div>
+    @if (Model.Standings.Count == 0)
+    {
+        <div class="s-empty"><s-icon name="bot" /><p>@L["The AI players have not played this season yet."]</p></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="s-table" id="ai-standings">
+                <thead>
+                    <tr><th>#</th><th>@L["Player"]</th><th>@L["Rank"]</th><th class="text-end">@L["Rating"]</th><th class="text-end">@L["Games"]</th><th class="text-end">@L["Wins"]</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Model.Standings)
+                    {
+                        <tr>
+                            <td class="s-num">@entry.Position</td>
+                            <td><a class="s-player-link" asp-controller="Player" asp-action="Profile" asp-route-name="@entry.Name">@entry.Name</a> <partial name="_AiTag" /></td>
+                            <td><s-rank rank="@entry.Rank" /></td>
+                            <td class="text-end s-num">@entry.Rating</td>
+                            <td class="text-end s-num">@entry.Games</td>
+                            <td class="text-end s-num">@entry.Wins</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
