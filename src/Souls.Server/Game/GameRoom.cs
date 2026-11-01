@@ -39,9 +39,11 @@ public sealed partial class GameRoom
     /// Deals the starting hands; the first turn starts with <see cref="Start"/> once the mulligan is over. A
     /// <paramref name="random"/> makes the game reproducible (the simulator); otherwise it uses the shared one.
     /// </summary>
-    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false, Random? random = null)
+    public GameRoom(Pair<Player> players, TimeProvider time, TimeSpan turnTime, TimeSpan mulliganTime, bool practice = false, bool friendly = false, Random? random = null,
+        bool headless = false)
     {
         _time = time;
+        Headless = headless;
         Random = random ?? Random.Shared;
         Logger = new GameLogger();
         GameId = Interlocked.Increment(ref _gameCounter);
@@ -158,6 +160,13 @@ public sealed partial class GameRoom
     /// </summary>
     public bool Live => !IsCopy;
 
+    /// <summary>
+    /// A game between bots that nobody watches (the simulator): the rules and the log work as usual, but the engine
+    /// builds no events, battle log lines, full state or replay. The state message comes without its payload, and the
+    /// bots read the game itself (see <see cref="Ai.AiPlayer"/>).
+    /// </summary>
+    public bool Headless { get; }
+
     /// <summary>For shuffles and death curses. A copy has its own (shared with copies of the copy).</summary>
     public Random Random { get; private set; }
 
@@ -241,7 +250,7 @@ public sealed partial class GameRoom
 
     public void Event(string type, JsonObject data)
     {
-        if (IsCopy)
+        if (IsCopy || Headless)
         {
             return;
         }
@@ -253,7 +262,7 @@ public sealed partial class GameRoom
     /// <summary>A line for the battle log: the English text with its key and arguments (see <see cref="GameText.WriteTo"/>).</summary>
     public void LogLine(GameText text)
     {
-        if (IsCopy)
+        if (IsCopy || Headless)
         {
             return;
         }
@@ -286,7 +295,7 @@ public sealed partial class GameRoom
         }
 
         FlushEvents();
-        var response = new Response(GameResponse.GameSync, SyncPayload());
+        var response = new Response(GameResponse.GameSync, Headless ? null : SyncPayload());
         Players.First.Send(response);
         Players.Second.Send(response);
     }
@@ -355,7 +364,7 @@ public sealed partial class GameRoom
     /// <summary>Called for every message player one receives.</summary>
     public void Mirror(Response response)
     {
-        if (IsCopy || !MirroredTypes.Contains(response.Type))
+        if (IsCopy || Headless || !MirroredTypes.Contains(response.Type))
         {
             return;
         }
@@ -406,6 +415,11 @@ public sealed partial class GameRoom
     /// <summary>Adds a message to the replay only. Every change players can see is recorded, so it marks the room <see cref="Dirty"/>.</summary>
     public void Record(Response response)
     {
+        if (Headless)
+        {
+            return;
+        }
+
         Dirty = true;
         _replay.Add(new JsonObject
         {

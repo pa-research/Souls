@@ -147,7 +147,7 @@ public sealed partial class GameEngine
             case Card c:
                 healed = Math.Clamp(c.MaxHealth - c.Health, 0, amount);
                 c.Health += healed;
-                if (emit)
+                if (emit && room.Live)
                 {
                     room.Event("heal", new JsonObject { ["to"] = Ref(c), ["amount"] = healed, ["health"] = c.Health });
                 }
@@ -156,7 +156,7 @@ public sealed partial class GameEngine
             case GamePlayer h:
                 healed = Math.Clamp(h.MaxHealth - h.Health, 0, amount);
                 h.Health += healed;
-                if (emit)
+                if (emit && room.Live)
                 {
                     room.Event("heal", new JsonObject { ["to"] = Ref(h), ["amount"] = healed, ["health"] = h.Health });
                 }
@@ -312,7 +312,7 @@ public sealed partial class GameEngine
             return;
         }
 
-        side.HandCards[copy.Cid] = copy;
+        side.OwnHand()[copy.Cid] = copy;
         if (room.Live)
         {
             room.FlushEvents();
@@ -343,14 +343,14 @@ public sealed partial class GameEngine
 
             // A copy's deck cards may be shared with other copies (see GamePlayer.Copy): the drawn card is its own.
             var card = room.IsCopy ? gp.Deck[^1].Copy() : gp.Deck[^1];
-            gp.Deck.RemoveAt(gp.Deck.Count - 1);
+            gp.OwnDeck().RemoveAt(gp.Deck.Count - 1);
             if (gp.HandCards.Count >= GamePlayer.MaxHandCards)
             {
                 Burn(room, gp, card);
                 continue;
             }
 
-            gp.HandCards[card.Cid] = card;
+            gp.OwnHand()[card.Cid] = card;
             drawn.Add(card);
             if (room.Live)
             {
@@ -624,13 +624,13 @@ public sealed partial class GameEngine
             }
         }
 
-        gp.HandCards.Remove(card.Cid);
+        gp.OwnHand().Remove(card.Cid);
         if (room.IsCopy)
         {
             card = card.Copy(); // a copy's hand cards may be shared with other copies (GamePlayer.Copy)
         }
 
-        gp.Used.Add(card);
+        gp.OwnUsed().Add(card);
         gp.Mana -= card.Cost;
         gp.CardsPlayed++;
 

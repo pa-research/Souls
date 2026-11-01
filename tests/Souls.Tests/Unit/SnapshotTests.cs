@@ -31,9 +31,13 @@ public class SnapshotTests
         "GameRoom.IsEnded",             // only running games are saved
         "GameRoom.Winner",
         "GameRoom.IsCopy",              // the bot's lookahead copies are never saved
+        "GameRoom.Headless",            // only the simulator's games are headless, and they are never saved
         "GameRoom.Dirty",               // bookkeeping of the store
         "GameRoom.SavedReplay",
         "GamePlayer.GameRoom",          // the back reference (checked below)
+        "GamePlayer._sharedHand",       // only the bot's lookahead copies share their collections
+        "GamePlayer._sharedDeck",
+        "GamePlayer._sharedUsed",
         "GamePlayer.MulliganRandom",    // seeds reproducible games; a restored game shuffles with the shared one
         "Player.OwningCards",           // only needed to start a game; loaded again when the player logs in
         "Player.Deck",

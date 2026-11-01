@@ -21,8 +21,9 @@ using Player = Souls.Server.Objects.Player;
 //
 //   dotnet run --project tools/Souls.Sim -c Release -- --games 4000 --out docs/balance.md
 //
-// About 60 games a second on 8 cores (4000 games in a little over a minute); --parallel sets the games at a time
-// (default: one per core).
+// About 250 games a second on 8 threads and 60 on one, on a busy host (4000 games in under 20 seconds); --parallel sets
+// the games at a time (default: one per core). Each game runs on one thread (GameThread) and headless
+// (GameRoom.Headless): the server builds nothing for viewers, and the bots read the game itself.
 //
 // --vs-legacy instead pits the Hard bot against the Hard bot without its lookahead, seats swapped every other game
 // (same classes and decks), and reports the head-to-head result.
@@ -35,8 +36,12 @@ var games = Arg("--games", 2000);
 var parallel = Arg("--parallel", Environment.ProcessorCount);
 var output = ArgString("--out");
 // --trace file: every game is reproducible from its seed; writes one line per game with a hash of every message the
-// server sent to the bots (compare two builds: the same seed must give the same lines). Use with --parallel 1.
+// server sent to the bots (compare two builds: the same seed must give the same lines). Use with --parallel 1: card ids
+// are numbered across games.
 var trace = ArgString("--trace");
+// --outcomes file: one line per game, its index, winner and turns (compare runs whose messages differ: games are
+// headless unless traced, see GameRoom.Headless).
+var outcomes = ArgString("--outcomes");
 var tune = Arg("--tune", 0);
 // --seed n: another draw of classes, powers and decks (shuffles and bot choices vary from run to run anyway).
 var seed = Arg("--seed", 0);
@@ -83,7 +88,7 @@ for (var i = 0; i < args.Length - 1; i++)
 // --tune n: n rounds of adjusting each class's health towards a 50% win rate.
 for (var round = 0; round < tune; round++)
 {
-    var sample = await RunAsync(games, seed + round * 100_003);
+    var sample = Run(games, seed + round * 100_003);
     var line = new StringBuilder($"round {round + 1}:");
     foreach (var c in classes)
     {
@@ -97,11 +102,18 @@ for (var round = 0; round < tune; round++)
     Console.Error.WriteLine(line);
 }
 
-var results = await RunAsync(games, seed);
+var results = Run(games, seed);
 var plans = results.SelectMany(r => r.PlanTimes).ToList();
 if (plans.Count > 0)
 {
-    Console.Error.WriteLine($"Lookahead: {plans.Count} decisions, average {plans.Average():0.0} ms, 95th percentile {plans.Order().ElementAt(plans.Count * 95 / 100):0.0} ms, max {plans.Max():0.0} ms");
+    Console.Error.WriteLine($"Lookahead: {plans.Count} decisions, average {plans.Average():0.00} ms, 95th percentile {plans.Order().ElementAt(plans.Count * 95 / 100):0.0} ms, max {plans.Max():0.0} ms");
+}
+
+Console.Error.WriteLine($"GC: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)} collections (gen 0/1/2), paused {GC.GetTotalPauseDuration().TotalMilliseconds:0} ms, {GC.GetTotalAllocatedBytes() / 1e6:0} MB allocated");
+
+if (outcomes is not null)
+{
+    await File.WriteAllLinesAsync(outcomes, results.OrderBy(r => r.Index).Select(r => $"{r.Index} {r.Winner} {r.Turns}"));
 }
 
 if (trace is not null)
@@ -120,23 +132,31 @@ if (output is not null)
 
 return;
 
-async Task<List<GameResult>> RunAsync(int count, int seed)
+// Each of the parallel threads plays one game at a time, the server and both bots on that thread (see GameThread).
+List<GameResult> Run(int count, int seed)
 {
     var bag = new ConcurrentBag<GameResult>();
     var watch = Stopwatch.StartNew();
+    var next = -1;
     var done = 0;
-    await Parallel.ForEachAsync(Enumerable.Range(0, count), new ParallelOptions { MaxDegreeOfParallelism = parallel }, async (i, ct) =>
+    var threads = Enumerable.Range(0, Math.Clamp(parallel, 1, Math.Max(1, count))).Select(_ => new Thread(() =>
     {
-        // Against the legacy bot and on the ladder, games 2n and 2n+1 share classes and decks and swap the seats.
-        var random = new Random(seed + (swapSeats ? i / 2 : i) * 7919 + 17);
-        (double?, double?) skills = levels is null ? (null, null) : i % 2 == 0 ? pairs[i / 2 % pairs.Count] : (pairs[i / 2 % pairs.Count].B, pairs[i / 2 % pairs.Count].A);
-        bag.Add(await PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? i % 2 + 1 : 0, skills, i, trace is not null));
-        var n = Interlocked.Increment(ref done);
-        if (n % 1000 == 0)
+        for (int i; (i = Interlocked.Increment(ref next)) < count;)
         {
-            Console.Error.WriteLine($"{n}/{count} games ({watch.Elapsed.TotalSeconds:0}s)");
+            // Against the legacy bot and on the ladder, games 2n and 2n+1 share classes and decks and swap the seats.
+            var random = new Random(seed + (swapSeats ? i / 2 : i) * 7919 + 17);
+            (double?, double?) skills = levels is null ? (null, null) : i % 2 == 0 ? pairs[i / 2 % pairs.Count] : (pairs[i / 2 % pairs.Count].B, pairs[i / 2 % pairs.Count].A);
+            var game = i;
+            bag.Add(GameThread.Run(() => PlayAsync(pool, classes[random.Next(classes.Length)], classes[random.Next(classes.Length)], random, vsLegacy ? game % 2 + 1 : 0, skills, game, trace is not null)));
+            var n = Interlocked.Increment(ref done);
+            if (n % 1000 == 0)
+            {
+                Console.Error.WriteLine($"{n}/{count} games ({watch.Elapsed.TotalSeconds:0}s)");
+            }
         }
-    });
+    })).ToList();
+    threads.ForEach(t => t.Start());
+    threads.ForEach(t => t.Join());
     return [.. bag];
 }
 
@@ -157,6 +177,17 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     List<string>? transcript = trace ? [] : null;
     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
+    // The bots of a headless game read it under the server's lock.
+    Task Inspect(Action<GameRoom> read) => state.RunExclusiveAsync(() =>
+    {
+        if (state.Rooms.Values.FirstOrDefault() is { } game)
+        {
+            read(game);
+        }
+
+        return Task.CompletedTask;
+    });
+
     // Each bot plays the cards its class may use and one of its class's hero powers at random.
     (Player Player, Task Ai, List<Souls.Model.Entities.Card> Deck, AiPlayer Bot) Bot(int id, PlayerType type)
     {
@@ -164,8 +195,8 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
         var cards = deck.Select(c => Card.FromEntity(c)).ToList();
         var powers = GameRules.PowersOf(type.Id);
         var connection = new BotConnection { Kind = ServiceKind.Game, LoggedIn = true, Transcript = transcript };
-        // Traced: the second bot thinks a little first, so the mulligans (which hand out new card ids) never overlap.
-        var aiOptions = new AiOptions { ThinkDelay = trace && id == 2 ? TimeSpan.FromMilliseconds(50) : TimeSpan.Zero, AttackDelay = TimeSpan.Zero, Seed = random.Next() };
+        // The game runs on one thread (GameThread): the bots' mulligans (which hand out new card ids) come in turn.
+        var aiOptions = new AiOptions { ThinkDelay = TimeSpan.Zero, AttackDelay = TimeSpan.Zero, Seed = random.Next() };
         var player = new Player
         {
             Id = id,
@@ -180,10 +211,10 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
         };
         state.GameClients[connection] = player;
         var ai = id == legacySeat
-            ? new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance)
+            ? new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance, inspectGame: Inspect)
             : new AiPlayer(connection, m => state.RunExclusiveAsync(() => service.ProcessAsync(connection, m)), aiOptions, 2, NullLogger.Instance,
-                engine, () => state.RunExclusiveAsync(() => player.GPlayer?.GameRoom?.Copy()), id == 1 ? skills.One : skills.Two);
-        return (player, Task.Run(() => ai.RunAsync(cts.Token)), deck, ai);
+                engine, () => state.RunExclusiveAsync(() => player.GPlayer?.GameRoom?.Copy()), id == 1 ? skills.One : skills.Two, Inspect);
+        return (player, ai.RunAsync(cts.Token), deck, ai);
     }
 
     var started = Stopwatch.StartNew();
@@ -194,13 +225,16 @@ static async Task<GameResult> PlayAsync(List<Souls.Model.Entities.Card> pool, Pl
     var drawn = new Dictionary<int, HashSet<int>> { [1] = [], [2] = [] };
     await state.RunExclusiveAsync(() =>
     {
-        room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true, random: new Random(random.Next()));
+        // Untraced games are headless: nobody watches, so the server builds no messages for viewers.
+        room = engine.CreateGame(new Pair<Player>(one.Player, two.Player), practice: true, random: new Random(random.Next()), headless: !trace);
         return Task.CompletedTask;
     });
 
-    while (!room.IsEnded && !cts.IsCancellationRequested)
+    // The bots stop when the game ends.
+    var bots = Task.WhenAll(one.Ai, two.Ai);
+    while (!room.IsEnded && !bots.IsCompleted && !cts.IsCancellationRequested)
     {
-        await Task.Delay(2);
+        await Task.WhenAny(bots, Task.Delay(2));
         if (room.Turn >= MaxTurns)
         {
             await state.RunExclusiveAsync(() => engine.EndGameAsync(room, isDraw: true));
@@ -496,6 +530,73 @@ string? ArgString(string name)
 {
     var i = Array.IndexOf(args, name);
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
+
+/// <summary>
+/// Runs a game, its server and both bots, on the calling thread: every continuation comes back to it, so a message
+/// never wakes another thread and the server's lock is never contended.
+/// </summary>
+internal sealed class GameThread : SynchronizationContext
+{
+    private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
+    private bool _done;
+
+    public static T Run<T>(Func<Task<T>> body)
+    {
+        var context = new GameThread();
+        var previous = Current;
+        SetSynchronizationContext(context);
+        try
+        {
+            var task = body();
+            task.ContinueWith(_ => context.Post(_ => { }, null), TaskContinuationOptions.ExecuteSynchronously);
+            while (true)
+            {
+                (SendOrPostCallback Callback, object? State) next;
+                lock (context._queue)
+                {
+                    while (context._queue.Count == 0 && !task.IsCompleted)
+                    {
+                        Monitor.Wait(context._queue);
+                    }
+
+                    if (context._queue.Count == 0)
+                    {
+                        context._done = true;
+                        break;
+                    }
+
+                    next = context._queue.Dequeue();
+                }
+
+                next.Callback(next.State);
+            }
+
+            return task.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            SetSynchronizationContext(previous);
+        }
+    }
+
+    public override void Post(SendOrPostCallback d, object? state)
+    {
+        lock (_queue)
+        {
+            if (_done)
+            {
+                // Late callbacks (a timer after the game) run on the thread pool.
+                ThreadPool.QueueUserWorkItem(s => d(s), state);
+                return;
+            }
+
+            _queue.Enqueue((d, state));
+            Monitor.Pulse(_queue);
+        }
+    }
+
+    public override SynchronizationContext CreateCopy() => this;
 }
 
 internal sealed class StoppedClock : TimeProvider

@@ -8,6 +8,8 @@
          workstation GC eight threads were no faster than one, with the server GC about three times as fast. -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <!-- A run is short: instrumenting code for profile-guided optimization costs more than it gains (about 10%). -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

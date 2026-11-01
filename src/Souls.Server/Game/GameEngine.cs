@@ -39,14 +39,14 @@ public sealed partial class GameEngine(
     GameStore? store = null)
 {
     /// <summary>Starts a game between two players with the mulligan (see <see cref="RequestMulliganAsync"/>).</summary>
-    public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false, Random? random = null)
+    public GameRoom CreateGame(Pair<Player> players, bool practice = false, bool friendly = false, Random? random = null, bool headless = false)
     {
         DropChallenge(players.First, new GameText("challenge.otherGame", ("name", players.First.Name)));
         DropChallenge(players.Second, new GameText("challenge.otherGame", ("name", players.Second.Name)));
         players.First.ConstructGamePlayer(true);
         players.Second.ConstructGamePlayer(false);
 
-        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice || friendly, friendly, random);
+        var room = new GameRoom(players, time, options.Value.TurnTime, options.Value.MulliganTime, practice || friendly, friendly, random, headless);
         state.Rooms[room.GameId] = room;
 
         var response = room.GenerateGameUpdate(create: true);
@@ -257,7 +257,7 @@ public sealed partial class GameEngine(
             return false;
         }
 
-        gp.HandCards.Remove(cid);
+        gp.OwnHand().Remove(cid);
         if (room.IsCopy)
         {
             card = card.Copy(); // a copy's hand cards may be shared with other copies (GamePlayer.Copy)

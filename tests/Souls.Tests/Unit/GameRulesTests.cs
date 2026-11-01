@@ -1107,7 +1107,7 @@ public class GameRulesTests
     }
 
     [Fact]
-    public async Task CopiesOfACopyShareItsDeckUntilTheyDraw()
+    public async Task CopiesOfACopyShareItsHandAndDeckUntilTheyDraw()
     {
         var game = TestGame.Start();
         var copy = game.Room.Copy();
@@ -1116,7 +1116,9 @@ public class GameRulesTests
         // The first copy has its own deck cards; a copy of it (the bot's lookahead) shares them.
         Assert.DoesNotContain(deck, c => game.G2.Deck.Contains(c));
         var nested = copy.Copy();
-        Assert.Equal(deck, nested.Players.Second.GPlayer!.Deck);
+        Assert.Same(deck, nested.Players.Second.GPlayer!.Deck);
+        var hand = copy.Players.Second.GPlayer!.HandCards;
+        Assert.Same(hand, nested.Players.Second.GPlayer!.HandCards);
 
         // Ending the nested copy's turn makes player two draw: the drawn card is the nested copy's own.
         var top = deck[^1];
@@ -1127,6 +1129,7 @@ public class GameRulesTests
         drawn.Health += 5;
         Assert.Equal((count, health), (deck.Count, top.Health));
         Assert.Same(top, deck[^1]);
+        Assert.DoesNotContain(top.Cid, hand.Keys);
     }
 
     [Fact]
