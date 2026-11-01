@@ -28,7 +28,7 @@ origin, no tokens in JavaScript).
 | Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |
 | Rules | random draws from the cards you own, armor and class bonus mana unused, no turn limit | 20-card decks with fatigue, armor, races with passives, 20 abilities, spells, two hero powers per class to pick from, Taunt, turn timer (see below) |
 | Cards | 8 cards | 59 cards in four rarities: the 8 originals, a 33-card expansion, 10 spells and 8 class cards, balanced with 10 000 simulated games (see below) |
-| Progression | +1 coin per win, rank never changed | Elo rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
+| Progression | +1 coin per win, rank never changed | Glicko-2 rating and ranks, rating-based matchmaking, card upgrades, daily quests, deck builder, leaderboard |
 | Watching | none | live spectating and 3D replays of every game |
 | Look | 2014 light page, bottom navbar, image buttons | one dark-fantasy design system for the site and both game clients (see below) |
 | Tests | 1 empty test project | 105 unit + integration tests (xUnit v3, Testcontainers PostgreSQL), including the rules engine and the bot |
@@ -138,8 +138,10 @@ The full rules and the protocol are in [docs/game-protocol.md](docs/game-protoco
 - **Class cards**: two cards per class (ids 70-77) that only that class can own and play; the shop, packs and the
   deck builder only offer a player their own class's cards.
 - **Turn timer**: 75 seconds, then the turn ends; three timeouts in a row forfeit.
-- **Rating**: normal games change an Elo rating (rank = one step per 50 points above 1000); matchmaking pairs
-  players of similar rating, widening the window while they wait. The home page shows the top players.
+- **Rating**: normal games change a Glicko-2 rating (rank = one step per 50 points above 1000). Its deviation makes
+  a new player's first games count a lot (about ±160) and a settled player's about ±15; it grows while a player is
+  away and at the start of a season. Matchmaking pairs players of similar rating, widening the window while they
+  wait. The home page shows the top players.
 - **Seasons** (8 weeks by default): when one ends, everyone who played a normal game in it gets coins for the
   tier of their final rating (Bronze 5, Silver 10, Gold 20, Platinum 30, Diamond 40, Champion 50; Diamond and
   Champion also a legendary card they don't own), the final standings are kept on the season leaderboard

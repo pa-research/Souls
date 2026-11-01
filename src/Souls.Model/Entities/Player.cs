@@ -20,8 +20,17 @@ public class Player
     /// <summary>Derived from <see cref="Rating"/> (see <see cref="Ratings.RankOf"/>).</summary>
     public int Rank { get; set; }
 
-    /// <summary>Elo rating, changed by normal (not practice) games.</summary>
+    /// <summary>Glicko-2 rating (see <see cref="Ratings"/>), changed by normal (not practice) games.</summary>
     public int Rating { get; set; } = Ratings.Initial;
+
+    /// <summary>How uncertain <see cref="Rating"/> is (Glicko-2 rating deviation).</summary>
+    public double RatingDeviation { get; set; } = Ratings.InitialDeviation;
+
+    /// <summary>How erratic the player's results are (Glicko-2 volatility).</summary>
+    public double RatingVolatility { get; set; } = Ratings.InitialVolatility;
+
+    /// <summary>When the rating last changed; the deviation grows from then until the next rated game.</summary>
+    public DateTimeOffset? RatedAt { get; set; }
     public DateTimeOffset? Created { get; set; }
     public int PlayerPermissionId { get; set; } = Entities.PlayerPermission.Player;
     public PlayerPermission? PlayerPermission { get; set; }

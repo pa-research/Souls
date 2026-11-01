@@ -11,7 +11,8 @@ public sealed class SeasonOptions
 
 /// <summary>
 /// Ranked seasons. When a season ends, every player who played a normal game in it gets a final standing and a
-/// reward for the tier of their final rating, and every rating is reset halfway towards the initial rating.
+/// reward for the tier of their final rating, and every rating is reset halfway towards the initial rating, with its
+/// deviation raised to <see cref="Ratings.SeasonDeviation"/>.
 /// </summary>
 public static class Seasons
 {
@@ -128,11 +129,13 @@ public static class Seasons
                 await db.Players.Where(p => ids.Contains(p.Id)).ExecuteUpdateAsync(s => s.SetProperty(p => p.Money, p => p.Money + group.Key), ct);
             }
 
-            // ponytail: loads every player away from the initial rating; a set-based UPDATE if that ever gets too many.
-            foreach (var player in await db.Players.Where(p => !p.IsSystem && p.Rating != Ratings.Initial).ToListAsync(ct))
+            // ponytail: loads every player who is away from the initial rating or settled; a set-based UPDATE if that
+            // ever gets too many.
+            foreach (var player in await db.Players.Where(p => !p.IsSystem && (p.Rating != Ratings.Initial || p.RatingDeviation < Ratings.SeasonDeviation)).ToListAsync(ct))
             {
                 player.Rating = ResetRating(player.Rating);
                 player.Rank = Ratings.RankOf(player.Rating);
+                player.RatingDeviation = Math.Max(player.RatingDeviation, Ratings.SeasonDeviation);
             }
 
             await db.SaveChangesAsync(ct);

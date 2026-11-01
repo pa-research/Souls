@@ -114,6 +114,9 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.Money).HasColumnName("money");
             e.Property(x => x.Rank).HasColumnName("rank");
             e.Property(x => x.Rating).HasColumnName("rating").HasDefaultValue(Ratings.Initial);
+            e.Property(x => x.RatingDeviation).HasColumnName("rating_deviation").HasDefaultValue(Ratings.InitialDeviation);
+            e.Property(x => x.RatingVolatility).HasColumnName("rating_volatility").HasDefaultValue(Ratings.InitialVolatility);
+            e.Property(x => x.RatedAt).HasColumnName("rated_at");
             e.Property(x => x.Created).HasColumnName("created");
             e.Property(x => x.PlayerPermissionId).HasColumnName("fk_permission");
             e.Property(x => x.IsSystem).HasColumnName("is_system");

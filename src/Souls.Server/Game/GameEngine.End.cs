@@ -134,12 +134,11 @@ public sealed partial class GameEngine
         var player = room.Players.First;
         var opponent = room.Players.Second;
         var rated = !room.IsPractice && !player.IsBot && !opponent.IsBot;
-        double Score(Player p) => isDraw ? 0.5 : winner == p ? 1 : 0;
-        var change1 = rated ? Ratings.Change(player.Rating, opponent.Rating, Score(player)) : 0;
-        var change2 = rated ? Ratings.Change(opponent.Rating, player.Rating, Score(opponent)) : 0;
-
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
+        var ratings = rated ? await RateAsync(db, player, opponent, winner, isDraw) : [];
+        var change1 = ratings.TryGetValue(player.Id, out var r1) ? r1.Change : 0;
+        var change2 = ratings.TryGetValue(opponent.Id, out var r2) ? r2.Change : 0;
 
         // The saved running game goes first (see GameStore). If storing the result fails after that, the game is lost
         // as it was before games were saved; but a game whose result is stored can never be restored and count twice.
@@ -185,7 +184,14 @@ public sealed partial class GameEngine
             var entity = await db.Players.SingleAsync(x => x.Id == p.Id);
             var before = entity.Rating;
             entity.Money += coins + questCoins;
-            entity.Rating += change;
+            if (ratings.TryGetValue(p.Id, out var rating))
+            {
+                entity.Rating += rating.Change;
+                entity.RatingDeviation = rating.After.Deviation;
+                entity.RatingVolatility = rating.After.Volatility;
+                entity.RatedAt = time.GetUtcNow();
+            }
+
             entity.Rank = Ratings.RankOf(entity.Rating);
             rewards[p] = new Reward(coins + questCoins, change, entity.Rating, new JsonArray([.. quests.Select(q =>
             {
@@ -203,6 +209,27 @@ public sealed partial class GameEngine
         await db.SaveChangesAsync();
         room.GameId = game.Id;
         return rewards;
+    }
+
+    /// <summary>
+    /// The Glicko-2 results of a rated game for both players, from their stored ratings (each deviation grown by the time
+    /// since the player's last rated game): the change of the shown (whole) rating and the new Glicko-2 rating.
+    /// </summary>
+    private async Task<Dictionary<int, (int Change, Ratings.Glicko After)>> RateAsync(SoulsDbContext db, Player player, Player opponent, Player? winner, bool isDraw)
+    {
+        var now = time.GetUtcNow();
+        var stored = await db.Players.AsNoTracking().Where(p => p.Id == player.Id || p.Id == opponent.Id)
+            .ToDictionaryAsync(p => p.Id, p => new Ratings.Glicko(p.Rating,
+                Ratings.Aged(p.RatingDeviation, p.RatingVolatility, now - (p.RatedAt ?? now)), p.RatingVolatility));
+        var result = new Dictionary<int, (int, Ratings.Glicko)>();
+        foreach (var (p, other) in new[] { (player, opponent), (opponent, player) })
+        {
+            var (me, them) = (stored[p.Id], stored[other.Id]);
+            var after = Ratings.Update(me, them.Rating, them.Deviation, isDraw ? 0.5 : winner == p ? 1 : 0);
+            result[p.Id] = ((int)Math.Round(after.Rating, MidpointRounding.AwayFromZero) - (int)me.Rating, after);
+        }
+
+        return result;
     }
 
     /// <summary>
