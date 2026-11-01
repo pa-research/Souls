@@ -130,9 +130,12 @@ public sealed class GamePlayer
             GameRoom = room,
         };
         copy.Deck.Capacity = Deck.Count;
+        // Like the deck (below), a copy of a copy shares the hand's cards: nothing changes a card in the hand, and a
+        // card a copy plays is copied as it leaves the hand (GameEngine.TryUseCard, TryCastSpell).
+        var shared = GameRoom?.IsCopy == true;
         foreach (var (cid, card) in HandCards)
         {
-            copy.HandCards[cid] = card.Copy();
+            copy.HandCards[cid] = shared ? card : card.Copy();
         }
 
         foreach (var (slot, card) in BoardCards)
@@ -143,7 +146,7 @@ public sealed class GamePlayer
         // The first copy of the real game gets its own shuffled deck, so it does not reveal the next draws. Copies of
         // that copy (most of the bot's lookahead) share its deck cards: a card leaving a copy's deck is copied (see
         // GameEngine.Draw), and nothing changes a card while it is in the deck.
-        if (GameRoom?.IsCopy == true)
+        if (shared)
         {
             copy.Deck.AddRange(Deck);
         }
@@ -157,14 +160,94 @@ public sealed class GamePlayer
         return copy;
     }
 
+    /// <summary>
+    /// Copies this player (of a copy of the game) into <paramref name="target"/>, the same player in an earlier copy:
+    /// the same state as <see cref="Copy"/> gives (the rest as a new player's), in the target's collections and its board
+    /// cards, which belong to that copy alone (see <see cref="GameRoom.CopyInto"/>).
+    /// </summary>
+    public void CopyInto(GamePlayer target)
+    {
+        target.IsDead = IsDead;
+        target.Attack = Attack;
+        target.Health = Health;
+        target.MaxHealth = MaxHealth;
+        target.Armor = Armor;
+        target.Mana = Mana;
+        target.MaxMana = MaxMana;
+        target.HasAttacked = HasAttacked;
+        target.HeroPowerUsed = HeroPowerUsed;
+        target.Fatigue = Fatigue;
+        target.MulliganDone = MulliganDone;
+        target.CardsPlayed = 0;
+        target.CardsDestroyed = 0;
+        target.AbilitiesUsed = 0;
+        target.HeroDamage = 0;
+        target.TimeoutsInARow = 0;
+        target.EmoteClock = default;
+        target.EmotesMuted = false;
+        target.MulliganRandom = Random.Shared;
+
+        target.HandCards.Clear();
+        foreach (var (cid, card) in HandCards)
+        {
+            target.HandCards[cid] = card;
+        }
+
+        var spare = target._spareCards ??= [];
+        spare.AddRange(target.BoardCards.Values);
+        target.BoardCards.Clear();
+        foreach (var (slot, card) in BoardCards)
+        {
+            target.BoardCards[slot] = spare.Count > 0 ? card.CopyTo(spare[^1]) : card.Copy();
+            if (spare.Count > 0)
+            {
+                spare.RemoveAt(spare.Count - 1);
+            }
+        }
+
+        spare.Clear();
+        target.Deck.Clear();
+        target.Deck.AddRange(Deck);
+        target.Used.Clear();
+        target.Used.AddRange(Used);
+    }
+
+    private List<Card>? _spareCards;
+
     public bool HasEnoughMana(Card c) => Mana >= c.Cost;
 
     /// <summary>Nobody's turn has started while the mulligan runs.</summary>
     public bool IsPlayerTurn() => GameRoom is { InMulligan: false } room && room.CurrentPlaying?.GPlayer == this;
 
-    public bool HasTaunt => BoardCards.Values.Any(c => c.HasTaunt && !c.IsDead);
+    // Loops, not LINQ: these run for every move the bot's lookahead tries.
+    public bool HasTaunt
+    {
+        get
+        {
+            foreach (var c in BoardCards.Values)
+            {
+                if (c.HasTaunt && !c.IsDead)
+                {
+                    return true;
+                }
+            }
 
-    public Card? FindBoardCard(int cid) => BoardCards.Values.FirstOrDefault(c => c.Cid == cid);
+            return false;
+        }
+    }
+
+    public Card? FindBoardCard(int cid)
+    {
+        foreach (var c in BoardCards.Values)
+        {
+            if (c.Cid == cid)
+            {
+                return c;
+            }
+        }
+
+        return null;
+    }
 
     public void RemoveBoardCard(Card c)
     {
@@ -179,12 +262,14 @@ public sealed class GamePlayer
     {
         for (var distance = 1; distance < BoardSlots; distance++)
         {
-            foreach (var slot in new[] { near + distance, near - distance })
+            if (near + distance is >= 0 and < BoardSlots && !BoardCards.ContainsKey(near + distance))
             {
-                if (slot is >= 0 and < BoardSlots && !BoardCards.ContainsKey(slot))
-                {
-                    return slot;
-                }
+                return near + distance;
+            }
+
+            if (near - distance is >= 0 and < BoardSlots && !BoardCards.ContainsKey(near - distance))
+            {
+                return near - distance;
             }
         }
 

@@ -193,6 +193,13 @@ public class SnapshotTests
             {
                 field.SetValue(target, value);
             }
+            else if (field.FieldType.Name == "CardDefinition" && field.GetValue(target) is { } definition)
+            {
+                // A card's printed side is a record shared by its copies: scramble a clone of its own.
+                var clone = definition.GetType().GetMethod("<Clone>$")!.Invoke(definition, null)!;
+                Scramble(clone, ref counter);
+                field.SetValue(target, clone);
+            }
         }
     }
 

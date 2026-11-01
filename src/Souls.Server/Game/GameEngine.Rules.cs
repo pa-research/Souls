@@ -196,10 +196,31 @@ public sealed partial class GameEngine
     private void ResolveDeaths(GameRoom room)
     {
         var current = room.CurrentPlaying.GPlayer!;
-        GamePlayer[] sides = [current, room.Other(current)];
+        var other = room.Other(current);
+        if (!HasDead(current) && !HasDead(other))
+        {
+            return; // the usual case, checked without allocating: this runs after every action, also in the lookahead
+        }
+
+        GamePlayer[] sides = [current, other];
         for (var guard = 0; guard < 50; guard++)
         {
-            var dead = sides.SelectMany(side => side.BoardCards.Values.Where(c => c.Health < 1 && !c.IsDead).OrderBy(c => c.SlotId).Select(c => (side, card: c))).ToList();
+            // The dead of each side in slot order, the current player's first.
+            var dead = new List<(GamePlayer side, Card card)>();
+            foreach (var side in sides)
+            {
+                var start = dead.Count;
+                foreach (var c in side.BoardCards.Values)
+                {
+                    if (c.Health < 1 && !c.IsDead)
+                    {
+                        dead.Add((side, c));
+                    }
+                }
+
+                dead.Sort(start, dead.Count - start, BySlot);
+            }
+
             if (dead.Count == 0)
             {
                 return;
@@ -217,19 +238,30 @@ public sealed partial class GameEngine
                 }
             }
 
-            foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Haunt && !d.card.Haunted && !d.card.IsToken))
+            foreach (var (side, card) in dead)
             {
-                ReturnToHand(room, side, card);
+                if (card.AbilityId == Ability.Haunt && !card.Haunted && !card.IsToken)
+                {
+                    ReturnToHand(room, side, card);
+                }
             }
 
-            foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Brood))
+            foreach (var (side, card) in dead)
             {
-                Trigger(room, card);
-                SummonLostSouls(room, side, card, card.AbilityValue, card.SlotId);
+                if (card.AbilityId == Ability.Brood)
+                {
+                    Trigger(room, card);
+                    SummonLostSouls(room, side, card, card.AbilityValue, card.SlotId);
+                }
             }
 
-            foreach (var (side, card) in dead.Where(d => d.card.RaceId == Races.Darkness && !d.card.IsToken))
+            foreach (var (side, card) in dead)
             {
+                if (card.RaceId != Races.Darkness || card.IsToken)
+                {
+                    continue;
+                }
+
                 var enemy = room.Other(side);
                 var targets = enemy.BoardCards.Values.Where(c => c.Health >= 1).Cast<object>().Append(enemy).ToList();
                 var target = targets[room.Random.Next(targets.Count)];
@@ -240,9 +272,25 @@ public sealed partial class GameEngine
                     room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);
                     room.LogLine(text);
                 }
+
                 Damage(room, target, GameRules.DeathCurseDamage, side, null);
             }
         }
+    }
+
+    private static readonly Comparer<(GamePlayer Side, Card Card)> BySlot = Comparer<(GamePlayer Side, Card Card)>.Create((a, b) => a.Card.SlotId.CompareTo(b.Card.SlotId));
+
+    private static bool HasDead(GamePlayer side)
+    {
+        foreach (var c in side.BoardCards.Values)
+        {
+            if (c.Health < 1 && !c.IsDead)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Haunt: a fresh copy goes back to the hand (or burns if the hand is full).</summary>
@@ -577,6 +625,11 @@ public sealed partial class GameEngine
         }
 
         gp.HandCards.Remove(card.Cid);
+        if (room.IsCopy)
+        {
+            card = card.Copy(); // a copy's hand cards may be shared with other copies (GamePlayer.Copy)
+        }
+
         gp.Used.Add(card);
         gp.Mana -= card.Cost;
         gp.CardsPlayed++;

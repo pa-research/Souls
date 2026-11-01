@@ -258,6 +258,11 @@ public sealed partial class GameEngine(
         }
 
         gp.HandCards.Remove(cid);
+        if (room.IsCopy)
+        {
+            card = card.Copy(); // a copy's hand cards may be shared with other copies (GamePlayer.Copy)
+        }
+
         gp.BoardCards[slot] = card;
         gp.Mana -= card.Cost;
         gp.CardsPlayed++;
@@ -573,15 +578,8 @@ public sealed partial class GameEngine(
     {
         var p1 = room.Players.First.GPlayer!;
         var p2 = room.Players.Second.GPlayer!;
-        foreach (var hero in new[] { p1, p2 }.Where(h => h.Health < 1))
-        {
-            hero.IsDead = true;
-            if (room.Live)
-            {
-                room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
-                room.LogLine(new GameText("log.heroFallen", ("hero", hero.Name)));
-            }
-        }
+        Fall(p1);
+        Fall(p2);
 
         room.Sync();
         if (!p1.IsDead && !p2.IsDead)
@@ -591,6 +589,21 @@ public sealed partial class GameEngine(
 
         room.Winner = p1.IsDead && p2.IsDead ? null : p1.IsDead ? room.Players.Second : room.Players.First;
         return true;
+
+        void Fall(GamePlayer hero)
+        {
+            if (hero.Health >= 1)
+            {
+                return;
+            }
+
+            hero.IsDead = true;
+            if (room.Live)
+            {
+                room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
+                room.LogLine(new GameText("log.heroFallen", ("hero", hero.Name)));
+            }
+        }
     }
 
     private static bool CanAct(Player player, Card card)

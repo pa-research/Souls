@@ -80,6 +80,8 @@ public static class GameRules
 
     private static readonly string[] FriendlyTargets = ["friendlyCard", "ownHero"];
     private static readonly string[] EnemyTargets = ["enemyCard", "enemyHero"];
+    private static readonly string[] EnemyCardTargets = ["enemyCard"];
+    private static readonly string[] FriendlyCardTargets = ["friendlyCard"];
 
     public static readonly IReadOnlyDictionary<int, AbilityDefinition> Abilities = new AbilityDefinition[]
     {
@@ -181,7 +183,8 @@ public static class GameRules
     {
         "enemy" => EnemyTargets,
         "friendly" => FriendlyTargets,
-        "enemyCard" or "friendlyCard" => [target],
+        "enemyCard" => EnemyCardTargets,
+        "friendlyCard" => FriendlyCardTargets,
         _ => [],
     };
 

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Souls.Model;
 using Souls.Model.Localization;
@@ -11,31 +12,37 @@ public sealed class Card
 {
     private static int _cidCounter;
 
-    public int Id { get; init; }
-    public required string Name { get; init; }
-    public int Cost { get; init; }
-    public int VendorPrice { get; init; }
-    public string? Portrait { get; init; }
-    public int? AbilityId { get; init; }
-    public string? AbilityName { get; init; }
-    public string? AbilityParameter { get; init; }
+    /// <summary>
+    /// What is printed on the card (name, cost, ability, race, base stats): shared by every copy of an instance and
+    /// set only while the card is made, so a copy of the game (<see cref="Copy"/>) clones only the state below.
+    /// </summary>
+    private CardDefinition _definition = CardDefinition.Blank;
+
+    public int Id { get => _definition.Id; init => _definition = _definition with { Id = value }; }
+    public required string Name { get => _definition.Name; init => _definition = _definition with { Name = value }; }
+    public int Cost { get => _definition.Cost; init => _definition = _definition with { Cost = value }; }
+    public int VendorPrice { get => _definition.VendorPrice; init => _definition = _definition with { VendorPrice = value }; }
+    public string? Portrait { get => _definition.Portrait; init => _definition = _definition with { Portrait = value }; }
+    public int? AbilityId { get => _definition.AbilityId; init => _definition = _definition with { AbilityId = value }; }
+    public string? AbilityName { get => _definition.AbilityName; init => _definition = _definition with { AbilityName = value }; }
+    public string? AbilityParameter { get => _definition.AbilityParameter; init => _definition = _definition with { AbilityParameter = value }; }
 
     /// <summary>The card's ability value as given on the card (Burn 3), or <c>null</c> for the ability's default.</summary>
-    public int? AbilityValueOverride { get; init; }
-    public int Rarity { get; init; } = Model.Rarity.Common;
-    public string? Flavor { get; init; }
-    public CardKind Kind { get; init; }
-    public int? RaceId { get; init; }
-    public string? RaceName { get; init; }
-    public string? RaceCardUrl { get; init; }
+    public int? AbilityValueOverride { get => _definition.AbilityValueOverride; init => _definition = _definition with { AbilityValueOverride = value }; }
+    public int Rarity { get => _definition.Rarity; init => _definition = _definition with { Rarity = value }; }
+    public string? Flavor { get => _definition.Flavor; init => _definition = _definition with { Flavor = value }; }
+    public CardKind Kind { get => _definition.Kind; init => _definition = _definition with { Kind = value }; }
+    public int? RaceId { get => _definition.RaceId; init => _definition = _definition with { RaceId = value }; }
+    public string? RaceName { get => _definition.RaceName; init => _definition = _definition with { RaceName = value }; }
+    public string? RaceCardUrl { get => _definition.RaceCardUrl; init => _definition = _definition with { RaceCardUrl = value }; }
 
     /// <summary>Upgrade level of the owner's copy (1-3).</summary>
-    public int Level { get; init; } = 1;
+    public int Level { get => _definition.Level; init => _definition = _definition with { Level = value }; }
 
     /// <summary>Stats as printed on the card (including the level bonus); Haunt brings a card back with these.</summary>
-    public int BaseAttack { get; init; }
-    public int BaseHealth { get; init; }
-    public int BaseArmor { get; init; }
+    public int BaseAttack { get => _definition.BaseAttack; init => _definition = _definition with { BaseAttack = value }; }
+    public int BaseHealth { get => _definition.BaseHealth; init => _definition = _definition with { BaseHealth = value }; }
+    public int BaseArmor { get => _definition.BaseArmor; init => _definition = _definition with { BaseArmor = value }; }
 
     public int Attack { get; set; }
     public int Health { get; set; }
@@ -58,7 +65,7 @@ public sealed class Card
     /// <summary>Already returned to the hand once (Haunt).</summary>
     public bool Haunted { get; set; }
 
-    public bool IsToken { get; init; }
+    public bool IsToken { get => _definition.IsToken; init => _definition = _definition with { IsToken = value }; }
 
     /// <summary>Has an unbroken ward (Ward ability): the next damage it would take breaks the ward instead.</summary>
     public bool Ward { get; set; }
@@ -111,7 +118,9 @@ public sealed class Card
     }
 
     /// <summary>The 1/1 token created by Summon.</summary>
-    public static Card LostSoul() => new Card
+    public static Card LostSoul() => LostSoulCard.NewInstance();
+
+    private static readonly Card LostSoulCard = new()
     {
         Id = GameRules.LostSoulId,
         Name = "Lost Soul",
@@ -124,7 +133,7 @@ public sealed class Card
         Health = 1,
         MaxHealth = 1,
         IsToken = true,
-    }.NewInstance();
+    };
 
     /// <summary>Creates a new instance of this card definition with a fresh, unique <see cref="Cid"/> and printed stats.</summary>
     public Card NewInstance()
@@ -157,6 +166,25 @@ public sealed class Card
     /// <summary>The same instance (same <see cref="Cid"/>) as a separate object, for a copy of the game.</summary>
     public Card Copy() => (Card)MemberwiseClone();
 
+    /// <summary>Like <see cref="Copy"/>, into an existing object (a reused copy's card); returns it.</summary>
+    public Card CopyTo(Card target)
+    {
+        target._definition = _definition;
+        target.Attack = Attack;
+        target.Health = Health;
+        target.MaxHealth = MaxHealth;
+        target.Armor = Armor;
+        target.Cid = Cid;
+        target.SlotId = SlotId;
+        target.IsDead = IsDead;
+        target.HasAttacked = HasAttacked;
+        target.Paralyzed = Paralyzed;
+        target.Haunted = Haunted;
+        target.Ward = Ward;
+        target.AttacksThisTurn = AttacksThisTurn;
+        return target;
+    }
+
     /// <summary>
     /// The JSON shape the browser clients expect (property names from the original Json.NET serialization). The texts
     /// (ability name, label and rules, race name, flavor) carry their keys for the clients' languages (see
@@ -169,8 +197,10 @@ public sealed class Card
         ["slotId"] = SlotId,
         ["hasAttacked"] = HasAttacked,
         ["id"] = Id,
-        ["ability"] = AbilityId is not { } abilityId ? null : AbilityJson(abilityId),
-        ["race"] = RaceId is not { } raceId ? null : RaceJson(raceId),
+        // Both depend only on what is printed on the card: made once per definition (their texts take formatting),
+        // a copy for each message.
+        ["ability"] = AbilityId is null ? null : AbilityJsons.GetValue(_definition, AbilityJson).DeepClone(),
+        ["race"] = RaceId is null ? null : RaceJsons.GetValue(_definition, RaceJson).DeepClone(),
         ["name"] = Name,
         ["attack"] = Attack,
         ["health"] = Health,
@@ -190,36 +220,41 @@ public sealed class Card
         ["kind"] = IsSpell ? "spell" : "minion",
     };
 
-    private JsonObject AbilityJson(int abilityId)
+    private static readonly ConditionalWeakTable<CardDefinition, JsonObject> AbilityJsons = new();
+    private static readonly ConditionalWeakTable<CardDefinition, JsonObject> RaceJsons = new();
+
+    private static JsonObject AbilityJson(CardDefinition card)
     {
+        var abilityId = card.AbilityId!.Value;
         var json = new JsonObject { ["id"] = abilityId };
         GameRules.AbilityName(abilityId).WriteTo(json, "name");
-        if (AbilityName is not null && AbilityName != (string?)json["name"])
+        if (card.AbilityName is not null && card.AbilityName != (string?)json["name"])
         {
             // An ability the database names differently: its name as it is, in every language.
-            json["name"] = AbilityName;
+            json["name"] = card.AbilityName;
             json.Remove("nameKey");
         }
 
-        json["parameter"] = AbilityParameter;
-        json["value"] = AbilityValue;
-        GameRules.AbilityLabelText(abilityId, AbilityValueOverride).WriteTo(json, "label");
-        GameRules.AbilityRules(abilityId, AbilityValueOverride, RaceId).WriteTo(json, "text");
+        json["parameter"] = card.AbilityParameter;
+        json["value"] = GameRules.AbilityValue(abilityId, card.AbilityValueOverride);
+        GameRules.AbilityLabelText(abilityId, card.AbilityValueOverride).WriteTo(json, "label");
+        GameRules.AbilityRules(abilityId, card.AbilityValueOverride, card.RaceId).WriteTo(json, "text");
         json["activated"] = GameRules.IsActivated(abilityId);
         return json;
     }
 
-    private JsonObject RaceJson(int raceId)
+    private static JsonObject RaceJson(CardDefinition card)
     {
+        var raceId = card.RaceId!.Value;
         var json = new JsonObject { ["id"] = raceId };
         GameRules.RaceName(raceId).WriteTo(json, "name");
-        if (RaceName is not null && RaceName != (string?)json["name"])
+        if (card.RaceName is not null && card.RaceName != (string?)json["name"])
         {
-            json["name"] = RaceName;
+            json["name"] = card.RaceName;
             json.Remove("nameKey");
         }
 
-        json["cardUrl"] = RaceCardUrl;
+        json["cardUrl"] = card.RaceCardUrl;
         return json;
     }
 
@@ -250,4 +285,31 @@ public sealed class Card
     };
 
     public override string ToString() => $"{Cid}, {Name}, {Attack}/{Health}+{Armor}, {AbilityId}, {RaceId}";
+}
+
+/// <summary>The printed side of a <see cref="Card"/> (see its properties).</summary>
+internal sealed record CardDefinition
+{
+    public static readonly CardDefinition Blank = new();
+
+    public int Id { get; init; }
+    public string Name { get; init; } = "";
+    public int Cost { get; init; }
+    public int VendorPrice { get; init; }
+    public string? Portrait { get; init; }
+    public int? AbilityId { get; init; }
+    public string? AbilityName { get; init; }
+    public string? AbilityParameter { get; init; }
+    public int? AbilityValueOverride { get; init; }
+    public int Rarity { get; init; } = Model.Rarity.Common;
+    public string? Flavor { get; init; }
+    public CardKind Kind { get; init; }
+    public int? RaceId { get; init; }
+    public string? RaceName { get; init; }
+    public string? RaceCardUrl { get; init; }
+    public int Level { get; init; } = 1;
+    public int BaseAttack { get; init; }
+    public int BaseHealth { get; init; }
+    public int BaseArmor { get; init; }
+    public bool IsToken { get; init; }
 }

@@ -125,6 +125,30 @@ public sealed partial class GameRoom
     /// </summary>
     public GameRoom Copy() => new(this);
 
+    /// <summary>
+    /// Like <see cref="Copy"/> (of a copy), but into <paramref name="target"/>, an earlier copy of the same game that the
+    /// bot no longer needs: the lookahead reuses its copies instead of allocating thousands per decision.
+    /// </summary>
+    public GameRoom CopyInto(GameRoom target)
+    {
+        if (!IsCopy || !target.IsCopy || target.Players.First.Id != Players.First.Id || target.Players.Second.Id != Players.Second.Id)
+        {
+            throw new ArgumentException("Only a copy of the same game can be reused", nameof(target));
+        }
+
+        target.Random = Random; // a spare from an earlier decision had that decision's copy's
+        target.Turn = Turn;
+        target.Round = Round;
+        target.InMulligan = InMulligan;
+        target.TurnDeadline = TurnDeadline;
+        target.IsEnded = IsEnded;
+        target.Winner = null;
+        Players.First.GPlayer!.CopyInto(target.Players.First.GPlayer!);
+        Players.Second.GPlayer!.CopyInto(target.Players.Second.GPlayer!);
+        target.CurrentPlaying = CurrentPlaying == Players.First ? target.Players.First : target.Players.Second;
+        return target;
+    }
+
     /// <summary>A copy made by <see cref="Copy"/>: it sends no events or state and is never stored.</summary>
     public bool IsCopy { get; }
 
@@ -135,7 +159,7 @@ public sealed partial class GameRoom
     public bool Live => !IsCopy;
 
     /// <summary>For shuffles and death curses. A copy has its own (shared with copies of the copy).</summary>
-    public Random Random { get; }
+    public Random Random { get; private set; }
 
     /// <summary>In-memory id while running; replaced by the database id when the game is saved.</summary>
     public int GameId { get; set; }

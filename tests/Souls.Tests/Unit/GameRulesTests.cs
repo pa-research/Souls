@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Diagnostics.Metrics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
@@ -1078,6 +1079,31 @@ public class GameRulesTests
         Assert.Empty(game.Messages(game.P1));
         Assert.Empty(game.Messages(game.P2));
         Assert.Equal((logs, replay), (game.Room.Logger.Records.Count, game.Room.Replay.Count));
+    }
+
+    [Fact]
+    public void CopyToCopiesEveryFieldOfACard()
+    {
+        // CopyTo (a reused copy's card) must stay in step with Copy (MemberwiseClone): a new field has to be added to both.
+        var card = NewCard(3, 4);
+        var n = 0;
+        foreach (var field in typeof(Card).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            if (field.FieldType == typeof(int))
+            {
+                field.SetValue(card, ++n * 7);
+            }
+            else if (field.FieldType == typeof(bool))
+            {
+                field.SetValue(card, !(bool)field.GetValue(card)!);
+            }
+        }
+
+        var copied = card.CopyTo(NewCard(1, 1));
+        foreach (var field in typeof(Card).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            Assert.Equal(field.GetValue(card), field.GetValue(copied));
+        }
     }
 
     [Fact]

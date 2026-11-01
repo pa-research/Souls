@@ -73,22 +73,6 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         public int Toughness => Health + Armor;
         public int Value => Attack * 2 + Health + Armor + (Taunt ? 2 : 0) + (Ability is not null ? 2 : 0) + (Ward ? 2 : 0) + (Venom ? 3 : 0);
 
-        public static Unit Of(Card c) => new()
-        {
-            Cid = c.Cid,
-            Attack = c.Attack,
-            Health = c.Health,
-            MaxHealth = c.MaxHealth,
-            Armor = c.Armor,
-            Taunt = c.HasTaunt,
-            CanAct = c.CanAct,
-            Ability = c.AbilityId,
-            AbilityValue = c.AbilityValue,
-            Race = c.RaceId,
-            SlotId = c.SlotId,
-            Ward = c.Ward,
-        };
-
         /// <summary>Whether an attack of <paramref name="damage"/> (from a venom card or not) kills this unit.</summary>
         public bool DiesTo(int damage, bool venom) => !Ward && damage > 0 && (venom || damage >= Toughness);
     }
@@ -124,6 +108,19 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     private bool _synced;
     private bool _greet;
     private Message? _mulligan;
+
+    /// <summary>
+    /// Copies of the game the lookahead no longer needs, reused for its next copies (<see cref="GameRoom.CopyInto"/>):
+    /// a decision tries thousands of moves, each on a copy. At most <see cref="MaxSpareRooms"/> are kept.
+    /// </summary>
+    private readonly Stack<GameRoom> _spareRooms = new();
+
+    // Reused by Moves.
+    private readonly List<GameAction> _moves = [];
+    private readonly List<int> _free = [];
+    private readonly List<Card> _attackable = [];
+    private readonly HashSet<int> _seenCards = [];
+    private const int MaxSpareRooms = 4096;
 
     /// <summary>The mulligan sends back starting cards that cost more than this (easy bots keep their hand).</summary>
     private const int MulliganMaxCost = 4;
@@ -712,10 +709,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         break;
                     }
 
-                    var copy = room.Copy();
+                    var copy = _spareRooms.TryPop(out var spare) ? room.CopyInto(spare) : room.Copy();
                     engine!.Simulate(copy.PlayerOf(_ident), move);
                     if (!seen.Add(Signature(copy)))
                     {
+                        Spare(copy);
                         continue; // refused, or a position already reached in another order
                     }
 
@@ -735,10 +733,39 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                     {
                         next.Add((copy, first ?? move, score));
                     }
+                    else
+                    {
+                        Spare(copy);
+                    }
                 }
             }
 
-            beam = [.. next.OrderByDescending(x => x.Score).Take(beamWidth)];
+            // The positions just expanded, and those the beam drops, become spares for the next copies.
+            foreach (var expanded in beam)
+            {
+                Spare(expanded.Room);
+            }
+
+            var ranked = next.OrderByDescending(x => x.Score).ToList();
+            beam = [.. ranked.Take(beamWidth)];
+            foreach (var dropped in ranked.Skip(beamWidth))
+            {
+                Spare(dropped.Room);
+            }
+        }
+
+        foreach (var left in beam)
+        {
+            Spare(left.Room);
+        }
+
+        // The first copy of the real game is never reused: the other copies share its hand and deck cards.
+        void Spare(GameRoom copy)
+        {
+            if (copy != root && _spareRooms.Count < MaxSpareRooms)
+            {
+                _spareRooms.Push(copy);
+            }
         }
 
         return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst?.ToMessage();
@@ -802,8 +829,27 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             return WinScore;
         }
 
-        static int Cards(GamePlayer gp) => gp.BoardCards.Values.Sum(c => Unit.Of(c).Value);
-        var threat = Cards(enemy) - enemy.BoardCards.Values.Where(c => c.Paralyzed).Sum(c => 2 * c.Attack);
+        // Loops, not LINQ: the lookahead scores every position it reaches.
+        static int Cards(GamePlayer gp)
+        {
+            var sum = 0;
+            foreach (var c in gp.BoardCards.Values)
+            {
+                sum += c.Attack * 2 + c.Health + c.Armor + (c.HasTaunt ? 2 : 0) + (c.AbilityId is not null ? 2 : 0) + (c.Ward ? 2 : 0) + (c.HasVenom ? 3 : 0);
+            }
+
+            return sum;
+        }
+
+        var threat = Cards(enemy);
+        foreach (var c in enemy.BoardCards.Values)
+        {
+            if (c.Paralyzed)
+            {
+                threat -= 2 * c.Attack;
+            }
+        }
+
         return 2 * (Cards(me) + me.Health + me.Armor - enemy.Health - enemy.Armor) - 3 * threat + HandCardWorth * (me.HandCards.Count + me.CardsPlayed - me.Used.Count);
     }
 
@@ -812,7 +858,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     private static int Signature(GameRoom room)
     {
         var hash = new HashCode();
-        foreach (var gp in new[] { room.Players.First.GPlayer!, room.Players.Second.GPlayer! })
+        Add(ref hash, room.Players.First.GPlayer!);
+        Add(ref hash, room.Players.Second.GPlayer!);
+        return hash.ToHashCode();
+
+        static void Add(ref HashCode hash, GamePlayer gp)
         {
             hash.Add(HashCode.Combine(gp.Health, gp.Armor, gp.Attack, gp.Mana, gp.HasAttacked, gp.HeroPowerUsed, gp.HandCards.Count));
             for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
@@ -823,63 +873,96 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                 }
             }
         }
-
-        return hash.ToHashCode();
     }
 
     /// <summary>
     /// Every action the bot could take: each card once (in the slot <see cref="PickSlot"/> picks), each spell once on
     /// every target, every attack and ability target.
     /// </summary>
-    private IEnumerable<GameAction> Moves(GameRoom room)
+    /// <summary>
+    /// Every action the bot could take (into <see cref="_moves"/>, reused): each card once (in the slot
+    /// <see cref="PickSlot"/> picks), each spell once on every target, every attack and ability target. Loops, not
+    /// LINQ: this runs for every position the lookahead expands.
+    /// </summary>
+    private List<GameAction> Moves(GameRoom room)
     {
+        var moves = _moves;
+        moves.Clear();
         var me = room.PlayerOf(_ident).GPlayer!;
         var enemy = room.Other(me);
-        var free = Enumerable.Range(0, GamePlayer.BoardSlots).Where(s => !me.BoardCards.ContainsKey(s)).ToList();
-        var holdInferno = enemy.BoardCards.Count < 2 && me.HandCards.Count < 8;
-        foreach (var card in me.HandCards.Values.Where(c => c.Cost <= me.Mana).DistinctBy(c => c.Id))
+        var free = _free;
+        free.Clear();
+        for (var slot = 0; slot < GamePlayer.BoardSlots; slot++)
         {
+            if (!me.BoardCards.ContainsKey(slot))
+            {
+                free.Add(slot);
+            }
+        }
+
+        var holdInferno = enemy.BoardCards.Count < 2 && me.HandCards.Count < 8;
+        _seenCards.Clear();
+        foreach (var card in me.HandCards.Values)
+        {
+            if (card.Cost > me.Mana || !_seenCards.Add(card.Id))
+            {
+                continue;
+            }
+
             if (card.IsSpell && GameRules.IsActivated(card.AbilityId))
             {
-                foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value)))
-                {
-                    yield return GameAction.Cast(card.Cid, type, target);
-                }
+                AddTargets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value), (type, target) => GameAction.Cast(card.Cid, type, target));
             }
             else if (card.IsSpell)
             {
-                yield return GameAction.Cast(card.Cid);
+                moves.Add(GameAction.Cast(card.Cid));
             }
             else if (free.Count > 0 && !(holdInferno && card.AbilityId == AbilityIds.Inferno))
             {
-                yield return GameAction.Play(card.Cid, PickSlot(card, free));
+                moves.Add(GameAction.Play(card.Cid, PickSlot(card, free)));
             }
         }
 
         // Enemy cards before the hero: on equal scores the bot trades.
-        var taunts = enemy.BoardCards.Values.Where(c => c.HasTaunt).ToList();
-        var attackable = taunts.Count > 0 ? taunts : [.. enemy.BoardCards.Values];
-        foreach (var unit in me.BoardCards.Values.Where(c => c.CanAct))
+        var attackable = _attackable;
+        attackable.Clear();
+        foreach (var c in enemy.BoardCards.Values)
         {
+            if (c.HasTaunt)
+            {
+                attackable.Add(c);
+            }
+        }
+
+        var taunts = attackable.Count;
+        if (taunts == 0)
+        {
+            attackable.AddRange(enemy.BoardCards.Values);
+        }
+
+        foreach (var unit in me.BoardCards.Values)
+        {
+            if (!unit.CanAct)
+            {
+                continue;
+            }
+
             if (unit.Attack > 0)
             {
                 foreach (var target in attackable)
                 {
-                    yield return GameAction.Attack(unit.Cid, target.Cid, 0);
+                    moves.Add(GameAction.Attack(unit.Cid, target.Cid, 0));
                 }
 
-                if (taunts.Count == 0)
+                if (taunts == 0)
                 {
-                    yield return GameAction.Attack(unit.Cid, -1, 1);
+                    moves.Add(GameAction.Attack(unit.Cid, -1, 1));
                 }
             }
 
             if (unit.AbilityId is { } ability && GameRules.IsActivated(ability))
             {
-                foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(ability)))
-                {
-                    yield return GameAction.Ability(unit.Cid, type, target);
-                }
+                AddTargets(me, enemy, GameRules.AbilityTargets(ability), (type, target) => GameAction.Ability(unit.Cid, type, target));
             }
         }
 
@@ -887,36 +970,60 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         {
             foreach (var target in attackable)
             {
-                yield return GameAction.Attack(-1, target.Cid, 2);
+                moves.Add(GameAction.Attack(-1, target.Cid, 2));
             }
 
-            if (taunts.Count == 0)
+            if (taunts == 0)
             {
-                yield return GameAction.Attack(-1, -1, 3);
+                moves.Add(GameAction.Attack(-1, -1, 3));
             }
         }
 
         if (!me.HeroPowerUsed && me.Mana >= GameRules.HeroPowerCost && GameRules.HeroPowers.TryGetValue(me.Power, out var power))
         {
             var kinds = GameRules.PowerTargets(power.Target);
-            foreach (var (type, target) in kinds.Count == 0 ? [(TargetType.OwnHero, -1)] : Targets(me, enemy, kinds))
+            if (kinds.Count == 0)
             {
-                yield return GameAction.Power(type, target);
+                moves.Add(GameAction.Power(TargetType.OwnHero, -1));
+            }
+            else
+            {
+                AddTargets(me, enemy, kinds, GameAction.Power);
             }
         }
-    }
 
-    private static IEnumerable<(TargetType Type, int Cid)> Targets(GamePlayer me, GamePlayer enemy, IReadOnlyList<string> kinds)
-    {
-        return kinds.SelectMany(Of);
+        return moves;
 
-        IEnumerable<(TargetType Type, int Cid)> Of(string kind) => kind switch
+        // The targets of each kind, in the order of the kinds.
+        void AddTargets(GamePlayer me, GamePlayer enemy, IReadOnlyList<string> kinds, Func<TargetType, int, GameAction> make)
         {
-            "friendlyCard" => me.BoardCards.Values.Select(c => (TargetType.FriendlyCard, c.Cid)),
-            "enemyCard" => enemy.BoardCards.Values.Select(c => (TargetType.EnemyCard, c.Cid)),
-            "ownHero" => [(TargetType.OwnHero, -1)],
-            _ => [(TargetType.EnemyHero, -1)],
-        };
+            foreach (var kind in kinds)
+            {
+                switch (kind)
+                {
+                    case "friendlyCard":
+                        foreach (var c in me.BoardCards.Values)
+                        {
+                            moves.Add(make(TargetType.FriendlyCard, c.Cid));
+                        }
+
+                        break;
+                    case "enemyCard":
+                        foreach (var c in enemy.BoardCards.Values)
+                        {
+                            moves.Add(make(TargetType.EnemyCard, c.Cid));
+                        }
+
+                        break;
+                    case "ownHero":
+                        moves.Add(make(TargetType.OwnHero, -1));
+                        break;
+                    default:
+                        moves.Add(make(TargetType.EnemyHero, -1));
+                        break;
+                }
+            }
+        }
     }
 
     // ---- Messages -------------------------------------------------------------------------------------------------
