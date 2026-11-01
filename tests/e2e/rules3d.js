@@ -270,13 +270,14 @@ const RESULT = [230, 231, 233];
   }
 
   result = result || await waitFrame(f => f.dir === 'in' && RESULT.includes(f.type), 0, 60000);
+  // Read the battle log at once: the end screen moves on to the statistics page by itself after a countdown.
+  const log = (await hook('log()').catch(() => null)) || [];
   step('game ends with a result', !!result, result ? `${{ 230: 'Victory', 231: 'Defeat', 233: 'Draw' }[result.type]}: ${JSON.stringify(result.p).slice(0, 300)}` : 'none');
   step('result has rewards and quests', !!result && typeof result.p.coins === 'number' && Array.isArray(result.p.quests) && result.p.quests.length === 3);
   console.log('counts', JSON.stringify(counts));
   step('played cards, attacked, used the hero power', counts.played > 0 && counts.attacks > 0 && counts.powers > 0, JSON.stringify(counts));
   const evTypes = new Set(frames.filter(f => f.dir === 'in' && f.type === 235).flatMap(f => f.p.events.map(e => e.t)));
   console.log('event types seen:', [...evTypes].join(', '));
-  const log = await hook('log()').catch(() => []);
   step('battle log has lines', log.length > 5, `${log.length} lines, last: ${log.slice(-2).join(' | ')}`);
   // Read the overlap record now: the end screen moves on to the statistics page by itself after a countdown.
   const overlaps = await page.evaluate(() => window.__overlaps).catch(() => null) || [];
