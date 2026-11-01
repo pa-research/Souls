@@ -164,6 +164,79 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         return RedirectToAction(nameof(Login));
     }
 
+    /// <summary>
+    /// A player's public profile: rank, ranked record, the rating's course this season, the last games and the final
+    /// places of ended seasons. System accounts (the practice bot) have none.
+    /// </summary>
+    [HttpGet("Player/Profile/{name}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Profile(string name, CancellationToken ct)
+    {
+        var normalized = Player.Normalize(name);
+        var player = await db.Players.AsNoTracking()
+            .Where(p => p.NormalizedName == normalized && !p.IsSystem)
+            .Select(p => new { p.Id, p.Name, p.PlayerTypeId, Type = p.PlayerType!.Name, p.Rating, p.Rank, p.Created })
+            .SingleOrDefaultAsync(ct);
+        if (player is null)
+        {
+            return NotFound();
+        }
+
+        var id = player.Id;
+        var games = db.Games.AsNoTracking().Where(g => g.Player1Id == id || g.Player2Id == id);
+        var counts = await games.GroupBy(g => g.IsPractice)
+            .Select(g => new { Practice = g.Key, Games = g.Count(), Wins = g.Count(x => x.WinnerId == id) })
+            .ToListAsync(ct);
+        var recent = await games.OrderByDescending(g => g.Created).ThenByDescending(g => g.Id).Take(20)
+            .Select(g => new ProfileGame(
+                g.Id, g.Created, g.IsPractice,
+                g.Player1Id == id ? g.Player2!.Name : g.Player1!.Name,
+                g.Player1Id == id ? g.Player2!.PlayerTypeId : g.Player1!.PlayerTypeId,
+                g.Player1Id == id ? g.Player2!.IsSystem : g.Player1!.IsSystem,
+                g.WinnerId == null ? "draw" : g.WinnerId == id ? "won" : "lost",
+                g.Player1Id == id ? g.Player1RatingChange : g.Player2RatingChange,
+                g.Turns))
+            .ToListAsync(ct);
+
+        // The season's reset moves ratings without a game, so the course is traced back over this season's games only.
+        var season = await Seasons.CurrentAsync(db, ct);
+        var changes = await games.Where(g => !g.IsPractice && (season == null || g.Created >= season.StartsAt))
+            .OrderByDescending(g => g.Created).ThenByDescending(g => g.Id).Take(60)
+            .Select(g => g.Player1Id == id ? g.Player1RatingChange : g.Player2RatingChange)
+            .ToListAsync(ct);
+        var history = new List<int> { player.Rating };
+        foreach (var change in changes)
+        {
+            history.Add(history[^1] - change);
+        }
+
+        history.Reverse();
+        var seasons = await db.SeasonStandings.AsNoTracking().Include(s => s.Season)
+            .Where(s => s.PlayerId == id)
+            .OrderByDescending(s => s.SeasonNumber)
+            .Select(s => new ProfileSeason(s.Season!, s.Position, s.Rank, s.Rating))
+            .ToListAsync(ct);
+
+        ViewData["Title"] = player.Name;
+        var ranked = counts.SingleOrDefault(c => !c.Practice);
+        return View(new ProfileViewModel
+        {
+            Name = player.Name,
+            Type = player.PlayerTypeId,
+            TypeName = player.Type,
+            Rating = player.Rating,
+            Rank = player.Rank,
+            Created = player.Created,
+            RankedGames = ranked?.Games ?? 0,
+            RankedWins = ranked?.Wins ?? 0,
+            OtherGames = counts.SingleOrDefault(c => c.Practice)?.Games ?? 0,
+            RatingHistory = history,
+            Games = recent,
+            Seasons = seasons,
+            IsMe = User.GetPlayerId() == id,
+        });
+    }
+
     /// <summary>Profile shown in the shop.</summary>
     [HttpGet]
     public async Task<IActionResult> GetPlayer(CancellationToken ct)

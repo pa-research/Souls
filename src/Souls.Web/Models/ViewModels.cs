@@ -156,6 +156,9 @@ public sealed class HomeViewModel
 
     /// <summary>The signed in player's current season.</summary>
     public SeasonProfile? Season { get; init; }
+
+    /// <summary>The current season's ladder (see <see cref="LadderRung.Of"/>).</summary>
+    public IReadOnlyList<LadderRung> Ladder { get; init; } = [];
 }
 
 /// <summary>A player's normal games and wins in the current season and their best final place in an earlier one.</summary>
@@ -168,10 +171,53 @@ public sealed record SeasonEntry(int Position, string Name, int Rating, int Rank
     public string? RewardCard { get; init; }
 }
 
+/// <summary>A game on a player's profile, seen from their side. Result: "won", "lost" or "draw".</summary>
+public sealed record ProfileGame(int GameId, DateTimeOffset? Date, bool IsPractice, string Opponent, int OpponentType, bool OpponentIsBot, string Result, int RatingChange, int Turns);
+
+/// <summary>A player's final place in an ended season.</summary>
+public sealed record ProfileSeason(Season Season, int Position, int Rank, int Rating);
+
+public sealed class ProfileViewModel
+{
+    public required string Name { get; init; }
+    public int Type { get; init; }
+    public required string TypeName { get; init; }
+    public int Rating { get; init; }
+    public int Rank { get; init; }
+    public DateTimeOffset? Created { get; init; }
+    public int RankedGames { get; init; }
+    public int RankedWins { get; init; }
+    public int OtherGames { get; init; }
+
+    /// <summary>The rating before each ranked game of the current season, oldest first, then the rating now.</summary>
+    public required IReadOnlyList<int> RatingHistory { get; init; }
+    public required IReadOnlyList<ProfileGame> Games { get; init; }
+    public required IReadOnlyList<ProfileSeason> Seasons { get; init; }
+    public bool IsMe { get; init; }
+}
+
+/// <summary>One rank of the season's ladder (16: Champion) and how many players stand on it.</summary>
+public sealed record LadderRung(int Rank, int Players)
+{
+    /// <summary>The ladder from Champion down to Bronze III for the players' ranks (every rank above Champion is Champion).</summary>
+    public static IReadOnlyList<LadderRung> Of(IReadOnlyCollection<int> ranks) =>
+        [.. Enumerable.Range(1, Ratings.ChampionRank).Reverse().Select(rank => new LadderRung(rank, ranks.Count(r => Math.Min(r, Ratings.ChampionRank) == rank)))];
+}
+
+/// <summary>Where the signed-in player stands in the season: place (none before a ranked game), rating and rank.</summary>
+public sealed record LadderMe(int? Position, int Rating, int Rank);
+
 public sealed class SeasonViewModel
 {
     public required Season Season { get; init; }
     public bool IsCurrent { get; init; }
+
+    /// <summary>The ranks from Champion down to Bronze III with their players.</summary>
+    public required IReadOnlyList<LadderRung> Ladder { get; init; }
+
+    /// <summary>Players who played a ranked game in the season.</summary>
+    public int Players { get; init; }
+    public LadderMe? Me { get; init; }
 
     /// <summary>Every season, newest first.</summary>
     public required IReadOnlyList<Season> Seasons { get; init; }

@@ -587,6 +587,17 @@ a:hover { color: #fff0c2; }
 .s-card-actions form { margin: 0; }
 
 .s-shop-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* On a long page the filters and the pack stay at hand: the filter bar sticks under the top of the window, the side
+   column beside the cards. */
+#shop-filters {
+    position: sticky; top: 0; z-index: 5; padding: 10px 12px; margin: 0 -12px;
+    border-radius: var(--s-radius); background: rgba(13, 11, 18, 0.88); backdrop-filter: blur(8px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+@media (min-width: 992px) and (min-height: 1000px) {
+    .s-shop-side { position: sticky; top: 16px; }
+}
 .s-shop-bar form { margin: 0; }
 
 @media (max-width: 991.98px) {
@@ -816,6 +827,112 @@ a:hover { color: #fff0c2; }
     .s-versus { grid-template-columns: minmax(0, 1fr); }
     .s-fighter-portrait { width: min(180px, 60%); }
 }
+
+/* ---- Home: the season's ladder as six columns, Bronze to Champion ------------------------------------------- */
+
+.s-ladder-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.s-ladder-strip > li { position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--s-radius-sm); text-align: center; }
+.s-ladder-strip > li.is-me { background: linear-gradient(180deg, transparent, var(--tier-glow)); box-shadow: inset 0 0 0 1px var(--tier); }
+.s-ladder-column { display: flex; align-items: flex-end; width: 28px; height: 84px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); overflow: hidden; }
+.s-ladder-column > span {
+    display: block; width: 100%; height: var(--share); min-height: 3px;
+    background: linear-gradient(0deg, var(--tier-dark), var(--tier)); box-shadow: 0 0 10px var(--tier-glow);
+    transform-origin: bottom; animation: s-ladder-rise 0.9s var(--s-ease) both;
+}
+.s-ladder-strip-name { font-family: var(--s-font-display); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tier); }
+.s-ladder-strip-count { font-size: 0.72rem; color: var(--s-muted); }
+.s-ladder-strip .s-ladder-you { grid-column: auto; justify-self: center; }
+@keyframes s-ladder-rise { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .s-ladder-column > span { animation: none; } }
+
+/* Server status as one quiet line under the home page. */
+.s-status-strip { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin: 22px 0 0; padding: 0; font-size: 0.8rem; color: var(--s-muted); }
+.s-status-strip li { display: inline-flex; align-items: center; gap: 8px; }
+.s-status-strip .fw-semibold { font-weight: 500 !important; display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---- Player profile ---------------------------------------------------------------------------------------- */
+
+.s-profile-head { align-items: center; }
+.s-portrait-xl {
+    width: 132px; height: 132px; border-radius: 50%; object-fit: cover;
+    border: 3px solid transparent; background: var(--s-gold-edge) border-box;
+    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.6), 0 0 34px rgba(241, 207, 122, 0.25);
+}
+.s-profile-head-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.s-profile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.s-col-span-2 { grid-column: span 2; }
+.s-profile-stats-4 { grid-template-columns: repeat(2, 1fr); margin-bottom: 16px; }
+.s-profile-tier { padding: 4px 0 0; }
+.s-profile-tier::before { display: none; }
+
+.s-rating-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.s-chart-rank { stroke: rgba(226, 184, 90, 0.18); stroke-width: 1; stroke-dasharray: 4 5; }
+.s-chart-label { fill: var(--s-muted); font: 11px var(--s-font-body); }
+.s-chart-area { fill: url(#rating-fill); }
+.s-chart-line { fill: none; stroke: #f1cf7a; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(241, 207, 122, 0.45)); }
+.s-chart-now { fill: #ffe9b0; stroke: #1a1420; stroke-width: 2; }
+.s-chart-value { fill: #fff3d0; font: 600 13px var(--s-font-body); }
+
+.s-match-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.s-match {
+    display: grid; grid-template-columns: 4.2rem 36px minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+    padding: 8px 10px; border-radius: var(--s-radius-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--s-line-soft);
+    border-left: 3px solid var(--result, var(--s-muted));
+}
+.s-match-won { --result: var(--s-life); }
+.s-match-lost { --result: var(--s-blood); }
+.s-match-draw { --result: var(--s-gold-2); }
+.s-match-result { font-family: var(--s-font-display); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--result); }
+.s-match-portrait { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid var(--s-line); }
+.s-match-who { display: grid; min-width: 0; }
+.s-match-who > a, .s-match-who > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--s-text); font-weight: 600; }
+.s-match-who small { color: var(--s-muted); font-size: 0.75rem; }
+.s-match-delta { font-weight: 700; }
+.s-match-delta.up { color: var(--s-life); }
+.s-match-delta.down { color: var(--s-blood); }
+
+/* Player names that open a profile: quiet until hovered. */
+.s-player-link { color: inherit; text-decoration: none; }
+.s-player-link:hover, .s-player-link:focus-visible { color: var(--s-gold-1); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Season: the ranked ladder beside the leaderboard ----------------------------------------------------- */
+
+.s-season-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
+.s-ladder .s-panel-head { margin-bottom: 8px; }
+.s-ladder-tier { position: relative; padding: 10px 0 6px 14px; }
+/* A strand of the tier's colour down the left of each tier: the ladder's rail. */
+.s-ladder-tier::before {
+    content: ""; position: absolute; left: 0; top: 14px; bottom: 6px; width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg, var(--tier), var(--tier-dark));
+    box-shadow: 0 0 10px var(--tier-glow);
+}
+.s-ladder-tier + .s-ladder-tier { border-top: 1px solid var(--s-line-soft); }
+.s-ladder-tier-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.s-ladder-tier-head h3 { margin: 0; font-family: var(--s-font-display); font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tier); }
+.s-ladder-tier-head .s-chip { margin-left: auto; font-size: 0.75rem; }
+.tier-champion .s-ladder-tier-head h3 { text-shadow: 0 0 14px var(--tier-glow); }
+.s-ladder-rungs { list-style: none; margin: 0; padding: 0; }
+.s-ladder-rung {
+    position: relative; display: grid; grid-template-columns: 7.5rem 6.5rem minmax(0, 1fr) 2.5rem; align-items: center; gap: 10px;
+    padding: 5px 8px; border-radius: var(--s-radius-sm); font-size: 0.85rem;
+}
+.s-ladder-name { color: var(--s-text); white-space: nowrap; }
+.s-ladder-band { color: var(--s-muted); font-size: 0.78rem; white-space: nowrap; }
+.s-ladder-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.s-ladder-bar > span {
+    display: block; height: 100%; width: var(--share); min-width: 2px; border-radius: inherit;
+    background: linear-gradient(90deg, var(--tier-dark), var(--tier)); box-shadow: 0 0 8px var(--tier-glow);
+    transform-origin: left; animation: s-ladder-grow 0.9s var(--s-ease) both;
+}
+.s-ladder-count { text-align: right; color: var(--s-muted); }
+.s-ladder-rung.is-me { background: linear-gradient(90deg, var(--tier-glow), transparent 85%); box-shadow: inset 0 0 0 1px var(--tier); }
+.s-ladder-rung.is-me .s-ladder-name { color: #fff; font-weight: 600; }
+.s-ladder-you {
+    grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 6px; justify-self: start;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tier);
+}
+@keyframes s-ladder-grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .s-ladder-bar > span { animation: none; } }
 
 /* ---- Admin and errors --------------------------------------------------------------------------------------- */
 
@@ -1059,7 +1176,20 @@ img.s-card-portrait { background: none; }
 
 .s-curve { margin-top: 30px; }
 
+@media (max-width: 991.98px) {
+    .s-season-grid { grid-template-columns: minmax(0, 1fr); }
+    .s-profile-grid { grid-template-columns: minmax(0, 1fr); }
+    .s-col-span-2 { grid-column: auto; }
+}
+
 @media (max-width: 575.98px) {
+    .s-ladder-rung { grid-template-columns: 6.6rem minmax(0, 1fr) 2rem; }
+    .s-ladder-band { display: none; }
+    .s-ladder-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .s-portrait-xl { width: 88px; height: 88px; }
+    .s-match { grid-template-columns: 3.4rem 32px minmax(0, 1fr) auto auto; gap: 8px; }
+    .s-match-portrait { width: 32px; height: 32px; }
+
     /* The leaderboard fits a phone with only the rank emblem; the tier name stays for screen readers. */
     #season-standings .s-rank > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     #season-standings th,

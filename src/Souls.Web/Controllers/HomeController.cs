@@ -58,12 +58,17 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
             .Take(10)
             .Select(p => new { p.Name, p.Rating, p.Rank, Type = p.PlayerType!.Name })
             .ToListAsync(ct);
+        // ponytail: every rating of the season's players for the ladder strip; count by rating in SQL if it gets crowded.
+        var ladder = await Seasons.CurrentAsync(db, ct) is { } now
+            ? LadderRung.Of([.. (await Seasons.Standings(db, now.StartsAt).Select(s => s.Rating).ToListAsync(ct)).Select(Ratings.RankOf)])
+            : [];
         return View(new HomeViewModel
         {
             Profile = profile,
             Quests = quests,
             TopPlayers = [.. top.Select((p, i) => new LeaderboardEntry(i + 1, p.Name, p.Rating, p.Rank, p.Type))],
             Season = season,
+            Ladder = ladder,
         });
     }
 

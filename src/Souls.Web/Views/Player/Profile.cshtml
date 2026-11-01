@@ -1,0 +1,145 @@
+@using System.Globalization
+@using Souls.Model
+@model ProfileViewModel
+@{
+    var tier = Ratings.TierOf(Model.Rank);
+    string Date(DateTimeOffset? d) => d?.ToString(L["d MMM yyyy"], CultureInfo.CurrentCulture) ?? "";
+    string N(double v) => v.ToString("0.#", CultureInfo.InvariantCulture);
+
+    // The rating's course this season as an SVG line: the rank boundaries in range as faint lines behind it.
+    var history = Model.RatingHistory;
+    const double Width = 640, Height = 200, Left = 8, Right = 92, Top = 14, Bottom = 22;
+    var low = history.Min() - 25;
+    var high = history.Max() + 25;
+    double X(int i) => Left + i * (Width - Left - Right) / Math.Max(1, history.Count - 1);
+    double Y(int rating) => Height - Bottom - (rating - low) * (Height - Top - Bottom) / (double)(high - low);
+    var points = string.Join(" ", history.Select((r, i) => $"{N(X(i))},{N(Y(r))}"));
+    var boundaries = Enumerable.Range(2, Ratings.ChampionRank - 1).Select(Ratings.RatingOfRank).Where(r => r > low && r < high).ToList();
+}
+<div class="s-page-head s-profile-head">
+    <img class="s-portrait-xl" src="/Content/Images/Player/Portraits/@(Model.Type).jpg" alt="" width="132" height="132" />
+    <div>
+        <div class="s-eyebrow">@(Model.IsMe ? L["Your profile"] : L["Player profile"])@(Model.Created is null ? "" : " · " + L["joined {0}", Date(Model.Created)])</div>
+        <h1 class="s-h1 s-gold-text">@Model.Name</h1>
+        <div class="s-profile-head-meta">
+            <span class="s-muted">@Model.TypeName</span>
+            <s-rank rank="@Model.Rank" rating="@Model.Rating" />
+        </div>
+    </div>
+    @if (Model.IsMe)
+    {
+        <a class="s-btn s-btn-primary s-btn-lg ms-lg-auto" asp-controller="Game" asp-action="Index"><s-icon name="swords" />@L["Play"]</a>
+    }
+</div>
+
+<div class="s-grid s-profile-grid">
+    <section class="s-panel s-rise" aria-labelledby="record-title">
+        <div class="s-panel-head"><s-icon name="swords" /><h2 id="record-title">@L["Ranked record"]</h2></div>
+        <div class="s-profile-stats s-profile-stats-4">
+            <div class="s-stat"><b>@Model.RankedGames</b><span>@L["Games"]</span></div>
+            <div class="s-stat"><b>@Model.RankedWins</b><span>@L["Wins"]</span></div>
+            <div class="s-stat"><b>@(Model.RankedGames == 0 ? "-" : $"{Model.RankedWins * 100 / Model.RankedGames}%")</b><span>@L["Win rate"]</span></div>
+            <div class="s-stat"><b>@Model.OtherGames</b><span>@L["Practice and friendly"]</span></div>
+        </div>
+        <div class="s-ladder-tier @tier.Css s-profile-tier">
+            <div class="d-flex justify-content-between s-small s-muted mb-1">
+                <span>@T(tier.Text)</span>
+                <span>@(Model.Rank >= Ratings.ChampionRank ? L["The top of the ladder"] : L["Next rank at {0}", Ratings.RatingOfRank(Model.Rank + 1)])</span>
+            </div>
+            <div class="s-progress" style="--p: @((int)(Ratings.RankProgress(Model.Rating) * 100))%"><span></span></div>
+        </div>
+    </section>
+
+    <section class="s-panel s-rise s-col-span-2" aria-labelledby="course-title">
+        <div class="s-panel-head"><s-icon name="gauge" /><h2 id="course-title">@L["Rating this season"]</h2></div>
+        @if (history.Count < 2)
+        {
+            <div class="s-empty"><s-icon name="gauge" /><p>@L["No ranked games this season yet."]</p></div>
+        }
+        else
+        {
+            <svg class="s-rating-chart" viewBox="0 0 @N(Width) @N(Height)" role="img" aria-label="@L["Rating from {0} to {1} over {2} ranked games", history[0], history[^1], history.Count - 1]">
+                <defs>
+                    <linearGradient id="rating-fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#f1cf7a" stop-opacity="0.35" />
+                        <stop offset="1" stop-color="#f1cf7a" stop-opacity="0" />
+                    </linearGradient>
+                </defs>
+                @foreach (var boundary in boundaries)
+                {
+                    var rankAt = Ratings.RankOf(boundary);
+                    @* In a group: a <text> straight in a code block would be Razor's own text tag. *@
+                    <g>
+                        <line class="s-chart-rank" x1="@N(Left)" x2="@N(Width - Right)" y1="@N(Y(boundary))" y2="@N(Y(boundary))" />
+                        <text class="s-chart-label" x="@N(Width - Right + 6)" y="@N(Y(boundary) + 4)">@T(Ratings.TierOf(rankAt).Text)</text>
+                    </g>
+                }
+                <polygon class="s-chart-area" points="@N(X(0)),@N(Height - Bottom) @points @N(X(history.Count - 1)),@N(Height - Bottom)" />
+                <polyline class="s-chart-line" points="@points" />
+                <circle class="s-chart-now" cx="@N(X(history.Count - 1))" cy="@N(Y(history[^1]))" r="5" />
+                <text class="s-chart-value" x="@N(X(history.Count - 1) + 8)" y="@N(Y(history[^1]) - 8)">@history[^1]</text>
+            </svg>
+        }
+    </section>
+</div>
+
+<div class="s-grid s-profile-grid mt-4">
+    <section class="s-panel s-rise s-col-span-2" aria-labelledby="games-title">
+        <div class="s-panel-head"><s-icon name="swords" /><h2 id="games-title">@L["Recent Games"]</h2></div>
+        @if (Model.Games.Count == 0)
+        {
+            <div class="s-empty"><s-icon name="swords" /><p>@L["No games yet."]</p></div>
+        }
+        else
+        {
+            <ul class="s-match-list">
+                @foreach (var game in Model.Games)
+                {
+                    var mode = !game.IsPractice ? L["Ranked"] : game.OpponentIsBot ? L["Practice"] : L["Friendly"];
+                    <li class="s-match s-match-@game.Result">
+                        <span class="s-match-result">@(game.Result == "won" ? L["Win"] : game.Result == "lost" ? L["Loss"] : L["Draw"])</span>
+                        <img class="s-match-portrait" src="/Content/Images/Player/Portraits/@(game.OpponentType).jpg" alt="" width="36" height="36" loading="lazy" />
+                        <span class="s-match-who">
+                            @if (game.OpponentIsBot)
+                            {
+                                <span>@L["Practice bot"]</span>
+                            }
+                            else
+                            {
+                                <a asp-controller="Player" asp-action="Profile" asp-route-name="@game.Opponent">@game.Opponent</a>
+                            }
+                            <small>@mode · @L["{0} turns", game.Turns] · @Date(game.Date)</small>
+                        </span>
+                        @if (!game.IsPractice)
+                        {
+                            <span class="s-match-delta s-num @(game.RatingChange >= 0 ? "up" : "down")">@(game.RatingChange >= 0 ? "+" : "")@game.RatingChange</span>
+                        }
+                        <a class="s-btn s-btn-ghost s-btn-sm" asp-controller="Game" asp-action="Stats" asp-route-id="@game.GameId" aria-label="@L["Game Summary for #{0}", game.GameId]"><s-icon name="eye" /><span class="d-none d-sm-inline">@L["Summary"]</span></a>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="s-panel s-rise" aria-labelledby="seasons-title">
+        <div class="s-panel-head"><s-icon name="trophy" /><h2 id="seasons-title">@L["Seasons"]</h2></div>
+        @if (Model.Seasons.Count == 0)
+        {
+            <div class="s-empty"><s-icon name="trophy" /><p>@L["No finished season yet."]</p></div>
+        }
+        else
+        {
+            <ol class="s-leaders">
+                @foreach (var finish in Model.Seasons)
+                {
+                    <li class="s-leader">
+                        <span class="s-leader-pos">#@finish.Position</span>
+                        <s-rank rank="@finish.Rank" compact="true" />
+                        <span class="s-leader-name"><a asp-controller="Season" asp-action="Index" asp-route-id="@finish.Season.Number">@SeasonName(finish.Season)</a><small>@T(Ratings.TierOf(finish.Rank).Text)</small></span>
+                        <span class="s-num s-muted">@finish.Rating</span>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+</div>
