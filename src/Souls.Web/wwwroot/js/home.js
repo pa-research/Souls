@@ -38,6 +38,7 @@
     var news = $(".news-wrapper");
     if (news.length) {
         $.getJSON("/Home/GetNews").done(function (list) {
+            $("#news-panel").prop("hidden", list.length === 0);
             var dates = new Intl.DateTimeFormat(document.documentElement.lang);
             $.each(list, function (_, item) {
                 var post = $("<article class='s-news-item'>");

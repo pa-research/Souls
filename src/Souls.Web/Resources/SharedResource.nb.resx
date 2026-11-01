@@ -649,17 +649,11 @@
   <data name="Souls Updates" xml:space="preserve">
     <value>Nytt i Souls</value>
   </data>
-  <data name="Souls winning game of the year (probably)" xml:space="preserve">
-    <value>Souls vinner årets spill (sannsynligvis)</value>
-  </data>
   <data name="Spell" xml:space="preserve">
     <value>Formel</value>
   </data>
   <data name="Spells are cast from the hand (attack, health and armor are ignored)." xml:space="preserve">
     <value>Trylleformler kastes fra hånden (angrep, liv og rustning ignoreres).</value>
-  </data>
-  <data name="Spirit wolf coming to Souls" xml:space="preserve">
-    <value>Åndeulv kommer til Souls</value>
   </data>
   <data name="Started {0} UTC, ends {1} UTC" xml:space="preserve">
     <value>Startet {0} UTC, slutter {1} UTC</value>
@@ -675,9 +669,6 @@
   </data>
   <data name="Stay" xml:space="preserve">
     <value>Bli</value>
-  </data>
-  <data name="Studies show that Souls is a great game" xml:space="preserve">
-    <value>Studier viser at Souls er et flott spill</value>
   </data>
   <data name="Take a seat in the stands for any live match, challenge a friend, or replay any finished game in 3D." xml:space="preserve">
     <value>Ta plass på tribunen og se en direkte kamp, utfordre en venn, eller se reprise av en ferdig kamp i 3D.</value>
@@ -933,5 +924,71 @@
   </data>
   <data name="{0} was already upgraded." xml:space="preserve">
     <value>{0} er allerede oppgradert.</value>
+  </data>
+  <data name="Ranked ladder" xml:space="preserve">
+    <value>Rangstigen</value>
+  </data>
+  <data name="{0} players" xml:space="preserve">
+    <value>{0} spillere</value>
+  </data>
+  <data name="up to {0}" xml:space="preserve">
+    <value>opptil {0}</value>
+  </data>
+  <data name="You" xml:space="preserve">
+    <value>Du</value>
+  </data>
+  <data name="Your profile" xml:space="preserve">
+    <value>Din profil</value>
+  </data>
+  <data name="Player profile" xml:space="preserve">
+    <value>Spillerprofil</value>
+  </data>
+  <data name="joined {0}" xml:space="preserve">
+    <value>med siden {0}</value>
+  </data>
+  <data name="Ranked record" xml:space="preserve">
+    <value>Rangerte kamper</value>
+  </data>
+  <data name="Practice and friendly" xml:space="preserve">
+    <value>Trening og vennskap</value>
+  </data>
+  <data name="The top of the ladder" xml:space="preserve">
+    <value>Toppen av stigen</value>
+  </data>
+  <data name="Rating this season" xml:space="preserve">
+    <value>Rating denne sesongen</value>
+  </data>
+  <data name="No ranked games this season yet." xml:space="preserve">
+    <value>Ingen rangerte kamper denne sesongen ennå.</value>
+  </data>
+  <data name="Rating from {0} to {1} over {2} ranked games" xml:space="preserve">
+    <value>Rating fra {0} til {1} over {2} rangerte kamper</value>
+  </data>
+  <data name="No games yet." xml:space="preserve">
+    <value>Ingen kamper ennå.</value>
+  </data>
+  <data name="Ranked" xml:space="preserve">
+    <value>Rangert</value>
+  </data>
+  <data name="Friendly" xml:space="preserve">
+    <value>Vennskap</value>
+  </data>
+  <data name="Win" xml:space="preserve">
+    <value>Seier</value>
+  </data>
+  <data name="Loss" xml:space="preserve">
+    <value>Tap</value>
+  </data>
+  <data name="Practice bot" xml:space="preserve">
+    <value>Treningsbot</value>
+  </data>
+  <data name="Summary" xml:space="preserve">
+    <value>Oppsummering</value>
+  </data>
+  <data name="No finished season yet." xml:space="preserve">
+    <value>Ingen avsluttede sesonger ennå.</value>
+  </data>
+  <data name="1 player" xml:space="preserve">
+    <value>1 spiller</value>
   </data>
 </root>

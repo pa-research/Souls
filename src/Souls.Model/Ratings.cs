@@ -32,6 +32,12 @@ public static class Ratings
     private static readonly string[] TierNames = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
     private static readonly string[] Divisions = ["III", "II", "I"];
 
+    /// <summary>The first rank of Champion, the top of the ladder (every rank above it is Champion too).</summary>
+    public const int ChampionRank = 16;
+
+    /// <summary>The lowest rating of a rank (rank 1 also holds every rating below it).</summary>
+    public static int RatingOfRank(int rank) => Initial + (Math.Max(1, rank) - 1) * PointsPerRank;
+
     /// <summary>Three ranks per tier: Bronze III (rank 1) up to Diamond I (rank 15), then Champion.</summary>
     public static Tier TierOf(int rank)
     {

@@ -22,15 +22,43 @@
     }
 </div>
 
-<section class="s-panel s-rise mb-4" aria-labelledby="rewards-title">
-    <div class="s-panel-head"><s-icon name="award" /><h2 id="rewards-title">@L["Season rewards"]</h2></div>
-    <div class="d-flex flex-wrap gap-2">
-        @foreach (var rank in new[] { 1, 4, 7, 10, 13, 16 })
-        {
-            var (coins, legendary) = Seasons.Reward(rank);
-            <span class="s-chip"><s-rank rank="@rank" compact="true" />@T(Ratings.TierOf(rank).NameText) <s-icon name="coin" />@coins@(legendary ? " + " + L["a legendary card"] : "")</span>
-        }
-    </div>
+<div class="s-season-grid">
+<section class="s-panel s-rise s-ladder" aria-labelledby="ladder-title">
+    <div class="s-panel-head"><s-icon name="crown" /><h2 id="ladder-title">@L["Ranked ladder"]</h2><span class="s-small s-muted ms-auto">@(Model.Players == 1 ? L["1 player"] : L["{0} players", Model.Players])</span></div>
+    @{
+        var most = Math.Max(1, Model.Ladder.Max(r => r.Players));
+        var myRank = Model.Me is { } me ? Math.Min(me.Rank, Ratings.ChampionRank) : 0;
+    }
+    @foreach (var tier in Model.Ladder.GroupBy(r => Ratings.TierOf(r.Rank).Name))
+    {
+        var top = Ratings.TierOf(tier.First().Rank);
+        var (coins, legendary) = Seasons.Reward(tier.First().Rank);
+        <div class="s-ladder-tier @top.Css">
+            <div class="s-ladder-tier-head">
+                <s-rank rank="@tier.First().Rank" compact="true" />
+                <h3>@T(top.NameText)</h3>
+                <span class="s-chip s-chip-coin" title="@L["Season rewards"]"><s-icon name="coin" />@coins@(legendary ? " + " + L["a legendary card"] : "")</span>
+            </div>
+            <ol class="s-ladder-rungs">
+                @foreach (var rung in tier)
+                {
+                    var low = Ratings.RatingOfRank(rung.Rank);
+                    var band = rung.Rank == Ratings.ChampionRank ? $"{low}+" : rung.Rank == 1 ? L["up to {0}", low + Ratings.PointsPerRank - 1].Value : $"{low}–{low + Ratings.PointsPerRank - 1}";
+                    var mine = rung.Rank == myRank;
+                    <li class="s-ladder-rung @(mine ? "is-me" : null)" style="--share: @(rung.Players * 100 / most)%" aria-current="@(mine ? "true" : null)">
+                        <span class="s-ladder-name">@T(Ratings.TierOf(rung.Rank).Text)</span>
+                        <span class="s-ladder-band s-num">@band</span>
+                        <span class="s-ladder-bar" aria-hidden="true"><span></span></span>
+                        <span class="s-ladder-count s-num" aria-label="@(rung.Players == 1 ? L["1 player"] : L["{0} players", rung.Players])">@rung.Players</span>
+                        @if (mine)
+                        {
+                            <span class="s-ladder-you"><s-icon name="user" />@L["You"] <span class="s-num">@Model.Me!.Rating</span>@(Model.Me.Position is { } position ? $" · #{position}" : "")</span>
+                        }
+                    </li>
+                }
+            </ol>
+        </div>
+    }
 </section>
 
 <section class="s-panel s-rise" aria-labelledby="standings-title">
@@ -64,7 +92,7 @@
                     {
                         <tr>
                             <td class="s-num">@entry.Position</td>
-                            <td>@entry.Name</td>
+                            <td><a class="s-player-link" asp-controller="Player" asp-action="Profile" asp-route-name="@entry.Name">@entry.Name</a></td>
                             <td><s-rank rank="@entry.Rank" /></td>
                             <td class="text-end s-num">@entry.Rating</td>
                             <td class="text-end s-num">@entry.Games</td>
@@ -80,3 +108,4 @@
         </div>
     }
 </section>
+</div>

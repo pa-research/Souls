@@ -71,6 +71,8 @@ const SPELL = 60, CLASS_CARD = 70;
     await page.$$eval('.deck-count', inputs => inputs.forEach(i => { i.value = '0'; }));
     await page.$eval('#deck-save', b => { b.disabled = false; }); await submit('#deck-save'); await shot('deck-error');
     await page.goto(base + '/Season'); await shot('season');
+    await page.goto(`${base}/Player/Profile/${name}`); await shot('profile');
+    if (!(await page.$('.s-profile-head h1'))) problems.push(`${device} profile: no profile for ${name}`);
     const recent = await (await ctx.request.get(base + '/Home/GetGames')).json();
     if (recent.length) { await page.goto(`${base}/Game/Stats/${recent[0].gameId}`); await shot('stats'); }
     await page.goto(base + '/Admin/Players'); await shot('403');
