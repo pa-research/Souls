@@ -257,7 +257,8 @@ public sealed partial class GameEngine
                 continue;
             }
 
-            var card = gp.Deck[^1];
+            // A copy's deck cards may be shared with other copies (see GamePlayer.Copy): the drawn card is its own.
+            var card = room.IsCopy ? gp.Deck[^1].Copy() : gp.Deck[^1];
             gp.Deck.RemoveAt(gp.Deck.Count - 1);
             if (gp.HandCards.Count >= GamePlayer.MaxHandCards)
             {
@@ -270,7 +271,7 @@ public sealed partial class GameEngine
             room.Logger.Add(GameLogKind.NewCard, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card");
         }
 
-        if (drawn.Count > 0)
+        if (drawn.Count > 0 && !room.IsCopy)
         {
             room.FlushEvents();
             SendDrawn(room.PlayerOf(gp.Ident), drawn, returned: false);
@@ -504,8 +505,11 @@ public sealed partial class GameEngine
         gp.CardsPlayed++;
 
         JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData(), ["target"] = target is null ? null : Ref(target) };
-        player.Send(new Response(GameResponse.GameUseCardSpell, Payload()));
-        opponent.Send(new Response(GameResponse.GameOpponentUseCardSpell, Payload()));
+        if (!room.IsCopy)
+        {
+            player.Send(new Response(GameResponse.GameUseCardSpell, Payload()));
+            opponent.Send(new Response(GameResponse.GameOpponentUseCardSpell, Payload()));
+        }
 
         var text = target is null
             ? new GameText("log.cast", ("player", gp.Name), ("card", card.Name))

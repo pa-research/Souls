@@ -123,6 +123,7 @@ public sealed class GamePlayer
             MulliganDone = MulliganDone,
             GameRoom = room,
         };
+        copy.Deck.Capacity = Deck.Count;
         foreach (var (cid, card) in HandCards)
         {
             copy.HandCards[cid] = card.Copy();
@@ -133,9 +134,20 @@ public sealed class GamePlayer
             copy.BoardCards[slot] = card.Copy();
         }
 
-        copy.Deck.AddRange(Deck.Select(c => c.Copy()));
+        // The first copy of the real game gets its own shuffled deck, so it does not reveal the next draws. Copies of
+        // that copy (most of the bot's lookahead) share its deck cards: a card leaving a copy's deck is copied (see
+        // GameEngine.Draw), and nothing changes a card while it is in the deck.
+        if (GameRoom?.IsCopy == true)
+        {
+            copy.Deck.AddRange(Deck);
+        }
+        else
+        {
+            copy.Deck.AddRange(Deck.Select(c => c.Copy()));
+            room.Random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(copy.Deck));
+        }
+
         copy.Used.AddRange(Used);
-        room.Random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(copy.Deck));
         return copy;
     }
 

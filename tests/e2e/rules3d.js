@@ -122,6 +122,10 @@ const RESULT = [230, 231, 233];
 
   const counts = { played: 0, attacks: 0, abilities: 0, powers: 0, refused: 0 };
   let result = null;
+  // The battle log as of the last turn: if the game ends while the script waits, the end screen may have moved on
+  // to the statistics page (and taken the log with it) before the log is read at the end.
+  let lastLog = [];
+  const keepLog = async () => { const lines = await hook('log()').catch(() => null); if (lines && lines.length) lastLog = lines; };
   for (let turn = 0; turn < 45 && !result; turn++) {
     // Wait for our turn (or the end).
     const mine = await page.waitForFunction(id => {
@@ -237,6 +241,7 @@ const RESULT = [230, 231, 233];
       await sleep(1600);
       if (frames.slice(from).some(f => f.dir === 'in' && RESULT.includes(f.type))) break;
     }
+    await keepLog();
     result = frames.find(f => f.dir === 'in' && RESULT.includes(f.type));
     if (result || !(await hook('state()'))) break;
 
@@ -252,6 +257,7 @@ const RESULT = [230, 231, 233];
       if (ev && ev.type === 235) counts.attacks++;
       await sleep(1500);
     }
+    await keepLog();
     result = frames.find(f => f.dir === 'in' && RESULT.includes(f.type));
     if (result) break;
     if (turn === 2) {
@@ -271,7 +277,8 @@ const RESULT = [230, 231, 233];
 
   result = result || await waitFrame(f => f.dir === 'in' && RESULT.includes(f.type), 0, 60000);
   // Read the battle log at once: the end screen moves on to the statistics page by itself after a countdown.
-  const log = (await hook('log()').catch(() => null)) || [];
+  await keepLog();
+  const log = lastLog;
   step('game ends with a result', !!result, result ? `${{ 230: 'Victory', 231: 'Defeat', 233: 'Draw' }[result.type]}: ${JSON.stringify(result.p).slice(0, 300)}` : 'none');
   step('result has rewards and quests', !!result && typeof result.p.coins === 'number' && Array.isArray(result.p.quests) && result.p.quests.length === 3);
   console.log('counts', JSON.stringify(counts));

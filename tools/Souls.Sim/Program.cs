@@ -21,6 +21,9 @@ using Player = Souls.Server.Objects.Player;
 //
 //   dotnet run --project tools/Souls.Sim -c Release -- --games 4000 --out docs/balance.md
 //
+// About 60 games a second on 8 cores (4000 games in a little over a minute); --parallel sets the games at a time
+// (default: one per core).
+//
 // --vs-legacy instead pits the Hard bot against the Hard bot without its lookahead, seats swapped every other game
 // (same classes and decks), and reports the head-to-head result.
 //

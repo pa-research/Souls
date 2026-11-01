@@ -7,7 +7,11 @@ namespace Souls.Server.Game;
 /// <summary>Collects the events of a game (starting with <paramref name="records"/> of a restored game) and stores them when the game ends.</summary>
 public sealed class GameLogger(IEnumerable<GameLog>? records = null)
 {
+    /// <summary>A logger that records nothing: a game copy's (the bot's lookahead), whose log nobody reads.</summary>
+    public static readonly GameLogger Off = new() { _off = true };
+
     private readonly List<GameLog> _records = [.. records ?? []];
+    private bool _off;
 
     public IReadOnlyList<GameLog> Records => _records;
 
@@ -17,6 +21,11 @@ public sealed class GameLogger(IEnumerable<GameLog>? records = null)
     /// </summary>
     public void Add(GameLogKind kind, int obj1Id, int obj2Id, string obj1Type, string obj2Type, GameText? text = null)
     {
+        if (_off)
+        {
+            return;
+        }
+
         var english = text?.ToString();
         _records.Add(new GameLog
         {

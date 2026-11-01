@@ -4,6 +4,10 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Souls.Sim</RootNamespace>
     <IsPackable>false</IsPackable>
+    <!-- Games run in parallel and allocate fast (the bots' lookahead copies the game for every move): with the
+         workstation GC eight threads were no faster than one, with the server GC about three times as fast. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
