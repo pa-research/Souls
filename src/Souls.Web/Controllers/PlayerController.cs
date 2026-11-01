@@ -195,8 +195,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
                 g.Player1Id == id ? g.Player2!.IsSystem : g.Player1!.IsSystem,
                 g.WinnerId == null ? "draw" : g.WinnerId == id ? "won" : "lost",
                 g.Player1Id == id ? g.Player1RatingChange : g.Player2RatingChange,
-                g.Turns,
-                g.Player1Id == id ? g.Player2!.IsAi : g.Player1!.IsAi))
+                g.Turns))
             .ToListAsync(ct);
 
         // The season's reset moves ratings without a game, so the course is traced back over this season's games only.
@@ -231,7 +230,6 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
             RankedGames = ranked?.Games ?? 0,
             RankedWins = ranked?.Wins ?? 0,
             OtherGames = counts.SingleOrDefault(c => c.Practice)?.Games ?? 0,
-            Persona = await db.Personas.AsNoTracking().SingleOrDefaultAsync(p => p.PlayerId == id, ct),
             RatingHistory = history,
             Games = recent,
             Seasons = seasons,

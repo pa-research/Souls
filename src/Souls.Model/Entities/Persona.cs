@@ -1,8 +1,8 @@
 namespace Souls.Model.Entities;
 
 /// <summary>
-/// An account of the AI community (see the game server's AiCommunity): a bot with a name, a strength and the hours it plays.
-/// Its player is marked <see cref="Player.IsAi"/>; it plays the other personas and accepts challenges, always shown as AI.
+/// A persona of the community (see the game server's AiCommunity): a bot account with a strength and the hours it
+/// plays. Its player is marked <see cref="Player.IsAi"/>; it plays the other personas and accepts challenges.
 /// </summary>
 public class Persona
 {

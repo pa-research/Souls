@@ -85,6 +85,19 @@ for (var i = 0; i < args.Length - 1; i++)
     }
 }
 
+// --community days [--personas n]: plays the community of personas on a simulated clock (see CommunitySim).
+if (ArgString("--community") is { } communityDays)
+{
+    var community = CommunitySim.Run(pool, classes, int.Parse(communityDays, CultureInfo.InvariantCulture), Arg("--personas", 1000), parallel, seed);
+    Console.WriteLine(community);
+    if (output is not null)
+    {
+        await File.WriteAllTextAsync(output, community);
+    }
+
+    return;
+}
+
 // --tune n: n rounds of adjusting each class's health towards a 50% win rate.
 for (var round = 0; round < tune; round++)
 {

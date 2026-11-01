@@ -1,12 +1,12 @@
-// The AI community (docs/ranked-bots.md, phase 7): the home page counts players and AI apart and lists AI games to
-// watch, AI players free for a challenge and the AI activity feed; the AI ladder and a persona's profile tag every AI
-// player; a player watches a live AI game in 3D and challenges a persona, who accepts a friendly game.
-// Needs the community on (the default) and some persona online by its clock.
-// Usage: node ai_community.js <baseUrl> <outDir>
+// The community of personas (docs/ranked-bots.md, phase 7): the home page shows players online, games to watch,
+// players free for a challenge and the activity feed, on a desktop and a phone; personas are on the season table and
+// have profiles like anyone's; a player watches a live game in 3D and challenges a free player from the home page, who
+// accepts a friendly game. Needs the community on (the default).
+// Usage: node community.js <baseUrl> <outDir>
 const { chromium } = require('playwright');
 const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
-const out = process.argv[3] || 'ai_community';
+const out = process.argv[3] || 'community';
 fs.mkdirSync(out, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const results = [];
@@ -62,11 +62,13 @@ async function register(page, name) {
     await home.goto(base + '/');
     await home.waitForSelector('#community-panel:not([hidden])');
     const online = await home.textContent('#community-online');
-    step('home counts players and AI apart', /players online · \d+ AI online/.test(online), online);
+    step('home counts the players online', /^\d+ players online$/.test(online) && !/AI/.test(online), online);
     const live = await home.$$eval('#community-live a', as => as.map(a => ({ href: a.getAttribute('href'), text: a.textContent })));
-    step('home lists AI games to watch, tagged AI', live.length > 0 && live.every(g => /\(AI\) vs .+\(AI\)/.test(g.text)), JSON.stringify(live));
-    const idle = await home.$$eval('#community-idle a', as => as.map(a => a.textContent));
-    step('home lists AI players to challenge, tagged AI', idle.length > 0 && idle.every(t => t.endsWith(' (AI)')), idle.join(', '));
+    step('home lists games to watch', live.length > 0 && live.every(g => /^Watch .+ vs .+$/.test(g.text) && !/\(AI\)/.test(g.text)), JSON.stringify(live));
+    const idle = await home.$$eval('#community-idle a', as => as.map(a => ({ href: a.getAttribute('href'), name: a.textContent })));
+    step('home lists players to challenge', idle.length > 0 && idle.every(p => p.href.startsWith('/Game?challenge=')), idle.map(p => p.name).join(', '));
+    const feed = await home.$$eval('#community-feed li', lis => lis.map(li => li.textContent));
+    step('the feed has lines, none tagged AI', feed.length > 0 && feed.every(t => !/\bAI\b/.test(t)), feed.slice(0, 3).join(' | '));
     await home.locator('#community-panel').screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-home-panel.jpg`, type: 'jpeg', quality: 85 });
     await snap(home, 'home');
     const phone = await newPage(browser, { width: 412, height: 915 });
@@ -76,36 +78,36 @@ async function register(page, name) {
     await phone.locator('#community-panel').scrollIntoViewIfNeeded();
     await snap(phone, 'home-phone');
 
-    // ---- The AI ladder and a persona's profile --------------------------------------------------------------------
-    await home.goto(base + '/Season/Ai');
-    const rows = await home.$$('#ai-standings tbody tr');
-    const tagged = await home.$$eval('#ai-standings tbody tr', trs => trs.every(tr => /\bAI\b/.test(tr.textContent)));
-    step('the AI ladder tags every row', rows.length === 0 || tagged, `${rows.length} rows`);
-    await snap(home, 'ai-ladder');
-    const persona = idle[0].replace(/ \(AI\)$/, '');
+    // ---- The season table and a persona's profile ------------------------------------------------------------------
+    await home.goto(base + '/Season');
+    const table = await home.textContent('#season-standings').catch(() => '');
+    step('personas are on the season table, not tagged', table.length > 0 && !/\bAI\b/.test(table));
+    await snap(home, 'season');
+    const persona = idle[0].name;
     await home.goto(`${base}/Player/Profile/${encodeURIComponent(persona)}`);
     const profile = await home.textContent('main');
-    const tag = await home.getAttribute('.s-profile-head-meta .s-chip', 'title');
-    step('a persona\'s profile says it is AI', profile.includes('AI player') && /not a person/.test(tag) && /Usually online/.test(profile), `${tag} | ${profile.replace(/\s+/g, ' ').slice(0, 300)}`);
-    await snap(home, 'ai-profile');
+    step('a persona\'s profile is a player\'s', profile.includes('Player profile') && !/\bAI\b/.test(profile), profile.replace(/\s+/g, ' ').slice(0, 200));
+    await snap(home, 'profile');
 
-    // ---- A player watches a live AI game in 3D --------------------------------------------------------------------
+    // ---- A player watches a live game in 3D -----------------------------------------------------------------------
     const player = await newPage(browser, { width: 1600, height: 900 });
-    const name = 'aiP' + Date.now().toString(36).slice(-6);
+    const name = 'cmP' + Date.now().toString(36).slice(-6);
     await register(player, name);
     const watch = live[0].href;
     await player.goto(base + watch, { waitUntil: 'domcontentloaded' });
     const spectating = await waitFrame(player, f => f.type >= 240 && f.type <= 243 || f.type === 206, 120000);
-    step('a player watches a live AI game', !!spectating, spectating ? `type ${spectating.type}` : 'no spectate message');
+    step('a player watches a live game', !!spectating, spectating ? `type ${spectating.type}` : 'no spectate message');
     await sleep(8000);
     await snap(player, 'watching');
 
-    // ---- The player challenges a persona from its profile; it accepts ---------------------------------------------
+    // ---- The player challenges a free player from the home page; the persona accepts ---------------------------------
     player.frames_.length = 0;
-    await player.goto(`${base}/Player/Profile/${encodeURIComponent(persona)}`);
-    await Promise.all([player.waitForURL(/\/Game\?challenge=/), player.click('a:has-text("Challenge")')]);
+    await player.goto(base + '/');
+    await player.waitForSelector('#community-idle a');
+    const target = await player.textContent('#community-idle a');
+    await Promise.all([player.waitForURL(/\/Game\?challenge=/), player.click('#community-idle a')]);
     const sent = await waitFrame(player, f => f.type === 198 || f.type === 197, 180000);
-    step('the challenge reaches the persona', sent?.type === 198 && sent.p.name === persona + ' (AI)', JSON.stringify(sent?.p));
+    step('the challenge reaches the persona', sent?.type === 198 && sent.p.name === target, JSON.stringify(sent?.p));
     const started = await waitFrame(player, f => f.type === 206, 30000);
     step('the persona accepts: a friendly game starts', !!started);
     await sleep(8000);

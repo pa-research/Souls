@@ -34,9 +34,10 @@ public sealed class SeasonController(SoulsDbContext db) : Controller
         LadderMe? mine = null;
         if (current)
         {
-            // ponytail: the whole live table for the ladder's counts; count by rating in SQL if seasons get crowded.
-            var all = await Seasons.Standings(db, season.StartsAt).ToListAsync(ct);
-            standings = [.. all.Take(Top).Select((s, i) => new SeasonEntry(i + 1, s.Name, s.Rating, Ratings.RankOf(s.Rating), s.Games, s.Wins))];
+            // The ladder's counts and the player's place from the ratings alone; the games counted for the top rows only.
+            var all = await Seasons.Ladder(db, season.StartsAt).ToListAsync(ct);
+            var top = await Seasons.Standings(db, season.StartsAt).Take(Top).ToListAsync(ct);
+            standings = [.. top.Select((s, i) => new SeasonEntry(i + 1, s.Name, s.Rating, Ratings.RankOf(s.Rating), s.Games, s.Wins))];
             ranks = [.. all.Select(s => Ratings.RankOf(s.Rating))];
             if (me is { } playerId && await db.Players.AsNoTracking().Where(p => p.Id == playerId).Select(p => (int?)p.Rating).SingleOrDefaultAsync(ct) is { } rating)
             {
@@ -61,26 +62,6 @@ public sealed class SeasonController(SoulsDbContext db) : Controller
         return View(new SeasonViewModel
         {
             Season = season, IsCurrent = current, Seasons = seasons, Standings = standings, Ladder = ladder, Players = ranks.Count, Me = mine,
-        });
-    }
-
-    /// <summary>The AI community's own ladder this season: its personas play each other, never on the players' table.</summary>
-    public async Task<IActionResult> Ai(CancellationToken ct)
-    {
-        if (await Seasons.CurrentAsync(db, ct) is not { } season)
-        {
-            return NotFound();
-        }
-
-        var all = await Seasons.Standings(db, season.StartsAt, ai: true).ToListAsync(ct);
-        return View(new SeasonViewModel
-        {
-            Season = season,
-            IsCurrent = true,
-            Seasons = [season],
-            Standings = [.. all.Take(Top).Select((s, i) => new SeasonEntry(i + 1, s.Name, s.Rating, Ratings.RankOf(s.Rating), s.Games, s.Wins))],
-            Ladder = LadderRung.Of([.. all.Select(s => Ratings.RankOf(s.Rating))]),
-            Players = all.Count,
         });
     }
 }

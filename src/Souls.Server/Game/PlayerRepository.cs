@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Souls.Model;
 using Souls.Model.Entities;
-using Souls.Model.Localization;
 using Souls.Server.Objects;
 
 namespace Souls.Server.Game;
@@ -14,7 +13,7 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
 
     /// <summary>
     /// Loads a player with the cards they own, or <c>null</c> if the account does not exist. With a
-    /// <paramref name="skill"/>, a persona of the AI community: a bot, its name tagged as AI.
+    /// <paramref name="skill"/>, a persona of the community (a bot, see <see cref="Ai.AiCommunity"/>).
     /// </summary>
     public async Task<Objects.Player?> LoadPlayerAsync(int playerId, CancellationToken ct = default, double? skill = null)
     {
@@ -42,7 +41,7 @@ public sealed class PlayerRepository(IServiceScopeFactory scopes)
         return new Objects.Player
         {
             Id = player.Id,
-            Name = skill is null ? player.Name : Strings.PersonaName(player.Name),
+            Name = player.Name,
             Rank = player.Rank,
             Rating = player.Rating,
             PlayerType = ToInfo(player.PlayerType),

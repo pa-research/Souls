@@ -30,7 +30,7 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
     public DbSet<RunningGame> RunningGames => Set<RunningGame>();
     public DbSet<RunningGameReplay> RunningGameReplays => Set<RunningGameReplay>();
     public DbSet<Persona> Personas => Set<Persona>();
-    public DbSet<AiEvent> AiEvents => Set<AiEvent>();
+    public DbSet<PlayerEvent> PlayerEvents => Set<PlayerEvent>();
 
     /// <summary>ASP.NET Core Data Protection key ring, shared by the web and game server.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -255,9 +255,9 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.HasOne(x => x.Player).WithOne().HasForeignKey<Persona>(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<AiEvent>(e =>
+        modelBuilder.Entity<PlayerEvent>(e =>
         {
-            e.ToTable("ai_event");
+            e.ToTable("player_event");
             Key(e);
             e.Property(x => x.Created).HasColumnName("created");
             e.Property(x => x.PlayerId).HasColumnName("fk_player");

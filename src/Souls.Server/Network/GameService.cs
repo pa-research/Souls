@@ -167,7 +167,7 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
         engine.DropChallenge(player, new GameText("challenge.left", ("name", player.Name)));
         if (player.GPlayer?.GameRoom is { IsEnded: false })
         {
-            if (player.IsBot || player.GetOpponent()?.IsBot == true)
+            if (player.IsPracticeBot || player.GetOpponent()?.IsPracticeBot == true)
             {
                 await engine.ForfeitAsync(player);
             }

@@ -38,7 +38,7 @@
 <div class="s-page-head">
     <div>
         @* Friendly games are stored as practice games between two people. *@
-        <div class="s-eyebrow">@(!Model.IsPractice ? Model.Players.All(p => p.IsAi) ? L["AI ladder game"] : L["Ranked game"] : Model.Players.Any(p => p.IsSystem) ? L["Practice game"] : L["Friendly game"])@(Model.Turns > 0 ? " · " + L["{0} turns", Model.Turns] : "")</div>
+        <div class="s-eyebrow">@(!Model.IsPractice ? L["Ranked game"] : Model.Players.Any(p => p.IsSystem) ? L["Practice game"] : L["Friendly game"])@(Model.Turns > 0 ? " · " + L["{0} turns", Model.Turns] : "")</div>
         <h1 class="s-h1 s-gold-text">@L["Game Summary for #{0}", Model.GameId]</h1>
     </div>
     @if (Model.HasReplay)
@@ -62,10 +62,6 @@
                 <div class="s-fighter-portrait" style="background-image: url('/Content/Images/Player/Portraits/@(player.PlayerTypeId).jpg');"></div>
                 <span class="s-fighter-result">@(Model.IsDraw ? L["Draw"] : won ? L["Victorious"] : L["Defeated"])</span>
                 <h2>@(Model.IsDraw ? L["{0} the Undefeated", PlayerName(player.Name)] : won ? L["{0} the Victorious", PlayerName(player.Name)] : L["{0} the Defeated", PlayerName(player.Name)])</h2>
-                @if (player.IsAi)
-                {
-                    <partial name="_AiTag" />
-                }
                 @if (!player.IsSystem)
                 {
                     <a class="s-small" asp-controller="Player" asp-action="Profile" asp-route-name="@player.Name"><s-icon name="user" /> @L["Profile"]</a>

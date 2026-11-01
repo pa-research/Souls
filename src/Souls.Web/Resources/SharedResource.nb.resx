@@ -991,61 +991,25 @@
   <data name="1 player" xml:space="preserve">
     <value>1 spiller</value>
   </data>
-  <data name="A player of the Souls AI community, not a person" xml:space="preserve">
-    <value>En spiller i Souls' AI-fellesskap, ikke et menneske</value>
-  </data>
-  <data name="AI ladder game" xml:space="preserve">
-    <value>Kamp på AI-stigen</value>
-  </data>
-  <data name="AI player" xml:space="preserve">
-    <value>AI-spiller</value>
-  </data>
-  <data name="An AI of the Souls AI community: it plays the other AI players on the AI ladder and takes challenges. Usually online {0}:00–{1}:00 (UTC{2})." xml:space="preserve">
-    <value>En AI i Souls' AI-fellesskap: den spiller mot de andre AI-spillerne på AI-stigen og tar imot utfordringer. Vanligvis pålogget {0}:00–{1}:00 (UTC{2}).</value>
-  </data>
-  <data name="AI ladder" xml:space="preserve">
-    <value>AI-stigen</value>
-  </data>
-  <data name="The AI ladder" xml:space="preserve">
-    <value>AI-stigen</value>
-  </data>
-  <data name="Souls AI community" xml:space="preserve">
-    <value>Souls' AI-fellesskap</value>
-  </data>
-  <data name="Every player here is an AI, not a person. The AI players have their own hours and play each other through the day; their games count only on this ladder, never on the players' leaderboard. Challenge one from its profile for a friendly game." xml:space="preserve">
-    <value>Alle spillerne her er AI, ikke mennesker. AI-spillerne har sine egne tider og spiller mot hverandre gjennom dagen; kampene deres teller bare på denne stigen, aldri på spillernes resultatliste. Utfordre en fra profilen dens til en vennskapskamp.</value>
-  </data>
-  <data name="AI players" xml:space="preserve">
-    <value>AI-spillere</value>
-  </data>
-  <data name="{0} AI players this season" xml:space="preserve">
-    <value>{0} AI-spillere denne sesongen</value>
-  </data>
-  <data name="The AI players have not played this season yet." xml:space="preserve">
-    <value>AI-spillerne har ikke spilt denne sesongen ennå.</value>
-  </data>
-  <data name="{0} players online · {1} AI online" xml:space="preserve">
-    <value>{0} spillere pålogget · {1} AI pålogget</value>
-  </data>
   <data name="Watch {0} vs {1}" xml:space="preserve">
     <value>Se {0} mot {1}</value>
   </data>
-  <data name="The AI players are quiet right now." xml:space="preserve">
-    <value>Det er stille blant AI-spillerne akkurat nå.</value>
+  <data name="{0} players online" xml:space="preserve">
+    <value>{0} spillere pålogget</value>
   </data>
-  <data name="AI community" xml:space="preserve">
-    <value>AI-fellesskapet</value>
+  <data name="It is quiet right now." xml:space="preserve">
+    <value>Det er stille akkurat nå.</value>
   </data>
-  <data name="{0} (AI) reached {1}" xml:space="preserve">
-    <value>{0} (AI) nådde {1}</value>
+  <data name="Community" xml:space="preserve">
+    <value>Fellesskap</value>
   </data>
-  <data name="{0} (AI) won {1} games in a row" xml:space="preserve">
-    <value>{0} (AI) vant {1} kamper på rad</value>
+  <data name="{0} reached {1}" xml:space="preserve">
+    <value>{0} nådde {1}</value>
   </data>
-  <data name="{0} (AI) got a new card: {1}" xml:space="preserve">
-    <value>{0} (AI) fikk et nytt kort: {1}</value>
+  <data name="{0} won {1} games in a row" xml:space="preserve">
+    <value>{0} vant {1} kamper på rad</value>
   </data>
-  <data name="AI ladder record" xml:space="preserve">
-    <value>Resultater på AI-stigen</value>
+  <data name="{0} got a new card: {1}" xml:space="preserve">
+    <value>{0} fikk et nytt kort: {1}</value>
   </data>
 </root>

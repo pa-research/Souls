@@ -150,11 +150,6 @@ public static partial class Strings
     /// </summary>
     public static string BotName(string name, int difficulty) => $"[BOT] {name} ({Difficulties[Math.Clamp(difficulty, 0, 2)]})";
 
-    public const string PersonaTag = " (AI)";
-
-    /// <summary>The name a persona of the AI community plays under: always tagged as AI.</summary>
-    public static string PersonaName(string name) => name + PersonaTag;
-
     /// <summary>A player's name in a language: a bot's difficulty translated ("[BOT] Satan (Vanskelig)"), anyone else's as it is.</summary>
     public static string PlayerName(string name, string language) =>
         BotNamePattern().Match(name) is { Success: true } bot

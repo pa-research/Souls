@@ -449,10 +449,9 @@ public sealed partial class GameRoom
     {
         ["name"] = p.Name,
         ["type"] = p.PlayerType.Id,
-        ["rating"] = p.IsBot && !p.IsPersona ? null : p.Rating,
+        ["rating"] = p.IsPracticeBot ? null : p.Rating,
         ["health"] = p.GPlayer?.Health,
-        ["bot"] = p.IsBot,
-        ["ai"] = p.IsPersona,
+        ["bot"] = p.IsPracticeBot,
     };
 }
 

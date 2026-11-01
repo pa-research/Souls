@@ -13,8 +13,8 @@ using Souls.Server.Network;
 namespace Souls.Tests.Integration;
 
 /// <summary>
-/// The AI community (docs/ranked-bots.md, phase 7) on the real database: six personas, online all day, play each other
-/// away on their own ladder, take a challenge and play a game on the server to watch, always shown as AI.
+/// The community (docs/ranked-bots.md, phase 7) on the real database: six personas, online all day, play each other
+/// away, rated like players, take a challenge and play a game on the server to watch, shown like any player.
 /// </summary>
 [Collection(SoulsCollection.Name)]
 public class AiCommunityTests(SoulsAppFixture app)
@@ -63,7 +63,7 @@ public class AiCommunityTests(SoulsAppFixture app)
     });
 
     [Fact]
-    public async Task PersonasPlayEachOtherAwayOnTheirOwnLadder()
+    public async Task PersonasPlayEachOtherAwayRatedLikePlayers()
     {
         var community = Community(gamesPerHour: 100_000);
         var personas = await OnlineAsync(community);
@@ -77,10 +77,10 @@ public class AiCommunityTests(SoulsAppFixture app)
 
             var (online, away) = await State.RunExclusiveAsync(() => (State.Personas.Values.Select(p => p.Name).ToList(), State.PersonasAway.Count));
             Assert.Equal(6, online.Count);
-            Assert.All(online, name => Assert.EndsWith(" (AI)", name, StringComparison.Ordinal));
+            Assert.All(personas, p => Assert.Contains(p.Player!.Name, online));
             Assert.Equal(0, away);
 
-            // Everyone online played: three games, rated on the AI ladder, without a log or replay.
+            // Everyone online played: three games, rated, without a log or replay.
             var (games, replays) = await app.WithDbAsync(async db =>
             {
                 var played = await db.Games.Where(g => g.Id > (before ?? 0) && g.Player1!.IsAi && g.Player2!.IsAi).ToListAsync();
@@ -92,28 +92,21 @@ public class AiCommunityTests(SoulsAppFixture app)
             Assert.Contains(games, g => g.Player1RatingChange != 0);
             Assert.Equal(0, replays);
 
-            var (ladder, players) = await app.WithDbAsync(async db =>
-            {
-                var season = (await Seasons.CurrentAsync(db))!;
-                return (await Seasons.Standings(db, season.StartsAt, ai: true).Select(s => s.Name).ToListAsync(),
-                    await Seasons.Standings(db, season.StartsAt).Select(s => s.Name).ToListAsync());
-            });
+            var ladder = await app.WithDbAsync(async db => await Seasons.Standings(db, (await Seasons.CurrentAsync(db))!.StartsAt).Select(s => s.Name).ToListAsync());
             Assert.All(personas, p => Assert.Contains(p.Player!.Name, ladder));
-            Assert.All(personas, p => Assert.DoesNotContain(p.Player!.Name, players));
 
-            // The site shows them as AI: on their ladder and their profiles.
+            // The site shows them like any player.
             using var browser = app.CreateBrowser();
             var name = personas[0].Player!.Name;
-            var aiLadder = await (await browser.GetAsync("/Season/Ai")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-            Assert.Contains(name, aiLadder, StringComparison.Ordinal);
+            var season = await (await browser.GetAsync("/Season")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains(name, season, StringComparison.Ordinal);
             var profile = await (await browser.GetAsync("/Player/Profile/" + name)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-            Assert.Contains("AI player", profile, StringComparison.Ordinal);
-            Assert.Contains("not a person", profile, StringComparison.Ordinal);
+            Assert.Contains("Player profile", profile, StringComparison.Ordinal);
+            Assert.DoesNotContain("(AI)", profile, StringComparison.Ordinal);
             var home = JsonNode.Parse(await (await browser.GetAsync("/Home/Community")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
             Assert.NotNull(home["feed"]);
-            // Their games with each other stay off the players' "Recent games".
             var recent = JsonNode.Parse(await (await browser.GetAsync("/Home/GetGames")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!.AsArray();
-            Assert.DoesNotContain(recent, g => games.Any(x => x.Id == (int)g!["gameId"]!));
+            Assert.Contains(recent, g => games.Any(x => x.Id == (int)g!["gameId"]!));
         }
         finally
         {
@@ -138,15 +131,13 @@ public class AiCommunityTests(SoulsAppFixture app)
             await socket.ReceiveTypeAsync(10);
 
             await socket.SendAsync(199, new JsonObject { ["name"] = personas[0].Player!.Name.ToLowerInvariant() });
-            Assert.Equal(personas[0].Player!.Name + " (AI)", (string)(await socket.ReceiveTypeAsync(198))["Payload"]!["name"]!);
+            Assert.Equal(personas[0].Player!.Name, (string)(await socket.ReceiveTypeAsync(198))["Payload"]!["name"]!);
             await socket.ReceiveTypeAsync(206);
 
-            // A friendly game: it earns nothing and moves no rating. The players' feed shows it, the persona tagged AI.
+            // A friendly game: it earns nothing and moves no rating.
             await socket.SendAsync(1);
             var result = (await socket.ReceiveTypeAsync(230, 231, 233))["Payload"]!;
             Assert.True((bool)result["friendly"]!);
-            var recent = await (await browser.GetAsync("/Home/GetGames")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-            Assert.Contains(personas[0].Player!.Name + " (AI)", recent, StringComparison.Ordinal);
         }
         finally
         {
@@ -158,26 +149,29 @@ public class AiCommunityTests(SoulsAppFixture app)
     public async Task PersonasPlayOnTheServerForPlayersToWatch()
     {
         var community = Community();
-        await OnlineAsync(community);
+        var personas = await OnlineAsync(community);
         var options = app.Server.Services.GetRequiredService<IOptions<CommunityOptions>>().Value;
         try
         {
             await community.TickAsync(TestContext.Current.CancellationToken);
             options.LiveGames = 1;
-            GameRoom? room = null;
-            for (var i = 0; i < 100 && room is null; i++)
+
+            // The bots think without delay here, so a game is over in moments; the matchmaker starts the next at once.
+            var names = personas.Select(p => p.Player!.Name).ToHashSet();
+            using var client = app.Server.CreateClient();
+            JsonObject? live = null;
+            for (var i = 0; i < 100 && live is null; i++)
             {
-                await Task.Delay(100, TestContext.Current.CancellationToken);
-                room = await State.RunExclusiveAsync(() => State.Rooms.Values.FirstOrDefault(r => r.Players.First.IsPersona && r.Players.Second.IsPersona));
+                var status = (await client.GetFromJsonAsync<JsonObject>("/community", TestContext.Current.CancellationToken))!;
+                Assert.True((int)status["players"]! >= 6);
+                live = status["live"]!.AsArray().Select(g => g!.AsObject()).FirstOrDefault(g => g["players"]!.AsArray().All(p => names.Contains((string)p!)));
+                await Task.Delay(50, TestContext.Current.CancellationToken);
             }
 
-            Assert.NotNull(room);
-            var status = (await app.Server.CreateClient().GetFromJsonAsync<JsonObject>("/community", TestContext.Current.CancellationToken))!;
-            Assert.Equal(6, (int)status["ai"]!);
-            var live = Assert.Single(status["live"]!.AsArray());
-            Assert.Equal(room.GameId, (int)live!["gameId"]!);
-            Assert.All(live["players"]!.AsArray(), p => Assert.EndsWith(" (AI)", (string)p!, StringComparison.Ordinal));
-            Assert.True((bool)room.Summary()["players"]![0]!["ai"]!);
+            Assert.NotNull(live);
+            // Not shown as a bot to whoever watches.
+            var summary = await State.RunExclusiveAsync(() => State.Rooms.Values.FirstOrDefault(r => r.Players.First.IsPersona)?.Summary());
+            Assert.True(summary is null || !(bool)summary["players"]![0]!["bot"]!);
         }
         finally
         {

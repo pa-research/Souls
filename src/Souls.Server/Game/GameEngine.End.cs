@@ -97,6 +97,11 @@ public sealed partial class GameEngine
 
         foreach (var p in new[] { player, opponent })
         {
+            if (p.IsPersona)
+            {
+                state.PersonasPlayed.Add(p.Id);
+            }
+
             if (p.IsBot)
             {
                 p.Send(new Response(GameResponse.GameBotDisconnect, "Bot disconnect"));
@@ -134,7 +139,7 @@ public sealed partial class GameEngine
     {
         var player = room.Players.First;
         var opponent = room.Players.Second;
-        // Personas of the AI community rate each other on their own ladder; nobody is rated against a bot.
+        // Personas of the community rate each other like players; nobody is rated against a bot.
         var rated = !room.IsPractice && (!player.IsBot && !opponent.IsBot || player.IsPersona && opponent.IsPersona);
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
@@ -209,6 +214,11 @@ public sealed partial class GameEngine
             }
 
             entity.Rank = Ratings.RankOf(entity.Rating);
+            if (AiCommunity.IsNewTier(Ratings.RankOf(before), entity.Rank))
+            {
+                db.PlayerEvents.Add(new PlayerEvent { PlayerId = p.Id, Created = time.GetUtcNow(), Kind = PlayerEventKind.Tier, Value = entity.Rank });
+            }
+
             rewards[p] = new Reward(coins + questCoins, change, entity.Rating, new JsonArray([.. quests.Select(q =>
             {
                 var definition = Quests.Get(q.Kind);

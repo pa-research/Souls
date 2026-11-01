@@ -19,35 +19,22 @@
 <div class="s-page-head s-profile-head">
     <img class="s-portrait-xl" src="/Content/Images/Player/Portraits/@(Model.Type).jpg" alt="" width="132" height="132" />
     <div>
-        <div class="s-eyebrow">@(Model.IsMe ? L["Your profile"] : Model.Persona is not null ? L["AI player"] : L["Player profile"])@(Model.Created is null ? "" : " · " + L["joined {0}", Date(Model.Created)])</div>
+        <div class="s-eyebrow">@(Model.IsMe ? L["Your profile"] : L["Player profile"])@(Model.Created is null ? "" : " · " + L["joined {0}", Date(Model.Created)])</div>
         <h1 class="s-h1 s-gold-text">@Model.Name</h1>
         <div class="s-profile-head-meta">
-            @if (Model.Persona is not null)
-            {
-                <partial name="_AiTag" />
-            }
             <span class="s-muted">@Model.TypeName</span>
             <s-rank rank="@Model.Rank" rating="@Model.Rating" />
         </div>
-        @if (Model.Persona is { } persona)
-        {
-            var offset = TimeSpan.FromMinutes(persona.UtcOffset);
-            <p class="s-small s-muted mt-2">@L["An AI of the Souls AI community: it plays the other AI players on the AI ladder and takes challenges. Usually online {0}:00–{1}:00 (UTC{2}).", persona.PlayFrom.ToString("00"), ((persona.PlayFrom + persona.PlayHours) % 24).ToString("00"), (offset < TimeSpan.Zero ? "−" : "+") + offset.Duration().ToString("h\\:mm")]</p>
-        }
     </div>
     @if (Model.IsMe)
     {
         <a class="s-btn s-btn-primary s-btn-lg ms-lg-auto" asp-controller="Game" asp-action="Index"><s-icon name="swords" />@L["Play"]</a>
     }
-    else if (Model.Persona is not null && User.Identity?.IsAuthenticated == true)
-    {
-        <a class="s-btn s-btn-ghost s-btn-lg ms-lg-auto" asp-controller="Game" asp-action="Index" asp-route-challenge="@Model.Name"><s-icon name="swords" />@L["Challenge"]</a>
-    }
 </div>
 
 <div class="s-grid s-profile-grid">
     <section class="s-panel s-rise" aria-labelledby="record-title">
-        <div class="s-panel-head"><s-icon name="swords" /><h2 id="record-title">@(Model.Persona is null ? L["Ranked record"] : L["AI ladder record"])</h2></div>
+        <div class="s-panel-head"><s-icon name="swords" /><h2 id="record-title">@L["Ranked record"]</h2></div>
         <div class="s-profile-stats s-profile-stats-4">
             <div class="s-stat"><b>@Model.RankedGames</b><span>@L["Games"]</span></div>
             <div class="s-stat"><b>@Model.RankedWins</b><span>@L["Wins"]</span></div>
@@ -108,7 +95,7 @@
             <ul class="s-match-list">
                 @foreach (var game in Model.Games)
                 {
-                    var mode = !game.IsPractice ? game.OpponentIsAi && Model.Persona is not null ? L["AI ladder"] : L["Ranked"] : game.OpponentIsBot ? L["Practice"] : L["Friendly"];
+                    var mode = !game.IsPractice ? L["Ranked"] : game.OpponentIsBot ? L["Practice"] : L["Friendly"];
                     <li class="s-match s-match-@game.Result">
                         <span class="s-match-result">@(game.Result == "won" ? L["Win"] : game.Result == "lost" ? L["Loss"] : L["Draw"])</span>
                         <img class="s-match-portrait" src="/Content/Images/Player/Portraits/@(game.OpponentType).jpg" alt="" width="36" height="36" loading="lazy" />
@@ -120,10 +107,6 @@
                             else
                             {
                                 <a asp-controller="Player" asp-action="Profile" asp-route-name="@game.Opponent">@game.Opponent</a>
-                                @if (game.OpponentIsAi)
-                                {
-                                    <partial name="_AiTag" />
-                                }
                             }
                             <small>@mode · @L["{0} turns", game.Turns] · @Date(game.Date)</small>
                         </span>

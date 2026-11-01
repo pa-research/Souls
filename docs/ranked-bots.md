@@ -1,24 +1,23 @@
 # Ranked bots: plan
 
-Status on 1 November 2026: phases 1, 2 and 7 done (#43, #44, the AI community). Goal: with few players online, ranked still finds an opponent of the
-right strength. When no human is waiting, the queue can match an AI opponent that plays like a person of that rank,
-and the result counts for the human's rating.
+Status on 1 November 2026: phases 1, 2 and 7 done (#43, #44, #49). Goal: with few players online, ranked still finds
+an opponent of the right strength. When no human is waiting, the queue can match an AI opponent that plays like a
+person of that rank, and the result counts for the human's rating.
 
 ## Decisions
 
-- **Disclosure** (owner, 1 November 2026): bots play like people in every respect, but players are told. The rules
-  page and the terms say that ranked can match an AI opponent when no player is waiting, and the end screen and the
-  bot's profile carry an "AI" tag. Bots never type free chat as if they were people and never fake a disconnect.
+- **No AI label** (owner, 1 November 2026, replacing an earlier decision to tag every bot): Souls is free, so its
+  bots play as ordinary players. Personas have accounts, profiles and standings like anyone, and no "AI" tag. The
+  practice bot stays a bot ("[BOT] Satan (Hard)").
 - **Opting out** (owner, 1 November 2026): a player can choose to play ranked against people only. The setting sits
   next to the ranked button and on the profile; with it off the queue never seats a bot, and the waiting screen says
   that the wait can be longer.
-- **An AI community** (owner, 1 November 2026): the bots also make up a lively community of their own, openly AI. The
-  personas play each other through the day, climb their own ladder and show up in the lobby, always with the "AI" tag;
-  the lobby counts players and AI separately. Bots never pass as people to make the game look busier.
+- **A community of personas** (owner, 1 November 2026): about 1000 personas play each other through the day, so the
+  site always has players online, games to watch and someone to challenge, at next to no cost.
 - **Ratings**: Glicko-2 instead of Elo (phase 1). A rating carries its uncertainty, so new and returning players
   reach their rank in a few games, which matters when few people play.
-- **Bots anchor the scale**: a bot persona has a fixed rating, its measured strength, which games do not change. A
-  human's rating moves against it as against a person. Bots stay off the leaderboards and season standings.
+- **Bots anchor the scale** (phase 4): a bot in ranked has a fixed rating, its measured strength, which games do not
+  change; a human's rating moves against it as against a person.
 - **Cheap**: one bot per human who is playing one, no model running in the live game, search budget by rank and a
   cap on concurrent searches.
 
@@ -71,5 +70,4 @@ every game, and the opponent's card drags shown in both clients (`MoveCard`).
 - Few humans means little data at first: the dial table rests on the simulator until real games arrive.
 - An exploitable bot habit lets players farm rating and rewards: the abuse checks of phase 5 come before bots enter
   ranked at scale.
-- An AI community that looks like the human one misleads players about how many people play: the "AI" tag on every
-  persona, feed line and ladder, and the separate online counts, are part of phase 7, not polish.
+- Personas share the leaderboard with players: the top of the table is mostly personas while few people play.

@@ -35,23 +35,23 @@
         });
     }
 
-    // The AI community: everything in it is labelled AI by the server's texts.
+    // The community: who is online, games to watch, players to challenge and the activity feed.
     var community = $("#community-panel");
     if (community.length) {
         var communityTexts = community[0].dataset;
         $.getJSON("/Home/Community").done(function (status) {
             community.prop("hidden", false);
-            if (status.players !== null && status.ai !== null) {
-                $("#community-online").text(window.soulsFormat(communityTexts.online, status.players, status.ai));
+            if (status.players !== null) {
+                $("#community-online").text(window.soulsFormat(communityTexts.online, status.players));
             }
             $.each(status.live, function (_, game) {
                 var link = $("<a>").attr("href", "/Game?watch=" + encodeURIComponent(game.gameId));
                 link.append(icon("eye"), $("<span>").text(window.soulsFormat(communityTexts.watch, game.players[0], game.players[1])));
                 $("#community-live").append($("<li>").append(link));
             });
-            // Free to challenge: their profiles have the Challenge button.
+            // Free for a game: a challenge link each.
             $.each(status.idle, function (_, name) {
-                $("#community-idle").append($("<a class='s-chip'>").attr("href", "/Player/Profile/" + encodeURIComponent(name)).append(icon("bot"), $("<span>").text(name + " (AI)")));
+                $("#community-idle").append($("<a class='s-chip'>").attr("href", "/Game?challenge=" + encodeURIComponent(name)).append(icon("swords"), $("<span>").text(name)));
             });
             var feed = $("#community-feed");
             if (!status.feed.length) {

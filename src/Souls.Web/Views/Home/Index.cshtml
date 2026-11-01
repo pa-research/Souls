@@ -141,10 +141,10 @@
     </div>
 
     <div class="s-col-4 s-grid s-home-side">
-        @* Filled by home.js from /Home/Community: players and AI online apart, AI games to watch, the AI activity feed. *@
+        @* Filled by home.js from /Home/Community: who is online, games to watch, players to challenge, the activity feed. *@
         <section class="s-panel s-rise" aria-labelledby="community-title" id="community-panel" hidden
-                 data-online="@L["{0} players online · {1} AI online"]" data-watch="@L["Watch {0} vs {1}"]" data-empty="@L["The AI players are quiet right now."]">
-            <div class="s-panel-head"><s-icon name="bot" /><h2 id="community-title">@L["AI community"]</h2><a class="s-small" asp-controller="Season" asp-action="Ai">@L["AI ladder"]</a></div>
+                 data-online="@L["{0} players online"]" data-watch="@L["Watch {0} vs {1}"]" data-empty="@L["It is quiet right now."]">
+            <div class="s-panel-head"><s-icon name="users" /><h2 id="community-title">@L["Community"]</h2></div>
             <p class="s-small s-muted" id="community-online"></p>
             <ul id="community-live" class="s-feed"></ul>
             <div id="community-idle" class="d-flex flex-wrap gap-1 mb-2"></div>

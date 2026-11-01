@@ -38,7 +38,7 @@ public class Player
     /// <summary>System accounts (the practice bot) can never log in.</summary>
     public bool IsSystem { get; set; }
 
-    /// <summary>A persona of the AI community (see the game server's AiCommunity): never logs in, off the players' leaderboards.</summary>
+    /// <summary>A persona of the community, a bot (see the game server's AiCommunity): it never logs in.</summary>
     public bool IsAi { get; set; }
 
     public bool IsAdmin => PlayerPermissionId == Entities.PlayerPermission.Admin;

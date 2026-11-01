@@ -32,13 +32,16 @@ public sealed class ServerState
     public Dictionary<int, DateTimeOffset> ChallengeClocks { get; } = [];
 
     /// <summary>
-    /// The personas of the AI community who are online now, by normalized name (see <see cref="Ai.AiCommunity"/>); one
+    /// The personas of the community who are online now, by normalized name (see <see cref="Ai.AiCommunity"/>); one
     /// in a game stays here.
     /// </summary>
     public Dictionary<string, Player> Personas { get; } = [];
 
     /// <summary>Personas playing each other away from the server (<see cref="Ai.AiCommunity"/>), by id: busy here.</summary>
     public HashSet<int> PersonasAway { get; } = [];
+
+    /// <summary>Personas who finished a game since they were loaded: their rating, cards or deck may have changed.</summary>
+    public HashSet<int> PersonasPlayed { get; } = [];
 
     /// <summary>
     /// A persona that can start a game now. A game restored after a restart has its own player for the persona, so the
