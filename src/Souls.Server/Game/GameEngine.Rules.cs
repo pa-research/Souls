@@ -32,7 +32,10 @@ public sealed partial class GameEngine
     /// <summary>An attack: both sides deal their attack to each other (Ferocious attackers hit 1 harder).</summary>
     private void Fight(GameRoom room, GamePlayer attackerSide, object attacker, GamePlayer defenderSide, object defender)
     {
-        room.Event("attack", new JsonObject { ["src"] = Ref(attacker), ["dst"] = Ref(defender) });
+        if (room.Live)
+        {
+            room.Event("attack", new JsonObject { ["src"] = Ref(attacker), ["dst"] = Ref(defender) });
+        }
         var attackerCard = attacker as Card;
         var defenderCard = defender as Card;
         var hit = attacker switch
@@ -80,19 +83,28 @@ public sealed partial class GameEngine
         {
             case Card { Ward: true } warded:
                 warded.Ward = false;
-                room.Event("ward", new JsonObject { ["to"] = Ref(warded), ["on"] = false });
-                room.LogLine(new GameText("log.wardBreaks", ("card", warded.Name)));
+                if (room.Live)
+                {
+                    room.Event("ward", new JsonObject { ["to"] = Ref(warded), ["on"] = false });
+                    room.LogLine(new GameText("log.wardBreaks", ("card", warded.Name)));
+                }
                 return;
             case Card c:
                 absorbed = Math.Min(c.Armor, amount);
                 c.Armor -= absorbed;
                 c.Health -= amount - absorbed;
-                room.Event("damage", new JsonObject { ["to"] = Ref(c), ["amount"] = amount, ["armorLost"] = absorbed, ["health"] = c.Health, ["armor"] = c.Armor });
+                if (room.Live)
+                {
+                    room.Event("damage", new JsonObject { ["to"] = Ref(c), ["amount"] = amount, ["armorLost"] = absorbed, ["health"] = c.Health, ["armor"] = c.Armor });
+                }
                 if (sourceCard is { HasVenom: true } && c.Health > 0)
                 {
                     c.Health = 0;
-                    room.Event("venom", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(c) });
-                    room.LogLine(new GameText("log.venom", ("card", sourceCard.Name), ("target", c.Name)));
+                    if (room.Live)
+                    {
+                        room.Event("venom", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(c) });
+                        room.LogLine(new GameText("log.venom", ("card", sourceCard.Name), ("target", c.Name)));
+                    }
                 }
 
                 break;
@@ -105,7 +117,10 @@ public sealed partial class GameEngine
                     sourceSide.HeroDamage += amount;
                 }
 
-                room.Event("damage", new JsonObject { ["to"] = Ref(h), ["amount"] = amount, ["armorLost"] = absorbed, ["health"] = h.Health, ["armor"] = h.Armor });
+                if (room.Live)
+                {
+                    room.Event("damage", new JsonObject { ["to"] = Ref(h), ["amount"] = amount, ["armorLost"] = absorbed, ["health"] = h.Health, ["armor"] = h.Armor });
+                }
                 break;
         }
 
@@ -114,8 +129,11 @@ public sealed partial class GameEngine
             var healed = Heal(room, sourceSide, amount, emit: false);
             if (healed > 0)
             {
-                room.Event("lifesteal", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(sourceSide), ["amount"] = healed, ["health"] = sourceSide.Health });
-                room.LogLine(new GameText("log.lifesteal", ("card", sourceCard.Name), ("n", healed), ("player", sourceSide.Name)));
+                if (room.Live)
+                {
+                    room.Event("lifesteal", new JsonObject { ["src"] = Ref(sourceCard), ["to"] = Ref(sourceSide), ["amount"] = healed, ["health"] = sourceSide.Health });
+                    room.LogLine(new GameText("log.lifesteal", ("card", sourceCard.Name), ("n", healed), ("player", sourceSide.Name)));
+                }
             }
         }
     }
@@ -164,13 +182,16 @@ public sealed partial class GameEngine
                 return;
         }
 
-        room.Event("armor", new JsonObject { ["to"] = Ref(target), ["amount"] = amount, ["armor"] = armor });
+        if (room.Live)
+        {
+            room.Event("armor", new JsonObject { ["to"] = Ref(target), ["amount"] = amount, ["armor"] = armor });
+        }
     }
 
     /// <summary>
     /// Removes dead cards until none are left: Haunt cards return to the hand once, Brood cards leave Lost Souls
     /// behind and Darkness cards curse a random enemy as they die. Dead heroes are handled by
-    /// <see cref="FinishActionAsync"/>.
+    /// <see cref="FinishAction"/>.
     /// </summary>
     private void ResolveDeaths(GameRoom room)
     {
@@ -189,8 +210,11 @@ public sealed partial class GameEngine
                 card.IsDead = true;
                 side.RemoveBoardCard(card);
                 room.Other(side).CardsDestroyed++;
-                room.Event("death", new JsonObject { ["cid"] = card.Cid, ["owner"] = side.Ident });
-                room.LogLine(new GameText("log.dies", ("card", card.Name)));
+                if (room.Live)
+                {
+                    room.Event("death", new JsonObject { ["cid"] = card.Cid, ["owner"] = side.Ident });
+                    room.LogLine(new GameText("log.dies", ("card", card.Name)));
+                }
             }
 
             foreach (var (side, card) in dead.Where(d => d.card.AbilityId == Ability.Haunt && !d.card.Haunted && !d.card.IsToken))
@@ -209,10 +233,13 @@ public sealed partial class GameEngine
                 var enemy = room.Other(side);
                 var targets = enemy.BoardCards.Values.Where(c => c.Health >= 1).Cast<object>().Append(enemy).ToList();
                 var target = targets[room.Random.Next(targets.Count)];
-                room.Event("curse", new JsonObject { ["src"] = card.Cid, ["owner"] = side.Ident, ["dst"] = Ref(target) });
-                var text = new GameText("log.deathCurse", ("card", card.Name), ("target", NameOf(target)));
-                room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    room.Event("curse", new JsonObject { ["src"] = card.Cid, ["owner"] = side.Ident, ["dst"] = Ref(target) });
+                    var text = new GameText("log.deathCurse", ("card", card.Name), ("target", NameOf(target)));
+                    room.Logger.Add(GameLogKind.DeathCurse, card.Id, target is Card tc ? tc.Id : room.PlayerOf(enemy.Ident).Id, "Card", target is Card ? "Card" : "Player", text);
+                    room.LogLine(text);
+                }
                 Damage(room, target, GameRules.DeathCurseDamage, side, null);
             }
         }
@@ -224,10 +251,13 @@ public sealed partial class GameEngine
         var copy = card.NewInstance();
         copy.Haunted = true;
         var owner = room.PlayerOf(side.Ident);
-        var text = new GameText("log.haunt", ("card", card.Name), ("player", side.Name));
-        room.Logger.Add(GameLogKind.Haunt, card.Id, owner.Id, "Card", "Player", text);
-        room.Event("haunt", new JsonObject { ["cid"] = card.Cid, ["newCid"] = copy.Cid, ["owner"] = side.Ident });
-        room.LogLine(text);
+        if (room.Live)
+        {
+            var text = new GameText("log.haunt", ("card", card.Name), ("player", side.Name));
+            room.Logger.Add(GameLogKind.Haunt, card.Id, owner.Id, "Card", "Player", text);
+            room.Event("haunt", new JsonObject { ["cid"] = card.Cid, ["newCid"] = copy.Cid, ["owner"] = side.Ident });
+            room.LogLine(text);
+        }
         if (side.HandCards.Count >= GamePlayer.MaxHandCards)
         {
             Burn(room, side, copy);
@@ -235,8 +265,11 @@ public sealed partial class GameEngine
         }
 
         side.HandCards[copy.Cid] = copy;
-        room.FlushEvents();
-        SendDrawn(owner, [copy], returned: true);
+        if (room.Live)
+        {
+            room.FlushEvents();
+            SendDrawn(owner, [copy], returned: true);
+        }
     }
 
     /// <summary>Draws cards: an empty deck deals growing fatigue damage, a full hand burns the card.</summary>
@@ -248,11 +281,14 @@ public sealed partial class GameEngine
             if (gp.Deck.Count == 0)
             {
                 gp.Fatigue++;
-                var text = new GameText("log.fatigue", ("player", gp.Name), ("n", gp.Fatigue));
-                var player = room.PlayerOf(gp.Ident);
-                room.Logger.Add(GameLogKind.Fatigue, player.Id, player.Id, "Player", "Player", text);
-                room.Event("fatigue", new JsonObject { ["id"] = gp.Ident, ["amount"] = gp.Fatigue });
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    var text = new GameText("log.fatigue", ("player", gp.Name), ("n", gp.Fatigue));
+                    var player = room.PlayerOf(gp.Ident);
+                    room.Logger.Add(GameLogKind.Fatigue, player.Id, player.Id, "Player", "Player", text);
+                    room.Event("fatigue", new JsonObject { ["id"] = gp.Ident, ["amount"] = gp.Fatigue });
+                    room.LogLine(text);
+                }
                 Damage(room, gp, gp.Fatigue, null, null);
                 continue;
             }
@@ -268,7 +304,10 @@ public sealed partial class GameEngine
 
             gp.HandCards[card.Cid] = card;
             drawn.Add(card);
-            room.Logger.Add(GameLogKind.NewCard, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card");
+            if (room.Live)
+            {
+                room.Logger.Add(GameLogKind.NewCard, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card");
+            }
         }
 
         if (drawn.Count > 0 && !room.IsCopy)
@@ -294,15 +333,23 @@ public sealed partial class GameEngine
 
     private static void Burn(GameRoom room, GamePlayer gp, Card card)
     {
-        var text = new GameText("log.burned", ("player", gp.Name), ("card", card.Name));
-        room.Logger.Add(GameLogKind.CardBurned, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card", text);
-        room.Event("burned", new JsonObject { ["owner"] = gp.Ident, ["card"] = card.ToJson() });
-        room.LogLine(text);
+        if (room.Live)
+        {
+            var text = new GameText("log.burned", ("player", gp.Name), ("card", card.Name));
+            room.Logger.Add(GameLogKind.CardBurned, room.PlayerOf(gp.Ident).Id, card.Id, "Player", "Card", text);
+            room.Event("burned", new JsonObject { ["owner"] = gp.Ident, ["card"] = card.ToJson() });
+            room.LogLine(text);
+        }
     }
 
     /// <summary>A card ability fires on its own (on play, at the start of the turn, on death): shown by the clients.</summary>
     private static void Trigger(GameRoom room, Card card)
     {
+        if (!room.Live)
+        {
+            return;
+        }
+
         var trigger = new JsonObject
         {
             ["abilityId"] = card.AbilityId,
@@ -336,11 +383,14 @@ public sealed partial class GameEngine
             token.SlotId = at;
             token.HasAttacked = true;
             gp.BoardCards[at] = token;
-            room.Event("summon", new JsonObject { ["src"] = source.Cid, ["owner"] = gp.Ident, ["card"] = token.ToJson() });
+            if (room.Live)
+            {
+                room.Event("summon", new JsonObject { ["src"] = source.Cid, ["owner"] = gp.Ident, ["card"] = token.ToJson() });
+            }
             summoned++;
         }
 
-        if (summoned > 0)
+        if (summoned > 0 && room.Live)
         {
             var text = new GameText("log.summon", ("card", source.Name), ("n", summoned));
             room.Logger.Add(GameLogKind.Summon, source.Id, source.Id, "Card", "Card", text);
@@ -353,9 +403,12 @@ public sealed partial class GameEngine
     {
         if (card.RaceId == Races.Lightbringer)
         {
-            room.Event("blessing", new JsonObject { ["cid"] = card.Cid, ["to"] = Ref(gp) });
+            if (room.Live)
+            {
+                room.Event("blessing", new JsonObject { ["cid"] = card.Cid, ["to"] = Ref(gp) });
+            }
             var healed = Heal(room, gp, GameRules.LightbringerBlessing);
-            if (healed > 0)
+            if (healed > 0 && room.Live)
             {
                 room.LogLine(new GameText("log.blessing", ("card", card.Name), ("player", gp.Name), ("n", healed)));
             }
@@ -386,18 +439,27 @@ public sealed partial class GameEngine
                 foreach (var n in neighbours)
                 {
                     n.Attack += value;
-                    room.Event("buff", new JsonObject { ["to"] = Ref(n), ["src"] = Ref(card), ["attack"] = n.Attack, ["health"] = n.Health, ["maxHealth"] = n.MaxHealth, ["armor"] = n.Armor });
+                    if (room.Live)
+                    {
+                        room.Event("buff", new JsonObject { ["to"] = Ref(n), ["src"] = Ref(card), ["attack"] = n.Attack, ["health"] = n.Health, ["maxHealth"] = n.MaxHealth, ["armor"] = n.Armor });
+                    }
                 }
 
-                LogTrigger(room, card, neighbours.Count == 1
-                    ? new GameText("log.rally", ("card", card.Name), ("target", neighbours[0].Name), ("n", value))
-                    : new GameText("log.rally2", ("card", card.Name), ("target", neighbours[0].Name), ("target2", neighbours[1].Name), ("n", value)));
+                if (room.Live)
+                {
+                    LogTrigger(room, card, neighbours.Count == 1
+                        ? new GameText("log.rally", ("card", card.Name), ("target", neighbours[0].Name), ("n", value))
+                        : new GameText("log.rally2", ("card", card.Name), ("target", neighbours[0].Name), ("target2", neighbours[1].Name), ("n", value)));
+                }
                 break;
             }
 
             case Ability.Insight:
                 Trigger(room, card);
-                LogTrigger(room, card, new GameText("log.insight", ("card", card.Name), ("n", value)));
+                if (room.Live)
+                {
+                    LogTrigger(room, card, new GameText("log.insight", ("card", card.Name), ("n", value)));
+                }
                 Draw(room, gp, value);
                 break;
 
@@ -406,7 +468,10 @@ public sealed partial class GameEngine
                 var enemy = room.Other(gp);
                 var targets = enemy.BoardCards.Values.OrderBy(c => c.SlotId).ToList();
                 Trigger(room, card);
-                LogTrigger(room, card, new GameText("log.inferno", ("card", card.Name), ("n", value)));
+                if (room.Live)
+                {
+                    LogTrigger(room, card, new GameText("log.inferno", ("card", card.Name), ("n", value)));
+                }
                 foreach (var target in targets)
                 {
                     Damage(room, target, value, gp, card);
@@ -430,7 +495,10 @@ public sealed partial class GameEngine
                 {
                     Trigger(room, card);
                     var healed = Heal(room, card, card.AbilityValue);
-                    LogTrigger(room, card, new GameText("log.regenerate", ("card", card.Name), ("n", healed)));
+                    if (room.Live)
+                    {
+                        LogTrigger(room, card, new GameText("log.regenerate", ("card", card.Name), ("n", healed)));
+                    }
                     break;
                 }
 
@@ -441,8 +509,14 @@ public sealed partial class GameEngine
                     card.Attack += value;
                     card.Health += value;
                     card.MaxHealth += value;
-                    room.Event("buff", new JsonObject { ["to"] = Ref(card), ["src"] = Ref(card), ["attack"] = card.Attack, ["health"] = card.Health, ["maxHealth"] = card.MaxHealth, ["armor"] = card.Armor });
-                    LogTrigger(room, card, new GameText("log.grow", ("card", card.Name), ("n", value)));
+                    if (room.Live)
+                    {
+                        room.Event("buff", new JsonObject { ["to"] = Ref(card), ["src"] = Ref(card), ["attack"] = card.Attack, ["health"] = card.Health, ["maxHealth"] = card.MaxHealth, ["armor"] = card.Armor });
+                    }
+                    if (room.Live)
+                    {
+                        LogTrigger(room, card, new GameText("log.grow", ("card", card.Name), ("n", value)));
+                    }
                     break;
                 }
             }
@@ -467,7 +541,11 @@ public sealed partial class GameEngine
 
         gp.AbilitiesUsed++;
         card.HasAttacked = true;
-        room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+        if (room.Live)
+        {
+            room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+        }
+
         Activate(room, gp, card, target);
         return true;
     }
@@ -476,26 +554,25 @@ public sealed partial class GameEngine
     /// A spell from the hand: its target is checked like an ability's (on-play spells have none), then it is paid for,
     /// goes to the used pile, blesses (Lightbringer) and works like the ability it carries. It never takes a slot.
     /// </summary>
-    private async Task CastSpellAsync(Player player, GamePlayer gp, Player opponent, Card card, Message message)
+    private bool TryCastSpell(Player player, GamePlayer gp, Player opponent, Card card, GameAction action)
     {
         var room = gp.GameRoom!;
         if (!gp.HasEnoughMana(card))
         {
             player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
-            RequestReleaseCard(player, message);
-            return;
+            ReleaseCard(player, opponent, card.Cid);
+            return false;
         }
 
         object? target = null;
         if (GameRules.IsActivated(card.AbilityId))
         {
-            var type = message.Payload["type"] is null ? -1 : message.GetInt("type");
-            target = AbilityTarget(room, gp, card, (TargetType)type, message.Payload["target"] is null ? -1 : message.GetInt("target"), out var error);
+            target = AbilityTarget(room, gp, card, (TargetType)action.Type, action.Target, out var error);
             if (target is null)
             {
                 Tell(player, error!);
-                RequestReleaseCard(player, message);
-                return;
+                ReleaseCard(player, opponent, card.Cid);
+                return false;
             }
         }
 
@@ -504,26 +581,30 @@ public sealed partial class GameEngine
         gp.Mana -= card.Cost;
         gp.CardsPlayed++;
 
-        JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData(), ["target"] = target is null ? null : Ref(target) };
-        if (!room.IsCopy)
+        if (room.Live)
         {
+            JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData(), ["target"] = target is null ? null : Ref(target) };
             player.Send(new Response(GameResponse.GameUseCardSpell, Payload()));
             opponent.Send(new Response(GameResponse.GameOpponentUseCardSpell, Payload()));
+            var text = target is null
+                ? new GameText("log.cast", ("player", gp.Name), ("card", card.Name))
+                : new GameText("log.castOn", ("player", gp.Name), ("card", card.Name), ("target", NameOf(target)));
+            room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
+            room.LogLine(text);
         }
 
-        var text = target is null
-            ? new GameText("log.cast", ("player", gp.Name), ("card", card.Name))
-            : new GameText("log.castOn", ("player", gp.Name), ("card", card.Name), ("target", NameOf(target)));
-        room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
-        room.LogLine(text);
         OnPlay(room, gp, card);
         if (target is not null)
         {
-            room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+            if (room.Live)
+            {
+                room.Event("ability", new JsonObject { ["abilityId"] = card.AbilityId, ["src"] = Ref(card), ["dst"] = Ref(target) });
+            }
+
             Activate(room, gp, card, target);
         }
 
-        await FinishActionAsync(room);
+        return true;
     }
 
     /// <summary>The target of an activated ability (or spell), or <c>null</c> and why it cannot be used there.</summary>
@@ -578,7 +659,6 @@ public sealed partial class GameEngine
             {
                 var amount = card.AbilityValue + (card.RaceId == Races.Lightbringer ? GameRules.LightbringerHealBonus : 0);
                 var healed = Heal(room, target, amount);
-                var text = new GameText("log.heal", ("card", card.Name), ("target", NameOf(target)), ("n", healed));
                 if (target is Card healedCard)
                 {
                     foreach (var slot in new[] { healedCard.SlotId - 1, healedCard.SlotId + 1 })
@@ -590,14 +670,19 @@ public sealed partial class GameEngine
                     }
                 }
 
-                room.Logger.Add(GameLogKind.AbilityHeal, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    var text = new GameText("log.heal", ("card", card.Name), ("target", NameOf(target)), ("n", healed));
+                    room.Logger.Add(GameLogKind.AbilityHeal, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
+
                 break;
             }
 
             case Ability.Sacrifice:
             {
-                var text = new GameText("log.sacrifice", ("card", card.Name), ("target", NameOf(target)), ("attack", card.Attack), ("health", Math.Max(0, card.Health)), ("armor", card.Armor));
+                var text = room.Live ? new GameText("log.sacrifice", ("card", card.Name), ("target", NameOf(target)), ("attack", card.Attack), ("health", Math.Max(0, card.Health)), ("armor", card.Armor)) : null;
                 switch (target)
                 {
                     case Card t:
@@ -605,20 +690,29 @@ public sealed partial class GameEngine
                         t.Health += Math.Max(0, card.Health);
                         t.MaxHealth += Math.Max(0, card.Health);
                         t.Armor += card.Armor;
-                        room.Event("buff", new JsonObject { ["to"] = Ref(t), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                        if (room.Live)
+                        {
+                            room.Event("buff", new JsonObject { ["to"] = Ref(t), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                        }
                         break;
                     case GamePlayer h:
                         h.Attack += card.Attack;
                         h.Health += Math.Max(0, card.Health);
                         h.MaxHealth += Math.Max(0, card.Health);
                         h.Armor += card.Armor;
-                        room.Event("buff", new JsonObject { ["to"] = Ref(h), ["attack"] = h.Attack, ["health"] = h.Health, ["maxHealth"] = h.MaxHealth, ["armor"] = h.Armor });
+                        if (room.Live)
+                        {
+                            room.Event("buff", new JsonObject { ["to"] = Ref(h), ["attack"] = h.Attack, ["health"] = h.Health, ["maxHealth"] = h.MaxHealth, ["armor"] = h.Armor });
+                        }
                         break;
                 }
 
                 card.Health = 0;
-                room.Logger.Add(GameLogKind.AbilitySacrifice, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (text is not null)
+                {
+                    room.Logger.Add(GameLogKind.AbilitySacrifice, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
                 break;
             }
 
@@ -626,41 +720,56 @@ public sealed partial class GameEngine
             {
                 var t = (Card)target;
                 t.Paralyzed = true;
-                room.Event("paralyze", new JsonObject { ["cid"] = t.Cid, ["on"] = true });
-                var text = new GameText("log.paralyze", ("card", card.Name), ("target", t.Name));
-                room.Logger.Add(GameLogKind.AbilityParalyze, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    room.Event("paralyze", new JsonObject { ["cid"] = t.Cid, ["on"] = true });
+                    var text = new GameText("log.paralyze", ("card", card.Name), ("target", t.Name));
+                    room.Logger.Add(GameLogKind.AbilityParalyze, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
                 break;
             }
 
             case Ability.Harden:
             {
                 GainArmor(room, target, card.AbilityValue);
-                var text = new GameText("log.harden", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
-                room.Logger.Add(GameLogKind.AbilityHarden, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    var text = new GameText("log.harden", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
+                    room.Logger.Add(GameLogKind.AbilityHarden, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
                 break;
             }
 
             case Ability.Burn:
             {
-                var text = new GameText("log.burn", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
-                room.Logger.Add(GameLogKind.AbilityBurn, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    var text = new GameText("log.burn", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
+                    room.Logger.Add(GameLogKind.AbilityBurn, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
                 Damage(room, target, card.AbilityValue, gp, card);
                 break;
             }
 
             case Ability.Drain:
             {
-                var text = new GameText("log.drain", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
-                room.Logger.Add(GameLogKind.AbilityDrain, card.Id, targetDbId, "Card", targetType, text);
-                room.LogLine(text);
+                if (room.Live)
+                {
+                    var text = new GameText("log.drain", ("card", card.Name), ("target", NameOf(target)), ("n", card.AbilityValue));
+                    room.Logger.Add(GameLogKind.AbilityDrain, card.Id, targetDbId, "Card", targetType, text);
+                    room.LogLine(text);
+                }
                 Damage(room, target, card.AbilityValue, gp, card);
                 var healed = Heal(room, gp, card.AbilityValue, emit: false);
                 if (healed > 0)
                 {
-                    room.Event("lifesteal", new JsonObject { ["src"] = Ref(target), ["to"] = Ref(gp), ["amount"] = healed, ["health"] = gp.Health });
+                    if (room.Live)
+                    {
+                        room.Event("lifesteal", new JsonObject { ["src"] = Ref(target), ["to"] = Ref(gp), ["amount"] = healed, ["health"] = gp.Health });
+                    }
                 }
 
                 break;
@@ -672,8 +781,14 @@ public sealed partial class GameEngine
                 t.Attack += card.AbilityValue;
                 t.Health += card.AbilityValue;
                 t.MaxHealth += card.AbilityValue;
-                room.Event("buff", new JsonObject { ["to"] = Ref(t), ["src"] = Ref(card), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
-                LogTrigger(room, card, new GameText("log.empower", ("card", card.Name), ("target", t.Name), ("n", card.AbilityValue)));
+                if (room.Live)
+                {
+                    room.Event("buff", new JsonObject { ["to"] = Ref(t), ["src"] = Ref(card), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                }
+                if (room.Live)
+                {
+                    LogTrigger(room, card, new GameText("log.empower", ("card", card.Name), ("target", t.Name), ("n", card.AbilityValue)));
+                }
                 break;
             }
         }
@@ -721,13 +836,16 @@ public sealed partial class GameEngine
         gp.Mana -= GameRules.HeroPowerCost;
         gp.HeroPowerUsed = true;
         gp.AbilitiesUsed++;
-        var used = new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Power };
-        power.Name.WriteTo(used, "name");
-        used["dst"] = Ref(target);
-        room.Event("heroPower", used);
-        var text = new GameText("log.heroPower", ("player", gp.Name), ("power", power.Name), ("target", NameOf(target)));
-        room.Logger.Add(GameLogKind.HeroPower, player.Id, target is Card c ? c.Id : room.PlayerOf(((GamePlayer)target).Ident).Id, "Player", target is Card ? "Card" : "Player", text);
-        room.LogLine(text);
+        if (room.Live)
+        {
+            var used = new JsonObject { ["id"] = gp.Ident, ["power"] = gp.Power };
+            power.Name.WriteTo(used, "name");
+            used["dst"] = Ref(target);
+            room.Event("heroPower", used);
+            var text = new GameText("log.heroPower", ("player", gp.Name), ("power", power.Name), ("target", NameOf(target)));
+            room.Logger.Add(GameLogKind.HeroPower, player.Id, target is Card c ? c.Id : room.PlayerOf(((GamePlayer)target).Ident).Id, "Player", target is Card ? "Card" : "Player", text);
+            room.LogLine(text);
+        }
         switch (gp.Power)
         {
             case GameRules.Powers.RabidBite:
@@ -753,13 +871,19 @@ public sealed partial class GameEngine
                 t.Attack += GameRules.BloodGiftAttack;
                 t.Health += GameRules.BloodGiftHealth;
                 t.MaxHealth += GameRules.BloodGiftHealth;
-                room.Event("buff", new JsonObject { ["to"] = Ref(t), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                if (room.Live)
+                {
+                    room.Event("buff", new JsonObject { ["to"] = Ref(t), ["attack"] = t.Attack, ["health"] = t.Health, ["maxHealth"] = t.MaxHealth, ["armor"] = t.Armor });
+                }
                 break;
             }
 
             case GameRules.Powers.Aegis:
                 ((Card)target).Ward = true;
-                room.Event("ward", new JsonObject { ["to"] = Ref(target), ["on"] = true });
+                if (room.Live)
+                {
+                    room.Event("ward", new JsonObject { ["to"] = Ref(target), ["on"] = true });
+                }
                 break;
             case GameRules.Powers.ThickHide:
                 GainArmor(room, target, GameRules.ThickHideArmor);

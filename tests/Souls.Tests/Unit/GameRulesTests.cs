@@ -95,9 +95,9 @@ public class GameRulesTests
         {
             var list = new List<JsonNode>();
             var inbox = ((BotConnection)p.GameContext!).Inbox;
-            while (inbox.TryRead(out var json))
+            while (inbox.TryRead(out var response))
             {
-                list.Add(JsonNode.Parse(json)!);
+                list.Add(response.ToJsonNode());
             }
 
             return list;

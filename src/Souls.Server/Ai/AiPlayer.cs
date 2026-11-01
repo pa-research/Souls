@@ -135,11 +135,11 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     {
         try
         {
-            await foreach (var json in connection.Inbox.ReadAllAsync(ct))
+            await foreach (var message in connection.Inbox.ReadAllAsync(ct))
             {
                 try
                 {
-                    if (!Handle(JsonNode.Parse(json)!))
+                    if (!Handle(message))
                     {
                         break;
                     }
@@ -183,10 +183,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     }
 
     /// <returns><c>false</c> when the bot should disconnect.</returns>
-    private bool Handle(JsonNode message)
+    private bool Handle(Response message)
     {
-        var payload = message["Payload"];
-        switch ((GameResponse?)(int?)message["Type"])
+        var payload = message.Payload;
+        switch ((GameResponse)message.Type)
         {
             case GameResponse.GameCreate:
                 _ident = (int?)payload!["ident"] ?? 2;
@@ -694,15 +694,15 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         }
 
         var best = Score(root);
-        Message? bestFirst = null;
+        GameAction? bestFirst = null;
         // The best score each first action leads to (for a bot with a skill, which may not take the best).
-        var firsts = new Dictionary<string, (Message Move, int Score)>();
+        var firsts = new Dictionary<GameAction, int>();
         var seen = new HashSet<int> { Signature(root) };
-        List<(GameRoom Room, Message? First, int Score)> beam = [(root, null, best)];
+        List<(GameRoom Room, GameAction? First, int Score)> beam = [(root, null, best)];
         var (budget, beamWidth) = skill is { } s ? BotSkill.Search(s, LookaheadBudget, BeamWidth) : (LookaheadBudget, BeamWidth);
         while (beam.Count > 0 && budget > 0)
         {
-            var next = new List<(GameRoom Room, Message? First, int Score)>();
+            var next = new List<(GameRoom Room, GameAction? First, int Score)>();
             foreach (var (room, first, _) in beam)
             {
                 foreach (var move in Moves(room))
@@ -713,7 +713,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                     }
 
                     var copy = room.Copy();
-                    await ApplyAsync(copy, move);
+                    engine!.Simulate(copy.PlayerOf(_ident), move);
                     if (!seen.Add(Signature(copy)))
                     {
                         continue; // refused, or a position already reached in another order
@@ -725,10 +725,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
                         (best, bestFirst) = (score, first ?? move);
                     }
 
-                    var key = Key(first ?? move);
-                    if (!firsts.TryGetValue(key, out var known) || score > known.Score)
+                    var key = first ?? move;
+                    if (!firsts.TryGetValue(key, out var known) || score > known)
                     {
-                        firsts[key] = (first ?? move, score);
+                        firsts[key] = score;
                     }
 
                     if (!copy.IsEnded)
@@ -741,7 +741,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             beam = [.. next.OrderByDescending(x => x.Score).Take(beamWidth)];
         }
 
-        return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst;
+        return skill is { } level ? Pick(level, Score(root), firsts) : bestFirst?.ToMessage();
     }
 
     /// <summary>
@@ -751,9 +751,10 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// the game (<see cref="BotSkill.MissLethal"/>): it values it like its best ordinary one, and a beginner sometimes
     /// does anything at all (<see cref="BotSkill.Wander"/>). Actions the server refused this turn are left out.
     /// </summary>
-    private Message? Pick(double level, int endTurn, Dictionary<string, (Message Move, int Score)> firsts)
+    private Message? Pick(double level, int endTurn, Dictionary<GameAction, int> firsts)
     {
-        List<(Message? Move, double Score)> options = [(null, endTurn), .. firsts.Where(f => !_failed.Contains(f.Key)).Select(f => ((Message?)f.Value.Move, (double)f.Value.Score))];
+        List<(Message? Move, double Score)> options = [(null, endTurn), .. firsts.Select(f => (Message: f.Key.ToMessage(), f.Value)).Where(f => !_failed.Contains(Key(f.Message)))
+            .Select(f => ((Message?)f.Message, (double)f.Value))];
         if (_random.NextDouble() < BotSkill.Wander(level))
         {
             return options[_random.Next(options.Count)].Move;
@@ -830,7 +831,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
     /// Every action the bot could take: each card once (in the slot <see cref="PickSlot"/> picks), each spell once on
     /// every target, every attack and ability target.
     /// </summary>
-    private IEnumerable<Message> Moves(GameRoom room)
+    private IEnumerable<GameAction> Moves(GameRoom room)
     {
         var me = room.PlayerOf(_ident).GPlayer!;
         var enemy = room.Other(me);
@@ -842,16 +843,16 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             {
                 foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(card.AbilityId!.Value)))
                 {
-                    yield return Cast(card.Cid, type, target);
+                    yield return GameAction.Cast(card.Cid, type, target);
                 }
             }
             else if (card.IsSpell)
             {
-                yield return Cast(card.Cid);
+                yield return GameAction.Cast(card.Cid);
             }
             else if (free.Count > 0 && !(holdInferno && card.AbilityId == AbilityIds.Inferno))
             {
-                yield return Message.Create(GameRequest.UseCard, new JsonObject { ["cid"] = card.Cid, ["slotId"] = PickSlot(card, free) });
+                yield return GameAction.Play(card.Cid, PickSlot(card, free));
             }
         }
 
@@ -864,12 +865,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             {
                 foreach (var target in attackable)
                 {
-                    yield return AttackMessage(unit.Cid, target.Cid, 0);
+                    yield return GameAction.Attack(unit.Cid, target.Cid, 0);
                 }
 
                 if (taunts.Count == 0)
                 {
-                    yield return AttackMessage(unit.Cid, -1, 1);
+                    yield return GameAction.Attack(unit.Cid, -1, 1);
                 }
             }
 
@@ -877,7 +878,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             {
                 foreach (var (type, target) in Targets(me, enemy, GameRules.AbilityTargets(ability)))
                 {
-                    yield return Ability(unit.Cid, type, target);
+                    yield return GameAction.Ability(unit.Cid, type, target);
                 }
             }
         }
@@ -886,12 +887,12 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
         {
             foreach (var target in attackable)
             {
-                yield return AttackMessage(-1, target.Cid, 2);
+                yield return GameAction.Attack(-1, target.Cid, 2);
             }
 
             if (taunts.Count == 0)
             {
-                yield return AttackMessage(-1, -1, 3);
+                yield return GameAction.Attack(-1, -1, 3);
             }
         }
 
@@ -900,7 +901,7 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             var kinds = GameRules.PowerTargets(power.Target);
             foreach (var (type, target) in kinds.Count == 0 ? [(TargetType.OwnHero, -1)] : Targets(me, enemy, kinds))
             {
-                yield return Power(type, target);
+                yield return GameAction.Power(type, target);
             }
         }
     }
@@ -915,18 +916,6 @@ public sealed class AiPlayer(BotConnection connection, Func<Message, Task> send,
             "enemyCard" => enemy.BoardCards.Values.Select(c => (TargetType.EnemyCard, c.Cid)),
             "ownHero" => [(TargetType.OwnHero, -1)],
             _ => [(TargetType.EnemyHero, -1)],
-        };
-    }
-
-    private Task ApplyAsync(GameRoom room, Message move)
-    {
-        var player = room.PlayerOf(_ident);
-        return (GameRequest)move.Type switch
-        {
-            GameRequest.UseCard => engine!.RequestUseCardAsync(player, move),
-            GameRequest.Attack => engine!.RequestAttackAsync(player, move),
-            GameRequest.UseAbility => engine!.RequestUseAbilityAsync(player, move),
-            _ => engine!.RequestHeroPowerAsync(player, move),
         };
     }
 

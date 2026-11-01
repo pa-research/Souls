@@ -156,56 +156,107 @@ public sealed partial class GameEngine(
             return;
         }
 
-        var cid = message.GetInt("cid");
+        ReleaseCard(player, opponent, message.GetInt("cid"));
+    }
+
+    private static void ReleaseCard(Player player, Player opponent, int cid)
+    {
+        if (player.GPlayer?.GameRoom is { Live: false })
+        {
+            return;
+        }
+
         player.Send(new Response(GameResponse.GameRelease, new JsonObject { ["cid"] = cid }));
         opponent.Send(new Response(GameResponse.GameOpponentRelease, new JsonObject { ["cid"] = cid }));
     }
 
-    public async Task RequestUseCardAsync(Player player, Message message)
+    public Task RequestUseCardAsync(Player player, Message message) => ActAsync(player, GameAction.From(GameRequest.UseCard, message));
+
+    public Task RequestAttackAsync(Player player, Message message) => ActAsync(player, GameAction.From(GameRequest.Attack, message));
+
+    public Task RequestUseAbilityAsync(Player player, Message message) => ActAsync(player, GameAction.From(GameRequest.UseAbility, message));
+
+    public Task RequestHeroPowerAsync(Player player, Message message) => ActAsync(player, GameAction.From(GameRequest.HeroPower, message));
+
+    /// <summary>A player's action in a real game: when it happened, the players get the new state and the game ends if a hero died.</summary>
+    public async Task ActAsync(Player player, GameAction action)
+    {
+        var room = player.GPlayer?.GameRoom;
+        if (Act(player, action))
+        {
+            await FinishActionAsync(room!);
+        }
+    }
+
+    /// <summary>
+    /// An action in a copy of the game (<see cref="GameRoom.Copy"/>, the bot's lookahead): the rules alone, at once.
+    /// Nothing is sent, logged or stored, and a dead hero just ends the copy.
+    /// </summary>
+    public void Simulate(Player player, GameAction action)
+    {
+        var room = player.GPlayer!.GameRoom!;
+        if (Act(player, action) && FinishAction(room))
+        {
+            room.IsEnded = true;
+        }
+    }
+
+    /// <summary>Applies an action if the rules allow it (otherwise tells the player why); returns whether it happened.</summary>
+    private bool Act(Player player, GameAction action) => action.Kind switch
+    {
+        GameActionKind.UseCard => TryUseCard(player, action),
+        GameActionKind.Attack => TryAttack(player, action),
+        GameActionKind.UseAbility => TryUseAbility(player, action),
+        _ => TryHeroPower(player, action),
+    };
+
+    private bool TryUseCard(Player player, GameAction action)
     {
         if (!TryGetGame(player, out var gp, out var opponent))
         {
-            return;
+            return false;
         }
 
-        var cid = message.GetInt("cid");
-
+        var cid = action.Source;
         if (!gp.HandCards.TryGetValue(cid, out var card))
         {
-            return;
+            return false;
         }
 
+        var room = gp.GameRoom!;
         if (!gp.IsPlayerTurn())
         {
             player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn(cid)));
-            RequestReleaseCard(player, message);
-            return;
+            ReleaseCard(player, opponent, cid);
+            return false;
         }
 
         if (card.IsSpell)
         {
-            await CastSpellAsync(player, gp, opponent, card, message);
-            return;
+            return TryCastSpell(player, gp, opponent, card, action);
         }
 
-        var slot = message.GetInt("slotId");
+        var slot = action.Slot;
         if (slot is < 0 or >= GamePlayer.BoardSlots || gp.BoardCards.ContainsKey(slot))
         {
-            RequestReleaseCard(player, message);
-            var occupied = new JsonObject { ["slot"] = slot };
-            new GameText("error.slotOccupied").WriteTo(occupied, "message");
-            player.Send(new Response(GameResponse.GameUseCardOccupied, occupied));
-            return;
+            ReleaseCard(player, opponent, cid);
+            if (room.Live)
+            {
+                var occupied = new JsonObject { ["slot"] = slot };
+                new GameText("error.slotOccupied").WriteTo(occupied, "message");
+                player.Send(new Response(GameResponse.GameUseCardOccupied, occupied));
+            }
+
+            return false;
         }
 
         if (!gp.HasEnoughMana(card))
         {
             player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
-            RequestReleaseCard(player, message);
-            return;
+            ReleaseCard(player, opponent, cid);
+            return false;
         }
 
-        var room = gp.GameRoom!;
         gp.HandCards.Remove(cid);
         gp.BoardCards[slot] = card;
         gp.Mana -= card.Cost;
@@ -215,18 +266,18 @@ public sealed partial class GameEngine(
         // Cards arrive exhausted unless they have Charge.
         card.HasAttacked = !card.HasCharge;
 
-        JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData() };
-        if (!room.IsCopy)
+        if (room.Live)
         {
+            JsonObject Payload() => new() { ["card"] = card.ToJson(), ["pInfo"] = gp.GetPlayerData() };
             player.Send(new Response(GameResponse.GameUseCardOk, Payload()));
             opponent.Send(new Response(GameResponse.GameOpponentUseCardOk, Payload()));
+            var text = new GameText("log.plays", ("player", gp.Name), ("card", card.Name));
+            room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
+            room.LogLine(text);
         }
 
-        var text = new GameText("log.plays", ("player", gp.Name), ("card", card.Name));
-        room.Logger.Add(GameLogKind.UseCard, player.Id, card.Id, "Player", "Card", text);
-        room.LogLine(text);
         OnPlay(room, gp, card);
-        await FinishActionAsync(room);
+        return true;
     }
 
     public async Task RequestNextTurnAsync(Player player, bool timedOut = false)
@@ -354,23 +405,21 @@ public sealed partial class GameEngine(
         }
     }
 
-    public async Task RequestAttackAsync(Player player, Message message)
+    private bool TryAttack(Player player, GameAction action)
     {
         if (!TryGetGame(player, out var gp, out var opponentPlayer))
         {
-            return;
+            return false;
         }
 
-        var source = message.GetInt("source");
-        var target = message.GetInt("target");
-        var type = message.GetInt("type");
+        var (source, target, type) = (action.Source, action.Target, action.Type);
         var opponent = opponentPlayer.GPlayer!;
         var room = gp.GameRoom!;
 
         if (!gp.IsPlayerTurn())
         {
             player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
-            return;
+            return false;
         }
 
         if (type is < 0 or > 3)
@@ -384,100 +433,90 @@ public sealed partial class GameEngine(
         var targetCard = targetIsHero ? null : opponent.FindBoardCard(target);
         if ((!sourceIsHero && sourceCard is null) || (!targetIsHero && targetCard is null))
         {
-            return;
+            return false;
         }
 
         if (sourceCard is not null && !CanAct(player, sourceCard))
         {
-            return;
+            return false;
         }
 
         if (sourceIsHero && (gp.HasAttacked || gp.Attack <= 0))
         {
             Tell(player, new GameText(gp.Attack <= 0 ? "error.heroNoAttack" : "error.heroAttacked"));
-            return;
+            return false;
         }
 
         if (opponent.HasTaunt && targetCard is not { HasTaunt: true })
         {
             Tell(player, new GameText("error.taunt"));
-            return;
+            return false;
         }
 
         object attacker = sourceIsHero ? gp : sourceCard!;
         object defender = targetIsHero ? opponent : targetCard!;
-        var text = new GameText("log.attack", ("attacker", NameOf(attacker)), ("defender", NameOf(defender)));
-        var kind = (sourceIsHero, targetIsHero) switch
+        if (room.Live)
         {
-            (false, false) => GameLogKind.CardAttackCard,
-            (false, true) => GameLogKind.CardAttackPlayer,
-            (true, false) => GameLogKind.PlayerAttackCard,
-            (true, true) => GameLogKind.PlayerAttackPlayer,
-        };
-        room.Logger.Add(kind, sourceIsHero ? player.Id : sourceCard!.Id, targetIsHero ? opponentPlayer.Id : targetCard!.Id,
-            sourceIsHero ? "Player" : "Card", targetIsHero ? "Player" : "Card", text);
-        room.LogLine(text);
+            var text = new GameText("log.attack", ("attacker", NameOf(attacker)), ("defender", NameOf(defender)));
+            var kind = (sourceIsHero, targetIsHero) switch
+            {
+                (false, false) => GameLogKind.CardAttackCard,
+                (false, true) => GameLogKind.CardAttackPlayer,
+                (true, false) => GameLogKind.PlayerAttackCard,
+                (true, true) => GameLogKind.PlayerAttackPlayer,
+            };
+            room.Logger.Add(kind, sourceIsHero ? player.Id : sourceCard!.Id, targetIsHero ? opponentPlayer.Id : targetCard!.Id,
+                sourceIsHero ? "Player" : "Card", targetIsHero ? "Player" : "Card", text);
+            room.LogLine(text);
+        }
+
         Fight(room, gp, attacker, opponent, defender);
-        await FinishActionAsync(room);
+        return true;
     }
 
-    public async Task RequestUseAbilityAsync(Player player, Message message)
+    private bool TryUseAbility(Player player, GameAction action)
     {
         if (!TryGetGame(player, out var gp, out _))
         {
-            return;
+            return false;
         }
 
         if (!gp.IsPlayerTurn())
         {
             player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
-            return;
+            return false;
         }
 
-        var card = gp.FindBoardCard(message.GetInt("source"));
-        if (card is null || !CanAct(player, card))
-        {
-            return;
-        }
-
-        var type = (TargetType)message.GetInt("type");
-        if (UseAbility(gp.GameRoom!, player, gp, card, type, message.GetInt("target")))
-        {
-            await FinishActionAsync(gp.GameRoom!);
-        }
+        var card = gp.FindBoardCard(action.Source);
+        return card is not null && CanAct(player, card) && UseAbility(gp.GameRoom!, player, gp, card, (TargetType)action.Type, action.Target);
     }
 
-    public async Task RequestHeroPowerAsync(Player player, Message message)
+    private bool TryHeroPower(Player player, GameAction action)
     {
         if (!TryGetGame(player, out var gp, out _))
         {
-            return;
+            return false;
         }
 
         if (!gp.IsPlayerTurn())
         {
             player.Send(new Response(GameResponse.GameNotYourTurn, NotYourTurn()));
-            return;
+            return false;
         }
 
         if (gp.HeroPowerUsed)
         {
             Tell(player, new GameText("error.powerUsed"));
-            return;
+            return false;
         }
 
         if (gp.Mana < GameRules.HeroPowerCost)
         {
             player.Send(new Response(GameResponse.GameUseCardOom, new GameText("error.mana")));
-            return;
+            return false;
         }
 
-        var type = (TargetType)(message.Payload["type"] is null ? (int)TargetType.OwnHero : message.GetInt("type"));
-        var target = message.Payload["target"] is null ? -1 : message.GetInt("target");
-        if (UseHeroPower(gp.GameRoom!, player, gp, type, target))
-        {
-            await FinishActionAsync(gp.GameRoom!);
-        }
+        return UseHeroPower(gp.GameRoom!, player, gp, (TargetType)action.Type, action.Target);
     }
 
     /// <summary>Ends turns whose time ran out; repeat offenders forfeit. An expired mulligan keeps the undecided hands.</summary>
@@ -520,22 +559,38 @@ public sealed partial class GameEngine(
     /// <summary>Flushes events and state, and ends the game if a hero died.</summary>
     private async Task FinishActionAsync(GameRoom room)
     {
+        if (FinishAction(room))
+        {
+            await EndGameAsync(room, isDraw: room.Winner is null);
+        }
+    }
+
+    /// <summary>
+    /// After an action: marks dead heroes and sends the state (in a real game). Returns whether the game is over,
+    /// with <see cref="GameRoom.Winner"/> set (<c>null</c>: a draw).
+    /// </summary>
+    private static bool FinishAction(GameRoom room)
+    {
         var p1 = room.Players.First.GPlayer!;
         var p2 = room.Players.Second.GPlayer!;
         foreach (var hero in new[] { p1, p2 }.Where(h => h.Health < 1))
         {
             hero.IsDead = true;
-            room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
-            room.LogLine(new GameText("log.heroFallen", ("hero", hero.Name)));
+            if (room.Live)
+            {
+                room.Event("heroDeath", new JsonObject { ["id"] = hero.Ident });
+                room.LogLine(new GameText("log.heroFallen", ("hero", hero.Name)));
+            }
         }
 
         room.Sync();
-        if (p1.IsDead || p2.IsDead)
+        if (!p1.IsDead && !p2.IsDead)
         {
-            var isDraw = p1.IsDead && p2.IsDead;
-            room.Winner = isDraw ? null : p1.IsDead ? room.Players.Second : room.Players.First;
-            await EndGameAsync(room, isDraw);
+            return false;
         }
+
+        room.Winner = p1.IsDead && p2.IsDead ? null : p1.IsDead ? room.Players.Second : room.Players.First;
+        return true;
     }
 
     private static bool CanAct(Player player, Card card)

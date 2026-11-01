@@ -34,6 +34,7 @@ public class SnapshotTests
         "GameRoom.Dirty",               // bookkeeping of the store
         "GameRoom.SavedReplay",
         "GamePlayer.GameRoom",          // the back reference (checked below)
+        "GamePlayer.MulliganRandom",    // seeds reproducible games; a restored game shuffles with the shared one
         "Player.OwningCards",           // only needed to start a game; loaded again when the player logs in
         "Player.Deck",
         "Player.InQueue",               // a player in a game is not queued

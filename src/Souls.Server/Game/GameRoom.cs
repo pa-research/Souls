@@ -43,6 +43,7 @@ public sealed partial class GameRoom
     {
         _time = time;
         Random = random ?? Random.Shared;
+        Logger = new GameLogger();
         GameId = Interlocked.Increment(ref _gameCounter);
         Players = players;
         StartedAt = time.GetUtcNow();
@@ -109,8 +110,8 @@ public sealed partial class GameRoom
             Id = p.Id,
             Name = p.Name,
             PlayerType = p.PlayerType,
-            OwningCards = [],
-            Deck = [],
+            OwningCards = Array.Empty<Card>(),
+            Deck = Array.Empty<Card>(),
             IsBot = p.IsBot,
             Difficulty = p.Difficulty,
             GPlayer = p.GPlayer!.Copy(this),
@@ -126,6 +127,12 @@ public sealed partial class GameRoom
 
     /// <summary>A copy made by <see cref="Copy"/>: it sends no events or state and is never stored.</summary>
     public bool IsCopy { get; }
+
+    /// <summary>
+    /// Whether anyone sees this game: <c>false</c> for a copy, where the rules only change the state, so the engine
+    /// builds no events, log lines or messages for it (the bot's lookahead plays thousands of moves in copies).
+    /// </summary>
+    public bool Live => !IsCopy;
 
     /// <summary>For shuffles and death curses. A copy has its own (shared with copies of the copy).</summary>
     public Random Random { get; }
@@ -150,7 +157,7 @@ public sealed partial class GameRoom
     public Player CurrentPlaying { get; private set; }
     public bool IsEnded { get; set; }
     public Player? Winner { get; set; }
-    public GameLogger Logger { get; } = new();
+    public GameLogger Logger { get; }
     public DateTimeOffset StartedAt { get; }
 
     public List<Player> Spectators { get; } = [];
@@ -379,7 +386,7 @@ public sealed partial class GameRoom
         _replay.Add(new JsonObject
         {
             ["t"] = (long)(_time.GetUtcNow() - StartedAt).TotalMilliseconds,
-            ["m"] = JsonNode.Parse(response.ToJson()),
+            ["m"] = response.ToJsonNode(),
         });
     }
 
