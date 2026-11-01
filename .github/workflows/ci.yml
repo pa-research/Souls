@@ -125,7 +125,8 @@ jobs:
       - name: rules3d.js
         if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         working-directory: tests/e2e
-        run: node rules3d.js https://localhost out/rules3d
+        # Normal bot: the Hard bot sometimes wins before the script has played a card (the Hard bot is covered by the .NET tests).
+        run: node rules3d.js https://localhost out/rules3d 1
 
       - name: Compose logs
         if: failure()
