@@ -96,7 +96,7 @@ public partial class LocalizedPagesTests(SoulsAppFixture app)
         var config = JsonNode.Parse(System.Net.WebUtility.HtmlDecode(json))!;
         Assert.Equal("nb", (string?)config["lang"]);
         Assert.Equal("Din tur", (string?)config["strings"]!["g3d.yourTurn"]);
-        Assert.Equal("Det er ikke din tur!", (string?)config["strings"]!["error.notYourTurn"]);
+        Assert.Equal("Det er ikke din tur", (string?)config["strings"]!["error.notYourTurn"]);
         Assert.Equal("Vakt", (string?)config["rules"]!["abilities"]!["3"]!["name"]);
         Assert.Equal("Godt spilt!", (string?)config["rules"]!["emotes"]![1]);
         Assert.Contains(config["languages"]!.AsArray(), l => (string?)l!["code"] == "nb");

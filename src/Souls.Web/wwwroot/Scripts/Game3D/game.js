@@ -5,15 +5,13 @@
 import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
-import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
-import { Hero3D, FIGURE_HEIGHT, PLATE_W, PLATE_H } from './heroes.js';
+import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W, CARD_H } from './cards.js';
+import { Hero3D, FIGURE_HEIGHT } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
 import { VERSUS_MS } from './ui.js';
 
-/** The smallest a hero's nameplate gets on the screen (CSS pixels wide). */
-const MIN_PLATE_PX = 230;
 
 // Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
 const { t, text: serverText } = window.SoulsL10n;
@@ -31,6 +29,15 @@ const HOVER_LIFT = 0.36;
 const HERO_LIFT = 0.07;
 const SIGN_LIFT = 0.14;
 const PODIUM_Z = 585; // podiums stand near the arena wall, behind the board
+// The player's stands a little nearer the camera, so its figure's head stays clear of the player's front row.
+const PLAYER_PODIUM_Z = 660;
+// Portrait looks steeper down the board: further still, and the figure a little smaller (PORTRAIT_BOARD_FIT).
+const PORTRAIT_PLAYER_PODIUM_Z = 760;
+const PORTRAIT_PLAYER_FIGURE = 0.85;
+// The field view looks over the player's shoulder: the figure drops off its podium and stands this much smaller and this
+// far forward, in the sand between the board and the hand (asideT eases it).
+const FIELD_FIGURE_SHRINK = 0.5;
+const FIELD_FIGURE_FORWARD = 160;
 
 const BOARD_HEIGHT = 2;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
@@ -38,6 +45,12 @@ const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,
 const SCREEN_AXIS = new THREE.Vector3(0, 0, 1);
 // Portrait: the opponent's hand is a fan of card backs (screen pixels: card width, radius of the arc; angle per card, at most).
 const FAN = { card: 30, radius: 70, step: THREE.MathUtils.degToRad(7), spread: THREE.MathUtils.degToRad(24) };
+// Landscape stadium views: the player's fanned hand (angle per card, at most; the whole fan; radius of the arc in card
+// scale units).
+const FAN_ARC = { step: THREE.MathUtils.degToRad(3), spread: THREE.MathUtils.degToRad(16), radius: 1400 };
+// Below this height (CSS pixels) a landscape screen is a phone held sideways: compact plaques (game-hud.css) this wide.
+const LOW_SCREEN = 520;
+const LOW_PLAQUE_W = 200;
 
 // Colours of abilities (by ability id, see cards.js) and hero powers (by power id: 1-4 the classes' first, 5-8 their second).
 export { ABILITY_COLORS };
@@ -68,29 +81,73 @@ class Side {
     }
 }
 
-/** The wooden "End Turn" sign (classic: 200x75 at 1610,550; flips 4 times when the turn changes). */
+/**
+ * The End Turn sign: an iron plaque in a brass edge, lettered "End turn", lit while it is the player's turn (classic:
+ * 200x75 at 1610,550; flips 4 times when the turn changes).
+ */
 class EndTurnSign extends THREE.Group {
     constructor() {
         super();
         this.name = 'end-turn';
         this.body = new THREE.Group();
         this.add(this.body);
-        this.front = new THREE.MeshStandardMaterial({ roughness: 0.7, transparent: true, alphaTest: 0.1 });
-        const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.8 });
-        this.board = new THREE.Mesh(new THREE.BoxGeometry(196, 70, 10), [wood, wood, wood, wood, this.front, this.front]);
+        this.front = new THREE.MeshStandardMaterial({ roughness: 0.6, transparent: true, alphaTest: 0.1 });
+        const iron = new THREE.MeshStandardMaterial({ color: 0x2c2620, roughness: 0.55, metalness: 0.35 });
+        this.board = new THREE.Mesh(new THREE.BoxGeometry(196, 70, 10), [iron, iron, iron, iron, this.front, this.front]);
         this.board.castShadow = true;
         this.board.userData.endTurn = true;
         this.body.add(this.board);
         this.active = false;
-        Promise.all([loadImage(Images.endTurn), loadImage(Images.endTurnDisabled)]).then(([on, off]) => {
-            this.textures = { on: on && textureFrom(on), off: off && textureFrom(off) };
-            this.setActive(this.active);
-        });
+        this.textures = { on: this.plaque(true), off: this.plaque(false) };
+        // The lettering is redrawn once the display face has loaded (until then a serif stands in).
+        if (document.fonts) document.fonts.load('600 40px Cinzel').then(() => {
+            this.plaque(true, this.textures.on);
+            this.plaque(false, this.textures.off);
+        }).catch(() => {});
+        this.setActive(false);
+    }
+
+    /** Draws the plaque (lit or not) into `texture`'s canvas, or a new one. */
+    plaque(lit, texture = null) {
+        const canvas = texture ? texture.image : document.createElement('canvas');
+        canvas.width = 392;
+        canvas.height = 140;
+        const g = canvas.getContext('2d');
+        g.clearRect(0, 0, 392, 140);
+        const round = (x, y, w, h, r) => {
+            g.beginPath();
+            g.roundRect(x, y, w, h, r);
+        };
+        round(2, 2, 388, 136, 20);
+        const iron = g.createLinearGradient(0, 0, 0, 140);
+        iron.addColorStop(0, lit ? '#2b2219' : '#1d1915');
+        iron.addColorStop(1, lit ? '#17120d' : '#110e0b');
+        g.fillStyle = iron;
+        g.fill();
+        g.lineWidth = 4;
+        g.strokeStyle = lit ? '#e2b85a' : '#5c4115';
+        g.stroke();
+        round(12, 12, 368, 116, 12);
+        g.lineWidth = 2;
+        g.strokeStyle = lit ? 'rgba(226, 184, 90, 0.45)' : 'rgba(226, 184, 90, 0.14)';
+        g.stroke();
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = '600 40px Cinzel, Georgia, serif';
+        g.fillStyle = lit ? '#fbecc0' : '#8c8472';
+        g.fillText(t('g3d.endTurn'), 196, 74, 340);
+        if (texture) {
+            texture.needsUpdate = true;
+            return texture;
+        }
+        const made = new THREE.CanvasTexture(canvas);
+        made.colorSpace = THREE.SRGBColorSpace;
+        made.anisotropy = 8;
+        return made;
     }
 
     setActive(active) {
         this.active = active;
-        if (!this.textures) return;
         this.front.map = active ? this.textures.on : this.textures.off;
         this.front.needsUpdate = true;
     }
@@ -131,6 +188,8 @@ export class Game {
         this.gameId = null;
         this.chatRoom = null;
         this.hovered = null;
+        // A screen that cannot hover keeps the stadium views' hand raised (setHandRaised).
+        this.handRaised = !!window.matchMedia && window.matchMedia('(hover: none)').matches;
         this.reconnects = 0;
         this.queue = Promise.resolve();
         this.dying = new Map(); // cid -> Card3D that left the board (or a spell being cast) and is still animating
@@ -164,6 +223,7 @@ export class Game {
         });
 
         stage.onResize(() => this.layout(false));
+        stage.onView(() => this.layout());
         this.layout(false);
         ui.onPower = () => this.onPowerButton();
         if (!this.spectator) {
@@ -234,10 +294,11 @@ export class Game {
 
     /**
      * Where a side's hand goes, in classic stage pixels: the classic layout (from the left, 60 apart, the hovered card
-     * zoomed above its place), or in portrait centred in its band and spread over the screen width (Game.portraitRows).
+     * zoomed above its place), in portrait centred in its band and spread over the screen width (Game.portraitRows), or
+     * in the landscape stadium views fanned out at the bottom centre (Game.fanRow).
      */
-    handRow(side) {
-        const r = this.rows && (side.isPlayer ? this.rows.player : this.rows.opponent);
+    handRow(side, { raised = this.handRaised } = {}) {
+        const r = this.rows ? (side.isPlayer ? this.rows.player : this.rows.opponent) : side.isPlayer ? this.fan : null;
         if (!r) {
             const y = side.isPlayer ? PLAYER_HAND_Y : OPPONENT_HAND_Y;
             return { x: HAND_X, spacing: HAND_SPACING, y, scale: 1, hoverY: y - 120, hoverScale: 2.2, hoverX: x => x };
@@ -245,10 +306,43 @@ export class Game {
         const n = side.hand.size;
         if (r.fan) return { ...r, step: Math.min(FAN.step, FAN.spread / Math.max(1, n - 1)) };
         const width = CARD_W * r.scale;
-        const spacing = n > 1 ? Math.min(width * 0.92, (r.span - width) / (n - 1)) : 0;
+        const spacing = n > 1 ? Math.min(width * (r.arc ? 0.78 : 0.92), (r.span - width) / (n - 1)) : 0;
         return {
-            x: 960 - spacing * (n - 1) / 2, spacing, y: r.y, scale: r.scale, hoverY: r.hoverY, hoverScale: r.hoverScale,
-            hoverX: x => THREE.MathUtils.clamp(x, 960 - r.hoverRoom, 960 + r.hoverRoom),
+            x: (r.cx ?? 960) - spacing * (n - 1) / 2, spacing, y: r.rest !== undefined && !raised ? r.rest : r.y, scale: r.scale,
+            hoverY: r.hoverY, hoverScale: r.hoverScale, hoverX: x => THREE.MathUtils.clamp(x, 960 - r.hoverRoom, 960 + r.hoverRoom),
+            arc: r.arc ? Math.min(FAN_ARC.step, FAN_ARC.spread / Math.max(1, n - 1)) : 0,
+        };
+    }
+
+    /**
+     * Landscape stadium views: the player's hand fans out at the bottom centre, sized in screen pixels like portraitRows.
+     * At rest only the top two fifths of each card show, clear of the player's figure; with the pointer near (setHandRaised)
+     * all but a fifth of it rises over the screen's bottom edge, and a hovered card rises clear of it.
+     */
+    fanRow() {
+        const stage = this.stage, w = stage.width, h = stage.height;
+        const card = THREE.MathUtils.clamp(h * 0.24, 120, 260); // card height, CSS pixels
+        const at = py => {
+            const y = stage.classicAtPixel(w / 2, py).y;
+            return { y, k: stage.pixelsPerClassic(y) };
+        };
+        const row = at(h - 0.3 * card);
+        const zoom = Math.min(h * 0.5, 460);
+        const hover = at(h - zoom / 2 - 8);
+        // A low screen (a phone held sideways) has the hero power beside the plaque (powerAnchor), so the fan goes
+        // between them and the chat.
+        let centre = w / 2, span = Math.min(w * 0.56, card * 4.4);
+        if (h < LOW_SCREEN) {
+            const inset = stage.inset || { left: 0, right: 0 };
+            const left = Math.max(16, inset.left) + LOW_PLAQUE_W + 12 + (this.ui.power.offsetWidth || 96) + 8;
+            const right = Math.max(10, inset.right) + ((this.ui.chat && this.ui.chat.offsetWidth) || 200) + 8;
+            centre = (left + w - right) / 2;
+            span = Math.min(span, w - left - right);
+        }
+        return {
+            cx: stage.classicAtPixel(centre, h - 0.3 * card).x,
+            y: row.y, rest: at(h + 0.1 * card).y, scale: card / (CARD_H * row.k), span: span / row.k, arc: true,
+            hoverY: hover.y, hoverScale: zoom / (CARD_H * hover.k), hoverRoom: Math.max(0, w / 2 - 8 - zoom * CARD_W / CARD_H / 2) / hover.k,
         };
     }
 
@@ -281,6 +375,10 @@ export class Game {
             sign: { x: sign.x, y: sign.y, scale: signW / (196 * stage.pixelsPerClassic(sign.y)) },
             fuse: { x: w - right, y: this.spectator ? b.action[0] + 24 : b.action[0] + 48, ax: 1 },
             status: { x: left, y: signPx.y, ax: 0 },
+            // Figure mode: the heroes' plaques, the player's in the row above the hand, the opponent's beside its fan.
+            plaque: { x: left, y: (b.action[0] + b.action[1]) / 2 },
+            opponentPlaque: { x: left, y: (b.opponentHand[0] + b.opponentHand[1]) / 2 },
+            opponentPlaqueRight: { x: w - right, y: (b.opponentHand[0] + b.opponentHand[1]) / 2, ax: 1 },
         };
     }
 
@@ -307,7 +405,8 @@ export class Game {
 
     /** Screen point of the visible strip of the player's hand card `index` (test hook). */
     handScreenPoint(index) {
-        const row = this.handRow(this.player);
+        // (The raised row: a pointer moving there raises a resting hand.)
+        const row = this.handRow(this.player, { raised: true });
         const last = index === this.player.hand.size - 1;
         return this.stage.classicToScreen(row.x + row.spacing * index + (last ? 0 : row.spacing / 2 - 75 * row.scale), row.y + 10 * row.scale);
     }
@@ -359,9 +458,13 @@ export class Game {
         return { left, top, right, bottom, width: right - left, height: bottom - top };
     }
 
-    /** End Turn sign: its classic spot, or the right of the row above the hand in portrait. */
+    /** End Turn sign: its classic spot, further right in the stadium views (clear of the board), or the right of the
+     * row above the hand in portrait. */
     signPoint() {
-        return this.rows ? this.rows.sign : { x: 1610, y: 550, scale: 1 };
+        if (this.rows) return this.rows.sign;
+        if (!this.fan) return { x: 1610, y: 550, scale: 1 };
+        // A phone held sideways: larger, for a thumb.
+        return this.stage.height < LOW_SCREEN ? { x: 1790, y: 670, scale: 1.3 } : { x: 1790, y: 640, scale: 0.95 };
     }
 
     handPose(side, index, hovered = false, card = null) {
@@ -374,6 +477,15 @@ export class Game {
         }
         const x = row.x + row.spacing * index;
         if (hovered) return this.stage.hudPose(row.hoverX(x), row.hoverY, HOVER_LIFT, row.hoverScale);
+        if (row.arc) {
+            // A gentle fan: the outer cards turn out and sit a little lower.
+            const a = (index - (side.hand.size - 1) / 2) * row.arc;
+            const pose = this.stage.hudPose(x, row.y + FAN_ARC.radius * row.scale * (1 - Math.cos(a)), HAND_LIFT + index * 0.004, row.scale);
+            pose.quaternion.setFromAxisAngle(SCREEN_AXIS, -a);
+            // Player one's cards, when spectating, show their backs.
+            if (card && !card.revealed) pose.quaternion.multiply(TURN_AROUND);
+            return pose;
+        }
         const pose = this.stage.hudPose(x, row.y, HAND_LIFT + index * 0.004, row.scale);
         // The opponent's cards, and player one's when spectating, show their backs.
         if (!side.isPlayer || (card && !card.revealed)) pose.quaternion.multiply(TURN_AROUND);
@@ -387,10 +499,11 @@ export class Game {
     /** Re-positions everything that is anchored to the classic screen layout. */
     layout(animate = true) {
         this.rows = this.stage.portrait ? this.portraitRows() : null;
+        this.fan = !this.stage.portrait && this.stage.view !== 'classic' ? this.fanRow() : null;
         for (const side of [this.player, this.opponent]) {
             // Heroes: where the classic client draws them (classic view), or on their podium (stadium views).
             side.hero.anchorPose = this.stage.anchor(960, side.isPlayer ? 955 : 125, HERO_LIFT);
-            side.hero.podium.position.set(0, 0, side.isPlayer ? PODIUM_Z : -PODIUM_Z);
+            side.hero.podium.position.set(0, 0, side.isPlayer ? (this.stage.portrait ? PORTRAIT_PLAYER_PODIUM_Z : PLAYER_PODIUM_Z) : -PODIUM_Z);
             this.layoutHand(side, animate);
         }
         const at = this.signPoint();
@@ -484,6 +597,21 @@ export class Game {
     }
 
     /** Hovering a hand card zooms it like the classic client and previews its mana cost. */
+    /**
+     * Landscape stadium views: the hand rises while the pointer is near it, and rests low otherwise (a touch screen
+     * cannot hover, so there it stays up).
+     */
+    setHandRaised(on) {
+        if (this.handRaised === on) return;
+        this.handRaised = on;
+        if (this.fan) this.layoutHand(this.player);
+    }
+
+    /** The top of the raised hand on the screen (CSS pixels), where the pointer starts to raise it. */
+    handTop() {
+        return this.fan ? this.stage.height - THREE.MathUtils.clamp(this.stage.height * 0.24, 120, 260) * 0.95 : Infinity;
+    }
+
     setHovered(card) {
         if (this.hovered === card) return;
         const previous = this.hovered;
@@ -1325,11 +1453,9 @@ export class Game {
 
     textAbove(obj, text, color, size = 90) {
         if (obj instanceof Hero3D && obj.figureMode) {
-            // Just over the nameplate, clear of its name and health bar; it barely rises (a high point rising toward a
-            // steep camera drifts far up the screen).
-            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
-            const plate = obj.scale.y * obj.nameplate.scale.y;
-            this.effects.floatText(text, obj.position.clone().addScaledVector(up, (PLATE_H / 2 + size * 0.45) * plate), color, size, 0.2);
+            // From the figure's chest (over its head would leave the top of the screen for the opponent in the arena
+            // view); it barely rises (a high point rising toward a steep camera drifts far up the screen).
+            this.effects.floatText(text, obj.aimPoint(), color, size, 0.35);
             return;
         }
         const point = this.targetPoint(obj);
@@ -1729,7 +1855,6 @@ export class Game {
         hero.dead = true;
         hero.play('death');
         hero.setReady(false);
-        hero.repaintPlate();
         tweens.hitStop(160);
         tweens.slowMo(0.3, 1400);
         this.speak(hero === this.player.hero ? this.player : this.opponent, 'defeat');
@@ -1903,33 +2028,48 @@ export class Game {
         const hero = side.hero;
         const center = this.stage.toScreen(hero.position);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
-        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
-        if (side.isPlayer && hero.figureMode && hero.asideT > 0.5) {
-            // Field view: the figure stands left of the plate, so the pill goes under it.
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
+        if (side.isPlayer) {
+            // Up at the medallion's top edge, between the board and the hand (beside it, a full hand ran under it).
             const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
-            const below = this.stage.toScreen(hero.position.clone().addScaledVector(up, -PLATE_H / 2 * hero.scale.y * plate));
-            return { x: center.x, y: below.y + 22, ax: 0.5 };
+            const top = this.stage.toScreen(hero.position.clone().addScaledVector(up, 110 * hero.scale.y));
+            return { x: edge.x - 96, y: top.y };
         }
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x * plate));
-        return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
+        return { x: edge.x + 70, y: center.y };
     }
 
     /** Screen position for a hero's emote bubble: the top edge of the player's hero, the bottom edge of the opponent's. */
     emoteAnchor(side) {
         const hero = side.hero;
+        if (hero.figureMode) {
+            // Beside the figure's head, on its right, never over the figure.
+            const head = this.stage.toScreen(hero.position);
+            const right = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 90 * hero.figureRoot.scale.x));
+            return { x: right.x + 90, y: head.y + (side.isPlayer ? 40 : -10) };
+        }
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
         return this.stage.toScreen(hero.position.clone().addScaledVector(up, (side.isPlayer ? 1 : -1) * 130 * hero.scale.x));
     }
 
     /**
-     * Screen position for the hero power button: beside the player's hero, on its right, or on its left where the
-     * screen ends too soon for the button (the portrait cinematic view sways the hero to the edge).
+     * Screen position for the hero power button. Landscape stadium views: on top of the right end of the player's
+     * plaque, clear of the fanned hand (beside the plaque on a low screen). Otherwise beside the hero, on its right, or
+     * on its left where the screen ends too soon for the button: in portrait beside the figure's chest, clear of a hand
+     * card lifted over the row above the hand.
      */
     powerAnchor() {
         const hero = this.player.hero;
-        const center = this.stage.toScreen(hero.position);
-        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x * plate));
+        const plaque = !this.rows && this.ui.plaqueRect('player');
+        if (plaque) {
+            const host = this.stage.renderer.domElement.getBoundingClientRect();
+            const w = this.ui.power.offsetWidth, h = this.ui.power.offsetHeight;
+            if (this.stage.height < LOW_SCREEN) return { x: plaque.right - host.left + 12 + w / 2, y: plaque.top - host.top + plaque.height / 2 };
+            return { x: plaque.right - host.left - w / 2, y: plaque.top - host.top - 12 - h / 2 };
+        }
+        const at = hero.figureMode ? hero.aimPoint() : hero.position;
+        const reach = hero.figureMode ? 90 * hero.figureRoot.scale.x : 170 * hero.scale.x;
+        const center = this.stage.toScreen(at);
+        const edge = this.stage.toScreen(at.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), reach));
         const half = this.ui.power.offsetWidth / 2;
         const x = edge.x + 70 + half + 8 > this.stage.width ? 2 * center.x - edge.x - 70 : edge.x + 70;
         return { x, y: center.y };
@@ -1993,12 +2133,12 @@ export class Game {
         for (const side of [this.player, this.opponent]) {
             const hero = side.hero;
             const a = hero.anchorPose;
-            // In the stadium the hero's figure is the hero (figure mode): its nameplate floats over the player's head,
-            // and in front of the opponent's figure (over its head would leave the top of the screen in the arena view).
-            // The field view looks over the player's shoulder: the figure steps off its podium, clear of the opponent,
-            // and its nameplate stays where the medallion was. Without a figure the medallion stands on the podium (44
-            // high; 125 is half its height at scale 1).
-            // Rising into figure mode (w) and stepping aside ease in and out, so the nameplate and the figure glide.
+            // In the stadium the hero's figure is the hero (figure mode). Nothing is drawn over it: its name and numbers
+            // are on a plaque in the HUD (ui.setPlaque), and the hero's group (its medallion hidden) marks the spot over
+            // the figure's head where its damage numbers and emotes appear. The field view looks over the player's
+            // shoulder: the player's figure stands smaller, in the sand between the board and the hand. Without a figure the medallion stands on
+            // the podium (44 high; 125 is half its height at scale 1). Rising into figure mode (w) and dropping off the podium
+            // ease in and out, so the figure glides.
             hero.setFigureMode(blend > 0.5);
             const w = hero.figure ? THREE.MathUtils.smoothstep(blend, 0.35, 0.65) : 0;
             // (Not on a phone: its field view stands far back, where the figure stays on its podium.)
@@ -2007,27 +2147,15 @@ export class Game {
             const aside = hero.asideT;
             const medallionY = 56 + 125 * (hero.viewScale ?? 0.85);
             const onPodium = hero.podium.position.clone();
-            // On a phone the field view looks low across the board: over the player's head the plate would cover the
-            // opponent's front row, so it goes in front of the figure there too.
-            const inFront = !side.isPlayer || (this.stage.portrait && !!this.stage.viewInfo.playerHero) ? 1 : 0;
-            hero.frontT = (hero.frontT ?? inFront) + (inFront - (hero.frontT ?? inFront)) * Math.min(1, dt / 300);
-            const overHead = THREE.MathUtils.lerp(44 + FIGURE_HEIGHT + 60, medallionY, aside);
-            // Over the head the plate's lower edge goes behind the figure (in front of it or stepped aside, it does not).
-            hero.plateBehind.value = (1 - hero.frontT) * (1 - aside);
-            onPodium.setY(THREE.MathUtils.lerp(medallionY, THREE.MathUtils.lerp(overHead, 120, hero.frontT), w)).z += 150 * w * hero.frontT;
+            onPodium.z -= FIELD_FIGURE_FORWARD * aside * w;
+            const tall = FIGURE_HEIGHT * (1 - FIELD_FIGURE_SHRINK * aside) * (side.isPlayer && this.stage.portrait ? PORTRAIT_PLAYER_FIGURE : 1);
+            onPodium.setY(THREE.MathUtils.lerp(medallionY, 44 * (1 - aside) + tall + 30, w));
             hero.position.lerpVectors(a.position, onPodium, blend);
             // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
             const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
             hero.viewScale = (hero.viewScale ?? viewScale) + (viewScale - (hero.viewScale ?? viewScale)) * Math.min(1, dt / 300);
-            // A nameplate is smaller than the medallion: on a phone it needs the room to stay readable.
-            const plate = this.stage.portrait ? 1 + 0.7 * w : 1;
-            hero.scale.setScalar(a.scale + (hero.viewScale * plate - a.scale) * blend);
+            hero.scale.setScalar(a.scale + (hero.viewScale - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
-            // A far nameplate grows to stay readable (at least MIN_PLATE_PX wide); a near one keeps its size.
-            const camera = this.stage.camera;
-            const pxPerUnit = this.stage.height / (2 * camera.position.distanceTo(hero.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-            const grow = THREE.MathUtils.clamp(Math.min(MIN_PLATE_PX, this.stage.width * 0.42) / (PLATE_W * hero.scale.x * pxPerUnit), 1, 3);
-            hero.nameplate.scale.setScalar(grow * (hero._highlight ? 1.08 : 1));
             hero.podium.scale.y = Math.max(0.001, blend);
             hero.podium.visible = blend > 0.001;
             // The figure rises with the podium and faces between the board's middle and the camera; it lunges at what it
@@ -2035,13 +2163,18 @@ export class Game {
             const figure = hero.figureRoot;
             figure.visible = blend > 0.001 && !!hero.figure;
             figure.position.copy(hero.podium.position).setY(44 * blend * (1 - aside)).add(hero.lunge);
-            figure.position.x -= 250 * blend * aside;
-            figure.scale.setScalar(Math.max(0.001, blend * (1 - 0.25 * aside)));
+            figure.position.z -= FIELD_FIGURE_FORWARD * blend * aside;
+            figure.scale.setScalar(Math.max(0.001, blend * (1 - FIELD_FIGURE_SHRINK * aside) * (side.isPlayer && this.stage.portrait ? PORTRAIT_PLAYER_FIGURE : 1)));
             // Toward the middle, turned a little to the camera: half the camera's pull never cancels the middle's.
             const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
             const toCamera = this.stage.camera.position.clone().sub(figure.position).setY(0).normalize();
             const facing = toCenter.addScaledVector(toCamera, 0.5);
             figure.rotation.y = Math.atan2(facing.x, facing.z);
+            // The figure's pointer capsule stays where it stands while it lunges: the hero is not a moving target.
+            figure.updateMatrixWorld(true);
+            const standing = figure.position.clone().sub(hero.lunge);
+            standing.y += FIGURE_HEIGHT / 2 * figure.scale.y;
+            hero.collider.position.copy(figure.worldToLocal(standing));
             // The hero whose turn it is stands in a brighter ring.
             hero.turnLit = this.active && !this.ended && !!this.current && this.heroOf(this.current) === hero;
             hero.update(now);
@@ -2066,8 +2199,36 @@ export class Game {
         }
         this.arena.setContacts(contacts);
         // HTML overlays that follow the 3D scene: the turn timer under the End Turn sign, the hero power button.
-        const fuse = this.rows ? this.rows.fuse : this.stage.classicToScreen(1610, this.spectator ? 520 : 600);
+        const fuse = this.rows ? this.rows.fuse : this.stage.classicToScreen(this.signPoint().x, this.signPoint().y + (this.spectator ? -30 : 50));
         this.ui.updateTimer(now, fuse.x, fuse.y, fuse.ax);
+        if (this.active) {
+            for (const side of [this.player, this.opponent]) {
+                const hero = side.hero;
+                const key = side.isPlayer ? 'player' : 'opponent';
+                const info = hero.figureMode && !this.ended ? {
+                    name: hero.info.name, health: hero.info.health, maxHealth: hero.info.maxHealth, attack: hero.info.attack,
+                    armor: hero.info.armor, ready: hero.ready, fallen: !!hero.dead, turn: !!hero.turnLit, target: !!hero._highlight,
+                } : null;
+                const plaqueKey = JSON.stringify(info);
+                if (hero._plaqueKey !== plaqueKey) {
+                    hero._plaqueKey = plaqueKey;
+                    this.ui.setPlaque(key, info);
+                }
+                // Portrait: the player's plaque starts the row above the hand, the opponent's goes in the row of its hand,
+                // on the side away from its figure (the cinematic view sways it from side to side).
+                if (info && this.rows) {
+                    if (!side.isPlayer) {
+                        const x = this.stage.toScreen(hero.position).x / this.stage.width;
+                        if (x < 0.42) hero.plaqueRight = true;
+                        else if (x > 0.58) hero.plaqueRight = false;
+                    }
+                    const at = side.isPlayer ? this.rows.plaque : hero.plaqueRight ? this.rows.opponentPlaqueRight : this.rows.opponentPlaque;
+                    this.ui.placePlaque(key, at.x, at.y, at.ax ?? 0, 0.5);
+                } else if (info) {
+                    this.ui.placePlaque(key, null);
+                }
+            }
+        }
         if (this.active && !this.spectator) {
             const anchor = this.powerAnchor();
             this.ui.placePower(anchor.x, anchor.y);
@@ -2093,9 +2254,9 @@ export class Game {
 
     /**
      * Landscape: the messages (toasts, the targeting hint) go over the middle of the board, moved up or down as little
-     * as needed to stay clear of the player's hero, hero power, status and hand, End Turn, the battle log and the chat,
-     * and if there is room also of the opponent's hero, wherever the camera puts them. Portrait keeps them over the
-     * opponent's hand (game3d.css).
+     * as needed to stay clear of the turn banner, the player's hero, plaque, hero power, status and hand, End Turn, the
+     * battle log and the chat, and if there is room also of the opponent's hero and plaque, wherever the camera puts
+     * them. Portrait keeps them over the opponent's hand (game3d.css).
      */
     placeToasts() {
         const box = this.ui.toasts;
@@ -2113,8 +2274,9 @@ export class Game {
             return r && r.width ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
         };
         const keep = [this.player.hero, ...this.player.hand.values(), this.sign.visible ? this.sign : null].map(o => this.screenRect(o))
-            .concat([this.ui.power, this.ui.playerStatus, this.ui.log, this.ui.chat].map(dom));
-        const rather = [this.screenRect(this.opponent.hero), dom(this.ui.opponentStatus)];
+            .concat([this.ui.power, this.ui.playerStatus, this.ui.plaques.player?.box, this.ui.log, this.ui.chat,
+                this.ui.currentBanner?.isConnected ? this.ui.currentBanner : null].filter(Boolean).map(dom));
+        const rather = [this.screenRect(this.opponent.hero), dom(this.ui.opponentStatus), this.ui.plaques.opponent ? dom(this.ui.plaques.opponent.box) : null];
         const free = (y, rects) => y >= 8 && y + h <= height - 8 && rects.every(r => !r || r.x >= x1 || r.x + r.w <= x0 || r.y >= y + h || r.y + r.h <= y);
         const mid = this.stage.toScreen(toWorld(960, 560)).y - h / 2;
         const nearest = rects => {

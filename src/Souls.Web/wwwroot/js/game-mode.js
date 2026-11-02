@@ -68,6 +68,14 @@
     var api = {
         mode: currentMode(),
 
+        /** Switches to the other client ('classic' or '3d'): saved, and the page reloads into it (a running game goes on). */
+        switchTo: function (mode) {
+            if (api.mode === mode) return;
+            setMode(mode);
+            // Drop ?mode= so the saved choice wins after the reload.
+            window.location.replace(window.location.pathname);
+        },
+
         /** Called by a client when a game starts (and kept fresh while it runs). */
         markInGame: function (normal) {
             writeInGame(normal);
@@ -135,6 +143,11 @@
         svg.appendChild(use);
         home.appendChild(svg);
         bar.appendChild(home);
+        // The 3D client offers the switch in its settings (behind the gear), so only the way home stays up here.
+        if (api.mode === '3d') {
+            document.body.appendChild(bar);
+            return;
+        }
 
         var seg = document.createElement('div');
         seg.className = 's-seg';
@@ -146,12 +159,7 @@
             button.textContent = option[1];
             button.setAttribute('aria-pressed', String(api.mode === option[0]));
             if (api.mode === option[0]) button.className = 'active';
-            button.addEventListener('click', function () {
-                if (api.mode === option[0]) return;
-                setMode(option[0]);
-                // Drop ?mode= so the saved choice wins after the reload.
-                window.location.replace(window.location.pathname);
-            });
+            button.addEventListener('click', function () { api.switchTo(option[0]); });
             seg.appendChild(button);
         });
         bar.appendChild(seg);

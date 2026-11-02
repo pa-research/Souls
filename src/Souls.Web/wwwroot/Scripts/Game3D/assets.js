@@ -22,9 +22,6 @@ export const Images = {
     opponentFrame: IMG + 'Player/opponent_frame.png',
     playerNone: IMG + 'Player/player_none.png',
     mana: IMG + 'Player/player_mana.png',
-    // The sign is lettered: the picture in the page's language (art.* in the string tables).
-    endTurn: IMG + window.SoulsL10n.t('art.endTurn'),
-    endTurnDisabled: IMG + window.SoulsL10n.t('art.endTurnDisabled'),
     target: IMG + 'target.png',
     particle: IMG + 'particle.png',
     practice: IMG + 'practice_game.png',
@@ -86,7 +83,7 @@ export function textureFrom(image, { repeat = false } = {}) {
 export async function preload(cardPortraits, onProgress) {
     const urls = [
         Images.arena, Images.cardBack, Images.cardSlot, Images.cardError, Images.playerFrame, Images.opponentFrame,
-        Images.playerNone, Images.mana, Images.endTurn, Images.endTurnDisabled, Images.target, Images.particle,
+        Images.playerNone, Images.mana, Images.target, Images.particle,
         ...Object.values(Images.raceTextures),
         ...[0, 1, 2, 3, 4].map(Images.heroPortrait),
         ...cardPortraits.map(c => c.portrait),

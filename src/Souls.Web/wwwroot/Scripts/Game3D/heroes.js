@@ -1,7 +1,7 @@
 // Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it, and in the
 // stadium views the hero itself: an animated figure of its class on its podium (Content/Models/Heroes, made with Tripo).
 import * as THREE from '/lib/three/three.webgpu.js';
-import { cameraProjectionMatrix, float, length, mix, positionView, step, texture, uniform, uv, vec4 } from '/lib/three/three.tsl.js';
+import { float, texture } from '/lib/three/three.tsl.js';
 import { GLTFLoader } from '/lib/three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '/lib/three/addons/utils/SkeletonUtils.js';
 import { Images, loadImage } from './assets.js';
@@ -19,14 +19,7 @@ const MANA_MISSING = new THREE.Color(0xe52a2a);
 /** How tall a hero's figure stands on its podium (a board card is 210 long). */
 export const FIGURE_HEIGHT = 300;
 
-// The nameplate that stands in for the medallion over a figure: name, health bar, attack, health and armor.
-export const PLATE_W = 300;
-export const PLATE_H = 104;
 const READY = new THREE.Color(0x2ecc71);
-// How far from the camera the nameplate is drawn (just past the near plane: over everything), and how far in front of and
-// behind its own spot its rows go when its lower edge is behind the figure (more than the figure is thick).
-const PLATE_FRONT = 20;
-const PLATE_DEPTH = FIGURE_HEIGHT * 0.4;
 
 // One load per class; each hero plays a copy (both heroes may be the same class).
 const figures = new Map();
@@ -122,8 +115,9 @@ export class Hero3D extends THREE.Group {
         this.ring = glow;
 
         // The figure stands on the podium (the game places and turns it); none until its model has loaded. Once it
-        // stands there (figure mode, see setFigureMode) it is the hero: the medallion gives way to a nameplate, an
-        // invisible capsule around the figure takes the pointer, and the mana gems circle the podium's rim.
+        // stands there (figure mode, see setFigureMode) it is the hero: the medallion gives way to the figure (its name and
+        // numbers go to a plaque in the HUD, ui.js), an invisible capsule around it takes the pointer, and the mana gems
+        // circle the podium's rim.
         this.figureRoot = new THREE.Group();
         this.figureRoot.name = this.name + '-figure';
         this.figure = null;
@@ -136,28 +130,6 @@ export class Hero3D extends THREE.Group {
         this.collider.userData.hero = this;
         this.figureRoot.add(this.collider);
 
-        this.plateCanvas = document.createElement('canvas');
-        this.plateCanvas.width = PLATE_W * PX;
-        this.plateCanvas.height = PLATE_H * PX;
-        this.plateCanvas.getContext('2d', { willReadFrequently: true });
-        this.plateTexture = new THREE.CanvasTexture(this.plateCanvas);
-        this.plateTexture.colorSpace = THREE.SRGBColorSpace;
-        this.plateTexture.anisotropy = 8;
-        const plateMaterial = new THREE.MeshBasicNodeMaterial({ map: this.plateTexture, transparent: true, depthWrite: false, toneMapped: false });
-        // Each vertex moves along its line of sight, so the plate looks the same on the screen. Drawn just past the
-        // camera's near plane it stays over everything (beams, bursts, the board). As plateBehind rises to 1 (over the
-        // player's head) it straddles its own figure instead: its top rows come forward of the figure and its two bottom
-        // rows go back past it, so the head covers the frame's lower edge but never the name or the health bar.
-        this.plateBehind = uniform(0);
-        const distance = length(positionView);
-        const front = float(PLATE_FRONT).div(distance);
-        const depth = mix(float(-PLATE_DEPTH), float(PLATE_DEPTH), step(uv().y, 0.15)).div(distance).add(1);
-        plateMaterial.vertexNode = cameraProjectionMatrix.mul(vec4(positionView.mul(mix(front, depth, this.plateBehind)), 1));
-        this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H, 1, 10), plateMaterial);
-        this.nameplate.renderOrder = 19; // over beams and bursts, under floating numbers
-        this.nameplate.visible = false;
-        this.nameplate.userData.hero = this;
-        this.add(this.nameplate);
 
         this.rimGems = this.gems.map((gem, i) => {
             const a = (i / this.gems.length) * Math.PI * 2;
@@ -177,14 +149,12 @@ export class Hero3D extends THREE.Group {
         if (on === this.figureMode) return;
         this.figureMode = on;
         this.body.visible = !on;
-        this.nameplate.visible = on;
-        this.repaintPlate();
     }
 
-    get pickables() { return this.figureMode ? [this.collider, this.nameplate] : [this.face, this.plate]; }
+    get pickables() { return this.figureMode ? [this.collider] : [this.face, this.plate]; }
 
     /** What the hero's box on the screen is measured from (tooltips, keep-clear areas): the figure or the medallion. */
-    get screenTarget() { return this.figureMode ? [this.collider, this.nameplate] : this.face; }
+    get screenTarget() { return this.figureMode ? this.collider : this.face; }
 
     /** Where blows, beams and spells aim: the figure's chest, or the medallion. */
     aimPoint() {
@@ -195,7 +165,7 @@ export class Hero3D extends THREE.Group {
     /** Pointer over the hero, or a valid target: the figure lights up, or the medallion grows. */
     setHighlight(on, color = 0xffe08a) {
         this._highlight = on ? new THREE.Color(color) : null;
-        this.body.scale.setScalar(on && !this.figureMode ? 1.1 : 1); // the nameplate grows in Game.update
+        this.body.scale.setScalar(on && !this.figureMode ? 1.1 : 1);
         this.tint(this._highlight, 0.35);
     }
 
@@ -300,12 +270,9 @@ export class Hero3D extends THREE.Group {
         this.repaint();
     }
 
-    /** A pulsing glow on the plate (or the podium's rim and the nameplate): the hero can attack now. */
+    /** A glow on the plate (or the podium's rim; the HUD plaque shows it too): the hero can attack now. */
     setReady(on) {
-        if (this.ready !== on) {
-            this.ready = on;
-            this.repaintPlate();
-        }
+        this.ready = on;
         if (!on) {
             this.plate.material.emissive.set(0x000000);
             this.plate.material.emissiveIntensity = 1;
@@ -315,7 +282,6 @@ export class Hero3D extends THREE.Group {
     }
 
     repaint() {
-        this.repaintPlate();
         const key = JSON.stringify(['name', 'attack', 'health', 'type', 'armor', 'maxHealth'].map(k => this.info[k]));
         if (key === this._painted) return;
         this._painted = key;
@@ -418,144 +384,18 @@ export class Hero3D extends THREE.Group {
         step();
     }
 
-    /** The nameplate: name, health bar, attack orb, health heart, armor shield; green when ready, grey when fallen. */
-    repaintPlate() {
-        if (!this.plateCanvas) return;
-        const key = JSON.stringify([this.info.name, this.info.attack, this.info.health, this.info.maxHealth, this.info.armor, this.ready, this.dead, this.figureMode]);
-        if (key === this._plated) return;
-        this._plated = key;
-        const g = this.plateCanvas.getContext('2d');
-        g.setTransform(PX, 0, 0, PX, 0, 0);
-        g.clearRect(0, 0, PLATE_W, PLATE_H);
-        g.save();
-        if (this.dead) g.filter = 'grayscale(1) brightness(0.6)';
-
-        // Panel: dark glass in a gold frame, glowing green while the hero can attack.
-        const panel = (x, y, w, h, r) => {
-            g.beginPath();
-            g.moveTo(x + r, y);
-            g.arcTo(x + w, y, x + w, y + h, r);
-            g.arcTo(x + w, y + h, x, y + h, r);
-            g.arcTo(x, y + h, x, y, r);
-            g.arcTo(x, y, x + w, y, r);
-            g.closePath();
-        };
-        if (this.ready && !this.dead) {
-            g.shadowColor = 'rgba(46, 204, 113, 0.95)';
-            g.shadowBlur = 16;
-        }
-        panel(40, 30, 220, 62, 14);
-        const glass = g.createLinearGradient(0, 30, 0, 92);
-        glass.addColorStop(0, 'rgba(38, 28, 20, 0.94)');
-        glass.addColorStop(1, 'rgba(12, 9, 7, 0.94)');
-        g.fillStyle = glass;
-        g.fill();
-        g.shadowBlur = 0;
-        g.lineWidth = 3;
-        const gold = g.createLinearGradient(0, 30, 0, 92);
-        gold.addColorStop(0, '#f5d27a');
-        gold.addColorStop(1, '#8a6420');
-        g.strokeStyle = this.ready && !this.dead ? '#5cf08f' : gold;
-        g.stroke();
-
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.font = 'bold 21px Georgia, "Times New Roman", serif';
-        g.fillStyle = '#f3e3b5';
-        g.fillText(String(this.info.name ?? ''), PLATE_W / 2, 52, 150);
-
-        // Health bar under the name.
-        const health = Math.max(0, Number(this.info.health) || 0);
-        const max = Math.max(health, Number(this.info.maxHealth) || health || 1);
-        panel(78, 68, 144, 12, 6);
-        g.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        g.fill();
-        if (health > 0) {
-            panel(80, 70, 140 * health / max, 8, 4);
-            const bar = g.createLinearGradient(80, 0, 220, 0);
-            bar.addColorStop(0, '#ff5a4a');
-            bar.addColorStop(1, '#b3121f');
-            g.fillStyle = bar;
-            g.fill();
-        }
-
-        const number = (value, x, y, size) => {
-            g.font = `bold ${size}px Arial, Helvetica, sans-serif`;
-            g.lineJoin = 'round';
-            g.lineWidth = 6;
-            g.strokeStyle = '#000';
-            g.strokeText(String(value), x, y + 1);
-            g.fillStyle = '#fff';
-            g.fillText(String(value), x, y + 1);
-        };
-        // Attack: a green orb on the left.
-        const orb = g.createRadialGradient(36, 54, 4, 40, 60, 30);
-        orb.addColorStop(0, '#a6f07a');
-        orb.addColorStop(0.6, '#3c9a22');
-        orb.addColorStop(1, '#174d0c');
-        g.beginPath();
-        g.arc(40, 61, 29, 0, Math.PI * 2);
-        g.fillStyle = orb;
-        g.fill();
-        g.lineWidth = 3;
-        g.strokeStyle = gold;
-        g.stroke();
-        number(this.info.attack, 40, 61, 28);
-
-        // Health: a red heart on the right.
-        const hx = 260, hy = 62;
-        g.beginPath();
-        g.moveTo(hx, hy + 26);
-        g.bezierCurveTo(hx - 34, hy + 2, hx - 30, hy - 26, hx, hy - 12);
-        g.bezierCurveTo(hx + 30, hy - 26, hx + 34, hy + 2, hx, hy + 26);
-        g.closePath();
-        const heart = g.createRadialGradient(hx - 8, hy - 10, 4, hx, hy, 32);
-        heart.addColorStop(0, '#ff8f80');
-        heart.addColorStop(0.6, '#d42032');
-        heart.addColorStop(1, '#6e0a12');
-        g.fillStyle = heart;
-        g.fill();
-        g.lineWidth = 3;
-        g.strokeStyle = gold;
-        g.stroke();
-        number(this.info.health, hx, hy - 1, 26);
-
-        // Armor: a steel shield over the heart's corner.
-        if (Number(this.info.armor) > 0) {
-            const x = 228, y = 34;
-            g.beginPath();
-            g.moveTo(x, y - 17);
-            g.quadraticCurveTo(x + 15, y - 15, x + 16, y - 11);
-            g.quadraticCurveTo(x + 16, y + 7, x, y + 18);
-            g.quadraticCurveTo(x - 16, y + 7, x - 16, y - 11);
-            g.quadraticCurveTo(x - 15, y - 15, x, y - 17);
-            g.closePath();
-            const steel = g.createLinearGradient(x, y - 17, x, y + 18);
-            steel.addColorStop(0, '#e3ebf3');
-            steel.addColorStop(1, '#46525e');
-            g.fillStyle = steel;
-            g.fill();
-            g.lineWidth = 2;
-            g.strokeStyle = '#111';
-            g.stroke();
-            number(this.info.armor, x, y, 19);
-        }
-        g.restore();
-        this.plateTexture.needsUpdate = true;
-    }
-
-    /** Idle animation: gems bob and spin; a ready hero glows; the figure moves. */
+    /** Every frame: gems bob and spin; a ready hero glows; the figure moves. */
     update(now) {
         if (this.mixer) this.mixer.update(Math.min(0.1, (now - (this._lastNow ?? now)) / 1000));
         this._lastNow = now;
         if (this.ready) {
             this.plate.material.emissive.set(0x2ecc71);
-            this.plate.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(now * 0.005);
+            this.plate.material.emissiveIntensity = 0.45;
             this.rim.material.emissive.copy(READY);
-            this.rim.material.emissiveIntensity = 0.6 + 0.5 * Math.sin(now * 0.005);
+            this.rim.material.emissiveIntensity = 0.8;
         }
-        // The ring of the hero whose turn it is glows brighter and breathes.
-        this.ring.material.opacity = this.turnLit ? 0.65 + 0.2 * Math.sin(now * 0.004) : 0.3;
+        // The ring of the hero whose turn it is is brighter.
+        this.ring.material.opacity = this.turnLit ? 0.7 : 0.3;
         // The mana gems circle the podium's rim in figure mode, growing and colouring with the medallion's.
         this.rimGems.forEach((rimGem, i) => {
             const gem = this.gems[i];
