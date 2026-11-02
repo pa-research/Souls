@@ -399,7 +399,7 @@ export class Hero3D extends THREE.Group {
                 return;
             }
             material.color.set(n % 2 ? color : 0xffffff);
-            this.tint(n % 2 ? glow : this._highlight, n % 2 ? 0.3 : 0.35);
+            this.tint(n % 2 ? glow : this._highlight, n % 2 ? 0.2 : 0.35);
             tweens.wait(110).then(step);
         };
         step();

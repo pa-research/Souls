@@ -1325,10 +1325,11 @@ export class Game {
 
     textAbove(obj, text, color, size = 90) {
         if (obj instanceof Hero3D && obj.figureMode) {
-            // Over the nameplate, clear of its name and health bar.
+            // Just over the nameplate, clear of its name and health bar; it barely rises (a high point rising toward a
+            // steep camera drifts far up the screen).
             const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
             const plate = obj.scale.y * obj.nameplate.scale.y;
-            this.effects.floatText(text, obj.position.clone().addScaledVector(up, (PLATE_H / 2 + 45) * plate), color, size);
+            this.effects.floatText(text, obj.position.clone().addScaledVector(up, (PLATE_H / 2 + size * 0.45) * plate), color, size, 0.2);
             return;
         }
         const point = this.targetPoint(obj);
