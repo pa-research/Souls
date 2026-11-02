@@ -4,7 +4,7 @@
 // all numbers. The same code plays live games, spectated games and recorded replays.
 import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
-import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
+import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES, DIALOGUE_LINES, VOICED_DIALOGUE } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W, CARD_H } from './cards.js';
 import { Hero3D, FIGURE_HEIGHT } from './heroes.js';
 import { slotPosition } from './arena.js';
@@ -40,6 +40,11 @@ const FIELD_FIGURE_SHRINK = 0.5;
 const FIELD_FIGURE_FORWARD = 160;
 
 const BOARD_HEIGHT = 2;
+// The heroes' reactions in play (Game.dialogue): at most one per this many ms, and this many a game; a big hit is this
+// much damage or more.
+const REACTION_GAP = 25000;
+const MAX_REACTIONS = 6;
+const BIG_HIT = 4;
 const FACE_DOWN_FLAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 const TURN_AROUND = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 const SCREEN_AXIS = new THREE.Vector3(0, 0, 1);
@@ -983,10 +988,29 @@ export class Game {
         if (url) sound.say(side.isPlayer ? 'player' : 'opponent', url, 1, maxDelay);
     }
 
+    /**
+     * A hero line with its words in the hero's speech bubble (voice.<type>.<line>), spoken where it has a voice.
+     * Reactions are rationed (REACTION_GAP, MAX_REACTIONS); muted emotes mute the opponent's lines too.
+     */
+    dialogue(side, line, { reaction = true, maxDelay } = {}) {
+        if (!this.active || this.ended || (side === this.opponent && this.emotesMuted)) return;
+        const type = Number(side.hero.info.type), key = `voice.${type}.${line}`;
+        const words = t(key);
+        if (!type || words === key) return;
+        const now = performance.now();
+        if (reaction) {
+            if (this.reactions >= MAX_REACTIONS || now - this.lastReaction < REACTION_GAP) return;
+            this.reactions++;
+            this.lastReaction = now;
+        }
+        this.ui.emote(side.isPlayer ? 'player' : 'opponent', words);
+        this.speak(side, line, maxDelay);
+    }
+
     /** Loads both heroes' voice lines in the background, so they play without delay. */
     loadVoices() {
         for (const side of [this.player, this.opponent]) {
-            for (const line of VOICE_LINES) {
+            for (const line of VOICE_LINES.concat(DIALOGUE_LINES)) {
                 const url = voiceLine(side.hero.info.type, line);
                 if (url) sound.loadVoice(url);
             }
@@ -1136,6 +1160,7 @@ export class Game {
         if (side.isPlayer) this.player.hero.previewCost(null);
         const rarity = Number(data.rarity) || 0;
         if (rarity >= 3) this.rareEntrance(card, rarity, side);
+        if (rarity >= 4) tweens.wait(900).then(() => this.dialogue(side, 'legendary'));
         return card.moveTo(this.boardPose(side, card), side.isPlayer ? 380 : 750, Ease.cubicOut, { arc: side.isPlayer ? 40 : 220 }).then(() => {
             if (rarity === 4) {
                 tweens.hitStop(140);
@@ -1476,6 +1501,7 @@ export class Game {
                     this.flameJets(0.8, 2);
                     this.crowd.gasp();
                 }
+                if (e.amount >= BIG_HIT && Number(e.health) > 0) tweens.wait(500).then(() => this.dialogue(target === this.player.hero ? this.player : this.opponent, 'hit'));
             }
         } else {
             target.setData({ health: e.health, armor: e.armor });
@@ -1703,6 +1729,7 @@ export class Game {
         const color = POWER_COLORS[e.power] ?? 0xffd34d;
         sound.play('hero_power', 0.75);
         hero.play('cast');
+        this.dialogue(hero === this.player.hero ? this.player : this.opponent, 'power');
         this.textAbove(hero, serverText(e, 'name') || t('g3d.heroPower'), '#ffd98a', 60);
         tweens.to(hero.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 180, Ease.backOut).then(() => tweens.to(hero.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut));
         if (!target || target === hero) {
@@ -1789,8 +1816,13 @@ export class Game {
         sound.play('versus', 0.9);
         this.ui.showVersus(this.player.hero.info, this.opponent.hero.info);
         this.loadVoices();
-        setTimeout(() => this.speak(this.player, 'intro', 2500), 900);
-        setTimeout(() => this.speak(this.opponent, 'intro', 2500), 3000);
+        // The heroes size each other up: the opponent first, then the player's hero answers, each with its line to the
+        // other's class (its intro until those are voiced).
+        this.reactions = 0;
+        this.lastReaction = -Infinity;
+        const line = side => (VOICED_DIALOGUE.has('vs1') ? `vs${Number((side.isPlayer ? this.opponent : this.player).hero.info.type)}` : 'intro');
+        setTimeout(() => this.dialogue(this.opponent, line(this.opponent), { reaction: false, maxDelay: 2500 }), 900);
+        setTimeout(() => this.dialogue(this.player, line(this.player), { reaction: false, maxDelay: 2500 }), 3700);
         this.cheer(1);
         this.arena.wave();
         tweens.wait(700).then(() => {
@@ -1871,7 +1903,11 @@ export class Game {
             const info = side.hero.info;
             const health = Number(info.health);
             const low = this.active && health > 0 && health <= Math.max(8, Math.round((Number(info.maxHealth) || 30) * 0.3));
-            if (low && side.healthy) this.speak(side, 'low');
+            if (low && side.healthy) {
+                this.dialogue(side, 'low', { reaction: false });
+                // ...and the other hero smells blood.
+                tweens.wait(2600).then(() => this.dialogue(side === this.player ? this.opponent : this.player, 'finish'));
+            }
             side.healthy = health > 0 && !low;
             if (side.isPlayer) this.ui.setDanger(low);
         }
@@ -2201,6 +2237,12 @@ export class Game {
         // HTML overlays that follow the 3D scene: the turn timer under the End Turn sign, the hero power button.
         const fuse = this.rows ? this.rows.fuse : this.stage.classicToScreen(this.signPoint().x, this.signPoint().y + (this.spectator ? -30 : 50));
         this.ui.updateTimer(now, fuse.x, fuse.y, fuse.ax);
+        // A turn running out: the hero who waits says so, once a turn.
+        const left = this.ui.timerEndsAt ? this.ui.timerEndsAt - now : Infinity;
+        if (!this.spectator && left < 15000 && left > 0 && this.hurried !== this.ui.timerEndsAt) {
+            this.hurried = this.ui.timerEndsAt;
+            this.dialogue(this.yourTurn ? this.opponent : this.player, 'hurry');
+        }
         if (this.active) {
             for (const side of [this.player, this.opponent]) {
                 const hero = side.hero;

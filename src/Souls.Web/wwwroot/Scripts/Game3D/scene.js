@@ -94,6 +94,8 @@ function safeArea(probe) {
 }
 
 const QUALITIES = ['low', 'medium', 'high'];
+// ?render=0: draw nothing (Stage.render), for browser tests that check the layout and the game, not the picture.
+const NO_RENDER = new URLSearchParams(location.search).get('render') === '0';
 // The level the frame-rate watch stepped down to on this device; cleared by choosing "Auto" in the settings.
 export const QUALITY_KEY = 'souls3d.quality';
 
@@ -591,6 +593,11 @@ export class Stage {
     }
 
     render(now = performance.now()) {
+        if (NO_RENDER) {
+            // Browser tests on machines without a GPU: the game runs and the scene stays up to date, nothing is drawn.
+            for (const o of [this.scene, this.hudScene, this.camera, this.hudCamera]) o.updateMatrixWorld();
+            return;
+        }
         this.checkFrameRate(now);
         const r = this.renderer;
         r.setRenderTarget(this.target);

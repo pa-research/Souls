@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+  # The full game (rules3d.js) plays nightly; pull requests and pushes run the quick browser checks.
+  schedule:
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -64,13 +67,20 @@ jobs:
           touch deploy/compose/secrets/postgres-password deploy/compose/secrets/ConnectionStrings__Souls deploy/compose/secrets/Souls__Admin__Password
           docker compose config --quiet
 
-  # Plays real games in headless Chromium against the Compose stack (tests/e2e). Fails when a client breaks.
+  # Headless Chromium against the Compose stack (tests/e2e), one job per script so they run side by side: the quick
+  # checks on pull requests and pushes, a full game against the bot nightly and on demand. Fails when a client breaks.
   e2e:
-    name: Browser tests
+    name: Browser tests (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[{"name":"rules3d.js","args":"1"}]' || '[{"name":"ui_capture.js","args":""},{"name":"classic_ui.js","args":""},{"name":"main_layout.js","args":""},{"name":"dialogue.js","args":""}]') }}
     env:
       COMPOSE_FILE: compose.yaml:tests/e2e/compose.ci.yaml
+      # The 3D client checks layout and play, not pixels: it draws nothing on the GPU-less runner (?render=0).
+      E2E_NORENDER: "1"
     steps:
       - uses: actions/checkout@v7
 
@@ -113,20 +123,11 @@ jobs:
           docker compose up -d --no-build
           curl -fsSk --retry 30 --retry-all-errors --retry-delay 2 -o /dev/null https://localhost/
 
-      - name: ui_capture.js
+      - name: ${{ matrix.suite.name }}
         working-directory: tests/e2e
-        run: node ui_capture.js https://localhost out/ui_capture
-
-      - name: classic_ui.js
-        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
-        working-directory: tests/e2e
-        run: node classic_ui.js https://localhost out/classic_ui
-
-      - name: rules3d.js
-        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
-        working-directory: tests/e2e
-        # Normal bot: the Hard bot sometimes wins before the script has played a card (the Hard bot is covered by the .NET tests).
-        run: node rules3d.js https://localhost out/rules3d 1
+        # (rules3d.js: the Normal bot; the Hard bot sometimes wins before the script has played a card, and the Hard
+        # bot is covered by the .NET tests.)
+        run: node ${{ matrix.suite.name }} https://localhost out/${{ matrix.suite.name }} ${{ matrix.suite.args }}
 
       - name: Compose logs
         if: failure()
@@ -135,7 +136,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: e2e-screenshots
+          name: e2e-screenshots-${{ matrix.suite.name }}
           path: tests/e2e/out
           if-no-files-found: ignore
 

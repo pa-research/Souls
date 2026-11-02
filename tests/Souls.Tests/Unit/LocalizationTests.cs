@@ -171,7 +171,7 @@ public partial class LocalizationTests
     private static readonly Regex[] DynamicKeys =
     [
         new(@"^(ability|race|power)\.\d+\.(name|text)$"), new(@"^emote\.\d+$"), new(@"^flavor\.\d+$"), new(@"^quest\."), new(@"^tier\."),
-        new(@"^rarity\."), new(@"^deck\.maxCopies\."), new(@"^close\."), new(@"^difficulty\."),
+        new(@"^rarity\."), new(@"^deck\.maxCopies\."), new(@"^close\."), new(@"^difficulty\."), new(@"^voice\.\d+\.\w+$"),
     ];
 
     /// <summary>Every key of the game tables is used somewhere by its literal name (or belongs to a family built from ids).</summary>

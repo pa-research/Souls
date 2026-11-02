@@ -180,6 +180,8 @@ function exposeTestHooks(stage, game, ui) {
         hoveredRect: () => game.screenRect(game.hovered),
         heroRect: (opponent = false) => game.screenRect((opponent ? game.opponent : game.player).hero),
         layout: () => ({ portrait: stage.portrait, bands: stage.bands, width: stage.width, height: stage.height }),
+        // Forgets the reactions said so far (Game.dialogue rations them), so a test can trigger one at once.
+        resetReactions: () => { game.reactions = 0; game.lastReaction = -Infinity; },
         // Deals cards into the player's hand (tests fill a hand to check the layout).
         addHand: cards => game.addHandCards(game.player, cards, { deal: false }),
         // Screen rectangles (canvas CSS pixels) of what the main screen lays out: the hand, both boards, both heroes'
