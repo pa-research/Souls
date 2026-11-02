@@ -27,12 +27,16 @@ const READY = new THREE.Color(0x2ecc71);
 // One load per class; each hero plays a copy (both heroes may be the same class).
 const figures = new Map();
 function fetchFigure(type) {
-    if (!figures.has(type)) figures.set(type, new GLTFLoader().loadAsync(`/Content/Models/Heroes/${type}.glb`).catch(() => null));
+    // A failed load is forgotten, so the next hero info tries again.
+    if (!figures.has(type)) figures.set(type, new GLTFLoader().loadAsync(`/Content/Models/Heroes/${type}.glb`).catch(() => { figures.delete(type); return null; }));
     return figures.get(type);
 }
 
 // The figures' animations (tools/heroes/prepare.py names them): idle loops, the others play once.
 const LOOPS = new Set(['idle', 'victory']);
+// The part of a one-shot the game plays, in seconds: Tripo's attack swings at 2.1 s (the game's blow lands 0.32 s after
+// the attack starts) and the cast's hands peak at 1.2 s; the rest of each is a slow wind-down.
+const CUTS = { attack: [1.75, 3.3], cast: [0.6, 2.8] };
 
 function ellipseShape(rx, ry) {
     const shape = new THREE.Shape();
@@ -136,7 +140,7 @@ export class Hero3D extends THREE.Group {
         this.plateTexture.colorSpace = THREE.SRGBColorSpace;
         this.plateTexture.anisotropy = 8;
         this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H),
-            new THREE.MeshBasicMaterial({ map: this.plateTexture, transparent: true, depthWrite: false, toneMapped: false }));
+            new THREE.MeshBasicMaterial({ map: this.plateTexture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
         this.nameplate.renderOrder = 5;
         this.nameplate.visible = false;
         this.nameplate.userData.hero = this;
@@ -167,7 +171,7 @@ export class Hero3D extends THREE.Group {
     get pickables() { return this.figureMode ? [this.collider, this.nameplate] : [this.face, this.plate]; }
 
     /** What the hero's box on the screen is measured from (tooltips, keep-clear areas): the figure or the medallion. */
-    get screenTarget() { return this.figureMode ? this.collider : this.face; }
+    get screenTarget() { return this.figureMode ? [this.collider, this.nameplate] : this.face; }
 
     /** Where blows, beams and spells aim: the figure's chest, or the medallion. */
     aimPoint() {
@@ -178,7 +182,7 @@ export class Hero3D extends THREE.Group {
     /** Pointer over the hero, or a valid target: the figure lights up, or the medallion grows. */
     setHighlight(on, color = 0xffe08a) {
         this._highlight = on ? new THREE.Color(color) : null;
-        if (!this.figureMode) this.body.scale.setScalar(on ? 1.1 : 1);
+        this.body.scale.setScalar(on && !this.figureMode ? 1.1 : 1);
         this.nameplate.scale.setScalar(on ? 1.08 : 1);
         this.tint(this._highlight, 0.35);
     }
@@ -209,7 +213,10 @@ export class Hero3D extends THREE.Group {
         this.mixer = null;
         this.actions = {};
         this.current = null;
-        if (!gltf) return;
+        if (!gltf) {
+            this._figureType = null;
+            return;
+        }
         const figure = cloneSkinned(gltf.scene);
         // Feet on the podium, FIGURE_HEIGHT tall, whatever units the model has.
         const box = new THREE.Box3().setFromObject(figure);
@@ -223,13 +230,23 @@ export class Hero3D extends THREE.Group {
             o.frustumCulled = false; // the bounds are the bind pose's; an animated arm may reach out of them
             // Its own materials: the other hero may be the same class, and each lights up on its own.
             o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone();
+            // The arena has no environment map: metal would only mirror black, so it keeps some of the lights' colour.
+            for (const m of [o.material].flat()) if (m.metalness !== undefined) m.metalness = Math.min(m.metalness, 0.4);
             this.figureMaterials.push(...[o.material].flat());
         });
         this.mixer = new THREE.AnimationMixer(figure);
         for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
         this.figureRoot.add(figure);
         this.figure = figure;
-        if (!this.play('greet')) this.play('idle');
+        if (this.dead) {
+            // It fell before its figure came: lying down already.
+            const death = this.actions.death;
+            if (death) {
+                this.play('death');
+                death.time = death.getClip().duration;
+                this.mixer.update(0);
+            }
+        } else if (!this.play('greet')) this.play('idle');
     }
 
     /**
@@ -240,19 +257,19 @@ export class Hero3D extends THREE.Group {
         const action = this.actions[name];
         if (!action || (this.dead && name !== 'death')) return 0;
         const once = !LOOPS.has(name);
+        const [from, to] = CUTS[name] ?? [0, action.getClip().duration];
         action.reset();
+        action.time = from;
         action.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
         action.clampWhenFinished = once;
         action.play();
         if (this.current && this.current !== action) action.crossFadeFrom(this.current, 0.25, false);
         this.current = action;
-        const ms = action.getClip().duration * 1000;
+        const ms = (to - from) * 1000;
         clearTimeout(this._backToIdle);
         if (once && name !== 'death') this._backToIdle = setTimeout(() => { if (this.current === action) this.play('idle'); }, Math.max(0, ms - 250));
         return ms;
     }
-
-    get pickables() { return [this.face, this.plate]; }
 
     /** Applies the server's hero info (strings: health, attack, mana, name, type; numbers: armor, maxHealth, maxMana). */
     setInfo(info) {

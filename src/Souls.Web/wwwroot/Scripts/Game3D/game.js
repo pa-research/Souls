@@ -313,7 +313,8 @@ export class Game {
     screenRect(obj) {
         if (!obj) return null;
         const camera = obj.parent === this.stage.hud ? this.stage.hudCamera : this.stage.camera;
-        const box = new THREE.Box3().setFromObject(obj === this.sign ? obj.board : obj.screenTarget || obj.front || obj.face || obj, true);
+        const box = new THREE.Box3();
+        for (const part of [].concat(obj === this.sign ? obj.board : obj.screenTarget || obj.front || obj.face || obj)) box.expandByObject(part, true);
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (let i = 0; i < 8; i++) {
             const v = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera);
@@ -1273,10 +1274,10 @@ export class Game {
             if (defender instanceof Hero3D) setTimeout(() => defender.play('hit'), 320);
             tweens.to(attacker.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 200, Ease.backOut);
             if (defender instanceof Hero3D) defender.flash(4);
-            this.effects.beam(attacker.position.clone(), target, 0xffd34d, 900);
+            this.effects.beam(attacker.aimPoint(), target, 0xffd34d, 900);
             await wait(320);
             tweens.to(attacker.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut);
-            this.impact(defender, target, target.clone().sub(attacker.position));
+            this.impact(defender, target, target.clone().sub(attacker.aimPoint()));
             return { finish: () => wait(300) };
         }
         const home = this.boardPose(this.sideOf(attacker), attacker);
@@ -1471,7 +1472,7 @@ export class Game {
         const source = this.resolve(e.src) || this.cardByCid(e.src?.cid) || this.dying.get(e.src?.cid);
         const color = ABILITY_COLORS[e.abilityId] ?? 0xffffff;
         if (!source) return;
-        const at = source instanceof Hero3D ? source.position.clone() : source.position.clone();
+        const at = source instanceof Hero3D ? source.aimPoint() : source.position.clone();
         const label = serverText(e, 'label') || this.rules.abilities[e.abilityId]?.name;
         if (label) this.textAbove(source, label, '#ffd98a', 52);
         switch (e.abilityId) {
@@ -1605,7 +1606,7 @@ export class Game {
         const source = this.cardByCid(e.src);
         const target = this.resolve(e.dst);
         if (!target) return;
-        const from = source ? source.center() : this.heroOf(e.owner).position.clone();
+        const from = source ? source.center() : this.heroOf(e.owner).aimPoint();
         this.crowd.spell('curse');
         await this.effects.projectile(from, this.targetPoint(target), 0x8e44ad, 520, 48);
     }
@@ -1718,7 +1719,7 @@ export class Game {
         sound.play('hero_hit', 0.9, { rate: 0.85 });
         this.crowd.gasp();
         tweens.run(1200, t => { hero.body.rotation.z = t * 0.35; hero.body.position.y = -t * 40; }, Ease.quadIn);
-        this.effects.burst(hero.position.clone(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
+        this.effects.burst(hero.aimPoint(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
         this.effects.shake(30);
     }
 
@@ -1781,7 +1782,7 @@ export class Game {
         if (kind === 'victory') {
             this.flameJets(1.4);
             this.celebrate(14);
-            this.effects.burst(this.opponent.hero.position.clone(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
+            this.effects.burst(this.opponent.hero.aimPoint(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
         } else {
             this.celebrate(kind === 'draw' ? 6 : 3, kind === 'draw' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
@@ -1972,17 +1973,21 @@ export class Game {
             // The field view looks over the player's shoulder: the figure steps off its podium, clear of the opponent,
             // and its nameplate stays where the medallion was. Without a figure the medallion stands on the podium (44
             // high; 125 is half its height at scale 1).
+            // Rising into figure mode (w) and stepping aside ease in and out, so the nameplate and the figure glide.
             hero.setFigureMode(blend > 0.5);
-            const aside = side.isPlayer && !!this.stage.viewInfo.playerHero;
-            const onPodium = hero.podium.position.clone().setY(56 + 125 * (hero.viewScale ?? 0.85));
-            if (hero.figureMode && side.isPlayer && !aside) onPodium.setY(44 + FIGURE_HEIGHT + 60);
-            if (hero.figureMode && !side.isPlayer) onPodium.setY(120).z += 150;
+            const w = hero.figure ? THREE.MathUtils.smoothstep(blend, 0.35, 0.65) : 0;
+            hero.asideT = (hero.asideT ?? 0) + ((side.isPlayer && this.stage.viewInfo.playerHero ? 1 : 0) - (hero.asideT ?? 0)) * Math.min(1, dt / 300);
+            const aside = hero.asideT;
+            const medallionY = 56 + 125 * (hero.viewScale ?? 0.85);
+            const onPodium = hero.podium.position.clone();
+            if (side.isPlayer) onPodium.setY(THREE.MathUtils.lerp(medallionY, THREE.MathUtils.lerp(44 + FIGURE_HEIGHT + 60, medallionY, aside), w));
+            else onPodium.setY(THREE.MathUtils.lerp(medallionY, 120, w)).z += 150 * w;
             hero.position.lerpVectors(a.position, onPodium, blend);
             // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
             const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
             hero.viewScale = (hero.viewScale ?? viewScale) + (viewScale - (hero.viewScale ?? viewScale)) * Math.min(1, dt / 300);
             // A nameplate is smaller than the medallion: on a phone it needs the room to stay readable.
-            const plate = hero.figureMode && this.stage.portrait ? 1.7 : 1;
+            const plate = this.stage.portrait ? 1 + 0.7 * w : 1;
             hero.scale.setScalar(a.scale + (hero.viewScale * plate - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
             hero.podium.scale.y = Math.max(0.001, blend);
@@ -1991,13 +1996,14 @@ export class Game {
             // attacks.
             const figure = hero.figureRoot;
             figure.visible = blend > 0.001 && !!hero.figure;
-            figure.position.copy(hero.podium.position).setY(aside ? 0 : 44 * blend).add(hero.lunge);
-            if (aside) figure.position.x -= (this.stage.portrait ? 120 : 190) * blend;
+            figure.position.copy(hero.podium.position).setY(44 * blend * (1 - aside)).add(hero.lunge);
+            figure.position.x -= (this.stage.portrait ? 120 : 190) * blend * aside;
             figure.scale.setScalar(Math.max(0.001, blend));
+            // Toward the middle, turned a little to the camera: half the camera's pull never cancels the middle's.
             const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
-            const toCamera = this.stage.camera.position.clone().sub(hero.podium.position).setY(0).normalize();
-            const facing = toCenter.add(toCamera);
-            if (facing.lengthSq() > 1e-6) figure.rotation.y = Math.atan2(facing.x, facing.z);
+            const toCamera = this.stage.camera.position.clone().sub(figure.position).setY(0).normalize();
+            const facing = toCenter.addScaledVector(toCamera, 0.5);
+            figure.rotation.y = Math.atan2(facing.x, facing.z);
             // The hero whose turn it is stands in a brighter ring.
             hero.turnLit = this.active && !this.ended && !!this.current && this.heroOf(this.current) === hero;
             hero.update(now);
