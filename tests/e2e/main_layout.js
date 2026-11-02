@@ -2,7 +2,8 @@
 // and on desktop and phone screens. Fails where the hand is too small to read, where the hand, a hero's plaque, the
 // hero power, a status pill or the End Turn sign covers a card on the board (or each other), or where anything but the
 // hand covers a hero's figure.
-// Usage: node main_layout.js <baseUrl> <outDir>
+// Usage: node main_layout.js <baseUrl> <outDir> (LAYOUT_FULL=1: every screen in every view; otherwise the ones CI checks,
+// which software rendering on a small runner draws slowly).
 const { chromium } = require('playwright');
 const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
@@ -29,6 +30,8 @@ const SCREENS = [
   { name: 'phone', width: 412, height: 915, mobile: true },
 ];
 const VIEWS = ['classic', 'arena', 'field', 'cinematic'];
+const FULL = process.env.LAYOUT_FULL === '1';
+const QUICK = new Set(['desk-arena', 'desk-field', 'desk-cinematic', 'phone-land-arena', 'phone-arena']);
 
 // Overlap of two rectangles beyond a few pixels of slack.
 const SLACK = 4;
@@ -58,7 +61,8 @@ const problems = [];
   await page.fill('#Password', 'CorrectHorse9!');
   await page.click('main button[type=submit]');
   await page.waitForURL(u => !u.toString().includes('/Player/Login'));
-  await page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
+  // (E2E_NORENDER=1: the 3D client draws nothing, which spares a runner without a GPU; the screenshots are then blank.)
+  await page.goto(base + '/Game?mode=3d' + (process.env.E2E_NORENDER === '1' ? '&render=0' : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sg-menu', { timeout: 120000 });
   await page.click('.sg-menu-row .s-seg button >> nth=0');
   await page.click('.sg-menu-btn >> nth=1');
@@ -75,6 +79,8 @@ const problems = [];
   }
   const held = (await hook('state()')).hand.length;
   await page.evaluate(cards => window.__souls3d.addHand(cards), CARDS.concat(CARDS).slice(0, Math.max(0, 10 - held)).map(([id, n, r], i) => card(id, n, r, 1 + (i % 8), 2, 3, 0)));
+  // Lay the hand out from the classic view, so the first view checked moves to its layout like the rest.
+  await hook("view('classic')");
   await sleep(2500);
 
   const failures = [];
@@ -87,10 +93,11 @@ const problems = [];
       if (log && log.classList.contains('collapsed') !== mobile) log.querySelector('.sg-log-head').click();
     }, !!screen.mobile);
     for (const view of VIEWS) {
+      const tag = `${screen.name}-${view}`;
+      if (!FULL && !QUICK.has(tag)) continue;
       await hook(`view('${view}')`);
       await page.mouse.move(2, 2);
-      await sleep(3500);
-      const tag = `${screen.name}-${view}`;
+      await sleep(2200); // the camera's move to a view takes 1.7 s
       await page.screenshot({ path: `${out}/${tag}.jpg`, type: 'jpeg', quality: 80, timeout: 60000 });
       const r = await hook('layoutRects()');
       const fail = msg => failures.push(`${tag}: ${msg}`);

@@ -32,7 +32,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.fill('#Password', 'CorrectHorse9!');
   await page.click('main button[type=submit]');
   await page.waitForURL(u => !u.toString().includes('/Player/Login'));
-  await page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
+  // (E2E_NORENDER=1: the 3D client draws nothing, which spares a runner without a GPU; the screenshots are then blank.)
+  await page.goto(base + '/Game?mode=3d' + (process.env.E2E_NORENDER === '1' ? '&render=0' : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sg-menu', { timeout: 120000 });
   await page.click('.sg-menu-row .s-seg button >> nth=0');
   await page.click('.sg-menu-btn >> nth=1');
