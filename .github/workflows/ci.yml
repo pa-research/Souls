@@ -128,6 +128,16 @@ jobs:
         # Normal bot: the Hard bot sometimes wins before the script has played a card (the Hard bot is covered by the .NET tests).
         run: node rules3d.js https://localhost out/rules3d 1
 
+      - name: main_layout.js
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: tests/e2e
+        run: node main_layout.js https://localhost out/main_layout
+
+      - name: dialogue.js
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: tests/e2e
+        run: node dialogue.js https://localhost out/dialogue
+
       - name: Compose logs
         if: failure()
         run: docker compose logs --no-color
