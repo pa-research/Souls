@@ -53,7 +53,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await sleep(6000);
   const ident = (await page.evaluate(() => window.__souls3d.state())).ident;
 
-  // A reaction: the player's hero uses its power and says its line (the intro lines are not rationed reactions).
+  // A reaction: the player's hero uses its power and says its line (rationed: the bot's turn may have used the allowance).
+  await page.evaluate(() => window.__souls3d.resetReactions());
   await page.evaluate(id => window.__souls3d.playEvents([{ t: 'heroPower', id, power: 3, name: 'Holy Light', dst: null }]), ident);
   await sleep(600);
   const after = await bubbles();
