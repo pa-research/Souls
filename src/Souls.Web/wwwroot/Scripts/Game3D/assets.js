@@ -46,11 +46,17 @@ export const Sounds = Object.fromEntries([...EFFECTS, 'music_menu', 'music_battl
 // The heroes' voice lines (Content/Sound/Voice/CREDITS.md): the six emotes in their order (GameRules.Emotes), then the
 // lines the game speaks by itself. Each hero type with a voice has every line in English and Norwegian.
 export const VOICE_LINES = ['greet', 'wellPlayed', 'thanks', 'oops', 'threaten', 'sorry', 'intro', 'low', 'victory', 'defeat'];
+// The heroes' dialogue: a matchup line to each class (vs1 to vs4, the intro exchange) and reactions in play. Their words
+// are in the string tables (voice.<type>.<line>) and show in the hero's speech bubble; a line is spoken too once its
+// clips are in Voice/ (listed here).
+export const DIALOGUE_LINES = ['vs1', 'vs2', 'vs3', 'vs4', 'power', 'hit', 'legendary', 'finish', 'hurry'];
+export const VOICED_DIALOGUE = new Set([]);
 const VOICED = new Set([1, 2, 3, 4]);
 const VOICE_LANGS = new Set(['en', 'nb']);
 /** The URL of a hero type's voice line in the page's language, or null if that hero has no voice. */
 export const voiceLine = (type, line) => {
     const lang = String(window.SoulsL10n?.lang || 'en').toLowerCase().split('-')[0];
+    if (!VOICE_LINES.includes(line) && !VOICED_DIALOGUE.has(line)) return null;
     return VOICED.has(Number(type)) ? `${SND}Voice/${VOICE_LANGS.has(lang) ? lang : 'en'}/${Number(type)}-${line}.ogg` : null;
 };
 
