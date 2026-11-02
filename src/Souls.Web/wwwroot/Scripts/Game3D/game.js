@@ -2001,7 +2001,9 @@ export class Game {
             // Rising into figure mode (w) and stepping aside ease in and out, so the nameplate and the figure glide.
             hero.setFigureMode(blend > 0.5);
             const w = hero.figure ? THREE.MathUtils.smoothstep(blend, 0.35, 0.65) : 0;
-            hero.asideT = (hero.asideT ?? 0) + ((side.isPlayer && this.stage.viewInfo.playerHero ? 1 : 0) - (hero.asideT ?? 0)) * Math.min(1, dt / 300);
+            // (Not on a phone: its field view stands far back, where the figure stays on its podium.)
+            const stepAside = side.isPlayer && !this.stage.portrait && this.stage.viewInfo.playerHero ? 1 : 0;
+            hero.asideT = (hero.asideT ?? 0) + (stepAside - (hero.asideT ?? 0)) * Math.min(1, dt / 300);
             const aside = hero.asideT;
             const medallionY = 56 + 125 * (hero.viewScale ?? 0.85);
             const onPodium = hero.podium.position.clone();
@@ -2027,7 +2029,7 @@ export class Game {
             const figure = hero.figureRoot;
             figure.visible = blend > 0.001 && !!hero.figure;
             figure.position.copy(hero.podium.position).setY(44 * blend * (1 - aside)).add(hero.lunge);
-            figure.position.x -= (this.stage.portrait ? 120 : 250) * blend * aside;
+            figure.position.x -= 250 * blend * aside;
             figure.scale.setScalar(Math.max(0.001, blend * (1 - 0.25 * aside)));
             // Toward the middle, turned a little to the camera: half the camera's pull never cancels the middle's.
             const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
