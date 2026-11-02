@@ -6,11 +6,14 @@ import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
-import { Hero3D, FIGURE_HEIGHT } from './heroes.js';
+import { Hero3D, FIGURE_HEIGHT, PLATE_W, PLATE_H } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
 import { VERSUS_MS } from './ui.js';
+
+/** The smallest a hero's nameplate gets on the screen (CSS pixels wide). */
+const MIN_PLATE_PX = 230;
 
 // Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
 const { t, text: serverText } = window.SoulsL10n;
@@ -346,8 +349,14 @@ export class Game {
         }
         if (!r || !(r.w > 0)) return null;
         const canvas = this.stage.renderer.domElement.getBoundingClientRect();
-        const left = canvas.left + r.x, top = canvas.top + r.y;
-        return { left, top, right: left + r.w, bottom: top + r.h, width: r.w, height: r.h };
+        let left = canvas.left + r.x, top = canvas.top + r.y, right = left + r.w, bottom = top + r.h;
+        // A hero's tip keeps clear of its status pill (mana, deck, hand) too.
+        const pill = obj === this.player.hero ? this.ui.playerStatus : obj === this.opponent.hero ? this.ui.opponentStatus : null;
+        if (pill && !pill.hidden && pill.offsetWidth) {
+            const p = pill.getBoundingClientRect();
+            left = Math.min(left, p.left); top = Math.min(top, p.top); right = Math.max(right, p.right); bottom = Math.max(bottom, p.bottom);
+        }
+        return { left, top, right, bottom, width: right - left, height: bottom - top };
     }
 
     /** End Turn sign: its classic spot, or the right of the row above the hand in portrait. */
@@ -1273,8 +1282,8 @@ export class Game {
             }
             if (defender instanceof Hero3D) setTimeout(() => defender.play('hit'), 320);
             tweens.to(attacker.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 200, Ease.backOut);
-            if (defender instanceof Hero3D) defender.flash(4);
-            this.effects.beam(attacker.aimPoint(), target, 0xffd34d, 900);
+            if (defender instanceof Hero3D && !defender.figureMode) defender.flash(4);
+            if (!attacker.figureMode) this.effects.beam(attacker.aimPoint(), target, 0xffd34d, 900);
             await wait(320);
             tweens.to(attacker.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut);
             this.impact(defender, target, target.clone().sub(attacker.aimPoint()));
@@ -1315,6 +1324,13 @@ export class Game {
     }
 
     textAbove(obj, text, color, size = 90) {
+        if (obj instanceof Hero3D && obj.figureMode) {
+            // Over the nameplate, clear of its name and health bar.
+            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+            const plate = obj.scale.y * obj.nameplate.scale.y;
+            this.effects.floatText(text, obj.position.clone().addScaledVector(up, (PLATE_H / 2 + 45) * plate), color, size);
+            return;
+        }
         const point = this.targetPoint(obj);
         this.effects.floatText(text, point.setY(point.y + 40), color, size);
     }
@@ -1886,7 +1902,14 @@ export class Game {
         const hero = side.hero;
         const center = this.stage.toScreen(hero.position);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
+        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
+        if (side.isPlayer && hero.figureMode && hero.asideT > 0.5) {
+            // Field view: the figure stands left of the plate, so the pill goes under it.
+            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+            const below = this.stage.toScreen(hero.position.clone().addScaledVector(up, -PLATE_H / 2 * hero.scale.y * plate));
+            return { x: center.x, y: below.y + 22, ax: 0.5 };
+        }
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x * plate));
         return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
     }
 
@@ -1904,7 +1927,8 @@ export class Game {
     powerAnchor() {
         const hero = this.player.hero;
         const center = this.stage.toScreen(hero.position);
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x));
+        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x * plate));
         const half = this.ui.power.offsetWidth / 2;
         const x = edge.x + 70 + half + 8 > this.stage.width ? 2 * center.x - edge.x - 70 : edge.x + 70;
         return { x, y: center.y };
@@ -1990,6 +2014,11 @@ export class Game {
             const plate = this.stage.portrait ? 1 + 0.7 * w : 1;
             hero.scale.setScalar(a.scale + (hero.viewScale * plate - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
+            // A far nameplate grows to stay readable (at least MIN_PLATE_PX wide); a near one keeps its size.
+            const camera = this.stage.camera;
+            const pxPerUnit = this.stage.height / (2 * camera.position.distanceTo(hero.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+            const grow = THREE.MathUtils.clamp(Math.min(MIN_PLATE_PX, this.stage.width * 0.42) / (PLATE_W * hero.scale.x * pxPerUnit), 1, 3);
+            hero.nameplate.scale.setScalar(grow * (hero._highlight ? 1.08 : 1));
             hero.podium.scale.y = Math.max(0.001, blend);
             hero.podium.visible = blend > 0.001;
             // The figure rises with the podium and faces between the board's middle and the camera; it lunges at what it
@@ -1997,8 +2026,8 @@ export class Game {
             const figure = hero.figureRoot;
             figure.visible = blend > 0.001 && !!hero.figure;
             figure.position.copy(hero.podium.position).setY(44 * blend * (1 - aside)).add(hero.lunge);
-            figure.position.x -= (this.stage.portrait ? 120 : 190) * blend * aside;
-            figure.scale.setScalar(Math.max(0.001, blend));
+            figure.position.x -= (this.stage.portrait ? 120 : 250) * blend * aside;
+            figure.scale.setScalar(Math.max(0.001, blend * (1 - 0.25 * aside)));
             // Toward the middle, turned a little to the camera: half the camera's pull never cancels the middle's.
             const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
             const toCamera = this.stage.camera.position.clone().sub(figure.position).setY(0).normalize();

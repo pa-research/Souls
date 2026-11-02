@@ -20,8 +20,8 @@ const MANA_MISSING = new THREE.Color(0xe52a2a);
 export const FIGURE_HEIGHT = 300;
 
 // The nameplate that stands in for the medallion over a figure: name, health bar, attack, health and armor.
-const PLATE_W = 300;
-const PLATE_H = 104;
+export const PLATE_W = 300;
+export const PLATE_H = 104;
 const READY = new THREE.Color(0x2ecc71);
 
 // One load per class; each hero plays a copy (both heroes may be the same class).
@@ -141,7 +141,7 @@ export class Hero3D extends THREE.Group {
         this.plateTexture.anisotropy = 8;
         this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H),
             new THREE.MeshBasicMaterial({ map: this.plateTexture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
-        this.nameplate.renderOrder = 5;
+        this.nameplate.renderOrder = 19; // over beams and bursts, under floating numbers
         this.nameplate.visible = false;
         this.nameplate.userData.hero = this;
         this.add(this.nameplate);
@@ -182,8 +182,7 @@ export class Hero3D extends THREE.Group {
     /** Pointer over the hero, or a valid target: the figure lights up, or the medallion grows. */
     setHighlight(on, color = 0xffe08a) {
         this._highlight = on ? new THREE.Color(color) : null;
-        this.body.scale.setScalar(on && !this.figureMode ? 1.1 : 1);
-        this.nameplate.scale.setScalar(on ? 1.08 : 1);
+        this.body.scale.setScalar(on && !this.figureMode ? 1.1 : 1); // the nameplate grows in Game.update
         this.tint(this._highlight, 0.35);
     }
 
@@ -400,7 +399,7 @@ export class Hero3D extends THREE.Group {
                 return;
             }
             material.color.set(n % 2 ? color : 0xffffff);
-            this.tint(n % 2 ? glow : this._highlight, n % 2 ? 0.9 : 0.35);
+            this.tint(n % 2 ? glow : this._highlight, n % 2 ? 0.3 : 0.35);
             tweens.wait(110).then(step);
         };
         step();

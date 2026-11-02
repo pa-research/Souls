@@ -479,7 +479,8 @@ export class Stage {
             // A slow orbit above the terraces, in a game and behind the menu: it comes in over the sand and rises at the
             // sides, inside the pillars (x = ±880), so they never pass in front of the board.
             cam.fov = 44;
-            const a = now * 0.00005 + 0.6;
+            // In a game it sways around the player's end: side-on, the HUD would cover the heroes.
+            const a = this.menu ? now * 0.00005 + 0.6 : Math.sin(now * 0.00005) * 0.55;
             const side = Math.sin(a) ** 2;
             const radius = 1500 - 940 * side, height = 1080 + 470 * side;
             cam.position.set(Math.sin(a) * radius, height + Math.sin(now * 0.00011) * 90, Math.cos(a) * radius);
