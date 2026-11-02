@@ -46,6 +46,24 @@ audio tags, is in the flow; the spoken words are:
   lille venn. / Den gamle skogen våkner. KOM! / Udyret er ikke slått! / Ha! Fjellet står! / Før meg tilbake til
   røttene.
 
+## Dialogue (2 November 2026)
+
+Nine more lines per hero and language, in the same voices and model (`eleven_v4`), one generation each, generated
+through the ElevenLabs connector: `vs1` to `vs4` (the hero's line to each class, the intro exchange: the opponent
+speaks first, the player's hero answers) and the reactions `power` (hero power), `hit` (a big hit taken),
+`legendary` (a legendary played), `finish` (the other hero falls low) and `hurry` (the other's turn runs out). Their
+words are also the subtitles, `voice.<type>.<line>` in `Souls.Model/Localization/game3d.*.json`; the script for each
+take is those nine lines in that order with `[long pause]` between them. Flows (English / Norwegian):
+
+| Hero (type) | Flows |
+|---|---|
+| Rabid Soul (1) | `GKny9cquDoeOl6M7kvlk` / `SlkxpK0mbjGp5FSk0JNf` |
+| Lurker (2) | `IH1fIzCfiu84MGygQp86` / `Br9WipmBr9lYQT4YAXEQ` |
+| Harrison (3) | `k4Icu2DeDsfRxz8j1pUN` / `up6H5Vj8Iq2cpvVnN2M6` |
+| Fader (4) | `ZcVHjEpNOmALKQt6L7pY` / `aaHh0avjk1f0gC2R92aW` |
+
+Each take was cut at its eight longest pauses and processed as below.
+
 ## Processing
 
 Each take was cut at its nine longest pauses (checked against an ElevenLabs Scribe transcript where two pauses were

@@ -50,7 +50,7 @@ export const VOICE_LINES = ['greet', 'wellPlayed', 'thanks', 'oops', 'threaten',
 // are in the string tables (voice.<type>.<line>) and show in the hero's speech bubble; a line is spoken too once its
 // clips are in Voice/ (listed here).
 export const DIALOGUE_LINES = ['vs1', 'vs2', 'vs3', 'vs4', 'power', 'hit', 'legendary', 'finish', 'hurry'];
-export const VOICED_DIALOGUE = new Set([]);
+export const VOICED_DIALOGUE = new Set(DIALOGUE_LINES);
 const VOICED = new Set([1, 2, 3, 4]);
 const VOICE_LANGS = new Set(['en', 'nb']);
 /** The URL of a hero type's voice line in the page's language, or null if that hero has no voice. */
