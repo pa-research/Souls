@@ -2007,8 +2007,12 @@ export class Game {
             const aside = hero.asideT;
             const medallionY = 56 + 125 * (hero.viewScale ?? 0.85);
             const onPodium = hero.podium.position.clone();
-            if (side.isPlayer) onPodium.setY(THREE.MathUtils.lerp(medallionY, THREE.MathUtils.lerp(44 + FIGURE_HEIGHT + 60, medallionY, aside), w));
-            else onPodium.setY(THREE.MathUtils.lerp(medallionY, 120, w)).z += 150 * w;
+            // On a phone the field view looks low across the board: over the player's head the plate would cover the
+            // opponent's front row, so it goes in front of the figure there too.
+            const inFront = !side.isPlayer || (this.stage.portrait && !!this.stage.viewInfo.playerHero) ? 1 : 0;
+            hero.frontT = (hero.frontT ?? inFront) + (inFront - (hero.frontT ?? inFront)) * Math.min(1, dt / 300);
+            const overHead = THREE.MathUtils.lerp(44 + FIGURE_HEIGHT + 60, medallionY, aside);
+            onPodium.setY(THREE.MathUtils.lerp(medallionY, THREE.MathUtils.lerp(overHead, 120, hero.frontT), w)).z += 150 * w * hero.frontT;
             hero.position.lerpVectors(a.position, onPodium, blend);
             // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
             const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
