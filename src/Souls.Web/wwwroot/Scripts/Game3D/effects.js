@@ -281,7 +281,7 @@ export class Effects {
     }
 
     /** A number that floats up and fades out ("-3", "+2"). */
-    floatText(text, position, color = '#ff4136', size = 90) {
+    floatText(text, position, color = '#ff4136', size = 90, rise = 1) {
         const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 128;
         const g = canvas.getContext('2d', { willReadFrequently: true }); // memory canvas: see Card3D
@@ -304,7 +304,7 @@ export class Effects {
         this.scene.add(sprite);
         const start = position.clone();
         tweens.run(1400, t => {
-            sprite.position.y = start.y + 60 + t * 110;
+            sprite.position.y = start.y + (60 + t * 110) * rise;
             sprite.material.opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
             const pop = t < 0.15 ? 0.6 + t / 0.15 * 0.6 : 1.2 - Math.min(0.2, (t - 0.15));
             sprite.scale.set(size * 2 * pop, size * pop, 1);

@@ -468,7 +468,7 @@ export class Stage {
             // A slow sway above the player's end instead of the orbit: from this far back, the pillars beside the arena
             // would pass in front of the board.
             cam.fov = 50;
-            this.fit(cam, PORTRAIT_BOARD_FIT, deg(40 + Math.sin(now * 0.00011) * 4), 0.97, this.frame, Math.sin(now * 0.00009) * 0.7);
+            this.fit(cam, PORTRAIT_BOARD_FIT, deg(40 + Math.sin(now * 0.00011) * 4), 0.97, this.frame, Math.sin(now * 0.00009) * 0.35);
         } else if (name === 'field') {
             // Down at the front row behind your hero, looking across the sand at the opponent.
             cam.fov = 55;
@@ -479,7 +479,8 @@ export class Stage {
             // A slow orbit above the terraces, in a game and behind the menu: it comes in over the sand and rises at the
             // sides, inside the pillars (x = ±880), so they never pass in front of the board.
             cam.fov = 44;
-            const a = now * 0.00005 + 0.6;
+            // In a game it sways around the player's end: side-on, the HUD would cover the heroes.
+            const a = this.menu ? now * 0.00005 + 0.6 : Math.sin(now * 0.00005) * 0.55;
             const side = Math.sin(a) ** 2;
             const radius = 1500 - 940 * side, height = 1080 + 470 * side;
             cam.position.set(Math.sin(a) * radius, height + Math.sin(now * 0.00011) * 90, Math.cos(a) * radius);

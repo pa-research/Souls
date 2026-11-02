@@ -364,7 +364,9 @@ const MIN_CARD = 86;
         const taunt = st.opponentBoard.find(o => o.taunt);
         const target = taunt ? await hook(`opponentCard(${taunt.cid})`) : await hook('opponentHero()');
         const from = frames.length;
-        await drag(await hook(`boardCard(${c.cid})`), target, done.attacks === 0 ? () => snap('attack') : null);
+        const at = await hook(`boardCard(${c.cid})`);
+        if (!at || !target) continue; // it died meanwhile
+        await drag(at, target, done.attacks === 0 ? () => snap('attack') : null);
         if (await waitFrame(f => f.dir === 'out' && f.type === 200, from, 1500)) done.attacks++;
         await sleep(1300);
       }

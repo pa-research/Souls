@@ -6,11 +6,14 @@ import * as THREE from '/lib/three/three.webgpu.js';
 import { Request, Response, Socket } from './net.js';
 import { Images, loadImage, textureFrom, sound, voiceLine, VOICE_LINES } from './assets.js';
 import { Card3D, SlotMarker, FLAT_FACE_UP, updateFoil, RARITY, ABILITY_COLORS, CARD_W } from './cards.js';
-import { Hero3D } from './heroes.js';
+import { Hero3D, FIGURE_HEIGHT, PLATE_W, PLATE_H } from './heroes.js';
 import { slotPosition } from './arena.js';
 import { toWorld } from './scene.js';
 import { tweens, Ease } from './tween.js';
 import { VERSUS_MS } from './ui.js';
+
+/** The smallest a hero's nameplate gets on the screen (CSS pixels wide). */
+const MIN_PLATE_PX = 230;
 
 // Texts in the page's language (/js/l10n.js); serverText shows a text the server sent (its key and arguments).
 const { t, text: serverText } = window.SoulsL10n;
@@ -142,7 +145,7 @@ export class Game {
 
         this.player = new Side(true);
         this.opponent = new Side(false);
-        for (const side of [this.player, this.opponent]) this.root.add(side.hero, side.hero.podium);
+        for (const side of [this.player, this.opponent]) this.root.add(side.hero, side.hero.podium, side.hero.figureRoot);
 
         // The End Turn sign and the hand cards are HUD: they stay put on screen in every camera view.
         this.sign = new EndTurnSign();
@@ -313,7 +316,8 @@ export class Game {
     screenRect(obj) {
         if (!obj) return null;
         const camera = obj.parent === this.stage.hud ? this.stage.hudCamera : this.stage.camera;
-        const box = new THREE.Box3().setFromObject(obj === this.sign ? obj.board : obj.front || obj.face || obj, true);
+        const box = new THREE.Box3();
+        for (const part of [].concat(obj === this.sign ? obj.board : obj.screenTarget || obj.front || obj.face || obj)) box.expandByObject(part, true);
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (let i = 0; i < 8; i++) {
             const v = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera);
@@ -345,8 +349,14 @@ export class Game {
         }
         if (!r || !(r.w > 0)) return null;
         const canvas = this.stage.renderer.domElement.getBoundingClientRect();
-        const left = canvas.left + r.x, top = canvas.top + r.y;
-        return { left, top, right: left + r.w, bottom: top + r.h, width: r.w, height: r.h };
+        let left = canvas.left + r.x, top = canvas.top + r.y, right = left + r.w, bottom = top + r.h;
+        // A hero's tip keeps clear of its status pill (mana, deck, hand) too.
+        const pill = obj === this.player.hero ? this.ui.playerStatus : obj === this.opponent.hero ? this.ui.opponentStatus : null;
+        if (pill && !pill.hidden && pill.offsetWidth) {
+            const p = pill.getBoundingClientRect();
+            left = Math.min(left, p.left); top = Math.min(top, p.top); right = Math.max(right, p.right); bottom = Math.max(bottom, p.bottom);
+        }
+        return { left, top, right, bottom, width: right - left, height: bottom - top };
     }
 
     /** End Turn sign: its classic spot, or the right of the row above the hand in portrait. */
@@ -519,7 +529,7 @@ export class Game {
     }
 
     targetPoint(obj) {
-        return obj instanceof Hero3D ? obj.position.clone() : obj.center();
+        return obj instanceof Hero3D ? obj.aimPoint() : obj.center();
     }
 
     // ---- Rules text (tooltips) ------------------------------------------------------------------------------------
@@ -834,6 +844,7 @@ export class Game {
         const side = this.sideByIdent(p.ident);
         if (!this.active || (side === this.opponent && this.emotesMuted)) return;
         this.ui.emote(side.isPlayer ? 'player' : 'opponent', serverText(p));
+        side.hero.play('greet');
         sound.play('emote', 0.35);
         this.speak(side, VOICE_LINES[Number(p.emote)]);
     }
@@ -1263,12 +1274,19 @@ export class Game {
         sound.play('attack', 0.7);
         const target = this.targetPoint(defender);
         if (attacker instanceof Hero3D) {
+            attacker.play('attack');
+            if (attacker.figureMode) {
+                // The figure lunges at its target and steps back.
+                const toward = target.clone().sub(attacker.podium.position).setY(0).normalize();
+                tweens.run(620, t => attacker.lunge.copy(toward).multiplyScalar(Math.sin(Math.PI * t) * 120), Ease.quadOut);
+            }
+            if (defender instanceof Hero3D) setTimeout(() => defender.play('hit'), 320);
             tweens.to(attacker.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 200, Ease.backOut);
-            if (defender instanceof Hero3D) defender.flash(4);
-            this.effects.beam(attacker.position.clone(), target, 0xffd34d, 900);
+            if (defender instanceof Hero3D && !defender.figureMode) defender.flash(4);
+            if (!attacker.figureMode) this.effects.beam(attacker.aimPoint(), target, 0xffd34d, 900);
             await wait(320);
             tweens.to(attacker.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut);
-            this.impact(defender, target, target.clone().sub(attacker.position));
+            this.impact(defender, target, target.clone().sub(attacker.aimPoint()));
             return { finish: () => wait(300) };
         }
         const home = this.boardPose(this.sideOf(attacker), attacker);
@@ -1306,6 +1324,14 @@ export class Game {
     }
 
     textAbove(obj, text, color, size = 90) {
+        if (obj instanceof Hero3D && obj.figureMode) {
+            // Just over the nameplate, clear of its name and health bar; it barely rises (a high point rising toward a
+            // steep camera drifts far up the screen).
+            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+            const plate = obj.scale.y * obj.nameplate.scale.y;
+            this.effects.floatText(text, obj.position.clone().addScaledVector(up, (PLATE_H / 2 + size * 0.45) * plate), color, size, 0.2);
+            return;
+        }
         const point = this.targetPoint(obj);
         this.effects.floatText(text, point.setY(point.y + 40), color, size);
     }
@@ -1316,6 +1342,7 @@ export class Game {
         if (target instanceof Hero3D) {
             target.setInfo({ health: String(e.health), armor: e.armor });
             if (e.amount > 0) {
+                if (target.current?.getClip().name !== 'hit') target.play('hit');
                 target.flash(2);
                 this.arena.screenFlash(`-${e.amount}`);
                 this.stage.punch(4 + Math.min(6, e.amount));
@@ -1462,7 +1489,7 @@ export class Game {
         const source = this.resolve(e.src) || this.cardByCid(e.src?.cid) || this.dying.get(e.src?.cid);
         const color = ABILITY_COLORS[e.abilityId] ?? 0xffffff;
         if (!source) return;
-        const at = source instanceof Hero3D ? source.position.clone() : source.position.clone();
+        const at = source instanceof Hero3D ? source.aimPoint() : source.position.clone();
         const label = serverText(e, 'label') || this.rules.abilities[e.abilityId]?.name;
         if (label) this.textAbove(source, label, '#ffd98a', 52);
         switch (e.abilityId) {
@@ -1549,6 +1576,7 @@ export class Game {
         const target = this.resolve(e.dst);
         const color = POWER_COLORS[e.power] ?? 0xffd34d;
         sound.play('hero_power', 0.75);
+        hero.play('cast');
         this.textAbove(hero, serverText(e, 'name') || t('g3d.heroPower'), '#ffd98a', 60);
         tweens.to(hero.body.scale, { x: 1.12, y: 1.12, z: 1.12 }, 180, Ease.backOut).then(() => tweens.to(hero.body.scale, { x: 1, y: 1, z: 1 }, 250, Ease.quadOut));
         if (!target || target === hero) {
@@ -1595,7 +1623,7 @@ export class Game {
         const source = this.cardByCid(e.src);
         const target = this.resolve(e.dst);
         if (!target) return;
-        const from = source ? source.center() : this.heroOf(e.owner).position.clone();
+        const from = source ? source.center() : this.heroOf(e.owner).aimPoint();
         this.crowd.spell('curse');
         await this.effects.projectile(from, this.targetPoint(target), 0x8e44ad, 520, 48);
     }
@@ -1699,13 +1727,16 @@ export class Game {
     heroDeath(hero) {
         if (hero.dead) return;
         hero.dead = true;
+        hero.play('death');
+        hero.setReady(false);
+        hero.repaintPlate();
         tweens.hitStop(160);
         tweens.slowMo(0.3, 1400);
         this.speak(hero === this.player.hero ? this.player : this.opponent, 'defeat');
         sound.play('hero_hit', 0.9, { rate: 0.85 });
         this.crowd.gasp();
         tweens.run(1200, t => { hero.body.rotation.z = t * 0.35; hero.body.position.y = -t * 40; }, Ease.quadIn);
-        this.effects.burst(hero.position.clone(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
+        this.effects.burst(hero.aimPoint(), { color: 0xff5030, count: 120, speed: 380, size: 56, life: 1500 });
         this.effects.shake(30);
     }
 
@@ -1757,7 +1788,10 @@ export class Game {
         this.stopPlaying();
         this.clearInGame();
         this.endMusic(kind === 'victory' || kind === 'defeat' ? kind : null);
-        if (kind !== 'draw') setTimeout(() => this.speak(kind === 'victory' ? this.player : this.opponent, 'victory'), 1800);
+        if (kind !== 'draw') {
+            (kind === 'victory' ? this.player : this.opponent).hero.play('victory');
+            setTimeout(() => this.speak(kind === 'victory' ? this.player : this.opponent, 'victory'), 1800);
+        }
         this.cheer(1);
         const text = { victory: t('g3d.end.victory'), defeat: t('g3d.end.defeat'), draw: t('g3d.end.draw') }[kind];
         this.arena.screenFlash(text.replace('!', '').toUpperCase());
@@ -1765,7 +1799,7 @@ export class Game {
         if (kind === 'victory') {
             this.flameJets(1.4);
             this.celebrate(14);
-            this.effects.burst(this.opponent.hero.position.clone(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
+            this.effects.burst(this.opponent.hero.aimPoint(), { color: 0xffd700, count: 200, speed: 500, size: 60, life: 2000 });
         } else {
             this.celebrate(kind === 'draw' ? 6 : 3, kind === 'draw' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
@@ -1786,6 +1820,7 @@ export class Game {
         this.cheer(1);
         this.arena.wave();
         this.celebrate(10);
+        if (p.winner) this.heroOf(p.winner).play('victory');
         const winner = p.winner ? this.heroOf(p.winner).info.name : null;
         const text = winner ? t('g3d.end.wins', { name: winner }) : t('g3d.end.draw');
         this.arena.screenFlash(winner ? t('g3d.end.winnerFlash') : t('g3d.end.draw').replace('!', '').toUpperCase());
@@ -1868,7 +1903,14 @@ export class Game {
         const hero = side.hero;
         const center = this.stage.toScreen(hero.position);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion);
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x));
+        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
+        if (side.isPlayer && hero.figureMode && hero.asideT > 0.5) {
+            // Field view: the figure stands left of the plate, so the pill goes under it.
+            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.stage.camera.quaternion);
+            const below = this.stage.toScreen(hero.position.clone().addScaledVector(up, -PLATE_H / 2 * hero.scale.y * plate));
+            return { x: center.x, y: below.y + 22, ax: 0.5 };
+        }
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(right, (side.isPlayer ? -1 : 1) * 175 * hero.scale.x * plate));
         return { x: edge.x + (side.isPlayer ? -96 : 70), y: center.y };
     }
 
@@ -1886,7 +1928,8 @@ export class Game {
     powerAnchor() {
         const hero = this.player.hero;
         const center = this.stage.toScreen(hero.position);
-        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x));
+        const plate = hero.figureMode ? hero.nameplate.scale.x : 1;
+        const edge = this.stage.toScreen(hero.position.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(this.stage.camera.quaternion), 170 * hero.scale.x * plate));
         const half = this.ui.power.offsetWidth / 2;
         const x = edge.x + 70 + half + 8 > this.stage.width ? 2 * center.x - edge.x - 70 : edge.x + 70;
         return { x, y: center.y };
@@ -1950,16 +1993,55 @@ export class Game {
         for (const side of [this.player, this.opponent]) {
             const hero = side.hero;
             const a = hero.anchorPose;
-            // The medallion stands on the podium (44 high); 125 is half its height at scale 1.
-            const onPodium = hero.podium.position.clone().setY(56 + 125 * (hero.viewScale ?? 0.85));
+            // In the stadium the hero's figure is the hero (figure mode): its nameplate floats over the player's head,
+            // and in front of the opponent's figure (over its head would leave the top of the screen in the arena view).
+            // The field view looks over the player's shoulder: the figure steps off its podium, clear of the opponent,
+            // and its nameplate stays where the medallion was. Without a figure the medallion stands on the podium (44
+            // high; 125 is half its height at scale 1).
+            // Rising into figure mode (w) and stepping aside ease in and out, so the nameplate and the figure glide.
+            hero.setFigureMode(blend > 0.5);
+            const w = hero.figure ? THREE.MathUtils.smoothstep(blend, 0.35, 0.65) : 0;
+            // (Not on a phone: its field view stands far back, where the figure stays on its podium.)
+            const stepAside = side.isPlayer && !this.stage.portrait && this.stage.viewInfo.playerHero ? 1 : 0;
+            hero.asideT = (hero.asideT ?? 0) + (stepAside - (hero.asideT ?? 0)) * Math.min(1, dt / 300);
+            const aside = hero.asideT;
+            const medallionY = 56 + 125 * (hero.viewScale ?? 0.85);
+            const onPodium = hero.podium.position.clone();
+            // On a phone the field view looks low across the board: over the player's head the plate would cover the
+            // opponent's front row, so it goes in front of the figure there too.
+            const inFront = !side.isPlayer || (this.stage.portrait && !!this.stage.viewInfo.playerHero) ? 1 : 0;
+            hero.frontT = (hero.frontT ?? inFront) + (inFront - (hero.frontT ?? inFront)) * Math.min(1, dt / 300);
+            const overHead = THREE.MathUtils.lerp(44 + FIGURE_HEIGHT + 60, medallionY, aside);
+            onPodium.setY(THREE.MathUtils.lerp(medallionY, THREE.MathUtils.lerp(overHead, 120, hero.frontT), w)).z += 150 * w * hero.frontT;
             hero.position.lerpVectors(a.position, onPodium, blend);
             // The field view shrinks the player's hero right in front of the camera (not so far back in portrait).
             const viewScale = side.isPlayer && !this.stage.portrait ? (this.stage.viewInfo.playerHero ?? 0.85) : 0.85;
             hero.viewScale = (hero.viewScale ?? viewScale) + (viewScale - (hero.viewScale ?? viewScale)) * Math.min(1, dt / 300);
-            hero.scale.setScalar(a.scale + (hero.viewScale - a.scale) * blend);
+            // A nameplate is smaller than the medallion: on a phone it needs the room to stay readable.
+            const plate = this.stage.portrait ? 1 + 0.7 * w : 1;
+            hero.scale.setScalar(a.scale + (hero.viewScale * plate - a.scale) * blend);
             hero.quaternion.copy(this.stage.camera.quaternion);
+            // A far nameplate grows to stay readable (at least MIN_PLATE_PX wide); a near one keeps its size.
+            const camera = this.stage.camera;
+            const pxPerUnit = this.stage.height / (2 * camera.position.distanceTo(hero.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+            const grow = THREE.MathUtils.clamp(Math.min(MIN_PLATE_PX, this.stage.width * 0.42) / (PLATE_W * hero.scale.x * pxPerUnit), 1, 3);
+            hero.nameplate.scale.setScalar(grow * (hero._highlight ? 1.08 : 1));
             hero.podium.scale.y = Math.max(0.001, blend);
             hero.podium.visible = blend > 0.001;
+            // The figure rises with the podium and faces between the board's middle and the camera; it lunges at what it
+            // attacks.
+            const figure = hero.figureRoot;
+            figure.visible = blend > 0.001 && !!hero.figure;
+            figure.position.copy(hero.podium.position).setY(44 * blend * (1 - aside)).add(hero.lunge);
+            figure.position.x -= 250 * blend * aside;
+            figure.scale.setScalar(Math.max(0.001, blend * (1 - 0.25 * aside)));
+            // Toward the middle, turned a little to the camera: half the camera's pull never cancels the middle's.
+            const toCenter = hero.podium.position.clone().negate().setY(0).normalize();
+            const toCamera = this.stage.camera.position.clone().sub(figure.position).setY(0).normalize();
+            const facing = toCenter.addScaledVector(toCamera, 0.5);
+            figure.rotation.y = Math.atan2(facing.x, facing.z);
+            // The hero whose turn it is stands in a brighter ring.
+            hero.turnLit = this.active && !this.ended && !!this.current && this.heroOf(this.current) === hero;
             hero.update(now);
         }
         // Board cards stand up to face the camera in the low views; ready cards breathe.

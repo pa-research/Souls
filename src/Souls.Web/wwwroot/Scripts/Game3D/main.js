@@ -169,6 +169,8 @@ function exposeTestHooks(stage, game, ui) {
             return ui.power.hidden ? null : { x: r.left + r.width / 2 - host.left, y: r.top + r.height / 2 - host.top, disabled: ui.power.disabled };
         },
         tooltip: () => (ui.tooltip.hidden ? null : ui.tooltip.textContent),
+        // The heroes' figures (stadium views): figure mode, where the figure's chest and its nameplate are on screen.
+        figures: () => [game.player.hero, game.opponent.hero].map(h => ({ mode: h.figureMode, chest: stage.toScreen(h.aimPoint()), plate: stage.toScreen(h.position), ident: game.player.hero === h ? game.ident : 3 - game.ident })),
         timer: () => (ui.timer.hidden ? null : ui.timerLeft),
         // The visible strip of a hand card (the next card covers the rest of it, as in the classic client).
         handCard: index => game.handScreenPoint(index),
