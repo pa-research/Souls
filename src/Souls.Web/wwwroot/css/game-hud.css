@@ -378,9 +378,105 @@
     background: rgba(76, 155, 255, 0.18);
     box-shadow: inset 0 0 0 1px rgba(143, 196, 255, 0.4);
 }
-.sg-mana i.full { background: linear-gradient(180deg, #a8d4ff, #2f6ed6); box-shadow: 0 0 8px rgba(76, 155, 255, 0.8); }
+.sg-mana i.full { background: linear-gradient(180deg, #a8d4ff, #2f6ed6); }
 .sg-mana i.spent { background: rgba(76, 155, 255, 0.35); }
 .sg-mana b { margin-left: 6px; font: 800 0.95rem/1 var(--s-font-display); color: #cfe6ff; font-variant-numeric: tabular-nums; }
+
+/* ---- Hero plaques (stadium views) ---------------------------------------------------------------------------- */
+
+/* The figure is the hero, so nothing is drawn over it: its name and numbers sit on an iron plaque edged in brass, the
+   player's in the bottom left corner (the hero power beside it), the opponent's in the top right. In portrait the game
+   places them in the bands (.placed). */
+.sg-plaque {
+    position: absolute;
+    display: grid;
+    gap: 8px;
+    width: 248px;
+    padding: 12px;
+    border: 1px solid var(--s-line-soft);
+    border-radius: 12px;
+    background: rgba(12, 10, 15, 0.9);
+    box-shadow: var(--s-shadow-sm);
+    color: var(--s-text);
+    pointer-events: none;
+    transition: border-color 0.2s var(--s-ease), background-color 0.2s var(--s-ease), opacity 0.2s var(--s-ease);
+}
+.sg-plaque.mine { left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); }
+.sg-plaque.theirs { right: max(16px, env(safe-area-inset-right)); top: max(64px, calc(env(safe-area-inset-top) + 52px)); }
+.sg-plaque.placed { left: 0; top: 0; right: auto; bottom: auto; }
+
+.sg-plaque-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sg-plaque-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 600 1rem/1.25 var(--s-font-display);
+    color: var(--s-gold-1);
+}
+.sg-plaque-stat { display: inline-flex; align-items: center; gap: 4px; font: 600 0.95rem/1 var(--s-font-body); font-variant-numeric: tabular-nums; }
+.sg-plaque-stat .s-icon { width: 16px; height: 16px; color: var(--s-text-2); }
+
+/* Health: a gauge in a brass hairline, the number at its right end. */
+.sg-plaque-gauge {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 2px;
+    height: 20px;
+    padding: 0 8px;
+    border: 1px solid var(--s-line);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+}
+.sg-plaque-gauge i {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    background: #7d1c28;
+    transition: transform 0.4s var(--s-ease);
+}
+.sg-plaque-gauge b, .sg-plaque-gauge small { position: relative; align-self: center; }
+.sg-plaque-gauge b { font: 600 0.85rem/1 var(--s-font-body); color: var(--s-text); }
+.sg-plaque-gauge small { font-size: 0.72rem; color: var(--s-text-2); }
+
+.sg-plaque-status { display: flex; align-items: center; gap: 12px; font-size: 0.8rem; font-weight: 500; color: var(--s-text-2); font-variant-numeric: tabular-nums; }
+.sg-plaque-status span { display: inline-flex; align-items: center; gap: 4px; }
+.sg-plaque-status .s-icon { width: 14px; height: 14px; color: var(--s-muted); }
+.sg-plaque-status .warn { color: #ff9aa9; }
+.sg-plaque-status .warn .s-icon { color: var(--s-blood); }
+
+/* Whose turn it is: the brass edge brightens. Can attack: the attack figure turns green. Pointed at or a target: the
+   plaque lights with its figure. Low: the gauge reddens. Fallen: grey. */
+.sg-plaque.turn { border-color: var(--s-gold-3); }
+.sg-plaque.ready .sg-plaque-stat.attack, .sg-plaque.ready .sg-plaque-stat.attack .s-icon { color: var(--s-life); }
+.sg-plaque.target { border-color: var(--s-gold-2); background: rgba(28, 22, 14, 0.94); }
+.sg-plaque.low .sg-plaque-gauge i { background: #b0182e; }
+.sg-plaque.fallen { opacity: 0.6; filter: grayscale(1); }
+
+/* Portrait: compact, in the bands. */
+.sg-plaque.placed { width: auto; max-width: calc(50vw - 72px); gap: 4px; padding: 8px; border-radius: 10px; transition: transform 0.4s var(--s-ease), border-color 0.2s var(--s-ease), background-color 0.2s var(--s-ease), opacity 0.2s var(--s-ease); }
+.sg-plaque.placed.mine { max-width: calc(100vw - 200px); }
+.sg-plaque.placed .sg-plaque-head { gap: 8px; }
+.sg-plaque.placed .sg-plaque-name { font-size: 0.82rem; }
+.sg-plaque.placed.theirs .sg-plaque-name { font-size: 0.72rem; }
+.sg-plaque.placed .sg-plaque-stat { font-size: 0.82rem; }
+.sg-plaque.placed .sg-plaque-stat .s-icon { width: 14px; height: 14px; }
+.sg-plaque.placed .sg-plaque-gauge { height: 16px; }
+.sg-plaque.placed .sg-plaque-status { gap: 8px; font-size: 0.72rem; }
+
+/* Phones held sideways: the same compact plaque in its corner. */
+@media (max-height: 520px) {
+    .sg-plaque { width: 200px; gap: 4px; padding: 8px; border-radius: 10px; }
+    .sg-plaque.theirs { top: max(56px, calc(env(safe-area-inset-top) + 44px)); }
+    .sg-plaque .sg-plaque-name, .sg-plaque .sg-plaque-stat { font-size: 0.82rem; }
+    .sg-plaque .sg-plaque-gauge { height: 16px; }
+    .sg-plaque .sg-plaque-status { gap: 8px; font-size: 0.72rem; }
+}
 
 /* ---- Hero power --------------------------------------------------------------------------------------------- */
 
@@ -435,9 +531,8 @@
     padding: 2px 8px;
     border-radius: 999px;
     background: rgba(8, 6, 12, 0.75);
-    font: 700 0.68rem/1.3 var(--s-font-display);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font: 500 0.75rem/1.3 var(--s-font-body);
+    letter-spacing: 0;
     color: var(--s-gold-1);
     white-space: nowrap;
     overflow: hidden;
@@ -492,31 +587,28 @@
 .sg-fuse-fill::after {
     content: "";
     position: absolute;
-    right: -7px;
+    right: -4px;
     top: 50%;
-    width: 14px;
-    height: 14px;
-    margin-top: -7px;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
     border-radius: 50%;
-    background: radial-gradient(circle, #fff7d0 0%, #ffb347 40%, rgba(255, 90, 20, 0) 72%);
-    box-shadow: 0 0 14px 4px rgba(255, 140, 40, 0.85);
-    animation: sg-spark 0.18s linear infinite alternate;
+    background: var(--s-gold-1);
 }
 
-.sg-fuse-text { margin-top: 5px; text-align: center; font: 700 0.75rem/1 var(--s-font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--s-text-2); text-shadow: 0 1px 2px #000; }
+.sg-fuse-text { width: fit-content; margin: 6px auto 0; padding: 4px 8px; border-radius: 6px; background: rgba(12, 10, 15, 0.82); text-align: center; font: 500 0.8rem/1 var(--s-font-body); letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--s-text-2); }
 .sg-fuse.enemy .sg-fuse-fill { background: linear-gradient(90deg, #3a3f4a, #9aa5b4); }
 .sg-fuse.enemy .sg-fuse-fill::after { opacity: 0.4; }
 .sg-fuse.urgent .sg-fuse-fill { background: linear-gradient(90deg, #7f1d1d, #ff6a00); }
 .sg-fuse.urgent .sg-fuse-text { color: #ff9a5c; animation: sg-pulse 0.5s ease-in-out infinite alternate; }
 
-@keyframes sg-spark { to { transform: scale(1.25); filter: brightness(1.3); } }
 @keyframes sg-pulse { to { opacity: 0.55; } }
 
 /* ---- Battle log --------------------------------------------------------------------------------------------- */
 
 .sg-log {
     position: absolute;
-    width: min(330px, calc(100vw - 28px));
+    width: min(300px, calc(100vw - 28px));
     border: 1px solid var(--s-line);
     border-radius: 10px;
     background: linear-gradient(180deg, rgba(26, 21, 32, 0.9), rgba(10, 8, 14, 0.9));
@@ -534,9 +626,8 @@
     border: 0;
     background: linear-gradient(180deg, rgba(60, 46, 30, 0.6), rgba(30, 24, 36, 0.4));
     color: var(--s-gold-1);
-    font: 700 0.78rem/1 var(--s-font-display);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font: 500 0.85rem/1 var(--s-font-body);
+    letter-spacing: 0;
     cursor: pointer;
 }
 
@@ -699,7 +790,8 @@
 
 .sg-settings .s-panel-head { margin-bottom: 4px; }
 .sg-setting { display: grid; gap: 7px; }
-.sg-setting > span { font-family: var(--s-font-display); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--s-gold-2); }
+.sg-setting > span { font: 500 0.85rem/1.2 var(--s-font-body); color: var(--s-text-2); }
+.sg-setting-note { color: var(--s-muted); font-size: 0.75rem; }
 .sg-setting .s-seg { justify-self: start; flex-wrap: wrap; border-radius: 14px; }
 .sg-setting .s-seg > button { display: inline-flex; align-items: center; gap: 6px; }
 

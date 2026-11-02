@@ -133,7 +133,8 @@ function storeView(name) {
 /** Read-only helpers for the end-to-end tests: where things are on screen and what state the game is in. */
 function exposeTestHooks(stage, game, ui) {
     // Cards and heroes are children of the game root, which sits at the origin.
-    const screen = obj => (obj ? stage.toScreen(obj.center ? obj.center() : obj.position) : null);
+    // (A hero in figure mode: its figure's chest, where a tap or a drop finds it.)
+    const screen = obj => (obj ? stage.toScreen(obj.center ? obj.center() : obj.figureMode ? obj.aimPoint() : obj.position) : null);
     window.__souls3d = {
         state: () => ({
             active: game.active,
@@ -179,6 +180,58 @@ function exposeTestHooks(stage, game, ui) {
         hoveredRect: () => game.screenRect(game.hovered),
         heroRect: (opponent = false) => game.screenRect((opponent ? game.opponent : game.player).hero),
         layout: () => ({ portrait: stage.portrait, bands: stage.bands, width: stage.width, height: stage.height }),
+        // Deals cards into the player's hand (tests fill a hand to check the layout).
+        addHand: cards => game.addHandCards(game.player, cards, { deal: false }),
+        // Screen rectangles (canvas CSS pixels) of what the main screen lays out: the hand, both boards, both heroes'
+        // plaques and figures (figure mode) or medallions, and the HUD beside them.
+        layoutRects: () => {
+            const host = stage.renderer.domElement.getBoundingClientRect();
+            const dom = el => {
+                if (!el || el.hidden || !el.offsetWidth) return null;
+                const r = el.getBoundingClientRect();
+                return { x: r.left - host.left, y: r.top - host.top, w: r.width, h: r.height };
+            };
+            const plaque = side => { const p = ui.plaques[side]; return p ? dom(p.box) : null; };
+            // Tighter than Game.screenRect (the box of a tilted card or a winged figure reaches far past what shows): a
+            // card's face by its corners, a figure from its head down to its feet and across its shoulders.
+            const project = (points, camera) => {
+                let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                for (const p of points) {
+                    const v = p.clone().project(camera);
+                    const x = (v.x + 1) / 2 * stage.width, y = (1 - v.y) / 2 * stage.height;
+                    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+                }
+                return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+            };
+            const face = card => {
+                const mesh = card.front || card.face || card;
+                mesh.updateWorldMatrix(true, false);
+                const box = (mesh.geometry.boundingBox || (mesh.geometry.computeBoundingBox(), mesh.geometry.boundingBox));
+                const corners = [[box.min.x, box.min.y], [box.max.x, box.min.y], [box.min.x, box.max.y], [box.max.x, box.max.y]]
+                    .map(([x, y]) => new card.position.constructor(x, y, 0).applyMatrix4(mesh.matrixWorld));
+                return project(corners, card.parent === stage.hud ? stage.hudCamera : stage.camera);
+            };
+            const figure = hero => {
+                if (!hero.figureMode) return null;
+                const root = hero.figureRoot, h = 300 * root.scale.y, P = root.position.constructor;
+                const at = (dx, y) => new P(root.position.x + dx * root.scale.x, root.position.y + y, root.position.z);
+                return project([at(0, h), at(0, 0), at(-60, h * 0.75), at(60, h * 0.75)], stage.camera);
+            };
+            return {
+                hand: [...game.player.hand.values()].map(c => game.screenRect(c)),
+                board: [...game.player.board.values()].map(face),
+                opponentBoard: [...game.opponent.board.values()].map(face),
+                // Figure mode: the plaques, and the figures they must never cover; otherwise the medallions.
+                plate: game.player.hero.figureMode ? plaque('player') : game.screenRect(game.player.hero),
+                opponentPlate: game.opponent.hero.figureMode ? plaque('opponent') : game.screenRect(game.opponent.hero),
+                figure: figure(game.player.hero),
+                opponentFigure: figure(game.opponent.hero),
+                power: dom(ui.power),
+                status: dom(ui.playerStatus),
+                opponentStatus: dom(ui.opponentStatus),
+                sign: game.screenRect(game.sign),
+            };
+        },
         slot: slotId => stage.toScreen(game.slots[slotId].position),
         boardCard: cid => screen(game.player.board.get(cid)),
         opponentCard: cid => screen(game.opponent.board.get(cid)),

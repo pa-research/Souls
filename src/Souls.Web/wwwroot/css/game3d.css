@@ -50,22 +50,12 @@
     text-align: center;
 }
 
-/* Camera views and settings: top left. */
+/* Settings and emotes: top left (the camera views and the client switch are in the settings). */
 .souls3d-views {
     position: absolute;
     top: max(12px, env(safe-area-inset-top));
     left: max(12px, env(safe-area-inset-left));
     z-index: 20;
-}
-
-.souls3d-views-hint {
-    animation: souls3d-hint 10s ease-in forwards;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba(8, 6, 12, 0.6);
-    color: var(--s-muted);
-    font-size: 0.74rem;
-    pointer-events: none;
 }
 
 .souls3d-settings {
@@ -190,9 +180,8 @@
     border: 0;
     background: linear-gradient(180deg, rgba(60, 46, 30, 0.6), rgba(30, 24, 36, 0.4));
     color: var(--s-gold-1);
-    font: 700 0.78rem/1 var(--s-font-display);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font: 500 0.85rem/1 var(--s-font-body);
+    letter-spacing: 0;
     cursor: pointer;
 }
 
@@ -277,7 +266,6 @@
 }
 
 @keyframes souls3d-fade-out { to { opacity: 0; transform: scale(1.08); } }
-@keyframes souls3d-hint { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 @keyframes souls3d-slide-left { from { transform: translateX(-60vw) rotate(-20deg); } to { transform: none; } }
 @keyframes souls3d-slide-right { from { transform: translateX(60vw) rotate(20deg); } to { transform: none; } }
 @keyframes souls3d-vs { from { opacity: 0; transform: scale(4) rotate(-12deg); } to { opacity: 1; transform: none; } }
@@ -293,23 +281,19 @@
 
 /* ---- Small and touch screens -------------------------------------------------------------------------------- */
 
-@media (max-width: 1100px) {
-    .souls3d-views-hint { display: none; }
-}
-
 @media (pointer: coarse) {
-    .souls3d-views .s-seg > button { padding: 9px 12px; }
+    .souls3d-settings .s-seg > button { padding: 9px 12px; }
     /* Taps go through the status pills to the hand cards they may cover on a small screen. */
     .souls3d-status { pointer-events: none; }
 }
 
 @media (max-width: 700px), (max-height: 500px) {
-    .souls3d-views .s-seg kbd { display: none; }
+    .souls3d-settings .s-seg kbd { display: none; }
     /* The battle log (middle) and the chat (right) share the bottom edge without touching. */
     .souls3d-log { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(200px, calc(100vw - 20px)); }
     .souls3d-chat { width: min(200px, calc(100vw - 20px)); }
     .souls3d-log .sg-log-head,
-    .souls3d-chat-header { gap: 6px; padding: 9px 10px; letter-spacing: 0.1em; white-space: nowrap; }
+    .souls3d-chat-header { gap: 6px; padding: 9px 10px; white-space: nowrap; }
     .souls3d-chat-body { height: 110px; grid-template-columns: 1fr; }
     .souls3d-chat-members { display: none; }
     .souls3d-banner { top: auto; bottom: 70px; left: 50%; transform: translateX(-50%); }
@@ -319,14 +303,16 @@
     .souls3d-status { font-size: 0.72rem; padding: 4px 8px; }
 }
 
+/* A phone held sideways: the hand fans out along the bottom middle (Game.fanRow), so the battle log stands over the
+   chat on the right. */
+@media (max-height: 500px) and (orientation: landscape) {
+    .souls3d-log { left: auto; right: max(10px, env(safe-area-inset-right)); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 44px); transform: none; }
+    /* The open chat grows up over the log's spot: the log steps away while it is open. */
+    .souls3d-ui:has(.souls3d-chat:not(.collapsed)) > .souls3d-log { visibility: hidden; }
+}
+
 @media (orientation: portrait) {
-    /* Portrait screens are split into bands (scene.js, portraitBands). The camera buttons go below the settings and
-       emotes, clear of the client switch... */
-    .souls3d-views { display: grid; grid-template-columns: auto auto 1fr; }
-    .souls3d-views .s-seg { grid-column: 1 / -1; }
-    .souls3d-settings,
-    .souls3d-emotes { top: calc(max(12px, env(safe-area-inset-top)) + 100px); }
-    /* ...the battle log and the chat take half of the bottom edge each, below the hand... */
+    /* Portrait screens are split into bands (scene.js, portraitBands): the battle log and the chat take half of the bottom edge each, below the hand... */
     .souls3d-log { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); transform: none; width: calc(50% - 15px); }
     .souls3d-chat { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); width: calc(50% - 15px); }
     /* ...spectators have no chat, so their bar takes its place... */
@@ -338,8 +324,10 @@
     .souls3d-replay .s-progress { width: min(90px, 20vw); }
     /* The turn fuse sits under End Turn, at the right edge, on one line. */
     #souls3d .sg-fuse { width: 170px; }
-    /* A touched hand card is lifted over the row above the hand: the player's status and the fuse step aside. */
-    .souls3d-ui.lifted > :is(.souls3d-status.mine, .sg-fuse) { opacity: 0; }
+    /* A touched hand card is lifted over the row above the hand: the player's status (or plaque) and the fuse step
+       aside. The fuse's caption goes without its backing here, to keep inside its row. */
+    .souls3d-ui .sg-fuse-text { margin-top: 4px; padding: 0; background: none; text-shadow: 0 1px 2px #000; }
+    .souls3d-ui.lifted > :is(.souls3d-status.mine, .sg-plaque.mine, .sg-fuse) { opacity: 0; }
 }
 
 @media (max-width: 400px) {
@@ -354,23 +342,10 @@
 }
 
 @media (max-height: 500px) {
-    /* Short landscape screens: the camera buttons go to the middle of the left edge, clear of both hands (a little
-       higher: the hand rises above a home indicator, scene.js safeFrame). */
-    .souls3d-views {
-        top: calc(50% - 24px);
-        transform: translateY(-50%);
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .souls3d-views .s-seg { flex-direction: column; border-radius: 14px; }
-    /* The panels open beside the buttons, not over them. */
+    /* Short landscape screens: the panels open beside the buttons, not over them. */
     .souls3d-settings,
     .souls3d-emotes { top: 12px; left: calc(max(12px, env(safe-area-inset-left)) + 52px); }
     /* Sound, graphics and language: scroll rather than run off a short screen. */
     .souls3d-settings { max-height: calc(100% - 24px); overflow-y: auto; }
 }
 
-@media (max-height: 380px) and (pointer: coarse) {
-    /* The shortest phones: lower camera buttons, so the column fits between the two hands. */
-    .souls3d-views .s-seg > button { padding-block: 6px; }
-}

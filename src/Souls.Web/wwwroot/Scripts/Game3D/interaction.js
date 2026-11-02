@@ -228,7 +228,9 @@ export class Interaction {
                 }
                 return;
             }
-            // Idle mouse: zoom the hovered hand card, lift a hovered board card, explain what is under the pointer.
+            // Idle mouse: raise the hand when near it, zoom the hovered hand card, lift a hovered board card, explain what
+            // is under the pointer.
+            game.setHandRaised(e.clientY - this.stage.renderer.domElement.getBoundingClientRect().top > game.handTop());
             game.setHovered(game.canAct ? this.handCardAt(ndc) : null);
             const own = game.hovered || !game.canAct ? null : this.pick(ndc, [...game.player.board.values(), game.player.hero]);
             this.setBoardHover(own instanceof Card3D ? own : null);

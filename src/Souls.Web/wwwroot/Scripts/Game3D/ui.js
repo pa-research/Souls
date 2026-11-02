@@ -505,6 +505,9 @@ export class UI {
     // ---- HUD: status, power, fuse, banners, toasts ---------------------------------------------------------------
 
     buildHud() {
+        this.plaques = {};
+        this.plaqueInfo = {};
+        this.statusInfo = {};
         this.playerStatus = el('div', 'sg-status souls3d-status mine', this.root);
         this.playerStatus.hidden = true;
         this.opponentStatus = el('div', 'sg-status souls3d-status', this.root);
@@ -537,14 +540,21 @@ export class UI {
         this.timerSeconds = '';
     }
 
-    /** {mana, maxMana, deck, hand, fatigue} for one side; null hides it. */
+    /** {mana, maxMana, deck, hand, fatigue} for one side; null hides it. The side's plaque shows the same line. */
     setStatus3d(side, info) {
         const box = side === 'player' ? this.playerStatus : this.opponentStatus;
+        this.statusInfo[side] = info;
         if (!info) {
             box.hidden = true;
+            this.setPlaque(side, this.plaqueInfo[side]);
             return;
         }
-        box.hidden = false;
+        box.hidden = !!this.plaqueInfo[side];
+        this.renderStatus(box, side, info);
+        this.setPlaque(side, this.plaqueInfo[side]);
+    }
+
+    renderStatus(box, side, info) {
         const key = JSON.stringify(info);
         if (box.dataset.key === key) return;
         box.dataset.key = key;
@@ -568,6 +578,85 @@ export class UI {
             fatigue.title = t('g3d.status.fatigue');
             fatigue.append(icon('skull'), `${(Number(info.fatigue) || 0) + 1}`);
         }
+    }
+
+    /**
+     * A hero's plaque: in the stadium views the figure is the hero and nothing is drawn over it, so its name, health,
+     * attack and armor, and its mana, deck and hand, sit in a plaque at the edge of the screen (the player's bottom left,
+     * the opponent's top right; Game.update places them in portrait). info: {name, health, maxHealth, attack, armor,
+     * ready, fallen, turn, target}, or null to hide it (the classic view keeps the medallions and the status pills).
+     */
+    setPlaque(side, info) {
+        this.plaqueInfo[side] = info;
+        const pill = side === 'player' ? this.playerStatus : this.opponentStatus;
+        let p = this.plaques[side];
+        if (!info) {
+            if (p) p.box.hidden = true;
+            pill.hidden = !this.statusInfo[side];
+            return;
+        }
+        if (!p) {
+            const box = el('div', `sg-plaque ${side === 'player' ? 'mine' : 'theirs'}`, this.root);
+            const head = el('div', 'sg-plaque-head', box);
+            const name = el('span', 'sg-plaque-name', head);
+            const stat = (cls, glyph, label) => {
+                const s = el('span', `sg-plaque-stat ${cls}`, head);
+                s.title = label;
+                s.append(icon(glyph));
+                return el('b', '', s);
+            };
+            const attack = stat('attack', 'sword', t('g3d.stat.attack'));
+            const armor = stat('armor', 'shield', t('g3d.stat.armor'));
+            const gauge = el('div', 'sg-plaque-gauge', box);
+            gauge.setAttribute('role', 'meter');
+            gauge.setAttribute('aria-label', t('g3d.stat.health'));
+            gauge.setAttribute('aria-valuemin', '0');
+            const fill = el('i', '', gauge);
+            const health = el('b', '', gauge);
+            const max = el('small', '', gauge);
+            const status = el('div', 'sg-plaque-status', box);
+            p = this.plaques[side] = { box, name, attack, armor, gauge, fill, health, max, status };
+        }
+        p.box.hidden = false;
+        pill.hidden = true;
+        const hp = Math.max(0, Number(info.health) || 0);
+        const top = Math.max(hp, Number(info.maxHealth) || hp || 1);
+        if (p.name.textContent !== String(info.name ?? '')) p.name.textContent = String(info.name ?? '');
+        p.attack.textContent = String(Number(info.attack) || 0);
+        p.attack.parentElement.hidden = !(Number(info.attack) > 0);
+        p.armor.textContent = String(Number(info.armor) || 0);
+        p.armor.parentElement.hidden = !(Number(info.armor) > 0);
+        p.health.textContent = String(hp);
+        p.max.textContent = `/${top}`;
+        p.fill.style.transform = `scaleX(${hp / top})`;
+        p.gauge.setAttribute('aria-valuemax', String(top));
+        p.gauge.setAttribute('aria-valuenow', String(hp));
+        p.box.classList.toggle('ready', !!info.ready);
+        p.box.classList.toggle('fallen', !!info.fallen);
+        p.box.classList.toggle('turn', !!info.turn);
+        p.box.classList.toggle('target', !!info.target);
+        p.box.classList.toggle('low', hp > 0 && hp / top <= 0.3);
+        if (this.statusInfo[side]) this.renderStatus(p.status, side, this.statusInfo[side]);
+        p.status.hidden = !this.statusInfo[side];
+    }
+
+    /** Portrait: puts a plaque with its anchor point (`ax`, `ay`) at (x, y); landscape keeps it in its corner (CSS). */
+    placePlaque(side, x, y, ax = 0, ay = 0.5) {
+        const p = this.plaques[side];
+        if (!p || p.box.hidden) return;
+        if (x === null) {
+            p.box.style.transform = '';
+            p.box.classList.remove('placed');
+            return;
+        }
+        p.box.classList.add('placed');
+        this.follow(p.box, x, y, ax, ay);
+    }
+
+    /** Screen rectangle of a side's plaque (null when it is hidden). */
+    plaqueRect(side) {
+        const p = this.plaques[side];
+        return p && !p.box.hidden ? p.box.getBoundingClientRect() : null;
     }
 
     placeStatus(side, x, y, ax = 0.5) {
@@ -990,20 +1079,6 @@ export class UI {
         this.settingsButton.setAttribute('aria-label', t('g3d.settings'));
         this.settingsButton.setAttribute('aria-expanded', 'false');
         this.settingsButton.addEventListener('click', () => this.toggleSettings());
-        const seg = el('div', 's-seg', bar);
-        seg.setAttribute('role', 'group');
-        seg.setAttribute('aria-label', t('g3d.camera'));
-        this.viewButtons = {};
-        const labels = { classic: t('g3d.view.classic'), arena: t('g3d.view.arena'), field: t('g3d.view.field'), cinematic: t('g3d.view.cinematic') };
-        for (const [name, view] of Object.entries(VIEWS)) {
-            if (!view.key) continue;
-            const b = button('', seg);
-            el('kbd', '', b, view.key);
-            b.append(labels[name] || view.label);
-            b.addEventListener('click', () => { if (this.onView) this.onView(name); });
-            this.viewButtons[name] = b;
-        }
-        el('span', 'souls3d-views-hint', bar, touchInput() ? t('g3d.views.touchHint') : t('g3d.views.mouseHint'));
         this.views = bar;
     }
 
@@ -1025,6 +1100,32 @@ export class UI {
             const seg = el('div', 's-seg', r);
             return seg;
         };
+
+        // The camera (keys 1 to 4 switch too) and the client: behind the gear, so the arena keeps its top edge.
+        const camera = row(t('g3d.camera'));
+        camera.setAttribute('role', 'group');
+        camera.setAttribute('aria-label', t('g3d.camera'));
+        this.viewButtons = {};
+        const labels = { classic: t('g3d.view.classic'), arena: t('g3d.view.arena'), field: t('g3d.view.field'), cinematic: t('g3d.view.cinematic') };
+        for (const [name, view] of Object.entries(VIEWS)) {
+            if (!view.key) continue;
+            const b = button('', camera);
+            el('kbd', '', b, view.key);
+            b.append(labels[name] || view.label);
+            b.addEventListener('click', () => { if (this.onView) this.onView(name); });
+            this.viewButtons[name] = b;
+        }
+        el('small', 'sg-setting-note', camera.parentElement, touchInput() ? t('g3d.views.touchHint') : t('g3d.views.mouseHint'));
+
+        const mode = window.SoulsGameMode;
+        if (mode && mode.switchTo) {
+            const client = row(t('mode.client'));
+            for (const [name, label] of [['classic', t('mode.classic')], ['3d', t('mode.3d')]]) {
+                const b = button(mode.mode === name ? 'active' : '', client, label);
+                b.setAttribute('aria-pressed', String(mode.mode === name));
+                b.addEventListener('click', () => mode.switchTo(name));
+            }
+        }
 
         const soundSeg = row(t('g3d.settings.sound'));
         this.soundButtons = [[t('g3d.settings.on'), false], [t('g3d.settings.off'), true]].map(([label, muted]) => {
@@ -1179,6 +1280,8 @@ export class UI {
         this.setPower(null);
         this.setStatus3d('player', null);
         this.setStatus3d('opponent', null);
+        this.setPlaque('player', null);
+        this.setPlaque('opponent', null);
         this.toggleSettings(false);
         this.toggleEmotes(false);
         this.hint(null);

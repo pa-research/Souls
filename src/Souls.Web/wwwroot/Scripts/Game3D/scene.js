@@ -45,18 +45,18 @@ export const VIEWS = {
 const CLASSIC_FIT = [toWorld(0, 0), toWorld(STAGE_W, 0), toWorld(0, STAGE_H), toWorld(STAGE_W, STAGE_H)];
 // Portrait: the classic view frames the board alone (both slot rows, both heroes), not the whole classic stage.
 const PORTRAIT_CLASSIC_FIT = [toWorld(440, 0), toWorld(1480, 0), toWorld(440, STAGE_H), toWorld(1480, STAGE_H)];
-// The board (both slot rows and both heroes on their podiums) for the angled view.
+// The board (both slot rows and both heroes on their podiums, the opponent's figure head and all) for the angled view.
 const BOARD_FIT = [
     new THREE.Vector3(-700, 0, -640), new THREE.Vector3(700, 0, -640),
     new THREE.Vector3(-640, 0, 700), new THREE.Vector3(640, 0, 700),
-    new THREE.Vector3(0, 300, -585),
+    new THREE.Vector3(0, 370, -585),
 ];
 // Portrait: the narrow screen holds the slot rows edge to edge (cards 150 x 210 on them) and both heroes on their podiums.
 const PORTRAIT_BOARD_FIT = [
     new THREE.Vector3(-545, 0, -230), new THREE.Vector3(545, 0, -230),
     new THREE.Vector3(-545, 0, 270), new THREE.Vector3(545, 0, 270),
     new THREE.Vector3(0, 0, -725), new THREE.Vector3(0, 300, -585),
-    new THREE.Vector3(0, 0, 725), new THREE.Vector3(0, 270, 585),
+    new THREE.Vector3(0, 0, 900), new THREE.Vector3(0, 255, 760),
 ];
 // The part of the screen a view frames its subject in (normalized device coordinates): all of it, except in portrait
 // (Stage.bands) and inside the safe area in landscape (safeFrame).
@@ -240,6 +240,7 @@ export class Stage {
         // Portrait: the bands of the screen, and the part of it the views frame the board in (landscape: the safe area).
         this.portrait = width < height;
         const inset = safeArea(this.safeProbe);
+        this.inset = inset;
         this.bands = this.portrait ? portraitBands(width, height, inset) : null;
         this.frame = this.portrait ? { top: 1 - 2 * this.bands.board[0] / height, bottom: 1 - 2 * this.bands.board[1] / height } : safeFrame(width, height, inset);
         this.renderer.setSize(width, height, false);
@@ -484,7 +485,8 @@ export class Stage {
             const side = Math.sin(a) ** 2;
             const radius = 1500 - 940 * side, height = 1080 + 470 * side;
             cam.position.set(Math.sin(a) * radius, height + Math.sin(now * 0.00011) * 90, Math.cos(a) * radius);
-            cam.lookAt(0, 60, 0);
+            // (Aimed a little toward the player's end: the board sits above the fanned hand.)
+            cam.lookAt(0, 60, this.menu ? 0 : 220);
         } else {
             const f = this.free;
             cam.fov = f.fov || 40;

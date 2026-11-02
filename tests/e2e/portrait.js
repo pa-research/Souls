@@ -208,7 +208,10 @@ const MIN_CARD = 86;
         const m = await measure();
         const safe = { x: inset.left - 1, y: 0, w: W - inset.left - inset.right + 2, h: H - inset.bottom + 1 };
         const inSafe = r => r.x >= safe.x && r.y >= safe.y && r.x + r.w <= safe.x + safe.w && r.y + r.h <= safe.y + safe.h;
-        const out = [...m.hand.map((r, i) => ({ ...r, name: 'hand card ' + i })), { ...(await hook('signRect()')), name: 'End Turn' }, ...m.dom].filter(r => !inSafe(r));
+        // (The hand fans out along the bottom and runs off it, so its cards keep inside the sides, with the top two fifths
+        // of each above the home indicator.)
+        const handSafe = r => r.x >= safe.x && r.x + r.w <= safe.x + safe.w && r.y + 0.4 * r.h <= safe.y + safe.h;
+        const out = [...m.hand.map((r, i) => ({ ...r, name: 'hand card ' + i })).filter(r => !handSafe(r)), ...[{ ...(await hook('signRect()')), name: 'End Turn' }, ...m.dom].filter(r => !inSafe(r))];
         const covered = m.dom.filter(d => ['.souls3d-views', '.souls3d-log', '.souls3d-chat'].includes(d.name) && m.hand.some(r => overlap(d, r))).map(d => ({ ...d, name: d.name + ' over the hand' }));
         step('sideways with a notch and a home indicator, the controls stay in the safe area, off the hand', out.length + covered.length === 0,
           out.concat(covered).slice(0, 4).map(r => `${r.name} ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}x${Math.round(r.h)}`).join('; '));
