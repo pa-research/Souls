@@ -1,7 +1,7 @@
 // Heroes: the classic portrait medallion as a 3D shield floating above the arena, with mana gems around it, and in the
 // stadium views the hero itself: an animated figure of its class on its podium (Content/Models/Heroes, made with Tripo).
 import * as THREE from '/lib/three/three.webgpu.js';
-import { float, texture } from '/lib/three/three.tsl.js';
+import { cameraProjectionMatrix, float, length, mix, positionView, step, texture, uniform, uv, vec4 } from '/lib/three/three.tsl.js';
 import { GLTFLoader } from '/lib/three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '/lib/three/addons/utils/SkeletonUtils.js';
 import { Images, loadImage } from './assets.js';
@@ -23,6 +23,10 @@ export const FIGURE_HEIGHT = 300;
 export const PLATE_W = 300;
 export const PLATE_H = 104;
 const READY = new THREE.Color(0x2ecc71);
+// How far from the camera the nameplate is drawn (just past the near plane: over everything), and how far in front of and
+// behind its own spot its rows go when its lower edge is behind the figure (more than the figure is thick).
+const PLATE_FRONT = 20;
+const PLATE_DEPTH = FIGURE_HEIGHT * 0.4;
 
 // One load per class; each hero plays a copy (both heroes may be the same class).
 const figures = new Map();
@@ -139,8 +143,17 @@ export class Hero3D extends THREE.Group {
         this.plateTexture = new THREE.CanvasTexture(this.plateCanvas);
         this.plateTexture.colorSpace = THREE.SRGBColorSpace;
         this.plateTexture.anisotropy = 8;
-        this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H),
-            new THREE.MeshBasicMaterial({ map: this.plateTexture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+        const plateMaterial = new THREE.MeshBasicNodeMaterial({ map: this.plateTexture, transparent: true, depthWrite: false, toneMapped: false });
+        // Each vertex moves along its line of sight, so the plate looks the same on the screen. Drawn just past the
+        // camera's near plane it stays over everything (beams, bursts, the board). As plateBehind rises to 1 (over the
+        // player's head) it straddles its own figure instead: its top rows come forward of the figure and its two bottom
+        // rows go back past it, so the head covers the frame's lower edge but never the name or the health bar.
+        this.plateBehind = uniform(0);
+        const distance = length(positionView);
+        const front = float(PLATE_FRONT).div(distance);
+        const depth = mix(float(-PLATE_DEPTH), float(PLATE_DEPTH), step(uv().y, 0.15)).div(distance).add(1);
+        plateMaterial.vertexNode = cameraProjectionMatrix.mul(vec4(positionView.mul(mix(front, depth, this.plateBehind)), 1));
+        this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H, 1, 10), plateMaterial);
         this.nameplate.renderOrder = 19; // over beams and bursts, under floating numbers
         this.nameplate.visible = false;
         this.nameplate.userData.hero = this;
