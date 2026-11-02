@@ -483,7 +483,7 @@ export class Interaction {
             if (!obj.dying) obj.setGlow(color, on ? 0.9 : 0);
             obj.body.scale.setScalar(on ? 1.15 : 1);
         } else if (obj instanceof Hero3D) {
-            obj.body.scale.setScalar(on ? 1.1 : 1);
+            obj.setHighlight(on, color);
         }
     }
 
