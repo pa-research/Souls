@@ -1,0 +1,24 @@
+@model string
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Souls</title>
+    <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="s-discord">
+    @* The Discord Activity's start: discord-activity.js signs in with Discord, then opens the game. *@
+    <main id="discord-activity" class="s-discord-start" data-client-id="@Model" data-token-url="@Url.Action("Token")"
+          data-csrf="@Antiforgery.GetAndStoreTokens(Context).RequestToken" data-failed="@L["Could not sign in with Discord. Close the Activity and try again."]">
+        <h1 class="s-h1 s-gold-text">Souls</h1>
+        <p data-status>@L["Signing in with Discord…"]</p>
+    </main>
+    <script type="module" src="~/Scripts/discord-activity.js" asp-append-version="true"></script>
+</body>
+</html>

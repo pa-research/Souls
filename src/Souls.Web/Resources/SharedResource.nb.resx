@@ -1012,4 +1012,10 @@
   <data name="{0} got a new card: {1}" xml:space="preserve">
     <value>{0} fikk et nytt kort: {1}</value>
   </data>
+  <data name="Signing in with Discord…" xml:space="preserve">
+    <value>Logger inn med Discord …</value>
+  </data>
+  <data name="Could not sign in with Discord. Close the Activity and try again." xml:space="preserve">
+    <value>Kunne ikke logge inn med Discord. Lukk aktiviteten og prøv igjen.</value>
+  </data>
 </root>

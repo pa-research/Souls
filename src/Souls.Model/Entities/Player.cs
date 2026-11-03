@@ -41,6 +41,9 @@ public class Player
     /// <summary>A persona of the community, a bot (see the game server's AiCommunity): it never logs in.</summary>
     public bool IsAi { get; set; }
 
+    /// <summary>The Discord account the player signs in with in the Discord Activity (a Discord user id), if any.</summary>
+    public string? DiscordId { get; set; }
+
     public bool IsAdmin => PlayerPermissionId == Entities.PlayerPermission.Admin;
 
     public static string Normalize(string name) => name.Trim().ToUpperInvariant();

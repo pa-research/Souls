@@ -1790,6 +1790,11 @@ namespace Souls.Model.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created");
 
+                    b.Property<string>("DiscordId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("discord_id");
+
                     b.Property<int?>("HeroPowerId")
                         .HasColumnType("integer")
                         .HasColumnName("hero_power");
@@ -1859,6 +1864,9 @@ namespace Souls.Model.Migrations
                         .HasColumnName("rating_volatility");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DiscordId")
+                        .IsUnique();
 
                     b.HasIndex("Name")
                         .IsUnique();

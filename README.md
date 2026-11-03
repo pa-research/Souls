@@ -565,6 +565,7 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__GitHubRepository` | web | `owner/repo` for the "Souls Updates" feed (fetched by the browser). |
 | `Souls__RateLimits__AuthPerMinute` / `UploadsPerMinute` | web | Per-IP limits (defaults 10 / 20). |
 | `Souls__AllowedOrigins` | server | Extra allowed WebSocket origins. Empty = same origin only. |
+| `Souls__Discord__ClientId` / `ClientSecret` / `ActivityHost` | web (server: `ClientId`) | The Discord Activity (see below); off unless all three are set (**client secret is secret**). |
 | `Souls__Matchmaker__ReconnectGracePeriod` | server | How long a disconnected player may reconnect before forfeiting (default 1 min). |
 | `Souls__Seasons__Length` | migrate, server | Length of a new season (default 56 days). The game server ends seasons, checking once a minute. |
 | `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
@@ -572,6 +573,24 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__Game__MaxTimeoutsInARow` | server | Timed-out turns in a row that forfeit the game (default 3). |
 | `Souls__DataProtection__Certificate` / `CertificatePassword` | both | PFX certificate (RSA, base64) that encrypts the Data Protection keys in the database; the password is optional (**secret**). |
 | `Souls__DataProtection__PreviousCertificate` / `PreviousCertificatePassword` | both | The certificate before a rotation, so keys it encrypted stay readable (**secret**). |
+
+### Discord Activity
+
+Souls can run as a [Discord Activity](https://docs.discord.com/developers/activities/overview): the game opens inside
+a voice channel and players sign in with their Discord account. Discord shows the Activity in an iframe on
+`{client id}.discordsays.com` and proxies it to the Activity host, a host name of its own that serves the same web app
+and game server: only there are the cookies `SameSite=None; Partitioned` and framing by Discord allowed, so the site
+itself keeps its stricter rules. On a new Discord account the player picks a name, hero and starter cards (the register
+page, without a password); later launches go straight to the game.
+
+1. In the [Developer Portal](https://discord.com/developers/applications), create an application and enable Activities.
+   Under OAuth2, add the placeholder redirect `https://127.0.0.1` (the Activity's sign-in needs one) and copy the
+   client id and client secret.
+2. Point a host name (e.g. `discord.souls.example`) at the same ingress as the site, routing `/ws` to the game server
+   like the site's host.
+3. Under Activities → URL Mappings, map `/` to that host name.
+4. Set `Souls__Discord__ClientId`, `Souls__Discord__ActivityHost` and the secret `Souls__Discord__ClientSecret` for the
+   web app, and `Souls__Discord__ClientId` for the game server (it accepts WebSockets from Discord's proxy).
 
 The Data Protection keys (they protect the login cookie) live in the database. With a certificate configured they
 are encrypted at rest; without one they are stored in plain form and the apps log a warning in Production. The

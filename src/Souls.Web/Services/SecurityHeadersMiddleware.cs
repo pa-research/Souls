@@ -4,7 +4,7 @@ namespace Souls.Web.Services;
 /// Adds a strict Content-Security-Policy and the usual hardening headers. Pages contain no inline scripts,
 /// so scripts are limited to this origin.
 /// </summary>
-public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfiguration configuration)
+public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfiguration configuration, DiscordActivity discord)
 {
     private readonly string? _gameServerOrigin = GetOrigin(configuration["Souls:GameServerUrl"]);
     private readonly string? _githubApi = string.IsNullOrWhiteSpace(configuration["Souls:GitHubRepository"]) ? null : "https://api.github.com";
@@ -15,10 +15,13 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
         {
             var headers = context.Response.Headers;
             var host = context.Request.Host.Value;
+            // The Discord Activity (DiscordActivity): framed by Discord, served from its proxy's origin.
+            var activity = discord.IsActivityRequest(context);
             // blob: the 3D client's GLTFLoader reads the textures packed in a model through blob URLs of this page.
             var connect = $"'self' blob: wss://{host}" + (context.Request.IsHttps ? string.Empty : $" ws://{host}")
                 + (_gameServerOrigin is null ? string.Empty : $" {_gameServerOrigin}")
-                + (_githubApi is null ? string.Empty : $" {_githubApi}");
+                + (_githubApi is null ? string.Empty : $" {_githubApi}")
+                + (activity ? $" wss://{discord.ClientId}.discordsays.com" : string.Empty);
 
             headers.ContentSecurityPolicy =
                 "default-src 'self'; " +
@@ -31,10 +34,18 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
                 "object-src 'none'; " +
                 "base-uri 'self'; " +
                 "form-action 'self'; " +
-                "frame-ancestors 'none'" +
+                $"frame-ancestors {(activity ? DiscordActivity.FrameAncestors : "'none'")}" +
                 (context.Request.IsHttps ? "; upgrade-insecure-requests" : string.Empty);
             headers.XContentTypeOptions = "nosniff";
-            headers.XFrameOptions = "DENY";
+            if (activity)
+            {
+                DiscordActivity.RelaxCookies(headers);
+            }
+            else
+            {
+                headers.XFrameOptions = "DENY";
+            }
+
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
             headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
             headers["Cross-Origin-Opener-Policy"] = "same-origin";

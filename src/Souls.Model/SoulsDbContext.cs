@@ -123,8 +123,10 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.Property(x => x.PlayerPermissionId).HasColumnName("fk_permission");
             e.Property(x => x.IsSystem).HasColumnName("is_system");
             e.Property(x => x.IsAi).HasColumnName("is_ai");
+            e.Property(x => x.DiscordId).HasColumnName("discord_id").HasMaxLength(32);
             e.Ignore(x => x.IsAdmin);
             e.HasIndex(x => x.Name).IsUnique();
+            e.HasIndex(x => x.DiscordId).IsUnique();
             e.HasIndex(x => x.NormalizedName).IsUnique();
             e.HasOne(x => x.PlayerType).WithMany().HasForeignKey(x => x.PlayerTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PlayerPermission).WithMany().HasForeignKey(x => x.PlayerPermissionId).OnDelete(DeleteBehavior.Restrict);

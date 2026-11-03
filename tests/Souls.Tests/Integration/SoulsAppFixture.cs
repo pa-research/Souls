@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,9 @@ public sealed class SoulsAppFixture : IAsyncLifetime
             ["Souls:Community:LiveGames"] = "0",
             ["Souls:GameServerHealthUrl"] = string.Empty,
             ["Souls:RateLimits:AuthPerMinute"] = "1000",
+            ["Souls:Discord:ClientId"] = FakeDiscord.ClientId,
+            ["Souls:Discord:ClientSecret"] = FakeDiscord.ClientSecret,
+            ["Souls:Discord:ActivityHost"] = FakeDiscord.ActivityHost,
         };
 
         Web = new WebApplicationFactory<WebAssemblyMarker>().WithWebHostBuilder(b => Configure(b, settings));
@@ -68,6 +72,14 @@ public sealed class SoulsAppFixture : IAsyncLifetime
 
     public TestBrowser CreateBrowser() => new(Web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false }));
 
+    /// <summary>A browser in the Discord Activity: its requests reach the web app on the Activity's host.</summary>
+    public TestBrowser CreateDiscordBrowser() => new(Web.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri($"http://{FakeDiscord.ActivityHost}"),
+        AllowAutoRedirect = false,
+        HandleCookies = false,
+    }));
+
     public async Task<T> WithDbAsync<T>(Func<SoulsDbContext, Task<T>> action)
     {
         await using var scope = Web.Services.CreateAsyncScope();
@@ -78,6 +90,7 @@ public sealed class SoulsAppFixture : IAsyncLifetime
     {
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(settings));
+        builder.ConfigureTestServices(services => services.AddHttpClient("discord").ConfigurePrimaryHttpMessageHandler(() => new FakeDiscord()));
     }
 }
 
