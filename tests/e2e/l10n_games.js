@@ -10,9 +10,8 @@ const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'l10n-games';
 const lang = process.argv[4] || 'nb';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, RESULT, LAUNCH, register } = require('./helpers')(base, out);
 const phrases = englishPhrases(lang);
-const RESULT = [230, 231, 233];
 
 const RUNS = [
   { client: '3d', device: 'desk', viewport: { width: 1600, height: 900 } },
@@ -22,7 +21,7 @@ const RUNS = [
 ];
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const problems = [];
   for (const run of RUNS) {
     const label = `${run.client}-${run.device}`;
@@ -52,13 +51,7 @@ const RUNS = [
     };
 
     const name = label[0] + Date.now().toString(36).slice(-8);
-    await page.goto(base + '/Player/Register');
-    await page.fill('#Form_Username', name); await page.fill('#Form_Password', 'CorrectHorse9!'); await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-    await page.check('#type-1');
-    for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-    await page.click('main button[type=submit]'); await page.waitForURL(/Player\/Login/);
-    await page.fill('#Name', name); await page.fill('#Password', 'CorrectHorse9!'); await page.click('main button[type=submit]');
-    await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+    await register(page, name);
     await pickLanguage(page, base, lang);
 
     await page.goto(`${base}/Game?mode=${run.client}`, { waitUntil: 'domcontentloaded' });

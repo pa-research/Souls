@@ -13,12 +13,9 @@ const { checkLeaveDialog } = require('./leave_dialog');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'portrait';
 fs.mkdirSync(out, { recursive: true });
+const { sleep, RESULT, LAUNCH, steps, step, login, register } = require('./helpers')(base, out);
 const adminPassword = process.env.SOULS_ADMIN_PASSWORD
   || fs.readFileSync(path.join(__dirname, '../../deploy/compose/secrets/Souls__Admin__Password'), 'utf8').trim();
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const steps = [];
-const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const RESULT = [230, 231, 233];
 const SPELLS = [60, 63]; // Soul Rend, Blood Lance
 const BURN = 8;
 const PHONE = { width: Number(process.argv[4] || 412), height: Number(process.argv[5] || 915) };
@@ -26,15 +23,10 @@ const PHONE = { width: Number(process.argv[4] || 412), height: Number(process.ar
 const MIN_CARD = 86;
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const adminCtx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
   const admin = await adminCtx.newPage();
   admin.setDefaultTimeout(120000);
-  const login = async (page, name, password) => {
-    await page.goto(base + '/Player/Login');
-    await page.fill('#Name', name); await page.fill('#Password', password); await page.click('main button[type=submit]');
-    await page.waitForURL(u => !u.toString().includes('/Player/Login'));
-  };
   const setLevel = async (id, level) => {
     await admin.goto(`${base}/Admin/CardEditor/${id}`);
     await admin.fill('#Card_Level', String(level));
@@ -146,16 +138,7 @@ const MIN_CARD = 86;
 
     // ---- Into a practice game ----------------------------------------------------------------------------------
     const name = 'po' + Date.now().toString(36);
-    await page.goto(base + '/Player/Register');
-    await page.fill('#Form_Username', name); await page.fill('#Form_Password', 'CorrectHorse9!'); await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-    await page.check('#type-1');
-    for (const id of SPELLS) await page.check(`#card-${id}`);
-    for (const box of await page.$$('input.cards')) {
-      if ((await page.$$('input.cards:checked')).length >= 5) break;
-      if (!(await box.isChecked())) await box.check();
-    }
-    await page.click('main button[type=submit]'); await page.waitForURL(/Player\/Login/);
-    await login(page, name, 'CorrectHorse9!');
+    await register(page, name, 1, SPELLS);
     await page.goto(`${base}/Game?mode=3d`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.sg-menu', { timeout: 180000 });
     await sleep(800);

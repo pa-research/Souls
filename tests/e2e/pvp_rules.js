@@ -1,158 +1,10 @@
 // Ranked game between a 3D player (A) and a classic player (B), watched live by a 3D spectator (C).
 // Usage: node pvp_rules.js <baseUrl> <outDir>
-const { chromium } = require('playwright');
 const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'pvp-rules';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const steps = [];
-const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const RESULT = [230, 231, 233];
-const LAUNCH = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
-let shot = 0;
-
-async function session(label) {
-  const browser = await chromium.launch(LAUNCH);
-  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(120000);
-  const s = { label, browser, page, frames: [], problems: [] };
-  page.on('console', m => { if (m.type() === 'error' && !/GL Driver|GPU stall|api\.github/.test(m.text())) s.problems.push(m.text()); });
-  page.on('pageerror', e => s.problems.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' / ')));
-  page.on('websocket', ws => {
-    if (!ws.url().endsWith('/game')) return;
-    ws.on('framereceived', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'in', type: j.Type, p: j.Payload }); } catch (e) {} });
-    ws.on('framesent', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'out', type: j.Type, p: j.Payload }); } catch (e) {} });
-  });
-  return s;
-}
-async function waitFrame(s, pred, from = 0, timeout = 15000) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    for (let i = from; i < s.frames.length; i++) if (pred(s.frames[i])) return s.frames[i];
-    await sleep(100);
-  }
-  return null;
-}
-async function snap(s, name) {
-  try { await s.page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${s.label}-${name}.jpg`, type: 'jpeg', quality: 75, timeout: 90000 }); } catch (e) { console.log(`(screenshot ${name} skipped)`); }
-}
-async function register(s, name, type) {
-  const p = s.page;
-  await p.goto(base + '/Player/Register');
-  await p.fill('#Form_Username', name);
-  await p.fill('#Form_Password', 'CorrectHorse9!');
-  await p.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await p.check(`#type-${type}`);
-  for (const box of (await p.$$('input.cards')).slice(0, 5)) await box.check();
-  await p.click('main button[type=submit]');
-  await p.waitForURL(/Player\/Login/);
-  await p.fill('#Name', name);
-  await p.fill('#Password', 'CorrectHorse9!');
-  await p.click('main button[type=submit]');
-  await p.waitForURL(u => !u.toString().includes('/Player/Login'));
-}
-const hook = (s, expr) => s.page.evaluate(`window.__souls3d && window.__souls3d.${expr}`);
-async function drag(s, from, to, button = 'left') {
-  if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
-  const m = s.page.mouse;
-  await m.move(from.x, from.y, { steps: 3 }); await sleep(250);
-  await m.down({ button }); await sleep(200);
-  await m.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 6 }); await sleep(200);
-  await m.move(to.x, to.y, { steps: 6 }); await sleep(400);
-  await m.up({ button }); await sleep(300);
-}
-// Classic: stage coordinates (1920x1080) to page coordinates.
-async function at(s, gx, gy) {
-  let canvas = await s.page.$('canvas');
-  if (!canvas) {
-    console.log('no canvas: url', s.page.url(), 'problems', s.problems.slice(0, 5), 'frames', s.frames.slice(-15).map(f => `${f.dir}${f.type}`).join(' '));
-    console.log('body:', (await s.page.evaluate(() => document.body.innerHTML.slice(0, 600))));
-    await snap(s, 'no-canvas');
-    throw new Error('classic canvas gone');
-  }
-  const box = await canvas.boundingBox();
-  return { x: box.x + gx * box.width / 1920, y: box.y + gy * box.height / 1080 };
-}
-async function classicDrag(s, from, to) {
-  const a = await at(s, from[0], from[1]); const b = await at(s, to[0], to[1]);
-  await s.page.mouse.move(a.x, a.y); await sleep(150);
-  await s.page.mouse.down(); await sleep(150);
-  await s.page.mouse.move(b.x, b.y, { steps: 25 }); await sleep(300);
-  await s.page.mouse.up(); await sleep(400);
-}
-
-// A's turn in 3D: play cards, hero power, card attacks / abilities, hero attack, end turn.
-async function turn3d(s, ident) {
-  for (let k = 0; k < 3; k++) {
-    const st = await hook(s, 'state()');
-    if (!st) return;
-    const taken = new Set(st.board.map(b => b.slotId));
-    const slot = [3, 2, 4, 1, 5, 0, 6].find(i => !taken.has(i));
-    const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending);
-    if (pick < 0 || slot === undefined) break;
-    const from = s.frames.length;
-    await drag(s, await hook(s, `handCard(${pick})`), await hook(s, `slot(${slot})`));
-    await waitFrame(s, f => f.dir === 'in' && f.type === 236, from, 8000);
-    await sleep(800);
-  }
-  let sync = await hook(s, 'sync()');
-  if (sync && sync.heroes[ident].canUsePower) {
-    const power = await hook(s, 'power()');
-    if (power && !power.disabled) {
-      const from = s.frames.length;
-      await s.page.mouse.click(power.x, power.y); await sleep(400);
-      const t = await hook(s, 'opponentHero()');
-      await s.page.mouse.move(t.x, t.y, { steps: 3 }); await sleep(200);
-      await s.page.mouse.click(t.x, t.y);
-      await waitFrame(s, f => f.dir === 'in' && f.type === 236, from, 8000);
-      await sleep(800);
-    }
-  }
-  for (let k = 0; k < 6; k++) {
-    sync = await hook(s, 'sync()');
-    if (!sync || sync.current !== ident || (await hook(s, 'state()')).ended) return;
-    const ready = (sync.board[ident] || []).filter(c => c.canAct && c.attack > 0);
-    if (!ready.length) break;
-    const enemy = sync.board[3 - ident] || [];
-    const taunts = enemy.filter(c => c.taunt);
-    const from = s.frames.length;
-    const src = await hook(s, `boardCard(${ready[0].cid})`);
-    const dst = taunts.length ? await hook(s, `opponentCard(${taunts[0].cid})`) : await hook(s, 'opponentHero()');
-    if (!src || !dst) break;
-    await drag(s, src, dst);
-    const ev = await waitFrame(s, f => f.dir === 'in' && (f.type === 236 || f.type === 232), from, 8000);
-    if (!ev || ev.type === 232) break;
-    await sleep(1400);
-  }
-  sync = await hook(s, 'sync()');
-  if (sync && sync.current === ident && sync.heroes[ident].canAttack) {
-    const taunts = (sync.board[3 - ident] || []).filter(c => c.taunt);
-    const from = s.frames.length;
-    await drag(s, await hook(s, 'hero()'), taunts.length ? await hook(s, `opponentCard(${taunts[0].cid})`) : await hook(s, 'opponentHero()'));
-    await waitFrame(s, f => f.dir === 'in' && (f.type === 236 || f.type === 232), from, 8000);
-    await sleep(1400);
-  }
-  if (s.frames.some(f => f.dir === 'in' && RESULT.includes(f.type))) return;
-  const sign = await hook(s, 'endTurn()');
-  const from = s.frames.length;
-  await s.page.mouse.click(sign.x, sign.y);
-  await waitFrame(s, f => f.dir === 'in' && (f.type === 226 || RESULT.includes(f.type)), from, 10000);
-}
-
-// B's turn in the classic client: play the first hand card, hero attacks the enemy hero, end turn.
-async function turnClassic(s, turn) {
-  await classicDrag(s, [175, 965], [520 + 147.7 * (3 + (turn % 3)), 700]);
-  await sleep(1500);
-  await classicDrag(s, [956, 960], [956, 141]);
-  await sleep(2500);
-  if (s.frames.some(f => f.dir === 'in' && RESULT.includes(f.type))) return;
-  const from = s.frames.length;
-  const p = await at(s, 1608, 550);
-  await s.page.mouse.click(p.x, p.y);
-  await waitFrame(s, f => f.dir === 'in' && (f.type === 226 || RESULT.includes(f.type)), from, 10000);
-}
+const { sleep, RESULT, steps, step, session, waitFrame, snap, register, hook, turn3d, turnClassic } = require('./helpers')(base, out);
 
 (async () => {
   const id = Date.now().toString(36).slice(-6);
@@ -211,7 +63,7 @@ async function turnClassic(s, turn) {
     const livedP = waitFrame(C, f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t !== 'log'), from, 240000);
     // Nothing happens until someone acts (turns are long with compose.ci.yaml): the player on turn plays it now.
     const now = (await hook(A, 'sync()').catch(() => null))?.current;
-    if (now === identA) await turn3d(A, identA);
+    if (now === identA) await turn3d(A, identA, { power: true });
     else if (now === identB) await turnClassic(B, 0);
     const lived = await livedP;
     step('spectator receives live events', !!lived, lived ? lived.p.events.map(e => e.t).join(',') : 'none');
@@ -229,7 +81,7 @@ async function turnClassic(s, turn) {
     if ([A, B].some(x => x.frames.some(f => f.dir === 'in' && RESULT.includes(f.type)))) break;
     const current = (await hook(A, 'sync()').catch(() => null))?.current;
     console.log(`[${Math.round((Date.now() - t0) / 1000)}s] loop ${turn}: current ${current}`);
-    if (current === identA) await turn3d(A, identA);
+    if (current === identA) await turn3d(A, identA, { power: true });
     else if (current === identB) {
       const canvases = await B.page.$$eval('canvas', c => c.length).catch(e => 'err ' + e.message);
       if (!canvases) {

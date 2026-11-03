@@ -8,7 +8,6 @@
 //   restart command:  default $SOULS_RESTART_CMD, else "docker compose restart server"
 //   redeploy command: default $SOULS_REDEPLOY_CMD, else the restart command; for example
 //                     "docker compose stop server && docker compose up -d --build --force-recreate --no-deps server"
-const { chromium } = require('playwright');
 const { exec } = require('child_process');
 const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
@@ -16,45 +15,10 @@ const out = process.argv[3] || 'restart';
 const restartCmd = process.argv[4] || process.env.SOULS_RESTART_CMD || 'docker compose restart server';
 const redeployCmd = process.argv[5] || process.env.SOULS_REDEPLOY_CMD || restartCmd;
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const steps = [];
-const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const RESULT = [230, 231, 233];
-const LAUNCH = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
 // While the server restarts, the browser logs the failed reconnection attempts: expected here.
-const EXPECTED = /GL Driver|GPU stall|api\.github|WebSocket connection to .* failed/;
-let shot = 0;
-
-async function session(label) {
-  const browser = await chromium.launch(LAUNCH);
-  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(120000);
-  const s = { label, browser, page, frames: [], chat: [], problems: [], sockets: 0, closes: 0 };
-  page.on('console', m => { if (m.type() === 'error' && !EXPECTED.test(m.text())) s.problems.push(m.text()); });
-  page.on('pageerror', e => s.problems.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' / ')));
-  page.on('websocket', ws => {
-    if (ws.url().endsWith('/chat')) {
-      ws.on('framereceived', f => { try { s.chat.push(JSON.parse(f.payload)); } catch (e) {} });
-      return;
-    }
-    if (!ws.url().endsWith('/game')) return;
-    s.sockets++;
-    ws.on('close', () => s.closes++);
-    ws.on('framereceived', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'in', type: j.Type, p: j.Payload }); } catch (e) {} });
-    ws.on('framesent', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'out', type: j.Type, p: j.Payload }); } catch (e) {} });
-  });
-  return s;
-}
-async function waitFrame(s, pred, from = 0, timeout = 15000) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    for (let i = from; i < s.frames.length; i++) if (pred(s.frames[i])) return s.frames[i];
-    await sleep(100);
-  }
-  return null;
-}
-const last = (s, pred) => [...s.frames].reverse().find(pred);
+const { sleep, RESULT, steps, step, session, waitFrame, last, ended, snap, register, hook, turn3d, endTurn3d, turnClassic } = require('./helpers')(base, out, {
+  expected: /GL Driver|GPU stall|api\.github|WebSocket connection to .* failed/,
+});
 async function waitChat(s, pred, from = 0, timeout = 15000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
@@ -63,49 +27,6 @@ async function waitChat(s, pred, from = 0, timeout = 15000) {
   }
   return null;
 }
-async function snap(s, name) {
-  try { await s.page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${s.label}-${name}.jpg`, type: 'jpeg', quality: 75, timeout: 90000 }); } catch (e) { console.log(`(screenshot ${name} skipped)`); }
-}
-async function register(s, name, type) {
-  const p = s.page;
-  await p.goto(base + '/Player/Register');
-  await p.fill('#Form_Username', name);
-  await p.fill('#Form_Password', 'CorrectHorse9!');
-  await p.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await p.check(`#type-${type}`);
-  for (const box of (await p.$$('input.cards')).slice(0, 5)) await box.check();
-  await p.click('main button[type=submit]');
-  await p.waitForURL(/Player\/Login/);
-  await p.fill('#Name', name);
-  await p.fill('#Password', 'CorrectHorse9!');
-  await p.click('main button[type=submit]');
-  await p.waitForURL(u => !u.toString().includes('/Player/Login'));
-}
-const hook = (s, expr) => s.page.evaluate(`window.__souls3d && window.__souls3d.${expr}`);
-async function drag(s, from, to) {
-  if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
-  const m = s.page.mouse;
-  await m.move(from.x, from.y, { steps: 3 }); await sleep(250);
-  await m.down(); await sleep(200);
-  await m.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 6 }); await sleep(200);
-  await m.move(to.x, to.y, { steps: 6 }); await sleep(400);
-  await m.up(); await sleep(300);
-}
-// Classic: stage coordinates (1920x1080) to page coordinates.
-async function at(s, gx, gy) {
-  const canvas = await s.page.$('canvas');
-  if (!canvas) throw new Error(`${s.label}: classic canvas gone`);
-  const box = await canvas.boundingBox();
-  return { x: box.x + gx * box.width / 1920, y: box.y + gy * box.height / 1080 };
-}
-async function classicDrag(s, from, to) {
-  const a = await at(s, from[0], from[1]); const b = await at(s, to[0], to[1]);
-  await s.page.mouse.move(a.x, a.y); await sleep(150);
-  await s.page.mouse.down(); await sleep(150);
-  await s.page.mouse.move(b.x, b.y, { steps: 25 }); await sleep(300);
-  await s.page.mouse.up(); await sleep(400);
-}
-const ended = s => s.frames.some(f => f.dir === 'in' && RESULT.includes(f.type));
 
 /** Runs the restart (or redeploy) command while the browsers keep running; returns when it is done. */
 async function restartServer(label, cmd, watchers) {
@@ -121,55 +42,6 @@ async function restartServer(label, cmd, watchers) {
   await done;
   console.log(`--- ${label} done in ${Math.round((Date.now() - t0) / 1000)}s`);
 }
-
-// A's turn in 3D (also the practice player's): play up to `cards` cards, attack with ready cards and the hero, end
-// the turn unless `keep` (the turn stays open for a restart).
-async function turn3d(s, ident, { cards = 3, keep = false } = {}) {
-  for (let k = 0; k < cards; k++) {
-    const st = await hook(s, 'state()');
-    if (!st) return;
-    const taken = new Set(st.board.map(b => b.slotId));
-    const slot = [3, 2, 4, 1, 5, 0, 6].find(i => !taken.has(i));
-    const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending && !c.spell);
-    if (pick < 0 || slot === undefined) break;
-    const from = s.frames.length;
-    await drag(s, await hook(s, `handCard(${pick})`), await hook(s, `slot(${slot})`));
-    await waitFrame(s, f => f.dir === 'in' && (f.type === 236 || f.type === 232 || f.type === 213), from, 8000);
-    await sleep(800);
-  }
-  if (keep) return;
-  for (let k = 0; k < 6; k++) {
-    const sync = await hook(s, 'sync()');
-    if (!sync || sync.current !== ident || (await hook(s, 'state()')).ended) return;
-    const ready = (sync.board[ident] || []).filter(c => c.canAct && c.attack > 0);
-    if (!ready.length) break;
-    const taunts = (sync.board[3 - ident] || []).filter(c => c.taunt);
-    const from = s.frames.length;
-    const src = await hook(s, `boardCard(${ready[0].cid})`);
-    const dst = taunts.length ? await hook(s, `opponentCard(${taunts[0].cid})`) : await hook(s, 'opponentHero()');
-    if (!src || !dst) break;
-    await drag(s, src, dst);
-    const ev = await waitFrame(s, f => f.dir === 'in' && (f.type === 236 || f.type === 232), from, 8000);
-    if (!ev || ev.type === 232) break;
-    await sleep(1400);
-  }
-  const sync = await hook(s, 'sync()');
-  if (sync && sync.current === ident && sync.heroes[ident].canAttack) {
-    const taunts = (sync.board[3 - ident] || []).filter(c => c.taunt);
-    const from = s.frames.length;
-    await drag(s, await hook(s, 'hero()'), taunts.length ? await hook(s, `opponentCard(${taunts[0].cid})`) : await hook(s, 'opponentHero()'));
-    await waitFrame(s, f => f.dir === 'in' && (f.type === 236 || f.type === 232), from, 8000);
-    await sleep(1400);
-  }
-  if (ended(s)) return;
-  await endTurn3d(s);
-}
-async function endTurn3d(s) {
-  const sign = await hook(s, 'endTurn()');
-  const from = s.frames.length;
-  await s.page.mouse.click(sign.x, sign.y);
-  await waitFrame(s, f => f.dir === 'in' && (f.type === 226 || RESULT.includes(f.type)), from, 10000);
-}
 // The 3D client shows its own turn (it may lag behind the socket under load).
 async function waitTurn3d(s, ident, timeout = 150000) {
   return s.page.waitForFunction(id => {
@@ -179,20 +51,6 @@ async function waitTurn3d(s, ident, timeout = 150000) {
     const sync = h.sync();
     return sync && sync.current === id && h.state().yourTurn ? true : false;
   }, ident, { timeout, polling: 300 }).then(h => h.jsonValue()).catch(() => null);
-}
-
-// B's turn in the classic client: play the first hand card, hero attacks the enemy hero, end turn.
-async function turnClassic(s, turn, { keep = false } = {}) {
-  await classicDrag(s, [175, 965], [520 + 147.7 * (3 + (turn % 3)), 700]);
-  await sleep(1500);
-  if (keep) return;
-  await classicDrag(s, [956, 960], [956, 141]);
-  await sleep(2500);
-  if (ended(s)) return;
-  const from = s.frames.length;
-  const p = await at(s, 1608, 550);
-  await s.page.mouse.click(p.x, p.y);
-  await waitFrame(s, f => f.dir === 'in' && (f.type === 226 || RESULT.includes(f.type)), from, 10000);
 }
 
 async function replayTypes(s, gameId) {

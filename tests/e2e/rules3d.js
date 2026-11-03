@@ -12,13 +12,10 @@ const playerType = Number(process.argv[5] ?? 1);
 // Fader's default power (Fade) needs no target: it is used on the click, without a targeting hint.
 const untargetedPower = playerType === 4;
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const steps = [];
-const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const RESULT = [230, 231, 233];
+const { sleep, RESULT, LAUNCH, steps, step, register, drag } = require('./helpers')(base, out);
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
@@ -70,29 +67,10 @@ const RESULT = [230, 231, 233];
   };
   // null once the page has left the game (the end screen moves on to the statistics page by itself).
   const hook = expr => page.evaluate(`window.__souls3d ? window.__souls3d.${expr} : null`);
-  const drag = async (from, to, button = 'left') => {
-    if (!from || !to) { console.log('drag skipped: a target is not on screen yet'); await sleep(800); return; }
-    await page.mouse.move(from.x, from.y, { steps: 3 }); await sleep(250);
-    await page.mouse.down({ button }); await sleep(200);
-    await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 6 }); await sleep(200);
-    await page.mouse.move(to.x, to.y, { steps: 6 }); await sleep(400);
-    await page.mouse.up({ button }); await sleep(300);
-  };
 
   // Register and log in.
   const name = 'r' + Date.now().toString(36);
-  await page.goto(base + '/Player/Register');
-  await page.fill('#Form_Username', name);
-  await page.fill('#Form_Password', 'CorrectHorse9!');
-  await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check(`#type-${playerType}`);
-  for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-  await page.click('main button[type=submit]');
-  await page.waitForURL(/Player\/Login/);
-  await page.fill('#Name', name);
-  await page.fill('#Password', 'CorrectHorse9!');
-  await page.click('main button[type=submit]');
-  await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+  await register(page, name, playerType);
   step('register and log in', true, name);
 
   await page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
@@ -193,7 +171,7 @@ const RESULT = [230, 231, 233];
         const pick = st.hand.findIndex(c => c.cost <= st.mana && !c.pending);
         if (pick < 0 || slot === undefined) break;
         const from = frames.length;
-        await drag(await hook(`handCard(${pick})`), await hook(`slot(${slot})`));
+        await drag(page, await hook(`handCard(${pick})`), await hook(`slot(${slot})`));
         const used = await waitFrame(f => f.dir === 'in' && [207, 208, 202, 213, 232].includes(f.type), from, 6000);
         if (used && used.type === 207) counts.played++; else { counts.refused++; console.log('card refused:', JSON.stringify(used && { type: used.type, p: used.p }), JSON.stringify(st.hand), 'mana', st.mana); break; }
         await waitFrame(f => f.dir === 'in' && f.type === 236, from, 6000);
@@ -232,7 +210,7 @@ const RESULT = [230, 231, 233];
         await snap('attack-arrow');
         await page.mouse.up(); await sleep(300);
       } else {
-        await drag(source, target, button);
+        await drag(page, source, target, button);
       }
       const ev = await waitFrame(f => f.dir === 'in' && (f.type === 232 || (f.type === 235 && f.p.events.some(e => ['attack', 'ability'].includes(e.t)))), from, 6000);
       if (ev && ev.type === 235) { if (button === 'right') counts.abilities++; else counts.attacks++; }
@@ -252,7 +230,7 @@ const RESULT = [230, 231, 233];
       const weak = (sync.board[3 - ident] || []).filter(c => c.attack <= 2);
       const target = taunts.length ? await hook(`opponentCard(${taunts[0].cid})`) : weak.length ? await hook(`opponentCard(${weak[0].cid})`) : await hook('opponentHero()');
       const from = frames.length;
-      await drag(await hook('hero()'), target);
+      await drag(page, await hook('hero()'), target);
       const ev = await waitFrame(f => f.dir === 'in' && (f.type === 232 || f.type === 235), from, 6000);
       if (ev && ev.type === 235) counts.attacks++;
       await sleep(1500);

@@ -26,9 +26,10 @@ npm install
 | `l10n_games.js <base> <out> [lang]` | A 3D and a classic practice game in a language (default `nb`), each on desktop and on a phone: menu, matchmaking, mulligan, a few turns with the battle log, tooltips, settings, the 3D end screen, the leave dialog and the game's summary page; fails on English or a raw key in the interface. What the canvases draw (card faces, the End Turn sign) is in the screenshots |
 
 `<base>` is the site, e.g. `https://localhost`; `<out>` a folder for the screenshots. Each script prints
-`PASS`/`FAIL` lines or a list of console problems. `leave_dialog.js` holds the leave dialog checks the game scripts
-share, and `l10n.js` the language helpers (the English a translated page must not show comes from the string
-tables in `src/Souls.Model/Localization` and `src/Souls.Web/Resources`).
+`PASS`/`FAIL` lines or a list of console problems. `helpers.js` holds what the scripts share (players with their
+game frames, registering, steps, screenshots, the scripted 3D and classic turns), `leave_dialog.js` the leave dialog
+checks, and `l10n.js` the language helpers (the English a translated page must not show comes from the string tables
+in `src/Souls.Model/Localization` and `src/Souls.Web/Resources`).
 
 ```sh
 node rules3d.js https://localhost out/rules3d 2
