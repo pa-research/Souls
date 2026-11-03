@@ -11,7 +11,7 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'main_layout';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, LAUNCH, register } = require('./helpers')(base, out);
 
 const portrait = id => `/Content/Images/Card/Portraits/${id}.jpg`;
 const race = id => ({ id, name: ['', 'Darkness', 'Vampiric', 'Lightbringer', 'Ferocious'][id], cardUrl: `/Content/Images/Card/Texture/${['', 'darkness', 'vampiric', 'lightbringer', 'ferocious'][id]}.png` });
@@ -41,7 +41,7 @@ const overlaps = (a, b) => a && b && a.x + SLACK < b.x + b.w && b.x + SLACK < a.
 
 const problems = [];
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
   const page = await context.newPage();
   page.setDefaultTimeout(120000);
@@ -51,18 +51,7 @@ const problems = [];
   const play = events => page.evaluate(ev => window.__souls3d.playEvents(ev), events);
 
   const name = 'l' + Date.now().toString(36);
-  await page.goto(base + '/Player/Register');
-  await page.fill('#Form_Username', name);
-  await page.fill('#Form_Password', 'CorrectHorse9!');
-  await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check('#type-' + (process.env.HERO || 3));
-  for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-  await page.click('main button[type=submit]');
-  await page.waitForURL(/Player\/Login/);
-  await page.fill('#Name', name);
-  await page.fill('#Password', 'CorrectHorse9!');
-  await page.click('main button[type=submit]');
-  await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+  await register(page, name, process.env.HERO || 3);
   // (E2E_NORENDER=1: the 3D client draws nothing, which spares a runner without a GPU; the screenshots are then blank.)
   await page.goto(base + '/Game?mode=3d' + (process.env.E2E_NORENDER === '1' ? '&render=0' : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sg-menu', { timeout: 120000 });

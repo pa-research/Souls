@@ -1,6 +1,6 @@
 // Live player administration through the game server's admin WebSocket (/ws/admin).
 // The socket is authenticated by the login cookie; the server only accepts administrators.
-(function ($) {
+(function () {
     "use strict";
 
     var Request = { LOGIN: 1, ONLINE_USERS: 2, BAN_USER: 5, KICK_USER: 6, RESET: 7 };
@@ -22,10 +22,11 @@
     }
 
     function setStatus(row, online) {
-        row.find(".player-status")
-            .toggleClass("text-success", online)
-            .toggleClass("text-body-secondary", !online)
-            .text(online ? texts.online : texts.offline);
+        var status = row.querySelector(".player-status");
+        if (!status) return;
+        status.classList.toggle("text-success", online);
+        status.classList.toggle("text-body-secondary", !online);
+        status.textContent = online ? texts.online : texts.offline;
     }
 
     socket.onopen = function () {
@@ -37,10 +38,9 @@
         var data = JSON.parse(event.data);
         if (data.Type === Request.ONLINE_USERS) {
             var online = {};
-            $.each(data.Payload, function (_, id) { online[id] = true; });
-            $("#admin-players tbody tr").each(function () {
-                var row = $(this);
-                setStatus(row, online[row.data("player-id")] === true);
+            for (var key in data.Payload) online[data.Payload[key]] = true;
+            document.querySelectorAll("#admin-players tbody tr").forEach(function (row) {
+                setStatus(row, online[row.dataset.playerId] === true);
             });
         } else if (data.Type === 98) {
             window.alert(data.Payload);
@@ -54,15 +54,19 @@
     setInterval(function () { send(Request.ONLINE_USERS); }, 5000);
 
     function playerId(button) {
-        return parseInt($(button).closest("tr").data("player-id"), 10);
+        return parseInt(button.closest("tr").dataset.playerId, 10);
     }
 
-    $(".kick").on("click", function () {
+    function onClick(selector, handler) {
+        document.querySelectorAll(selector).forEach(function (button) { button.addEventListener("click", handler); });
+    }
+
+    onClick(".kick", function () {
         send(Request.KICK_USER, { pId: playerId(this) });
     });
 
-    $(".ban").on("click", function () {
-        var until = $(this).closest("tr").find(".ban-until").val();
+    onClick(".ban", function () {
+        var until = this.closest("tr").querySelector(".ban-until").value;
         if (!until) {
             window.alert(texts.banDate);
             return;
@@ -70,9 +74,9 @@
         send(Request.BAN_USER, { pId: playerId(this), until: new Date(until).toISOString() });
     });
 
-    $(".reset").on("click", function () {
+    onClick(".reset", function () {
         if (window.confirm(texts.reset)) {
             send(Request.RESET, { pId: playerId(this) });
         }
     });
-})(jQuery);
+})();

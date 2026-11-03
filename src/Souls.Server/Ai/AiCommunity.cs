@@ -34,9 +34,6 @@ public sealed class CommunityOptions
     /// stop and there is always someone to challenge.
     /// </summary>
     public int MinOnline { get; set; } = 16;
-
-    /// <summary>How long a persona takes to accept a challenge.</summary>
-    public TimeSpan AnswerDelay { get; set; } = TimeSpan.FromSeconds(3);
 }
 
 /// <summary>

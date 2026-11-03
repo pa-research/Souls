@@ -12,7 +12,6 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
         // Create what is needed for the network to work
         this.responseAction = new Object();
         this.networkBuffer = ChatService.prototype.networkBuffer = new Array();
-        this.message = Message;
 
         // Response callbacks
         this.RegisterResponseAction([1004], Response_NewGameRoom);
@@ -25,7 +24,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
     ChatService.prototype.constructor = ChatService;
 
     ChatService.prototype.Login = function () {
-        this.socket.send(this.message.CHAT.CHAT_LOGIN);
+        this.socket.send({ "Type": Message.Type.General.LOGIN, "Payload": {} });
 
     }
 
@@ -87,27 +86,12 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
     //////////////////////////////////////////////////////////////////////////////
 
     ChatService.prototype.RequestNewGameRoom = function () {
-        var json = that.message.CHAT.NEWGAMEROOM;
-        this.socket.send(json);
-    };
-
-    ChatService.prototype.RequestInvite = function () {
-
-    };
-
-    ChatService.prototype.RequestKick = function () {
-
+        this.socket.send({ "Type": Message.Type.Chat.NEWGAMEROOM, "Payload": {} });
     };
 
     ChatService.prototype.Message = function (roomId, msg) // 1002
     {
-        var json = this.message.CHAT.MESSAGE;
-
-        json.Payload.room = roomId;
-        json.Payload.message = msg;
-
-
-        this.Send(json);
+        this.Send({ "Type": Message.Type.Chat.MESSAGE, "Payload": { "room": roomId, "message": msg } });
 
         // Also get room attendees (update)
         this.GetAttendees(roomId);
@@ -115,11 +99,7 @@ define('chatService', ["messages", "asset", "hud"], function (Message, Asset, Hu
 
     ChatService.prototype.GetAttendees = function (roomId) // 1010
     {
-        var json = this.message.CHAT.CHAT_LIST_ATTENDEES;
-
-        json.Payload.room = roomId;
-
-        this.Send(json);
+        this.Send({ "Type": Message.Type.Chat.CHAT_LIST_ATTENDEES, "Payload": { "room": roomId } });
     }
 
 

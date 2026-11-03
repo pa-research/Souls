@@ -103,10 +103,6 @@ define("settings", ["hud", "audio"], function (Hud, Sound) {
         this.button.hidden = true;
     }
 
-    Settings.prototype.IsOpen = function () {
-        return !this.panel.hidden;
-    }
-
     Settings.prototype.Toggle = function (open) {
         if (open === undefined) open = this.panel.hidden;
         open = !!open;

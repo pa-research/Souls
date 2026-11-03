@@ -1,13 +1,15 @@
 // Registration: count the starter cards and stop at five.
-(function ($) {
+(function () {
     "use strict";
 
+    var cards = document.querySelectorAll(".cards");
+
     function updateCards() {
-        var checked = $(".cards:checked").length;
-        $(".num-cards-selected").text(checked);
-        $(".cards:not(:checked)").prop("disabled", checked >= 5);
+        var checked = document.querySelectorAll(".cards:checked").length;
+        document.querySelectorAll(".num-cards-selected").forEach(function (el) { el.textContent = checked; });
+        cards.forEach(function (box) { if (!box.checked) box.disabled = checked >= 5; });
     }
 
-    $(".cards").on("change", updateCards);
+    cards.forEach(function (box) { box.addEventListener("change", updateCards); });
     updateCards();
-})(jQuery);
+})();

@@ -8,52 +8,7 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'social';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const results = [];
-const step = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const LAUNCH = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
-let shot = 0;
-
-async function session(browser, label) {
-  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(120000);
-  const s = { label, page, frames: [], problems: [] };
-  page.on('console', m => { if (m.type() === 'error' && !/GL Driver|GPU stall|api\.github/.test(m.text())) s.problems.push(m.text()); });
-  page.on('pageerror', e => s.problems.push('pageerror: ' + e.message));
-  page.on('websocket', ws => {
-    if (!ws.url().endsWith('/game')) return;
-    ws.on('framereceived', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'in', type: j.Type, p: j.Payload }); } catch (e) { } });
-    ws.on('framesent', f => { try { const j = JSON.parse(f.payload); s.frames.push({ dir: 'out', type: j.Type, p: j.Payload }); } catch (e) { } });
-  });
-  return s;
-}
-async function waitFrame(s, pred, from = 0, timeout = 20000) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    for (let i = from; i < s.frames.length; i++) if (pred(s.frames[i])) return s.frames[i];
-    await sleep(100);
-  }
-  return null;
-}
-async function snap(s, name) {
-  try { await s.page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${s.label}-${name}.jpg`, type: 'jpeg', quality: 80 }); } catch (e) { console.log(`(screenshot ${name} skipped)`); }
-}
-async function register(s, name, type) {
-  const p = s.page;
-  await p.goto(base + '/Player/Register');
-  await p.fill('#Form_Username', name);
-  await p.fill('#Form_Password', 'CorrectHorse9!');
-  await p.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await p.check(`#type-${type}`);
-  for (const box of (await p.$$('input.cards')).slice(0, 5)) await box.check();
-  await p.click('main button[type=submit]');
-  await p.waitForURL(/Player\/Login/);
-  await p.fill('#Name', name);
-  await p.fill('#Password', 'CorrectHorse9!');
-  await p.click('main button[type=submit]');
-  await p.waitForURL(u => !u.toString().includes('/Player/Login'));
-}
+const { sleep, LAUNCH, steps, step, session, waitFrame, snap, register } = require('./helpers')(base, out, { quality: 80 });
 /** Opens the game page in a client and returns the player's rating from the page config. */
 async function openGame(s, query) {
   await s.page.goto(`${base}/Game?${query}`, { waitUntil: 'domcontentloaded' });
@@ -64,14 +19,14 @@ async function friendlyLobby(s) {
   const from = s.frames.length;
   await s.page.click('.sg-menu-btn:has-text("Friendly")');
   await s.page.waitForSelector('.sg-challenge input');
-  return !!(await waitFrame(s, f => f.dir === 'in' && f.type === 10, from));
+  return !!(await waitFrame(s, f => f.dir === 'in' && f.type === 10, from, 20000));
 }
 const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent).catch(() => null);
 
 (async () => {
   const browser = await chromium.launch(LAUNCH);
-  const A = await session(browser, 'A-3d');
-  const B = await session(browser, 'B-classic');
+  const A = await session('A-3d', { browser });
+  const B = await session('B-classic', { browser });
   const id = Date.now().toString(36).slice(-6);
   const nameA = 'emA' + id, nameB = 'emB' + id;
   await register(A, nameA, 1);
@@ -86,7 +41,7 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
   let from = A.frames.length;
   await A.page.fill('.sg-challenge input', nameB);
   await A.page.click('.sg-challenge button[type=submit]');
-  step('A: challenge sent', !!(await waitFrame(A, f => f.dir === 'in' && f.type === 198, from)));
+  step('A: challenge sent', !!(await waitFrame(A, f => f.dir === 'in' && f.type === 198, from, 20000)));
   await B.page.waitForSelector('.sg-invite', { timeout: 15000 }).catch(() => null);
   const invite = await B.page.$eval('.sg-invite', e => e.textContent).catch(() => '');
   step('B: the invitation names A', invite.includes(`${nameA} challenges you`), invite);
@@ -95,8 +50,8 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
 
   const fromA = A.frames.length, fromB = B.frames.length;
   await B.page.click('.sg-invite button:has-text("Accept")');
-  const createA = await waitFrame(A, f => f.dir === 'in' && f.type === 206, fromA);
-  const createB = await waitFrame(B, f => f.dir === 'in' && f.type === 206, fromB);
+  const createA = await waitFrame(A, f => f.dir === 'in' && f.type === 206, fromA, 20000);
+  const createB = await waitFrame(B, f => f.dir === 'in' && f.type === 206, fromB, 20000);
   step('Both get the game', !!createA && !!createB);
   await A.page.waitForFunction(() => window.__souls3d && window.__souls3d.state().active, null, { timeout: 30000 }).catch(() => null);
   await sleep(5000); // the versus splash
@@ -193,6 +148,6 @@ const bubble = (s, cls) => s.page.$eval(`.sg-bubble.${cls}`, e => e.textContent)
 
   for (const s of [A, B]) step(`${s.label}: no console errors`, s.problems.length === 0, s.problems.slice(0, 5).join(' / '));
   await browser.close();
-  console.log(results.every(Boolean) ? 'ALL PASS' : 'SOME FAILED');
-  process.exit(results.every(Boolean) ? 0 : 1);
+  console.log(steps.every(s => s.ok) ? 'ALL PASS' : 'SOME FAILED');
+  process.exit(steps.every(s => s.ok) ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(2); });

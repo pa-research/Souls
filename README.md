@@ -22,7 +22,7 @@ origin, no tokens in JavaScript).
 | | Before | Now |
 |---|---|---|
 | Runtime | .NET Framework 4.5, IIS | .NET 10, ASP.NET Core, Kestrel, distroless non-root containers |
-| Web | ASP.NET MVC 5 + Web API 2 | ASP.NET Core MVC (Razor), Bootstrap 5.3, jQuery 4, jQuery UI 1.14 |
+| Web | ASP.NET MVC 5 + Web API 2 | ASP.NET Core MVC (Razor), Bootstrap 5.3 |
 | Game server | console app, websocket-sharp (vendored DLL) | ASP.NET Core WebSockets, same JSON protocol |
 | Data | NHibernate 3.3, MySQL, schema auto-update | EF Core 10, PostgreSQL 18, EF migrations |
 | Practice bot | separate WebSocket client logging in with the shared hash `BOT`, random moves, never wins | in-process client (cannot be impersonated), Easy / Normal / Hard, plays for lethal and makes trades |

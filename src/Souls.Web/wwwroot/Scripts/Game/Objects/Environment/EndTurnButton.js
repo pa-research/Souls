@@ -1,4 +1,4 @@
-﻿﻿define("endturnbutton", ["jquery", "asset", "pixi", "conf", "messages"], function ($, Asset, Pixi, Conf, Message) {
+﻿﻿define("endturnbutton", ["asset", "pixi", "conf", "messages"], function (Asset, Pixi, Conf, Message) {
 
     EndTurnButton = function (engine)
     {
@@ -98,8 +98,7 @@
 
     EndTurnButton.prototype.RequestNextTurn = function ()
     {
-        var json = Message.GAME.NEXT_TURN;
-        this.engine.gameSocket.send(json);
+        this.engine.gameSocket.send({ "Type": Message.Type.Game.NEXT_TURN, "Payload": {} });
     }
 
     return EndTurnButton;

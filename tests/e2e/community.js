@@ -8,10 +8,7 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'community';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const results = [];
-const step = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
-const LAUNCH = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
+const { sleep, LAUNCH, steps, step, register } = require('./helpers')(base, out);
 let shot = 0;
 const problems = [];
 
@@ -38,21 +35,6 @@ async function waitFrame(page, pred, timeout = 30000) {
   return null;
 }
 const snap = (page, name) => page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${name}.jpg`, type: 'jpeg', quality: 80 }).catch(() => console.log(`(screenshot ${name} skipped)`));
-
-async function register(page, name) {
-  await page.goto(base + '/Player/Register');
-  await page.fill('#Form_Username', name);
-  await page.fill('#Form_Password', 'CorrectHorse9!');
-  await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check('#type-1');
-  for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-  await page.click('main button[type=submit]');
-  await page.waitForURL(/Player\/Login/);
-  await page.fill('#Name', name);
-  await page.fill('#Password', 'CorrectHorse9!');
-  await page.click('main button[type=submit]');
-  await page.waitForURL(u => !u.toString().includes('/Player/Login'));
-}
 
 (async () => {
   const browser = await chromium.launch(LAUNCH);
@@ -119,7 +101,7 @@ async function register(page, name) {
   }
 
   step('no console errors', problems.length === 0, problems.slice(0, 5).join(' | '));
-  const failed = results.filter(r => !r).length;
+  const failed = steps.filter(s => !s.ok).length;
   console.log(failed ? `${failed} FAILED` : 'ALL PASS');
   process.exit(failed ? 1 : 0);
 })();

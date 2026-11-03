@@ -1,7 +1,5 @@
 define("game",
-    ["jquery",
-     "stopwatch",
-    "state",
+    ["state",
     "player",
     "opponent",
     "conf",
@@ -11,8 +9,6 @@ define("game",
     "chatService",
     "socket",
     "pixi",
-    "toolbox",
-    'easeljs',
     'tweenjs',
     'queue',
     'settings',
@@ -20,7 +16,7 @@ define("game",
     'tooltip',
     'battlelog',
     'hud',
-    'emotes'], function ($, stopwatch, State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, ToolBox, CreateJS, _, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud, Emotes) {
+    'emotes'], function (State, Player, Opponent, Conf, GameService, Background, CardSlots, ChatService, Socket, Pixi, CreateJS, Queue, Settings, TurnTimer, Tooltip, BattleLog, Hud, Emotes) {
 
         var that;
         var T = window.SoulsL10n.t;
@@ -74,10 +70,8 @@ define("game",
 
             
 
-            // Tools etc
-            this.toolbox = ToolBox;
+            // Tween library (the game loop in Main.js moves the tweens on)
             this.CreateJS = CreateJS;
-            CreateJS.Ticker.setFPS(Conf.FPS);
 
             // Process array
             this.ProcessList = new Array();
@@ -210,17 +204,11 @@ define("game",
             this.lastCardPos = {};
         }
 
-        Engine.prototype.OnPause = function () {
-
-
-        }
-
-
         Engine.prototype.Process = function () {
             this.gameService.Process();
             this.chatService.Process();
 
-            $.each(this.ProcessList, function (index, object) {
+            this.ProcessList.forEach(function (object) {
                 object.Process();
             });
 

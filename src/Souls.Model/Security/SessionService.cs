@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,7 +21,7 @@ public sealed class SessionService(SoulsDbContext db, TimeProvider time)
 
     public async Task<string> StartAsync(Player player, CancellationToken ct = default)
     {
-        var token = Base64UrlToken(32);
+        var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
         var now = time.GetUtcNow();
 
         var login = await db.PlayerLogins.SingleOrDefaultAsync(x => x.PlayerId == player.Id, ct);
@@ -73,7 +74,4 @@ public sealed class SessionService(SoulsDbContext db, TimeProvider time)
         db.PlayerLogins.Where(x => x.PlayerId == playerId).ExecuteDeleteAsync(ct);
 
     public static string HashToken(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-
-    private static string Base64UrlToken(int bytes) =>
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(bytes)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

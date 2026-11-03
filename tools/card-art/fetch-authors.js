@@ -6,7 +6,6 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 
 // contributor folder -> display name (from the repository's license.txt)
 const AUTHORS = {
@@ -29,13 +28,8 @@ const MANUAL = {
   'female-vampire': { slug: 'delapouite', name: 'Delapouite' },
 };
 
-function status(url) {
-  return new Promise(res => {
-    const req = https.request(url, { method: 'HEAD' }, r => { r.resume(); res(r.statusCode); });
-    req.on('error', () => res(0));
-    req.end();
-  });
-}
+// The HTTP status of a HEAD request, 0 when the request fails.
+const status = url => fetch(url, { method: 'HEAD' }).then(r => r.status, () => 0);
 
 async function main() {
   const file = path.join(__dirname, 'icon-authors.json');

@@ -13,7 +13,7 @@ import { attribute, length, lights, positionView, screenDPR, sin, smoothstep, un
 import { mergeGeometries } from '/lib/three/addons/utils/BufferGeometryUtils.js';
 import { Images, loadImage, textureFrom } from './assets.js';
 import { toWorld, spriteGeometry, STAGE_W, STAGE_H } from './scene.js';
-import { buildStadium, WALL_R, SCREEN_W, SCREEN_H, STANDS_OUT } from './stadium.js';
+import { buildStadium, random, WALL_R, SCREEN_W, SCREEN_H, STANDS_OUT } from './stadium.js';
 import { CONTACTS, MOON, fireSprites, groundMaterial, hillsGeometry, sandMaterial, skyMaterial, stadiumMaterials, stadiumUniforms, rise } from './surfaces.js';
 import { Crowd } from './spectators.js';
 
@@ -208,8 +208,7 @@ function lightShafts(heads, u) {
 /** Stars: small points over the upper sky that twinkle a little. */
 function stars(count, u) {
     const pts = [];
-    let s = 3;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const rnd = random(3);
     for (let i = 0; i < count; i++) {
         const a = rnd() * Math.PI * 2, e = Math.asin(0.12 + rnd() * 0.88);
         pts.push(Math.cos(a) * Math.cos(e) * 28000, Math.sin(e) * 28000, Math.sin(a) * Math.cos(e) * 28000, rnd());

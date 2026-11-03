@@ -8,8 +8,6 @@ namespace Souls.Server.Network;
 /// <summary>The <c>/ws/chat</c> endpoint. A chat connection is linked to the player's game connection.</summary>
 public sealed class ChatService(ServerState state, ChatEngine chat) : IClientService
 {
-    private const int MaxOwnedRooms = 5;
-
     public Task ProcessAsync(Connection connection, Message message)
     {
         if (connection.LoggedIn && state.ChatClients.TryGetValue(connection, out var player) && player.ChPlayer is { } ch)
@@ -19,30 +17,14 @@ public sealed class ChatService(ServerState state, ChatEngine chat) : IClientSer
                 case ChatRequest.Message:
                     chat.SendMessage(ch, message);
                     return Task.CompletedTask;
-                case ChatRequest.NewRoom:
-                    if (ch.MemberRooms.Values.Count(r => r.IsLeader(ch) && !r.IsStatic) < MaxOwnedRooms)
-                    {
-                        chat.RequestNewRoom(ch);
-                    }
-
-                    return Task.CompletedTask;
                 case ChatRequest.NewGameRoom:
-                    if (player.GPlayer?.GameRoom is { } game && player.GetOpponent()?.ChPlayer is { } opponent && !ch.MemberRooms.Values.Any(r => r.IsStatic && r.Clients.Contains(opponent)))
+                    if (player.GPlayer?.GameRoom is { } game && player.GetOpponent()?.ChPlayer is { } opponent && !ch.MemberRooms.Values.Any(r => r.Clients.Contains(opponent)))
                     {
                         // Saved with the game: the room comes back after a restart (see GameEngine.Resume).
                         game.ChatRoomId = chat.RequestNewGameRoom(new Pair<ChatPlayer>(ch, opponent)).Id;
                         game.Dirty = true;
                     }
 
-                    return Task.CompletedTask;
-                case ChatRequest.Invite:
-                    chat.Invite(ch, message);
-                    return Task.CompletedTask;
-                case ChatRequest.Kick:
-                    chat.Kick(ch, message);
-                    return Task.CompletedTask;
-                case ChatRequest.Leave:
-                    chat.LeaveRoom(ch, message);
                     return Task.CompletedTask;
                 case ChatRequest.ListClients:
                     chat.GetRoomAttendees(ch, message);

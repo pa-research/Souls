@@ -1,4 +1,4 @@
-﻿define("background", ["jquery", "asset", "pixi", "endturnbutton"], function ($, Asset, Pixi, EndTurnButton) {
+﻿define("background", ["asset", "pixi", "endturnbutton"], function (Asset, Pixi, EndTurnButton) {
 
     Background = function (engine) {
         console.log("> Background Loaded")

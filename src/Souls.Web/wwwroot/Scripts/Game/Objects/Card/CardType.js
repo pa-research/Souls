@@ -1,4 +1,4 @@
-﻿define("cardtype", ['asset', 'stopwatch'], function (Asset, Stopwatch) {
+﻿define("cardtype", ['asset'], function (Asset) {
 
     CardType = function () {
 

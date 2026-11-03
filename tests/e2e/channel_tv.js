@@ -10,14 +10,12 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'channel_tv';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, LAUNCH, steps, step, register } = require('./helpers')(base, out);
 const render = process.env.E2E_NORENDER === '1' ? '&render=0' : '';
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const results = [];
+  const browser = await chromium.launch(LAUNCH);
   const problems = [];
-  const step = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
 
   const player = async (label, room) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
@@ -26,18 +24,7 @@ const render = process.env.E2E_NORENDER === '1' ? '&render=0' : '';
     page.on('console', m => { if (m.type() === 'error' && !/GL Driver|GPU stall|api\.github/.test(m.text())) problems.push(`${label}: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${label} pageerror: ${e.message}`));
     const name = label + Date.now().toString(36);
-    await page.goto(base + '/Player/Register');
-    await page.fill('#Form_Username', name);
-    await page.fill('#Form_Password', 'CorrectHorse9!');
-    await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-    await page.check('#type-1');
-    for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-    await page.click('main button[type=submit]');
-    await page.waitForURL(/Player\/Login/);
-    await page.fill('#Name', name);
-    await page.fill('#Password', 'CorrectHorse9!');
-    await page.click('main button[type=submit]');
-    await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+    await register(page, name);
     if (room) {
       // What the Activity's start page leaves for the game (the SDK cannot connect outside Discord: the game goes on without it).
       await page.addInitScript(r => sessionStorage.setItem('souls.discord', JSON.stringify({ clientId: '1', query: `?instance_id=${r}&frame_id=f`, accessToken: 'x' })), room);
@@ -109,8 +96,8 @@ const render = process.env.E2E_NORENDER === '1' ? '&render=0' : '';
   step('Next goes on to another game', await d.page.evaluate(() => window.__souls3d.state().active));
 
   if (problems.length) console.log('problems: ' + problems.join(' | '));
-  const ok = results.every(Boolean) && !problems.length;
-  console.log(ok ? 'ALL PASS' : `${results.filter(r => !r).length} failures`);
+  const ok = steps.every(s => s.ok) && !problems.length;
+  console.log(ok ? 'ALL PASS' : `${steps.filter(s => !s.ok).length} failures`);
   await browser.close();
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

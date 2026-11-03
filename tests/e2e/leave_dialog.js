@@ -1,7 +1,7 @@
 // The "Leave the game?" dialog both clients open from their settings (Views/Game/Index.cshtml, /js/game-mode.js):
 // the themed dialog rather than the browser's confirm, on top of everything, focus on Leave, Tab kept inside it, closed
 // by Esc, by Stay and (touch) by a tap beside it, without leaving the game; Enter leaves to the game menu.
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep } = require('./helpers')();
 
 const state = page => page.evaluate(() => {
   const d = document.getElementById('sg-leave');

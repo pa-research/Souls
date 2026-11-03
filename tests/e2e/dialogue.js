@@ -6,32 +6,19 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'dialogue';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, LAUNCH, steps, step, register } = require('./helpers')(base, out);
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true })).newPage();
   page.setDefaultTimeout(120000);
   const problems = [];
   page.on('console', m => { if (m.type() === 'error' && !/GL Driver|GPU stall|api\.github/.test(m.text())) problems.push(m.text()); });
   page.on('pageerror', e => problems.push('pageerror: ' + e.message));
-  const results = [];
-  const step = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' - ' + detail : ''}`); };
   const bubbles = () => page.$$eval('.sg-bubble', e => e.map(b => ({ mine: b.classList.contains('mine'), text: b.textContent })));
 
   const name = 'd' + Date.now().toString(36);
-  await page.goto(base + '/Player/Register');
-  await page.fill('#Form_Username', name);
-  await page.fill('#Form_Password', 'CorrectHorse9!');
-  await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check('#type-3');
-  for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-  await page.click('main button[type=submit]');
-  await page.waitForURL(/Player\/Login/);
-  await page.fill('#Name', name);
-  await page.fill('#Password', 'CorrectHorse9!');
-  await page.click('main button[type=submit]');
-  await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+  await register(page, name, 3);
   // (E2E_NORENDER=1: the 3D client draws nothing, which spares a runner without a GPU; the screenshots are then blank.)
   await page.goto(base + '/Game?mode=3d' + (process.env.E2E_NORENDER === '1' ? '&render=0' : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sg-menu', { timeout: 120000 });
@@ -63,8 +50,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.screenshot({ path: `${out}/power.jpg`, type: 'jpeg', quality: 80 });
 
   if (problems.length) console.log('problems: ' + problems.join(' | '));
-  const ok = results.every(Boolean) && !problems.length;
-  console.log(ok ? 'ALL PASS' : `${results.filter(r => !r).length} failures`);
+  const ok = steps.every(s => s.ok) && !problems.length;
+  console.log(ok ? 'ALL PASS' : `${steps.filter(s => !s.ok).length} failures`);
   await browser.close();
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

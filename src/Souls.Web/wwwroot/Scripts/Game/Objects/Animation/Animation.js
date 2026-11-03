@@ -1,4 +1,4 @@
-define("animation", ['tweenjs', 'easeljs', 'asset', 'pixi'], function (_, CreateJS, Asset, Pixi) {
+define("animation", ['tweenjs', 'asset', 'pixi'], function (CreateJS, Asset, Pixi) {
 
     Animation = function () {
 

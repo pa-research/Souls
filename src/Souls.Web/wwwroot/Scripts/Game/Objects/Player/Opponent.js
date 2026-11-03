@@ -1,4 +1,4 @@
-﻿define("opponent", ["jquery", "asset", "playerbase", "cardmanager"], function ($, asset, playerBase, CardManager) {
+﻿define("opponent", ["asset", "playerbase", "cardmanager"], function (asset, playerBase, CardManager) {
 
 
     Opponent = function (engine) {

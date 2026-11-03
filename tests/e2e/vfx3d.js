@@ -6,7 +6,7 @@ const fs = require('fs');
 const base = process.argv[2] || 'https://localhost';
 const out = process.argv[3] || 'vfx3d';
 fs.mkdirSync(out, { recursive: true });
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, LAUNCH, register } = require('./helpers')(base, out);
 
 const portrait = id => `/Content/Images/Card/Portraits/${id}.jpg`;
 const race = id => ({ id, name: ['', 'Darkness', 'Vampiric', 'Lightbringer', 'Ferocious'][id], cardUrl: `/Content/Images/Card/Texture/${['', 'darkness', 'vampiric', 'lightbringer', 'ferocious'][id]}.png` });
@@ -18,7 +18,7 @@ const card = (id, name, r, rarity, cost, attack, health, armor, ability, slotId,
 });
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true })).newPage();
   page.setDefaultTimeout(120000);
   const problems = [];
@@ -31,18 +31,7 @@ const card = (id, name, r, rarity, cost, attack, health, armor, ability, slotId,
   const snap = async name => { await page.screenshot({ path: `${out}/${String(++shot).padStart(2, '0')}-${name}.jpg`, type: 'jpeg', quality: 80, timeout: 60000 }); console.log('shot', name); };
 
   const name = 'v' + Date.now().toString(36);
-  await page.goto(base + '/Player/Register');
-  await page.fill('#Form_Username', name);
-  await page.fill('#Form_Password', 'CorrectHorse9!');
-  await page.fill('#Form_ConfirmPassword', 'CorrectHorse9!');
-  await page.check('#type-3');
-  for (const box of (await page.$$('input.cards')).slice(0, 5)) await box.check();
-  await page.click('main button[type=submit]');
-  await page.waitForURL(/Player\/Login/);
-  await page.fill('#Name', name);
-  await page.fill('#Password', 'CorrectHorse9!');
-  await page.click('main button[type=submit]');
-  await page.waitForURL(u => !u.toString().includes('/Player/Login'));
+  await register(page, name, 3);
   await page.goto(base + '/Game?mode=3d', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sg-menu', { timeout: 120000 });
   await page.click('.sg-menu-row .s-seg button >> nth=0');
