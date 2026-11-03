@@ -49,14 +49,14 @@ public sealed record RaceClasses(Race Race, IReadOnlyList<PlayerType> Types);
 /// <summary>Linked Roles, back from Discord: the player now shown on Discord, or none (log in to link one); or it failed.</summary>
 public sealed record DiscordLinkModel(string? Linked, bool Failed);
 
+/// <summary>A hero class to change to (Deck page).</summary>
+public sealed record ClassOption(int Id, string Name, string? Race, bool Current);
+
 public sealed class RegisterPageModel
 {
     public required RegisterViewModel Form { get; init; }
     public required IReadOnlyList<RaceClasses> Classes { get; init; }
     public required IReadOnlyList<CardTile> StarterCards { get; init; }
-
-    /// <summary>Sign-up in the Discord Activity: no password (the player signs in with Discord).</summary>
-    public bool Discord { get; init; }
 }
 
 /// <summary>Display data for a card.</summary>
@@ -200,6 +200,9 @@ public sealed class ProfileViewModel
     public required IReadOnlyList<ProfileGame> Games { get; init; }
     public required IReadOnlyList<ProfileSeason> Seasons { get; init; }
     public bool IsMe { get; init; }
+
+    /// <summary>The player's Discord account is linked (Discord Activity, Linked Roles).</summary>
+    public bool DiscordLinked { get; init; }
 }
 
 /// <summary>One rank of the season's ladder (16: Champion) and how many players stand on it.</summary>
@@ -241,6 +244,7 @@ public sealed class DeckViewModel
     public bool Custom { get; init; }
     public required string ClassName { get; init; }
     public required IReadOnlyList<HeroPowerOption> HeroPowers { get; init; }
+    public required IReadOnlyList<ClassOption> Classes { get; init; }
     public int HeroPowerCost => GameRules.HeroPowerCost;
     public int DeckSize => GameRules.DeckSize;
     public int MaxCopies => GameRules.MaxCopiesInDeck;

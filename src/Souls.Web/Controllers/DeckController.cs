@@ -39,6 +39,8 @@ public sealed class DeckController(SoulsDbContext db, IStringLocalizer<SharedRes
             Custom = saved.Count > 0 && deck.Count == GameRules.DeckSize && Decks.Validate(saved.Select(d => (d.CardId, d.Count)), owned.ToDictionary(pc => pc.CardId, pc => pc.Card!.Rarity)) is null,
             ClassName = player.Class,
             HeroPowers = [.. GameRules.PowersOf(player.PlayerTypeId).Select(id => new HeroPowerOption(id, GameRules.HeroPowers[id], id == power))],
+            Classes = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id)
+                .Select(t => new ClassOption(t.Id, t.Name, t.Race!.Name, t.Id == player.PlayerTypeId)).ToListAsync(ct),
         });
     }
 
@@ -84,6 +86,27 @@ public sealed class DeckController(SoulsDbContext db, IStringLocalizer<SharedRes
 
         await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.HeroPowerId, power), ct);
         TempData["Message"] = localizer["You play with {0} from your next game.", Localized.T(picked.Name)].Value;
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Changes the player's hero class (a Discord player starts with a random one). The class's cards and hero powers
+    /// come with it; the saved deck may hold cards of the old class, so the automatic deck takes over.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> Class(int classId, CancellationToken ct)
+    {
+        var playerId = User.RequirePlayerId();
+        var name = await db.PlayerTypes.Where(t => t.Id == classId).Select(t => t.Name).SingleOrDefaultAsync(ct);
+        if (name is null)
+        {
+            TempData["Error"] = localizer["You must select a class"].Value;
+            return RedirectToAction(nameof(Index));
+        }
+
+        await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PlayerTypeId, classId).SetProperty(p => p.HeroPowerId, (int?)null), ct);
+        await db.DeckCards.Where(d => d.PlayerId == playerId).ExecuteDeleteAsync(ct);
+        TempData["Message"] = localizer["You fight as {0} from your next game.", name].Value;
         return RedirectToAction(nameof(Index));
     }
 

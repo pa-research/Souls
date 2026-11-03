@@ -1,6 +1,7 @@
 @using System.Globalization
 @using Souls.Model
 @model ProfileViewModel
+@inject DiscordActivity Discord
 @{
     var tier = Ratings.TierOf(Model.Rank);
     string Date(DateTimeOffset? d) => d?.ToString(L["d MMM yyyy"], CultureInfo.CurrentCulture) ?? "";
@@ -28,7 +29,14 @@
     </div>
     @if (Model.IsMe)
     {
-        <a class="s-btn s-btn-primary s-btn-lg ms-lg-auto" asp-controller="Game" asp-action="Index"><s-icon name="swords" />@L["Play"]</a>
+        <div class="d-flex flex-wrap gap-2 ms-lg-auto">
+            @if (Discord.Enabled && !Discord.IsActivityRequest(Context))
+            {
+                @* Links this player to a Discord account (moving it from a player the Activity made), and shows its rank there. *@
+                <a class="s-btn s-btn-ghost s-btn-lg" asp-controller="Discord" asp-action="LinkedRole"><s-icon name="users" />@(Model.DiscordLinked ? L["Discord linked"] : L["Link Discord"])</a>
+            }
+            <a class="s-btn s-btn-primary s-btn-lg" asp-controller="Game" asp-action="Index"><s-icon name="swords" />@L["Play"]</a>
+        </div>
     }
 </div>
 

@@ -10,7 +10,7 @@
 
 <div asp-validation-summary="All" class="s-alert s-alert-error error-messages empty-hidden"></div>
 
-<form asp-controller="@(Model.Discord ? "Discord" : "Player")" asp-action="@(Model.Discord ? "Join" : "Register")" method="post" id="register-form" class="s-steps">
+<form asp-controller="Player" asp-action="Register" method="post" id="register-form" class="s-steps">
     <section class="s-panel">
         <h2 class="s-step-title"><span class="s-step-num">1</span>@L["Credentials"]</h2>
         <div class="row g-3">
@@ -18,18 +18,14 @@
                 <label asp-for="Form.Username" class="s-label">@L["Username"]</label>
                 <input asp-for="Form.Username" class="s-input" placeholder="@L["3-20 letters or digits"]" autocomplete="username" />
             </div>
-            @* In the Discord Activity the player signs in with Discord: no password. *@
-            @if (!Model.Discord)
-            {
-                <div class="col-md-4 s-field mb-0">
-                    <label asp-for="Form.Password" class="s-label">@L["Password"]</label>
-                    <input asp-for="Form.Password" class="s-input" placeholder="@L["At least 8 characters"]" autocomplete="new-password" />
-                </div>
-                <div class="col-md-4 s-field mb-0">
-                    <label asp-for="Form.ConfirmPassword" class="s-label">@L["Confirm Password"]</label>
-                    <input asp-for="Form.ConfirmPassword" class="s-input" placeholder="@L["Repeat the password"]" autocomplete="new-password" />
-                </div>
-            }
+            <div class="col-md-4 s-field mb-0">
+                <label asp-for="Form.Password" class="s-label">@L["Password"]</label>
+                <input asp-for="Form.Password" class="s-input" placeholder="@L["At least 8 characters"]" autocomplete="new-password" />
+            </div>
+            <div class="col-md-4 s-field mb-0">
+                <label asp-for="Form.ConfirmPassword" class="s-label">@L["Confirm Password"]</label>
+                <input asp-for="Form.ConfirmPassword" class="s-input" placeholder="@L["Repeat the password"]" autocomplete="new-password" />
+            </div>
         </div>
     </section>
 
@@ -97,10 +93,7 @@
 
     <div class="d-flex flex-wrap align-items-center gap-3">
         <button type="submit" class="s-btn s-btn-primary s-btn-xl"><s-icon name="flame" />@L["Register"]</button>
-        @if (!Model.Discord)
-        {
-            <span class="s-muted">@L["Already a champion?"] <a asp-controller="Player" asp-action="Login">@L["Login"]</a></span>
-        }
+        <span class="s-muted">@L["Already a champion?"] <a asp-controller="Player" asp-action="Login">@L["Login"]</a></span>
     </div>
 </form>
 

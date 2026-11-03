@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -11,10 +12,10 @@ namespace Souls.Web.Services;
 
 /// <summary>
 /// Creates players: the registration form's checks (name, class, five starter cards) and the new account with its
-/// cards. Used by the register page and by the Discord Activity's sign-up, which has no password (the player signs in
-/// with Discord).
+/// cards. Used by the register page and, without a form, for a Discord account the first time it opens the Activity
+/// (<see cref="CreateForDiscordAsync"/>).
 /// </summary>
-public sealed class PlayerRegistration(SoulsDbContext db, PasswordService passwords, TimeProvider time, IStringLocalizer<SharedResource> localizer)
+public sealed partial class PlayerRegistration(SoulsDbContext db, PasswordService passwords, TimeProvider time, IStringLocalizer<SharedResource> localizer)
 {
     private const string Key = nameof(RegisterPageModel.Form) + ".";
 
@@ -92,8 +93,59 @@ public sealed class PlayerRegistration(SoulsDbContext db, PasswordService passwo
         return player;
     }
 
+    /// <summary>
+    /// The account of a Discord user who opens the Activity for the first time: a free name made from their Discord
+    /// name, a random hero (changed on the Deck page) and the first five common starter cards; no password (they sign
+    /// in with Discord, or link a Souls account of theirs later).
+    /// </summary>
+    public async Task<Player> CreateForDiscordAsync(string discordId, string discordName, CancellationToken ct)
+    {
+        var types = await db.PlayerTypes.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(ct);
+        var cards = await db.Cards.Where(c => c.Level == 1 && c.ClassId == null && c.Rarity == Rarity.Common)
+            .OrderBy(c => c.Id).Select(c => c.Id).Take(5).ToListAsync(ct);
+        var name = SuggestName(discordName);
+        for (var attempt = 0; ; attempt++)
+        {
+            var form = new RegisterViewModel
+            {
+                Username = attempt == 0 ? name : $"{name[..Math.Min(name.Length, 16)]}{Random.Shared.Next(100, 10000)}",
+                PlayerType = types[Random.Shared.Next(types.Count)],
+                Cards = cards,
+            };
+            var problems = new ModelStateDictionary();
+            if (await CreateAsync(form, problems, discordId, ct) is { } player)
+            {
+                return player;
+            }
+
+            // Opened twice at once: the other request made it.
+            if (await db.Players.SingleOrDefaultAsync(p => p.DiscordId == discordId, ct) is { } made)
+            {
+                return made;
+            }
+
+            if (attempt >= 20)
+            {
+                throw new InvalidOperationException("No free name for a Discord player: " + string.Join("; ", problems.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+            }
+
+            db.ChangeTracker.Clear();
+        }
+    }
+
+    /// <summary>A Discord name as a Souls username (3-20 letters, digits, '-' or '_').</summary>
+    public static string SuggestName(string name)
+    {
+        var clean = NotAllowed().Replace(name, "_");
+        clean = clean.Length > 20 ? clean[..20] : clean;
+        return clean.PadRight(3, '_');
+    }
+
+    [GeneratedRegex("[^A-Za-z0-9_-]")]
+    private static partial Regex NotAllowed();
+
     /// <summary>The register page: the classes by race and the starter cards to pick from.</summary>
-    public async Task<RegisterPageModel> PageAsync(RegisterViewModel form, CancellationToken ct, bool discord = false)
+    public async Task<RegisterPageModel> PageAsync(RegisterViewModel form, CancellationToken ct)
     {
         var races = await db.Races.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct);
         var types = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
@@ -105,7 +157,6 @@ public sealed class PlayerRegistration(SoulsDbContext db, PasswordService passwo
             Form = form,
             Classes = [.. races.Select(r => new RaceClasses(r, [.. types.Where(t => t.RaceId == r.Id)]))],
             StarterCards = [.. starters.Select(c => CardTile.From(c))],
-            Discord = discord,
         };
     }
 }

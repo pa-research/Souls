@@ -1,0 +1,25 @@
+@model LoginViewModel
+<div class="s-auth">
+    <div class="s-panel s-rise">
+        <img class="s-auth-logo" src="~/Content/Images/logo.png" alt="" />
+        <h1 class="s-h2 s-gold-text">@L["Link your Souls account"]</h1>
+        <p class="s-muted">@L["Log in to the Souls account you already have: Discord opens it from now on, with its cards, rank and coins."]</p>
+        <div class="s-divider"><i></i></div>
+        <form asp-controller="Discord" asp-action="Link" method="post">
+            <div asp-validation-summary="All" class="s-alert s-alert-error empty-hidden"></div>
+
+            <div class="s-field">
+                <label asp-for="Name" class="s-label">@L["Username"]</label>
+                <input asp-for="Name" class="s-input" placeholder="@L["Your champion's name"]" autocomplete="username" autofocus />
+            </div>
+
+            <div class="s-field">
+                <label asp-for="Password" class="s-label">@L["Password"]</label>
+                <input asp-for="Password" class="s-input" placeholder="@L["Password"]" autocomplete="current-password" />
+            </div>
+
+            <button type="submit" class="s-btn s-btn-primary s-btn-lg s-btn-block mt-2"><s-icon name="login" />@L["Link and play"]</button>
+        </form>
+        <p class="s-auth-foot"><a asp-controller="Game" asp-action="Index" asp-route-mode="3d">@L["Back to the game"]</a></p>
+    </div>
+</div>

@@ -1,6 +1,6 @@
 // The game in the Discord Activity (the start page, discord-activity.js, left Discord's launch parameters and an access
 // token in sessionStorage): what the player is doing shows as their Discord status, and the menu lists who else is in
-// the channel's Activity, to challenge them, and invites more friends.
+// the channel's Activity, to challenge them, invites more friends, and links a Souls account the player already has.
 import { DiscordSDK } from '/lib/discord/discord-sdk.js';
 import { el, button, icon } from './ui.js';
 
@@ -67,8 +67,13 @@ function showChannel({ sdk, me }, menu) {
     head.appendChild(icon('users'));
     el('h3', '', head, t('g3d.discord.channel'));
     const list = el('ul', 'sg-discord-list', panel);
-    const invite = button('s-btn s-btn-ghost s-btn-sm', panel, t('g3d.discord.invite'), 'user-plus');
+    const actions = el('div', 'sg-discord-actions', panel);
+    const invite = button('s-btn s-btn-ghost s-btn-sm', actions, t('g3d.discord.invite'), 'user-plus');
     invite.addEventListener('click', () => sdk.commands.openInviteDialog().catch(error => console.warn('Discord invite:', error)));
+    // Discord opened a new Souls account for this player; one they already have can take its place.
+    const link = el('a', 's-btn s-btn-ghost s-btn-sm', actions);
+    link.href = '/Discord/Link';
+    link.append(icon('login'), t('g3d.discord.link'));
 
     const render = async participants => {
         const others = participants.filter(p => p.id !== me);
