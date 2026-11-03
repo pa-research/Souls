@@ -205,6 +205,12 @@ public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpCli
         return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 
+    [HttpGet("/Terms")]
+    public IActionResult Terms() => View();
+
+    [HttpGet("/Privacy")]
+    public IActionResult Privacy() => View();
+
     public IActionResult AccessDenied()
     {
         Response.StatusCode = StatusCodes.Status403Forbidden;

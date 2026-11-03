@@ -5,6 +5,8 @@
     <UserSecretsId>souls-web</UserSecretsId>
     <!-- Dates and numbers are formatted in the page language (ICU; the image is the chiseled-extra one). -->
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- The heroes' models go out compressed too (gzip/brotli at publish): a phone in Discord loads them over the air. -->
+    <CompressionIncludePatterns>$(CompressionIncludePatterns);**/*.glb</CompressionIncludePatterns>
   </PropertyGroup>
 
   <ItemGroup>

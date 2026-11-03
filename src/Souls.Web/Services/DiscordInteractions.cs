@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Signers;
 using Souls.Model;
+using Souls.Model.Localization;
 
 namespace Souls.Web.Services;
 
@@ -12,6 +13,7 @@ namespace Souls.Web.Services;
 /// The <c>/souls</c> command (registered by <see cref="DiscordLeague"/>), answered over HTTP: Discord posts each use to
 /// <c>/Discord/Interactions</c>, signed with the application's Ed25519 key (<c>Souls:Discord:PublicKey</c>).
 /// <c>profile</c> shows a player's rank and season, <c>leaderboard</c> the season's best, <c>play</c> opens the Activity.
+/// Answers are in the user's Discord language (Norwegian or English).
 /// </summary>
 public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration configuration)
 {
@@ -51,16 +53,22 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
 
         var data = interaction["data"];
         var sub = data?["options"]?[0];
+        // Discord's Norwegian is "no".
+        var lang = ((string?)interaction["locale"] ?? string.Empty) is var l && (l.StartsWith("no", StringComparison.Ordinal) || l.StartsWith("nb", StringComparison.Ordinal)) ? "nb" : Strings.Default;
         return (string?)data?["name"] == "souls" ? (string?)sub?["name"] switch
         {
             "play" => new JsonObject { ["type"] = 12 }, // LAUNCH_ACTIVITY
-            "leaderboard" => await LeaderboardAsync(site, ct),
-            "profile" => await ProfileAsync(interaction, sub!, site, ct),
-            _ => Message("Unknown command.", ephemeral: true),
-        } : Message("Unknown command.", ephemeral: true);
+            "leaderboard" => await LeaderboardAsync(site, lang, ct),
+            "profile" => await ProfileAsync(interaction, sub!, site, lang, ct),
+            _ => Message(T(lang, "discord.unknown"), ephemeral: true),
+        } : Message(T(lang, "discord.unknown"), ephemeral: true);
     }
 
-    private async Task<JsonObject> ProfileAsync(JsonNode interaction, JsonNode sub, string site, CancellationToken ct)
+    private static string T(string lang, string key, params (string, object)[] args) => new GameText(key, args).In(lang);
+
+    private static string SeasonName(Model.Entities.Season season, string lang) => Seasons.NameText(season)?.In(lang) ?? season.Name;
+
+    private async Task<JsonObject> ProfileAsync(JsonNode interaction, JsonNode sub, string site, string lang, CancellationToken ct)
     {
         // The chosen player, else whoever used the command (in a server: the member; elsewhere: the user).
         var target = (string?)sub["options"]?[0]?["value"];
@@ -70,9 +78,7 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
             .SingleOrDefaultAsync(p => p.DiscordId == discordId && !p.IsSystem && !p.IsAi, ct);
         if (player is null)
         {
-            return Message(target is null || target == self
-                ? "You have not linked Souls yet. Play the Souls Activity in a voice channel, or link your account in a server's Linked Roles."
-                : $"<@{target}> has not linked Souls yet.", ephemeral: true);
+            return Message(target is null || target == self ? T(lang, "discord.notLinkedSelf") : T(lang, "discord.notLinkedOther", ("user", $"<@{target}>")), ephemeral: true);
         }
 
         var season = await Seasons.CurrentAsync(db, ct);
@@ -85,34 +91,34 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
             ["title"] = player.Name,
             ["url"] = $"{site}/Player/Profile/{Uri.EscapeDataString(player.Name)}",
             ["color"] = Gold,
-            ["description"] = $"**{Ratings.TierOf(rank)}** · rating {player.Rating}",
+            ["description"] = $"**{Ratings.TierOf(rank).Text.In(lang)}** · {T(lang, "discord.rating", ("rating", player.Rating))}",
             ["thumbnail"] = new JsonObject { ["url"] = $"{site}/Content/Images/Player/Portraits/{player.PlayerTypeId}.jpg" },
             ["fields"] = new JsonArray(
-                Field("Hero", player.PlayerType?.Name ?? "-"),
-                Field(season?.Name ?? "Season", games == 0 ? "No ranked games yet" : $"{wins} wins, {games - wins} losses"),
-                Field("In Souls since", player.Created is { } created ? $"<t:{created.ToUnixTimeSeconds()}:D>" : "-")),
+                Field(T(lang, "discord.hero"), player.PlayerType?.Name ?? "-"),
+                Field(season is null ? "-" : SeasonName(season, lang), games == 0 ? T(lang, "discord.noRanked") : T(lang, "discord.record", ("wins", wins), ("losses", games - wins))),
+                Field(T(lang, "discord.since"), player.Created is { } created ? $"<t:{created.ToUnixTimeSeconds()}:D>" : "-")),
         };
         return Message(null, embed);
     }
 
-    private async Task<JsonObject> LeaderboardAsync(string site, CancellationToken ct)
+    private async Task<JsonObject> LeaderboardAsync(string site, string lang, CancellationToken ct)
     {
         var season = await Seasons.CurrentAsync(db, ct);
         if (season is null)
         {
-            return Message("No season is running.", ephemeral: true);
+            return Message(T(lang, "discord.noSeason"), ephemeral: true);
         }
 
         var top = await Seasons.Standings(db, season.StartsAt).Take(10).ToListAsync(ct); // (best rating first)
         var lines = top.Select((s, i) => string.Create(CultureInfo.InvariantCulture,
-            $"**{i + 1}.** {s.Name} · {Ratings.TierOf(Ratings.RankOf(s.Rating))} ({s.Rating}) · {s.Wins}/{s.Games} won"));
+            $"**{i + 1}.** {s.Name} · {Ratings.TierOf(Ratings.RankOf(s.Rating)).Text.In(lang)} ({s.Rating}) · {T(lang, "discord.won", ("wins", s.Wins), ("games", s.Games))}"));
         var embed = new JsonObject
         {
-            ["title"] = $"{season.Name}: the best players",
+            ["title"] = T(lang, "discord.best", ("season", SeasonName(season, lang))),
             ["url"] = $"{site}/Season",
             ["color"] = Gold,
-            ["description"] = top.Count == 0 ? "Nobody has played a ranked game this season yet." : string.Join('\n', lines),
-            ["footer"] = new JsonObject { ["text"] = $"The season ends {season.EndsAt:d MMMM yyyy}" },
+            ["description"] = top.Count == 0 ? T(lang, "discord.nobodyRanked") : string.Join('\n', lines),
+            ["footer"] = new JsonObject { ["text"] = T(lang, "discord.seasonEnds", ("date", season.EndsAt.ToString("d MMMM yyyy", CultureInfo.GetCultureInfo(lang == "nb" ? "nb-NO" : "en-GB")))) },
         };
         return Message(null, embed);
     }

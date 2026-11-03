@@ -61,7 +61,7 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Null(browser.AuthCookie);
     }
 
-    /// <summary>Souls TV plays the games with a replay newest first, one after another, and goes round again.</summary>
+    /// <summary>Souls TV plays the ranked games with a replay newest first, one after another, and goes round again.</summary>
     [Fact]
     public async Task SoulsTvGoesFromGameToGame()
     {
@@ -72,17 +72,17 @@ public class WebAppTests(SoulsAppFixture app)
         {
         }
 
-        // Three games far in the future, so they are the newest on the channel whatever else the tests stored.
+        // Three ranked games far in the future, so they are the newest on the channel whatever else the tests stored (the
+        // bot against itself: system players stay out of the season's standings), and a newer practice game it skips.
         var ids = await app.WithDbAsync(async db =>
         {
-            var me = await db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync();
             var bot = await db.Players.Where(p => p.IsSystem).Select(p => p.Id).FirstAsync();
-            var games = Enumerable.Range(0, 3).Select(i => new Game { Player1Id = me, Player2Id = bot, IsPractice = true, Created = new DateTimeOffset(2099, 1, 1, 0, 0, i, TimeSpan.Zero) }).ToList();
+            var games = Enumerable.Range(0, 4).Select(i => new Game { Player1Id = bot, Player2Id = bot, IsPractice = i == 3, Created = new DateTimeOffset(2099, 1, 1, 0, 0, i, TimeSpan.Zero) }).ToList();
             db.Games.AddRange(games);
             await db.SaveChangesAsync();
             db.GameReplays.AddRange(games.Select(g => new GameReplay { GameId = g.Id, Data = "[]" }));
             await db.SaveChangesAsync();
-            return games.Select(g => g.Id).ToList();
+            return games.Take(3).Select(g => g.Id).ToList();
         });
 
         using var page = await browser.GetAsync("/Game/Tv");
@@ -101,6 +101,17 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Equal(ids[1], await NextAsync(ids[2]));
         Assert.Equal(ids[0], await NextAsync(ids[1]));
         Assert.NotEqual(ids[0], await NextAsync(ids[0])); // older games, then round again
+    }
+
+    [Theory]
+    [InlineData("/Terms", "Terms of Service")]
+    [InlineData("/Privacy", "Privacy Policy")]
+    public async Task TheTermsAndThePrivacyPolicyAreOpenToAll(string url, string title)
+    {
+        using var browser = app.CreateBrowser();
+        using var response = await browser.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(title, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

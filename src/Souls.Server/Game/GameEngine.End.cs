@@ -118,14 +118,17 @@ public sealed partial class GameEngine
                 chPlayer.MemberRooms.Clear();
             }
 
+            // The players leave the server with the game; a client that stays (a channel room's next game) logs in again.
             if (p.ChatContext is not null)
             {
                 state.ChatClients.Remove(p.ChatContext);
+                p.ChatContext.LoggedIn = false;
             }
 
             if (p.GameContext is not null)
             {
                 state.GameClients.Remove(p.GameContext);
+                p.GameContext.LoggedIn = false;
             }
 
             p.ChPlayer = null;

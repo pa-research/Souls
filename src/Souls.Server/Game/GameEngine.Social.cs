@@ -189,10 +189,12 @@ public sealed partial class GameEngine
         }
 
         state.RoomWaiting[room] = player;
-        var playing = state.RoomGames.GetValueOrDefault(room) is { IsEnded: false } game
-            ? new JsonArray(game.Players.First.Name, game.Players.Second.Name)
-            : null;
-        player.Send(new Response(GameResponse.RoomWaiting, new JsonObject { ["playing"] = playing }));
+        var game = state.RoomGames.GetValueOrDefault(room) is { IsEnded: false } current ? current : null;
+        player.Send(new Response(GameResponse.RoomWaiting, new JsonObject
+        {
+            ["playing"] = game is null ? null : new JsonArray(game.Players.First.Name, game.Players.Second.Name),
+            ["game"] = game?.GameId,
+        }));
     }
 
     public void CancelChallenge(Player player)

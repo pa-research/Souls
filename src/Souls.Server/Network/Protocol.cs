@@ -173,8 +173,8 @@ public enum GameResponse
     QueueError = 103,
 
     /// <summary>
-    /// In a channel room (<see cref="GameRequest.JoinRoom"/>), waiting for the next opponent: <c>{"playing": [names]}</c>
-    /// (the room's game running now, or <c>null</c>).
+    /// In a channel room (<see cref="GameRequest.JoinRoom"/>), waiting for the next opponent: <c>{"playing": [names],
+    /// "game": id}</c> (the room's game running now, to watch meanwhile; both <c>null</c> when there is none).
     /// </summary>
     RoomWaiting = 104,
 

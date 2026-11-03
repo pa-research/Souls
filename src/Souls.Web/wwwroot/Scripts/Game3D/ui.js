@@ -364,6 +364,7 @@ export class UI {
             // (A channel room skips the menu: back to it on purpose.)
             this.queueBack.addEventListener('click', () => { window.location.href = this.queueMode === 'room' ? '/Game?mode=3d&menu=1' : '/Game'; });
             this.queueBox = box;
+            if (mode === 'room' && this.roomInvite) this.queueAction(t('g3d.discord.invite'), 'user-plus', this.roomInvite);
             this.queueStarted = performance.now();
             this.queueTimer = setInterval(() => {
                 this.queueTime.textContent = clock(performance.now() - this.queueStarted - 999);
@@ -394,6 +395,11 @@ export class UI {
     setStatus(text) {
         if (this.queueText) this.queueText.textContent = text;
         else this.status.textContent = text;
+    }
+
+    /** A line of its own at the top of the queue box (a welcome). */
+    queueNote(text) {
+        if (this.queueBox) this.queueBox.insertBefore(el('p', 'sg-queue-note', null, text), this.queueBox.firstChild);
     }
 
     /** An extra button in the queue box (above "back"), e.g. inviting friends to a channel room. */
@@ -1383,20 +1389,12 @@ export class UI {
         again.append(icon(redirect ? 'swords' : 'arrow-left'), redirect ? t('g3d.end.again') : t('g3d.backToMenu'));
 
         if (room) {
-            // A channel room: back to it for the next game (whoever comes back first plays the one waiting there).
-            again.href = window.location.href;
+            // A channel room: the game goes back to it by itself (Game.backToRoom); this button goes at once.
+            again.removeAttribute('href');
+            again.setAttribute('role', 'button');
             again.replaceChildren(icon('swords'), t('g3d.room.next'));
-            const note = el('div', 'sg-end-redirect', end);
-            let left = 12;
-            note.textContent = t('g3d.room.nextIn', { seconds: left });
-            const timer = setInterval(() => {
-                left--;
-                note.textContent = t('g3d.room.nextIn', { seconds: left });
-                if (left <= 0) {
-                    clearInterval(timer);
-                    window.location.reload();
-                }
-            }, 1000);
+            again.addEventListener('click', room);
+            el('div', 'sg-end-redirect', end, t('g3d.room.back'));
         } else if (statisticsId && redirect) {
             const note = el('div', 'sg-end-redirect', end);
             let left = 20;
@@ -1491,7 +1489,7 @@ export class UI {
     }
 
     /** The bar while watching someone else's game (or a replay). */
-    showSpectating(text, onLeave, { replay = false, tv = false } = {}) {
+    showSpectating(text, onLeave, { replay = false, tv = false, room = false } = {}) {
         if (!this.banner3d) {
             this.banner3d = el('div', 'sg-watching souls3d-banner', this.root);
             this.bannerBadge = el('span', 'sg-live', this.banner3d);
@@ -1505,15 +1503,22 @@ export class UI {
         this.banner3d.hidden = false;
         this.onLeave = onLeave;
         this.leaveButton.lastChild.textContent = replay ? t('g3d.replay.close') : t('g3d.spectate.stop');
+        // (In a channel room: watching the channel's game until the next one is yours.)
+        if (room) this.bannerText.textContent = t('g3d.room.watching', { game: text });
     }
 
-    /** Play/pause, speed and restart for replays. */
-    /** Takes the end screen away (Souls TV goes on to the next game). */
+    /** Takes the end screen away (Souls TV and channel rooms go on to the next game). */
     hideEnd() {
         if (!this.endLayer) return;
         this.endLayer.remove();
         this.endLayer = null;
     }
+
+    hideSpectating() {
+        if (this.banner3d) this.banner3d.hidden = true;
+    }
+
+    /** Play/pause, speed and restart for replays. */
 
     showReplay({ onToggle, onSpeed, onRestart, skip = false }) {
         const bar = el('div', 's-panel sg-transport souls3d-replay', this.root);

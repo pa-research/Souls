@@ -29,7 +29,8 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                     engine.RequestQueue(player, normal: true);
                     return;
                 case GameRequest.JoinRoom:
-                    engine.JoinRoom(player, message.GetString("room", 64));
+                    // (A Discord Activity's room: "discord:" and an instance id like i-<id>-gc-<guild>-<channel>.)
+                    engine.JoinRoom(player, message.GetString("room", 128));
                     return;
                 case GameRequest.QueuePractice:
                     engine.RequestQueue(player, normal: false, difficulty: message.Payload["difficulty"] is null ? 1 : message.GetInt("difficulty"));

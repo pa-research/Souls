@@ -53,6 +53,7 @@ public sealed class DiscordController(DiscordActivity discord, SoulsDbContext db
         // The page keeps the access token for the SDK (the player's Discord status, the channel's participants).
         var user = signIn.User;
         var player = await db.Players.SingleOrDefaultAsync(p => p.DiscordId == user.Id && !p.IsSystem && !p.IsAi, ct);
+        var created = player is null;
         if (player is null)
         {
             player = await registration.CreateForDiscordAsync(user.Id, user.GlobalName ?? user.Username, ct);
@@ -65,7 +66,8 @@ public sealed class DiscordController(DiscordActivity discord, SoulsDbContext db
         }
 
         await SignInAsync(player, ct);
-        return Json(new { next = GameUrl, accessToken = signIn.AccessToken });
+        // (created: the game welcomes the new player.)
+        return Json(new { next = GameUrl, accessToken = signIn.AccessToken, created });
     }
 
     /// <summary>The Souls names of Discord accounts (the players in the channel's Activity), by Discord id.</summary>

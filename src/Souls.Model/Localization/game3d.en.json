@@ -259,7 +259,6 @@
   "g3d.room.alone": "Waiting for someone in this channel to join. Invite a friend and the game starts as soon as they open Souls.",
   "g3d.room.playing": "{a} and {b} are playing. You play the next game in the channel.",
   "g3d.room.next": "Next game",
-  "g3d.room.nextIn": "Back to your channel in {seconds} s",
   "g3d.menu.tv": "Souls TV",
   "g3d.menu.tvSub": "Watch the latest games, one after another",
   "g3d.tv.tuning": "Tuning in to Souls TV...",
@@ -268,5 +267,9 @@
   "g3d.tv.skip": "Next game",
   "g3d.tv.badge": "Souls TV",
   "g3d.discord.waitingChannel": "Waiting in the channel",
-  "g3d.discord.tv": "Watching Souls TV"
+  "g3d.discord.tv": "Watching Souls TV",
+  "g3d.room.back": "Back to your channel in a moment",
+  "g3d.room.watching": "{game} · you play the next game",
+  "g3d.room.welcome": "Welcome to Souls, {name}! You fight as {hero} (change your hero on the Deck page). Your channel's game starts as soon as a friend opens Souls.",
+  "g3d.tv.upNext": "Up next: {a} vs {b}"
 }

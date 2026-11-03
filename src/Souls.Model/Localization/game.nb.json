@@ -256,5 +256,19 @@
   "mode.client": "Spillklient",
   "mode.classic": "Klassisk",
   "mode.3d": "Moderne 3D",
-  "mode.leaveConfirm": "Forlate kampen? Du taper den hvis du ikke kommer tilbake innen ett minutt."
+  "mode.leaveConfirm": "Forlate kampen? Du taper den hvis du ikke kommer tilbake innen ett minutt.",
+
+  "discord.unknown": "Ukjent kommando.",
+  "discord.notLinkedSelf": "Du har ikke koblet til Souls ennå. Spill Souls-aktiviteten i en talekanal, eller koble til kontoen din i en servers koblede roller.",
+  "discord.notLinkedOther": "{user} har ikke koblet til Souls ennå.",
+  "discord.rating": "rating {rating}",
+  "discord.hero": "Helt",
+  "discord.noRanked": "Ingen rangerte kamper ennå",
+  "discord.record": "{wins} seire, {losses} tap",
+  "discord.since": "I Souls siden",
+  "discord.noSeason": "Ingen sesong pågår.",
+  "discord.best": "{season}: de beste spillerne",
+  "discord.nobodyRanked": "Ingen har spilt en rangert kamp denne sesongen ennå.",
+  "discord.won": "{wins}/{games} vunnet",
+  "discord.seasonEnds": "Sesongen slutter {date}"
 }
