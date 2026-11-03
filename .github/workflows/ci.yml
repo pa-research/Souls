@@ -6,7 +6,8 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
-  # The full game (rules3d.js) plays nightly; pull requests and pushes run the quick browser checks.
+  # The full game (rules3d.js) and the Discord channel room with Souls TV (channel_tv.js, which waits for games to end)
+  # play nightly; pull requests and pushes run the quick browser checks.
   schedule:
     - cron: "0 3 * * *"
 
@@ -79,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[{"name":"rules3d.js","args":"1"}]' || '[{"name":"ui_capture.js","args":""},{"name":"classic_ui.js","args":""},{"name":"main_layout.js","args":""},{"name":"dialogue.js","args":""}]') }}
+        suite: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[{"name":"rules3d.js","args":"1"},{"name":"channel_tv.js","args":""}]' || '[{"name":"ui_capture.js","args":""},{"name":"classic_ui.js","args":""},{"name":"main_layout.js","args":""},{"name":"dialogue.js","args":""}]') }}
     env:
       COMPOSE_FILE: compose.yaml:tests/e2e/compose.ci.yaml
       # The 3D client checks layout and play, not pixels: it draws nothing on the GPU-less runner (?render=0).
