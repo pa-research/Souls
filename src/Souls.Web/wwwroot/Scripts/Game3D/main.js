@@ -126,7 +126,14 @@ async function main() {
     ui.showViews(true, { chat: !game.spectator });
     exposeTestHooks(stage, game, ui);
     game.start();
-    if (discord && choice.mode === 'room') discord.then(d => d && ui.queueAction(window.SoulsL10n.t('g3d.discord.invite'), 'user-plus', d.invite));
+    if (choice.mode === 'room') welcome(ui, config.profile);
+    if (discord && choice.mode === 'room') {
+        discord.then(d => {
+            if (!d) return;
+            ui.roomInvite = d.invite;
+            ui.queueAction(window.SoulsL10n.t('g3d.discord.invite'), 'user-plus', d.invite);
+        });
+    }
 }
 
 function inDiscord() {
@@ -134,6 +141,18 @@ function inDiscord() {
         return !!sessionStorage.getItem('souls.discord');
     } catch (e) {
         return false;
+    }
+}
+
+/** A player Discord just made an account for: once, who they are and where to change it. */
+function welcome(ui, profile) {
+    try {
+        const session = JSON.parse(sessionStorage.getItem('souls.discord'));
+        if (!session.welcome || !profile) return;
+        ui.queueNote(window.SoulsL10n.t('g3d.room.welcome', { name: profile.name, hero: profile.typeName }));
+        sessionStorage.setItem('souls.discord', JSON.stringify({ ...session, welcome: false }));
+    } catch (e) {
+        // (no session: nothing to say)
     }
 }
 

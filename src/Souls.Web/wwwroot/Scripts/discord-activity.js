@@ -18,8 +18,8 @@ try {
         body: JSON.stringify({ code }),
     });
     if (!response.ok) throw new Error(`sign-in answered ${response.status}`);
-    const { next, accessToken } = await response.json();
-    sessionStorage.setItem('souls.discord', JSON.stringify({ clientId: root.dataset.clientId, query: location.search, accessToken }));
+    const { next, accessToken, created } = await response.json();
+    sessionStorage.setItem('souls.discord', JSON.stringify({ clientId: root.dataset.clientId, query: location.search, accessToken, welcome: created }));
     location.replace(next);
 } catch (error) {
     console.error(error);

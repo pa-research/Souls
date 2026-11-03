@@ -256,5 +256,19 @@
   "mode.client": "Game client",
   "mode.classic": "Classic",
   "mode.3d": "Modern 3D",
-  "mode.leaveConfirm": "Leave the game? You lose it if you do not come back within a minute."
+  "mode.leaveConfirm": "Leave the game? You lose it if you do not come back within a minute.",
+
+  "discord.unknown": "Unknown command.",
+  "discord.notLinkedSelf": "You have not linked Souls yet. Play the Souls Activity in a voice channel, or link your account in a server's Linked Roles.",
+  "discord.notLinkedOther": "{user} has not linked Souls yet.",
+  "discord.rating": "rating {rating}",
+  "discord.hero": "Hero",
+  "discord.noRanked": "No ranked games yet",
+  "discord.record": "{wins} wins, {losses} losses",
+  "discord.since": "In Souls since",
+  "discord.noSeason": "No season is running.",
+  "discord.best": "{season}: the best players",
+  "discord.nobodyRanked": "Nobody has played a ranked game this season yet.",
+  "discord.won": "{wins}/{games} won",
+  "discord.seasonEnds": "The season ends {date}"
 }

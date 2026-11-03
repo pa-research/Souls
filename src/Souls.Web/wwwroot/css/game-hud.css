@@ -1074,3 +1074,4 @@
 .sg-discord-who { display: grid; flex: 1 1 auto; min-width: 0; }
 .sg-discord-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--s-text); }
 .sg-discord-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sg-queue-note { margin: 0 0 12px; color: var(--s-gold-1); font-weight: 600; }

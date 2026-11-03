@@ -1063,4 +1063,73 @@
   <data name="Discord linked" xml:space="preserve">
     <value>Discord koblet til</value>
   </data>
+  <data name="Terms of Service" xml:space="preserve">
+    <value>Bruksvilkår</value>
+  </data>
+  <data name="Souls Online is a free card game run as a hobby. By playing it, on this site or in Discord, you accept these terms." xml:space="preserve">
+    <value>Souls Online er et gratis kortspill som drives på hobbybasis. Når du spiller, på denne siden eller i Discord, godtar du disse vilkårene.</value>
+  </data>
+  <data name="Play fair" xml:space="preserve">
+    <value>Spill rettferdig</value>
+  </data>
+  <data name="Do not cheat, automate play, exploit bugs or attack the service, and be decent to other players in chat and emotes. Accounts that break this can be banned." xml:space="preserve">
+    <value>Ikke jukse, automatiser spillingen, utnytt feil eller angrip tjenesten, og vær grei mot andre spillere i chat og emotes. Kontoer som bryter dette kan bli utestengt.</value>
+  </data>
+  <data name="Your account" xml:space="preserve">
+    <value>Kontoen din</value>
+  </data>
+  <data name="An account belongs to the person who made it, on the site or by opening Souls in Discord. Cards, coins and ranks have no money value and cannot be sold." xml:space="preserve">
+    <value>En konto tilhører den som opprettet den, på siden eller ved å åpne Souls i Discord. Kort, mynter og ranger har ingen pengeverdi og kan ikke selges.</value>
+  </data>
+  <data name="Discord" xml:space="preserve">
+    <value>Discord</value>
+  </data>
+  <data name="The Souls Activity, the /souls command and Linked Roles run inside Discord, so Discord's own terms apply to them as well." xml:space="preserve">
+    <value>Souls-aktiviteten, /souls-kommandoen og koblede roller kjører i Discord, så Discords egne vilkår gjelder også for dem.</value>
+  </data>
+  <data name="No warranty" xml:space="preserve">
+    <value>Ingen garanti</value>
+  </data>
+  <data name="Souls is provided as it is. It can change, be down or end at any time, and game data can be reset." xml:space="preserve">
+    <value>Souls leveres som det er. Spillet kan endres, være nede eller avsluttes når som helst, og spilldata kan nullstilles.</value>
+  </data>
+  <data name="Questions" xml:space="preserve">
+    <value>Spørsmål</value>
+  </data>
+  <data name="Questions about these terms: open an issue in the Souls repository on GitHub." xml:space="preserve">
+    <value>Spørsmål om disse vilkårene: opprett en sak i Souls-repositoriet på GitHub.</value>
+  </data>
+  <data name="Privacy Policy" xml:space="preserve">
+    <value>Personvern</value>
+  </data>
+  <data name="This is what Souls Online stores about you, why, and how to have it removed." xml:space="preserve">
+    <value>Her står hva Souls Online lagrer om deg, hvorfor, og hvordan du får det fjernet.</value>
+  </data>
+  <data name="What we store" xml:space="preserve">
+    <value>Hva vi lagrer</value>
+  </data>
+  <data name="Your player name, a hash of your password (never the password itself), the hero, cards, coins, quests and ratings of your account, your games and their replays, and the messages you write in game chat." xml:space="preserve">
+    <value>Spillernavnet ditt, en hash av passordet ditt (aldri selve passordet), helten, kortene, myntene, oppdragene og ratingene på kontoen din, kampene dine og reprisene av dem, og meldingene du skriver i spillchatten.</value>
+  </data>
+  <data name="If you play through Discord, we store your Discord user id to know your account, and use your Discord name to suggest your player name. For Linked Roles we keep the access tokens Discord gives us, encrypted, only to show your Souls rank on Discord. We see nothing else of your Discord account." xml:space="preserve">
+    <value>Spiller du via Discord, lagrer vi Discord-bruker-ID-en din for å kjenne igjen kontoen din, og bruker Discord-navnet ditt til å foreslå spillernavnet. For koblede roller beholder vi tilgangsnøklene Discord gir oss, kryptert, bare for å vise Souls-rangen din på Discord. Vi ser ingenting annet av Discord-kontoen din.</value>
+  </data>
+  <data name="Cookies" xml:space="preserve">
+    <value>Informasjonskapsler</value>
+  </data>
+  <data name="Souls uses cookies only to keep you logged in, to protect forms and to remember your language. There are no tracking or advertising cookies." xml:space="preserve">
+    <value>Souls bruker informasjonskapsler bare for å holde deg innlogget, beskytte skjemaer og huske språket ditt. Det finnes ingen sporings- eller reklamekapsler.</value>
+  </data>
+  <data name="Sharing" xml:space="preserve">
+    <value>Deling</value>
+  </data>
+  <data name="Your data is not sold or shared. Your player name, rank and games are visible to other players. The service runs on a server of our own." xml:space="preserve">
+    <value>Dataene dine blir ikke solgt eller delt. Spillernavnet, rangen og kampene dine er synlige for andre spillere. Tjenesten kjører på en egen server.</value>
+  </data>
+  <data name="Removal" xml:space="preserve">
+    <value>Sletting</value>
+  </data>
+  <data name="To have your account and its data removed, or to ask what we store about you, open an issue in the Souls repository on GitHub. Unlinking Souls in Discord's settings stops Linked Roles at once." xml:space="preserve">
+    <value>For å få slettet kontoen din og dataene dens, eller spørre hva vi lagrer om deg, opprett en sak i Souls-repositoriet på GitHub. Fjerner du Souls i Discords innstillinger, stopper koblede roller med en gang.</value>
+  </data>
 </root>

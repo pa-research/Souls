@@ -76,14 +76,46 @@ body.s-site {
     flex-direction: column;
     font-family: var(--s-font-body);
     color: var(--s-text);
+    background: var(--s-bg-0);
+    isolation: isolate;
+}
+
+/* The arena behind every page, in one fixed layer: the photo softened and dimmed (::before), then the forge's glow from
+   above, a vignette and a darkening toward the bottom (::after). Image and shading stay together while the page scrolls
+   (background-attachment: fixed let them slide apart into a band, and phones ignore it). */
+body.s-site::before,
+body.s-site::after {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    pointer-events: none;
+}
+body.s-site::before {
+    inset: -32px;
+    background: url("/img/backdrop.jpg") center 30% / cover no-repeat;
+    filter: blur(9px) saturate(1.2) brightness(0.5);
+}
+body.s-site::after {
+    inset: 0;
     background:
-        radial-gradient(ellipse at 50% -10%, rgba(255, 140, 60, 0.12), transparent 55%),
-        linear-gradient(180deg, rgba(6, 5, 9, 0.55) 0%, rgba(6, 5, 9, 0.92) 55%, var(--s-bg-0) 100%),
-        url("/img/backdrop.jpg") center top / cover no-repeat fixed,
-        var(--s-bg-0);
+        radial-gradient(ellipse 70% 45% at 50% -5%, rgba(255, 140, 60, 0.2), transparent 70%),
+        radial-gradient(ellipse 110% 85% at 50% 35%, transparent 30%, rgba(4, 3, 6, 0.88) 100%),
+        linear-gradient(180deg, rgba(6, 5, 9, 0.25), rgba(6, 5, 9, 0.7));
 }
 
 body.s-site.full-screen { background: #000; overflow: hidden; }
+body.s-site.full-screen::before,
+body.s-site.full-screen::after { display: none; }
+
+/* On the site's pages (not over the game's 3D arena, where a blur would cost every frame) the panels let the arena
+   behind show through, frosted. */
+body.s-site:not(.full-screen) {
+    --s-panel: linear-gradient(180deg, rgba(30, 25, 38, 0.84), rgba(14, 12, 19, 0.9));
+}
+body.s-site:not(.full-screen) .s-panel {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
 
 .s-game-navbar.navbar {
     display: block;
@@ -385,6 +417,8 @@ a:hover { color: #fff0c2; }
 .s-home-side { align-content: start; }
 .s-home-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .s-home-grid #game-stats-feed { max-height: 360px; overflow-y: auto; }
+/* The community's activity scrolls in its panel too, so the two columns end near each other. */
+.s-home-grid #community-feed { max-height: 360px; overflow-y: auto; }
 /* The news images are 2:1; wide columns crop them a little, narrow ones show them whole. */
 #news-carousel img { aspect-ratio: 2 / 1; max-height: 240px; object-fit: cover; }
 .news-wrapper:not(:empty) { margin-top: 16px; }
@@ -1211,3 +1245,7 @@ img.s-card-portrait { background: none; }
 /* The Discord Activity's start page (Views/Discord/Index.cshtml): the name and a line while it signs in. */
 .s-discord { min-height: 100vh; display: grid; place-items: center; background: var(--s-bg-0); }
 .s-discord-start { text-align: center; padding: 24px; color: var(--s-text-2); }
+
+/* Terms of Service and Privacy Policy. */
+.s-legal { max-width: 72ch; margin: 0 auto; }
+.s-legal h2 { margin: 1.4em 0 0.4em; font-family: var(--s-font-display); font-size: 1.15rem; letter-spacing: 0.04em; color: var(--s-gold-1); }

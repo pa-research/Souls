@@ -259,7 +259,6 @@
   "g3d.room.alone": "Venter på at noen i denne kanalen blir med. Inviter en venn, så starter kampen med en gang de åpner Souls.",
   "g3d.room.playing": "{a} og {b} spiller. Du spiller neste kamp i kanalen.",
   "g3d.room.next": "Neste kamp",
-  "g3d.room.nextIn": "Tilbake til kanalen om {seconds} s",
   "g3d.menu.tv": "Souls TV",
   "g3d.menu.tvSub": "Se de siste kampene, den ene etter den andre",
   "g3d.tv.tuning": "Stiller inn Souls TV ...",
@@ -268,5 +267,9 @@
   "g3d.tv.skip": "Neste kamp",
   "g3d.tv.badge": "Souls TV",
   "g3d.discord.waitingChannel": "Venter i kanalen",
-  "g3d.discord.tv": "Ser på Souls TV"
+  "g3d.discord.tv": "Ser på Souls TV",
+  "g3d.room.back": "Tilbake til kanalen om et øyeblikk",
+  "g3d.room.watching": "{game} · du spiller neste kamp",
+  "g3d.room.welcome": "Velkommen til Souls, {name}! Du kjemper som {hero} (bytt helt på Kortstokk-siden). Kampen i kanalen starter så snart en venn åpner Souls.",
+  "g3d.tv.upNext": "Neste: {a} mot {b}"
 }

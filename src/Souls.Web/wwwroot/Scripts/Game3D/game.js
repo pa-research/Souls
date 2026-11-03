@@ -941,6 +941,8 @@ export class Game {
                 break;
             case Response.ROOM_WAITING:
                 this.ui.setStatus(p.playing ? t('g3d.room.playing', { a: p.playing[0], b: p.playing[1] }) : t('g3d.room.alone'));
+                // Watch the channel's game while waiting for the next one.
+                if (p.game && !this.active) this.gameSocket.send(Request.SPECTATE, { gameId: p.game });
                 break;
             case Response.OPPONENT_MOVE:
                 this.onOpponentMove(p);
@@ -1094,6 +1096,12 @@ export class Game {
     }
 
     onCreate(p, spectating) {
+        // A channel room goes from watching (or an end screen) straight into its own game, and on.
+        if (this.room) {
+            clearTimeout(this.roomTimer);
+            this.ui.hideEnd();
+            if (!spectating) this.ui.hideSpectating();
+        }
         this.clearCards();
         this.gameId = p.gameId;
         this.ident = spectating ? 1 : (p.ident || 1);
@@ -1111,7 +1119,7 @@ export class Game {
         this.ui.setNames(String(p.player.info.name ?? ''), String(p.opponent.info.name ?? ''));
         if (spectating) {
             const names = t('g3d.versus', { a: p.player.info.name, b: p.opponent.info.name });
-            this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' || this.mode === 'tv', tv: this.mode === 'tv' });
+            this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' || this.mode === 'tv', tv: this.mode === 'tv', room: !!this.room });
         } else if (p.ident === 1 && p.create) {
             // The first player creates the game's chat room.
             this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
@@ -1991,7 +1999,21 @@ export class Game {
         } else {
             this.celebrate(kind === 'draw' ? 6 : 3, kind === 'draw' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
-        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame, kind, room: !!this.room });
+        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame, kind, room: this.room ? () => this.backToRoom() : null });
+        if (this.room) this.roomTimer = setTimeout(() => this.backToRoom(), 9000);
+    }
+
+    /** A channel room after a game (played or watched): back to waiting there, in place; the next game starts by itself. */
+    backToRoom() {
+        clearTimeout(this.roomTimer);
+        if (this.active && !this.ended) return; // the next game already started
+        this.ui.hideEnd();
+        this.ui.hideSpectating();
+        this.active = false;
+        this.ui.showQueue(t('g3d.room.alone'), 'room');
+        // (A player of the game left the server with it: log in again, chat follows on LOGIN_OK.)
+        this.gameSocket.send(Request.LOGIN);
+        this.gameSocket.send(Request.JOIN_ROOM, { room: this.room });
     }
 
     /** The battle music gives way to the result's stinger (a gasp for a draw), then the menu music comes back. */
@@ -2014,10 +2036,17 @@ export class Game {
         this.arena.screenFlash(winner ? t('g3d.end.winnerFlash') : t('g3d.end.draw').replace('!', '').toUpperCase());
         this.ui.showEnd(text, { statistics: p.statistics }, {
             redirect: false, detail: { replay: t('g3d.end.replayOver'), tv: t('g3d.tv.next') }[this.mode] ?? null, kind: winner ? 'victory' : 'draw',
+            room: this.room ? () => this.backToRoom() : null,
         });
+        // (The players come back to the room: whoever waited plays the first of them.)
+        if (this.room) this.roomTimer = setTimeout(() => this.backToRoom(), 6000);
     }
 
     leave() {
+        if (this.room) {
+            window.location.href = '/Game?mode=3d&menu=1';
+            return;
+        }
         if (this.gameSocket && this.mode === 'watch') this.gameSocket.send(Request.STOP_SPECTATING);
         window.location.href = '/Game';
     }
@@ -2111,6 +2140,7 @@ export class Game {
             after = next.id;
             this.config.replayUrl = next.url;
             this.ui.hideEnd();
+            this.ui.screenMessage(t('g3d.tv.upNext', { a: next.a, b: next.b }), false);
             await this.playReplay({ tv: true });
             if (!this.replay.skip) await wait(6000);
         }
