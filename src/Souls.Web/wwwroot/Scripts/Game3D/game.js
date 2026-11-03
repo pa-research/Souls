@@ -37,7 +37,7 @@ const PORTRAIT_PLAYER_FIGURE = 0.85;
 // The field view looks over the player's shoulder: the figure drops off its podium and stands this much smaller and this
 // far forward, in the sand between the board and the hand (asideT eases it).
 const FIELD_FIGURE_SHRINK = 0.5;
-const FIELD_FIGURE_FORWARD = 160;
+const FIELD_FIGURE_FORWARD = 220;
 
 const BOARD_HEIGHT = 2;
 // The heroes' reactions in play (Game.dialogue): at most one per this many ms, and this many a game; a big hit is this
@@ -336,8 +336,8 @@ export class Game {
 
     /**
      * Landscape stadium views: the player's hand fans out at the bottom centre, sized in screen pixels like portraitRows.
-     * At rest only the top two fifths of each card show, clear of the player's figure; with the pointer near (setHandRaised)
-     * all but a fifth of it rises over the screen's bottom edge, and a hovered card rises clear of it.
+     * At rest the name and the art of each card show; with the pointer near (setHandRaised) the whole card rises over the
+     * screen's bottom edge, and a hovered card rises clear of it.
      */
     fanRow() {
         const stage = this.stage, w = stage.width, h = stage.height;
@@ -346,7 +346,7 @@ export class Game {
             const y = stage.classicAtPixel(w / 2, py).y;
             return { y, k: stage.pixelsPerClassic(y) };
         };
-        const row = at(h - 0.3 * card);
+        const row = at(h - 0.48 * card);
         const zoom = Math.min(h * 0.5, 460);
         const hover = at(h - zoom / 2 - 8);
         // The fan and a zoomed card keep between the player's plaque (bottom left) and the chat (bottom right); a low
@@ -360,8 +360,8 @@ export class Game {
         const zoomW = zoom * CARD_W / CARD_H;
         const hoverX = px => stage.classicAtPixel(px, h - zoom / 2 - 8).x;
         return {
-            cx: stage.classicAtPixel(centre, h - 0.3 * card).x,
-            y: row.y, rest: at(h + 0.1 * card).y, scale: card / (CARD_H * row.k), span: span / row.k, arc: true,
+            cx: stage.classicAtPixel(centre, h - 0.48 * card).x,
+            y: row.y, rest: at(h - 0.12 * card).y, scale: card / (CARD_H * row.k), span: span / row.k, arc: true,
             hoverY: hover.y, hoverScale: zoom / (CARD_H * hover.k),
             hoverMin: hoverX(Math.min(centre, left + zoomW / 2)), hoverMax: hoverX(Math.max(centre, w - right - zoomW / 2)),
         };
@@ -2304,8 +2304,8 @@ export class Game {
             hero.turnLit = this.active && !this.ended && !!this.current && this.heroOf(this.current) === hero;
             hero.update(now);
         }
-        // Board cards stand up to face the camera in the low views; ready cards breathe.
-        this.tilt += (this.stage.viewInfo.cardTilt - this.tilt) * Math.min(1, dt / 250);
+        // Board cards lean up to face the camera in the stadium views; ready cards breathe.
+        this.tilt += (this.stage.cardTilt - this.tilt) * Math.min(1, dt / 250);
         updateFoil(now);
         this.watchHealth();
         // Soft contact shadows on the sand under the podiums and the cards lying (or standing) on the board.
