@@ -1018,4 +1018,16 @@
   <data name="Could not sign in with Discord. Close the Activity and try again." xml:space="preserve">
     <value>Kunne ikke logge inn med Discord. Lukk aktiviteten og prøv igjen.</value>
   </data>
+  <data name="Linked Roles" xml:space="preserve">
+    <value>Koblede roller</value>
+  </data>
+  <data name="Discord did not confirm the link. Try again from your server's Linked Roles." xml:space="preserve">
+    <value>Discord bekreftet ikke koblingen. Prøv igjen fra serverens koblede roller.</value>
+  </data>
+  <data name="Your Discord account now shows the Souls rank of {0}. Servers can give you roles for your rank, rating and season wins, and they follow your games." xml:space="preserve">
+    <value>Discord-kontoen din viser nå Souls-rangen til {0}. Servere kan gi deg roller for rang, rating og sesongseire, og de følger kampene dine.</value>
+  </data>
+  <data name="This Discord account has no Souls champion yet. Log in to link yours, or register one." xml:space="preserve">
+    <value>Denne Discord-kontoen har ingen Souls-kjempe ennå. Logg inn for å koble din, eller registrer en.</value>
+  </data>
 </root>

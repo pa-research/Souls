@@ -12,8 +12,8 @@ using Souls.Model;
 namespace Souls.Model.Migrations
 {
     [DbContext(typeof(SoulsDbContext))]
-    [Migration("20261103191226_DiscordAccounts")]
-    partial class DiscordAccounts
+    [Migration("20261103195125_Discord")]
+    partial class Discord
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1359,6 +1359,35 @@ namespace Souls.Model.Migrations
                     b.ToTable("deck_card", (string)null);
                 });
 
+            modelBuilder.Entity("Souls.Model.Entities.DiscordConnection", b =>
+                {
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fk_player");
+
+                    b.Property<string>("AccessToken")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("access_token");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Pushed")
+                        .HasColumnType("text")
+                        .HasColumnName("pushed");
+
+                    b.Property<string>("RefreshToken")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("refresh_token");
+
+                    b.HasKey("PlayerId");
+
+                    b.ToTable("discord_connection", (string)null);
+                });
+
             modelBuilder.Entity("Souls.Model.Entities.Game", b =>
                 {
                     b.Property<int>("Id")
@@ -2423,6 +2452,17 @@ namespace Souls.Model.Migrations
                         .IsRequired();
 
                     b.Navigation("Card");
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Souls.Model.Entities.DiscordConnection", b =>
+                {
+                    b.HasOne("Souls.Model.Entities.Player", "Player")
+                        .WithOne()
+                        .HasForeignKey("Souls.Model.Entities.DiscordConnection", "PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Player");
                 });

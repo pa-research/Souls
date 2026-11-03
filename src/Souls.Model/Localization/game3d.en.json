@@ -239,5 +239,18 @@
   "g3d.chat.inputLabel": "Chat message",
   "g3d.chat.connected": "Player {name} connected",
   "g3d.chat.notOpen": "The chat opens when the game starts.",
-  "g3d.noWebgl": "Your browser does not support WebGL 2, which the 3D arena needs. Switch to the classic client (top left)."
+  "g3d.noWebgl": "Your browser does not support WebGL 2, which the 3D arena needs. Switch to the classic client (top left).",
+  "g3d.discord.channel": "In this channel",
+  "g3d.discord.invite": "Invite friends",
+  "g3d.discord.alone": "Nobody else is here yet. Invite a friend to play.",
+  "g3d.discord.notPlaying": "Not playing Souls yet",
+  "g3d.discord.challenge": "Challenge",
+  "g3d.discord.versus": "vs {name}",
+  "g3d.discord.inMenu": "Choosing a battle",
+  "g3d.discord.queueing": "Looking for an opponent",
+  "g3d.discord.waitingFriendly": "Waiting for a challenge",
+  "g3d.discord.watching": "Watching a match",
+  "g3d.discord.ranked": "Ranked match",
+  "g3d.discord.friendly": "Friendly match",
+  "g3d.discord.practice": "Practice against the bot"
 }

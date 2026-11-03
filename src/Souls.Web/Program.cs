@@ -107,6 +107,9 @@ builder.Services.AddHttpClient(DiscordActivity.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddSingleton<DiscordActivity>();
+builder.Services.AddScoped<DiscordLeague>();
+builder.Services.AddScoped<DiscordInteractions>();
+builder.Services.AddHostedService<DiscordSync>();
 builder.Services.AddScoped<PlayerRegistration>();
 builder.Services.AddSingleton<NewsSanitizer>();
 

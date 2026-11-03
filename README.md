@@ -565,7 +565,11 @@ with `SOULS_SECRETS_PATH`).
 | `Souls__GitHubRepository` | web | `owner/repo` for the "Souls Updates" feed (fetched by the browser). |
 | `Souls__RateLimits__AuthPerMinute` / `UploadsPerMinute` | web | Per-IP limits (defaults 10 / 20). |
 | `Souls__AllowedOrigins` | server | Extra allowed WebSocket origins. Empty = same origin only. |
-| `Souls__Discord__ClientId` / `ClientSecret` / `ActivityHost` | web (server: `ClientId`) | The Discord Activity (see below); off unless all three are set (**client secret is secret**). |
+| `Souls__Discord__ClientId` / `ClientSecret` / `ActivityHost` | web (server: `ClientId`) | Souls on Discord (see below); off unless all three are set (**client secret is secret**). |
+| `Souls__Discord__BotToken` | web | Registers the linked roles' requirements and the `/souls` command at start (**secret**). |
+| `Souls__Discord__PublicKey` | web | The application's public key: `/souls` interactions must be signed with it. |
+| `Souls__Discord__SyncInterval` | web | How often linked roles are brought up to date (default 10 min). |
+| `Souls__Discord__SeasonWebhookUrl` | server | A channel webhook the end of each season is posted to (**secret**). |
 | `Souls__Matchmaker__ReconnectGracePeriod` | server | How long a disconnected player may reconnect before forfeiting (default 1 min). |
 | `Souls__Seasons__Length` | migrate, server | Length of a new season (default 56 days). The game server ends seasons, checking once a minute. |
 | `Souls__Bot__ThinkDelay` / `AttackDelay` | server | Pacing of the practice bot (defaults 1.5 s before its turn, 0.7 s between actions). |
@@ -591,6 +595,23 @@ page, without a password); later launches go straight to the game.
 3. Under Activities → URL Mappings, map `/` to that host name.
 4. Set `Souls__Discord__ClientId`, `Souls__Discord__ActivityHost` and the secret `Souls__Discord__ClientSecret` for the
    web app, and `Souls__Discord__ClientId` for the game server (it accepts WebSockets from Discord's proxy).
+
+In the Activity the player's Discord status shows what they are doing (a ranked match against whom, practice,
+watching), and the menu lists who else in the channel has the Activity open: players with Souls can be challenged
+there, and the Invite button asks more friends in.
+
+**The league on Discord.** With the bot token and public key set as well:
+
+- *Linked Roles*: servers can give roles by Souls rank (1 is Bronze III, 16 Champion), rating, ranked wins this season
+  and days in Souls. A member connects from the server's Linked Roles; a site player who is logged in is linked to
+  their Discord account on the way. The web app keeps the connections up to date as ranks change. In the Developer
+  Portal set the Linked Roles Verification URL to `https://{site}/Discord/LinkedRole` and add the OAuth2 redirect
+  `https://{site}/Discord/LinkedRoleCallback`.
+- *`/souls` command*: `profile` (a player's rank and season), `leaderboard` (the season's best) and `play` (opens the
+  Activity). Set the Interactions Endpoint URL to `https://{site}/Discord/Interactions`. The command and the roles'
+  requirements are registered when the web app starts.
+- *Season results*: with `Souls__Discord__SeasonWebhookUrl` (Server Settings → Integrations → Webhooks) the game
+  server posts each season's podium when it ends.
 
 The Data Protection keys (they protect the login cookie) live in the database. With a certificate configured they
 are encrypted at rest; without one they are stored in plain form and the apps log a warning in Production. The

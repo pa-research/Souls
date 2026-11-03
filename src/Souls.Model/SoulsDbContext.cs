@@ -15,6 +15,7 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
     public DbSet<GameLogType> GameLogTypes => Set<GameLogType>();
     public DbSet<News> News => Set<News>();
     public DbSet<Player> Players => Set<Player>();
+    public DbSet<DiscordConnection> DiscordConnections => Set<DiscordConnection>();
     public DbSet<PlayerBan> PlayerBans => Set<PlayerBan>();
     public DbSet<PlayerCard> PlayerCards => Set<PlayerCard>();
     public DbSet<PlayerLogin> PlayerLogins => Set<PlayerLogin>();
@@ -143,6 +144,18 @@ public class SoulsDbContext(DbContextOptions<SoulsDbContext> options) : DbContex
             e.HasIndex(x => new { x.PlayerId, x.CardId }).IsUnique();
             e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Card).WithMany().HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DiscordConnection>(e =>
+        {
+            e.ToTable("discord_connection");
+            e.HasKey(x => x.PlayerId);
+            e.Property(x => x.PlayerId).HasColumnName("fk_player");
+            e.Property(x => x.AccessToken).HasColumnName("access_token");
+            e.Property(x => x.RefreshToken).HasColumnName("refresh_token");
+            e.Property(x => x.ExpiresAt).HasColumnName("expires_at");
+            e.Property(x => x.Pushed).HasColumnName("pushed");
+            e.HasOne(x => x.Player).WithOne().HasForeignKey<DiscordConnection>(x => x.PlayerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PlayerBan>(e =>

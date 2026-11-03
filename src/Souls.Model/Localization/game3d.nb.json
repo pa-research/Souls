@@ -239,5 +239,18 @@
   "g3d.chat.inputLabel": "Chatmelding",
   "g3d.chat.connected": "Spilleren {name} koblet til",
   "g3d.chat.notOpen": "Chatten åpner når kampen starter.",
-  "g3d.noWebgl": "Nettleseren din støtter ikke WebGL 2, som 3D-arenaen trenger. Bytt til den klassiske klienten (øverst til venstre)."
+  "g3d.noWebgl": "Nettleseren din støtter ikke WebGL 2, som 3D-arenaen trenger. Bytt til den klassiske klienten (øverst til venstre).",
+  "g3d.discord.channel": "I denne kanalen",
+  "g3d.discord.invite": "Inviter venner",
+  "g3d.discord.alone": "Ingen andre er her ennå. Inviter en venn til å spille.",
+  "g3d.discord.notPlaying": "Spiller ikke Souls ennå",
+  "g3d.discord.challenge": "Utfordre",
+  "g3d.discord.versus": "mot {name}",
+  "g3d.discord.inMenu": "Velger en kamp",
+  "g3d.discord.queueing": "Leter etter en motstander",
+  "g3d.discord.waitingFriendly": "Venter på en utfordring",
+  "g3d.discord.watching": "Ser på en kamp",
+  "g3d.discord.ranked": "Rangert kamp",
+  "g3d.discord.friendly": "Vennskapskamp",
+  "g3d.discord.practice": "Trener mot boten"
 }

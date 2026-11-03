@@ -44,6 +44,8 @@ builder.Services.AddSingleton<ChatService>();
 builder.Services.AddSingleton<AdminService>();
 builder.Services.AddSingleton<ConnectionRegistry>();
 builder.Services.AddSingleton<OriginPolicy>();
+builder.Services.AddSingleton<SeasonAnnouncer>();
+builder.Services.AddHttpClient(SeasonAnnouncer.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHostedService<Matchmaker>();
 builder.Services.AddHostedService<AiCommunity>();
 

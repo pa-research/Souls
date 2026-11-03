@@ -61,18 +61,25 @@ public sealed class DiscordActivity(IConfiguration configuration, IHttpClientFac
         return string.Join("; ", parts);
     }
 
-    /// <summary>Exchanges the SDK's authorization code for the Discord user; <c>null</c> if Discord refuses it.</summary>
-    public async Task<DiscordUser?> SignInAsync(string code, CancellationToken ct)
+    /// <summary>Exchanges an authorization code for the Discord user and its tokens; <c>null</c> if Discord refuses it.</summary>
+    /// <param name="redirectUri">The redirect the code was issued for (web OAuth2); none for the Embedded App SDK.</param>
+    public async Task<DiscordSignIn?> SignInAsync(string code, CancellationToken ct, string? redirectUri = null)
     {
         var client = http.CreateClient(HttpClientName);
-        using var tokenResponse = await client.PostAsync("oauth2/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        var form = new Dictionary<string, string>
         {
             ["client_id"] = ClientId!,
             ["client_secret"] = configuration["Souls:Discord:ClientSecret"]!,
             ["grant_type"] = "authorization_code",
             ["code"] = code,
-        }), ct);
-        if (!tokenResponse.IsSuccessStatusCode || await tokenResponse.Content.ReadFromJsonAsync<TokenResponse>(ct) is not { AccessToken: { Length: > 0 } token })
+        };
+        if (redirectUri is not null)
+        {
+            form["redirect_uri"] = redirectUri;
+        }
+
+        using var tokenResponse = await client.PostAsync("oauth2/token", new FormUrlEncodedContent(form), ct);
+        if (!tokenResponse.IsSuccessStatusCode || await tokenResponse.Content.ReadFromJsonAsync<TokenResponse>(ct) is not { AccessToken: { Length: > 0 } token } tokens)
         {
             return null;
         }
@@ -80,11 +87,19 @@ public sealed class DiscordActivity(IConfiguration configuration, IHttpClientFac
         using var request = new HttpRequestMessage(HttpMethod.Get, "users/@me");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var userResponse = await client.SendAsync(request, ct);
-        return userResponse.IsSuccessStatusCode && await userResponse.Content.ReadFromJsonAsync<DiscordUser>(ct) is { Id: { Length: > 0 } } user ? user : null;
+        return userResponse.IsSuccessStatusCode && await userResponse.Content.ReadFromJsonAsync<DiscordUser>(ct) is { Id: { Length: > 0 } } user
+            ? new DiscordSignIn(user, token, tokens.RefreshToken, tokens.ExpiresIn)
+            : null;
     }
 
-    private sealed record TokenResponse([property: JsonPropertyName("access_token")] string? AccessToken);
+    private sealed record TokenResponse(
+        [property: JsonPropertyName("access_token")] string? AccessToken,
+        [property: JsonPropertyName("refresh_token")] string? RefreshToken,
+        [property: JsonPropertyName("expires_in")] int ExpiresIn);
 }
+
+/// <summary>A Discord sign-in: the account and its OAuth2 tokens.</summary>
+public sealed record DiscordSignIn(DiscordUser User, string AccessToken, string? RefreshToken, int ExpiresIn);
 
 /// <summary>A Discord account (the fields of <c>GET /users/@me</c> the game uses).</summary>
 public sealed record DiscordUser(

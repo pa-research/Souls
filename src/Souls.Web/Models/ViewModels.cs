@@ -46,6 +46,9 @@ public sealed class RegisterViewModel
 
 public sealed record RaceClasses(Race Race, IReadOnlyList<PlayerType> Types);
 
+/// <summary>Linked Roles, back from Discord: the player now shown on Discord, or none (log in to link one); or it failed.</summary>
+public sealed record DiscordLinkModel(string? Linked, bool Failed);
+
 public sealed class RegisterPageModel
 {
     public required RegisterViewModel Form { get; init; }

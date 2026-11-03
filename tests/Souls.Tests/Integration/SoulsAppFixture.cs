@@ -46,6 +46,9 @@ public sealed class SoulsAppFixture : IAsyncLifetime
             ["Souls:Discord:ClientId"] = FakeDiscord.ClientId,
             ["Souls:Discord:ClientSecret"] = FakeDiscord.ClientSecret,
             ["Souls:Discord:ActivityHost"] = FakeDiscord.ActivityHost,
+            ["Souls:Discord:BotToken"] = FakeDiscord.BotToken,
+            ["Souls:Discord:PublicKey"] = FakeDiscord.PublicKey,
+            ["Souls:Discord:SeasonWebhookUrl"] = FakeDiscord.SeasonWebhook,
         };
 
         Web = new WebApplicationFactory<WebAssemblyMarker>().WithWebHostBuilder(b => Configure(b, settings));
@@ -90,7 +93,11 @@ public sealed class SoulsAppFixture : IAsyncLifetime
     {
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(settings));
-        builder.ConfigureTestServices(services => services.AddHttpClient("discord").ConfigurePrimaryHttpMessageHandler(() => new FakeDiscord()));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient("discord").ConfigurePrimaryHttpMessageHandler(() => new FakeDiscord());
+            services.AddHttpClient("discord-webhook").ConfigurePrimaryHttpMessageHandler(() => new FakeDiscord());
+        });
     }
 }
 

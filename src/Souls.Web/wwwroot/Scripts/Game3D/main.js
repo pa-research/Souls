@@ -92,6 +92,10 @@ async function main() {
 
     // Replays, watch and challenge links start right away; after switching clients mid-game, go straight back into
     // the game.
+    // In the Discord Activity (its start page left a session): the player's Discord status, and the menu's channel
+    // panel (discord.js, loaded only there).
+    const discord = inDiscord() ? import('./discord.js').then(m => m.connect()) : null;
+    if (discord) discord.then(d => d && d.track(() => game));
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
     const query = new URLSearchParams(location.search);
     let choice;
@@ -106,7 +110,9 @@ async function main() {
     } else {
         // The menu music plays on while looking for a match; the game crossfades to the battle music.
         sound.playMusic('music_menu');
-        choice = await ui.showMenu();
+        const menu = ui.showMenu();
+        if (discord) discord.then(d => d && d.channel(ui.overlay.querySelector('.sg-menu')));
+        choice = await menu;
     }
 
     game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge });
@@ -115,6 +121,14 @@ async function main() {
     ui.showViews(true, { chat: !game.spectator });
     exposeTestHooks(stage, game, ui);
     game.start();
+}
+
+function inDiscord() {
+    try {
+        return !!sessionStorage.getItem('souls.discord');
+    } catch (e) {
+        return false;
+    }
 }
 
 function savedView() {
