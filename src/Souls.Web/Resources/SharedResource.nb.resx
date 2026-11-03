@@ -1030,4 +1030,37 @@
   <data name="This Discord account has no Souls champion yet. Log in to link yours, or register one." xml:space="preserve">
     <value>Denne Discord-kontoen har ingen Souls-kjempe ennå. Logg inn for å koble din, eller registrer en.</value>
   </data>
+  <data name="Link your Souls account" xml:space="preserve">
+    <value>Koble til Souls-kontoen din</value>
+  </data>
+  <data name="Log in to the Souls account you already have: Discord opens it from now on, with its cards, rank and coins." xml:space="preserve">
+    <value>Logg inn på Souls-kontoen du allerede har: Discord åpner den fra nå av, med kortene, rangen og myntene.</value>
+  </data>
+  <data name="Link and play" xml:space="preserve">
+    <value>Koble til og spill</value>
+  </data>
+  <data name="Back to the game" xml:space="preserve">
+    <value>Tilbake til spillet</value>
+  </data>
+  <data name="That account is linked to another Discord account." xml:space="preserve">
+    <value>Den kontoen er koblet til en annen Discord-konto.</value>
+  </data>
+  <data name="Hero" xml:space="preserve">
+    <value>Helt</value>
+  </data>
+  <data name="The hero you fight as. Changing it brings that class's cards and hero powers, and your deck goes back to the automatic one." xml:space="preserve">
+    <value>Helten du kjemper som. Bytter du, får du den klassens kort og heltekrefter, og kortstokken går tilbake til den automatiske.</value>
+  </data>
+  <data name="Change hero" xml:space="preserve">
+    <value>Bytt helt</value>
+  </data>
+  <data name="You fight as {0} from your next game." xml:space="preserve">
+    <value>Du kjemper som {0} fra neste kamp.</value>
+  </data>
+  <data name="Link Discord" xml:space="preserve">
+    <value>Koble til Discord</value>
+  </data>
+  <data name="Discord linked" xml:space="preserve">
+    <value>Discord koblet til</value>
+  </data>
 </root>

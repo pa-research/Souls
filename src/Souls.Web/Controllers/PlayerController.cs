@@ -116,7 +116,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
         var normalized = Player.Normalize(name);
         var player = await db.Players.AsNoTracking()
             .Where(p => p.NormalizedName == normalized && !p.IsSystem)
-            .Select(p => new { p.Id, p.Name, p.PlayerTypeId, Type = p.PlayerType!.Name, p.Rating, p.Rank, p.Created })
+            .Select(p => new { p.Id, p.Name, p.PlayerTypeId, Type = p.PlayerType!.Name, p.Rating, p.Rank, p.Created, p.DiscordId })
             .SingleOrDefaultAsync(ct);
         if (player is null)
         {
@@ -175,6 +175,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
             Games = recent,
             Seasons = seasons,
             IsMe = User.GetPlayerId() == id,
+            DiscordLinked = player.DiscordId is not null,
         });
     }
 

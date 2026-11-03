@@ -584,8 +584,10 @@ Souls can run as a [Discord Activity](https://docs.discord.com/developers/activi
 a voice channel and players sign in with their Discord account. Discord shows the Activity in an iframe on
 `{client id}.discordsays.com` and proxies it to the Activity host, a host name of its own that serves the same web app
 and game server: only there are the cookies `SameSite=None; Partitioned` and framing by Discord allowed, so the site
-itself keeps its stricter rules. On a new Discord account the player picks a name, hero and starter cards (the register
-page, without a password); later launches go straight to the game.
+itself keeps its stricter rules. A Discord account gets a Souls player the first time it opens the Activity (a name from
+its Discord name, a random hero and the starter cards, no password) and goes straight into the game; the hero can be
+changed on the Deck page. A player who already has a Souls account links it from the Activity's menu (logging in to
+it moves the Discord account there), or from their profile on the site (Link Discord).
 
 1. In the [Developer Portal](https://discord.com/developers/applications), create an application and enable Activities.
    Under OAuth2, add the placeholder redirect `https://127.0.0.1` (the Activity's sign-in needs one) and copy the

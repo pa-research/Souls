@@ -51,50 +51,95 @@ public partial class DiscordActivityTests(SoulsAppFixture app)
     }
 
     [Fact]
-    public async Task ADiscordAccountSignsUpThenSignsIn()
+    public async Task ADiscordAccountGetsAPlayerAtOnce()
     {
         var discordId = Random.Shared.NextInt64(1, long.MaxValue).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var username = "d" + Guid.NewGuid().ToString("N")[..8] + ".x";
 
-        // First time: no player yet, so the page goes on to the sign-up.
+        // First time: a player is made for the Discord account, and the page goes straight to the game.
         using (var discord = app.CreateDiscordBrowser())
         {
-            var next = await SignInAsync(discord, FakeDiscord.Authorize(discordId, username));
-            Assert.Equal("/Discord/Join", next);
-
-            using var join = await discord.GetAsync(next);
-            Assert.Equal(HttpStatusCode.OK, join.StatusCode);
-            var html = await join.Content.ReadAsStringAsync();
-            var suggested = username.Replace('.', '_');
-            Assert.Contains($"value=\"{suggested}\"", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Form_Password", html, StringComparison.Ordinal);
-
-            using var created = await discord.PostFormAsync("/Discord/Join", "/Discord/Join",
-            [
-                new("Form.Username", suggested),
-                new("Form.PlayerType", "1"),
-                .. new[] { 5, 6, 20, 23, 31 }.Select(c => new KeyValuePair<string, string>("Form.Cards", c.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-            ]);
-            Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
-            Assert.Equal("/Game?mode=3d", created.Headers.Location!.ToString());
+            using var response = await PostTokenAsync(discord, FakeDiscord.Authorize(discordId, username));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("\"next\":\"/Game?mode=3d\"", (await response.Content.ReadAsStringAsync()).Replace("\\u0026", "&", StringComparison.Ordinal), StringComparison.Ordinal);
             Assert.NotNull(discord.AuthCookie);
-            Assert.Contains("partitioned", created.Headers.GetValues("Set-Cookie").Single(c => c.Contains("souls=", StringComparison.Ordinal)), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("partitioned", response.Headers.GetValues("Set-Cookie").Single(c => c.Contains("souls=", StringComparison.Ordinal)), StringComparison.OrdinalIgnoreCase);
 
             using var game = await discord.GetAsync("/Game?mode=3d");
             Assert.Equal(HttpStatusCode.OK, game.StatusCode);
 
             var player = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.DiscordId == discordId));
-            Assert.Equal(suggested, player.Name);
+            Assert.Equal(username.Replace('.', '_'), player.Name);
             Assert.Equal(5, await app.WithDbAsync(db => db.PlayerCards.CountAsync(c => c.PlayerId == player.Id)));
         }
 
-        // Next time: straight into the game.
+        // Next time: the same player.
         using (var discord = app.CreateDiscordBrowser())
         {
-            var next = await SignInAsync(discord, FakeDiscord.Authorize(discordId, username));
-            Assert.Equal("/Game?mode=3d", next);
-            Assert.NotNull(discord.AuthCookie);
+            Assert.Equal("/Game?mode=3d", await SignInAsync(discord, FakeDiscord.Authorize(discordId, username)));
+            Assert.Equal(1, await app.WithDbAsync(db => db.Players.CountAsync(p => p.DiscordId == discordId)));
         }
+
+        // Another Discord account with the same name gets a name of its own.
+        using (var discord = app.CreateDiscordBrowser())
+        {
+            var otherId = Random.Shared.NextInt64(1, long.MaxValue).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Equal("/Game?mode=3d", await SignInAsync(discord, FakeDiscord.Authorize(otherId, username)));
+            var other = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.DiscordId == otherId));
+            Assert.NotEqual(username.Replace('.', '_'), other.Name);
+        }
+    }
+
+    [Fact]
+    public async Task InTheActivityAPlayerMovesDiscordToTheirSoulsAccount()
+    {
+        var name = "k" + Guid.NewGuid().ToString("N")[..10];
+        using (var site = app.CreateBrowser())
+        {
+            await site.RegisterAsync(name, "CorrectHorse9!");
+        }
+
+        using var discord = app.CreateDiscordBrowser();
+        var discordId = Random.Shared.NextInt64(1, long.MaxValue).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal("/Game?mode=3d", await SignInAsync(discord, FakeDiscord.Authorize(discordId, "mover")));
+        var made = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.DiscordId == discordId));
+
+        using (var wrong = await discord.PostFormAsync("/Discord/Link", "/Discord/Link", [new("Name", name), new("Password", "not-it")]))
+        {
+            Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
+            Assert.Contains("Invalid username or password.", await wrong.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        using (var linked = await discord.PostFormAsync("/Discord/Link", "/Discord/Link", [new("Name", name), new("Password", "CorrectHorse9!")]))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+            Assert.Equal("/Game?mode=3d", linked.Headers.Location!.ToString());
+        }
+
+        Assert.Equal(name, await app.WithDbAsync(db => db.Players.Where(p => p.DiscordId == discordId).Select(p => p.Name).SingleAsync()));
+        Assert.Null(await app.WithDbAsync(db => db.Players.Where(p => p.Id == made.Id).Select(p => p.DiscordId).SingleAsync()));
+
+        // From now on the Activity opens the Souls account.
+        using var later = app.CreateDiscordBrowser();
+        Assert.Equal("/Game?mode=3d", await SignInAsync(later, FakeDiscord.Authorize(discordId, "mover")));
+        using var me = await later.GetAsync("/Player/GetPlayer");
+        Assert.Contains($"\"name\":\"{name}\"", await me.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task APlayerChangesTheirHero()
+    {
+        using var discord = app.CreateDiscordBrowser();
+        Assert.Equal("/Game?mode=3d", await SignUpAsync(discord));
+        var (id, _) = await NewestDiscordPlayerAsync();
+        var classId = await app.WithDbAsync(db => db.Players.Where(p => p.DiscordId == id).Select(p => p.PlayerTypeId).SingleAsync());
+        var other = classId == 1 ? 2 : 1;
+
+        using var changed = await discord.PostFormAsync("/Deck", "/Deck/Class", [new("classId", other.ToString(System.Globalization.CultureInfo.InvariantCulture))]);
+        Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        var player = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.DiscordId == id));
+        Assert.Equal(other, player.PlayerTypeId);
+        Assert.Null(player.HeroPowerId);
     }
 
     [Fact]
@@ -158,6 +203,13 @@ public partial class DiscordActivityTests(SoulsAppFixture app)
         var query = QueryHelpers.ParseQuery(authorize.Query);
         Assert.Equal("identify role_connections.write", query["scope"].ToString());
         var discordId = Random.Shared.NextInt64(1, long.MaxValue).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        using (var activity = app.CreateDiscordBrowser())
+        {
+            // (It opened the Activity first: that made a player of its own, which the site player takes over.)
+            Assert.Equal("/Game?mode=3d", await SignInAsync(activity, FakeDiscord.Authorize(discordId, "linker")));
+        }
+
+        var made = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.DiscordId == discordId));
         var code = FakeDiscord.Authorize(discordId, "linker");
 
         using var forged = await site.GetAsync($"/Discord/LinkedRoleCallback?code={code}&state=forged");
@@ -170,6 +222,7 @@ public partial class DiscordActivityTests(SoulsAppFixture app)
 
         var player = await app.WithDbAsync(db => db.Players.SingleAsync(p => p.Name == name));
         Assert.Equal(discordId, player.DiscordId);
+        Assert.Null(await app.WithDbAsync(db => db.Players.Where(p => p.Id == made.Id).Select(p => p.DiscordId).SingleAsync()));
         var pushed = RoleConnection(code);
         Assert.Equal(name, (string?)pushed["platform_username"]);
         Assert.Equal("1", (string?)pushed["metadata"]!["rank"]);
@@ -272,19 +325,11 @@ public partial class DiscordActivityTests(SoulsAppFixture app)
         return await site.SendAsync(request);
     }
 
-    /// <summary>A new Discord account through the sign-up; the page the sign-up sends it to.</summary>
-    private async Task<string> SignUpAsync(TestBrowser discord)
+    /// <summary>A new Discord account (a player is made for it at once); the page the Activity goes to.</summary>
+    private static async Task<string> SignUpAsync(TestBrowser discord)
     {
         var id = Random.Shared.NextInt64(1, long.MaxValue).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var name = "d" + Guid.NewGuid().ToString("N")[..10];
-        Assert.Equal("/Discord/Join", await SignInAsync(discord, FakeDiscord.Authorize(id, name)));
-        using var created = await discord.PostFormAsync("/Discord/Join", "/Discord/Join",
-        [
-            new("Form.Username", name),
-            new("Form.PlayerType", "1"),
-            .. new[] { 5, 6, 20, 23, 31 }.Select(c => new KeyValuePair<string, string>("Form.Cards", c.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-        ]);
-        return created.Headers.Location!.ToString();
+        return await SignInAsync(discord, FakeDiscord.Authorize(id, "d" + Guid.NewGuid().ToString("N")[..10]));
     }
 
     /// <summary>What the start page's script does with the SDK's code; the page it goes to next.</summary>

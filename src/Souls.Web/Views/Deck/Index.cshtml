@@ -12,6 +12,20 @@
     // The same icons as the hero power buttons in the game clients.
     var powerIcons = new Dictionary<int, string> { [1] = "flame", [2] = "droplet", [3] = "sparkles", [4] = "shield-plus", [5] = "skull", [6] = "heart-pulse", [7] = "shield", [8] = "castle" };
 }
+<form asp-controller="Deck" asp-action="Class" method="post" id="class-form" class="s-panel mb-4">
+    <div class="s-panel-head"><s-icon name="user" /><h2>@L["Hero"]</h2></div>
+    <p class="s-small s-muted">@L["The hero you fight as. Changing it brings that class's cards and hero powers, and your deck goes back to the automatic one."]</p>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        <select name="classId" class="s-input" aria-label="@L["Hero"]" style="max-width: 320px">
+            @foreach (var option in Model.Classes)
+            {
+                <option value="@option.Id" selected="@option.Current">@option.Name@(option.Race is null ? "" : " · " + option.Race)</option>
+            }
+        </select>
+        <button type="submit" class="s-btn s-btn-ghost s-btn-sm" id="class-save"><s-icon name="refresh" />@L["Change hero"]</button>
+    </div>
+</form>
+
 <form asp-controller="Deck" asp-action="HeroPower" method="post" id="power-form" class="s-panel mb-4">
     <div class="s-panel-head"><s-icon name="zap" /><h2>@L["Hero power"]</h2></div>
     <p class="s-small s-muted">@L["{0} can use one of two powers ({1} mana, once per turn). Your pick is used from your next game.", Model.ClassName, Model.HeroPowerCost]</p>

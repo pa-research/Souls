@@ -252,5 +252,6 @@
   "g3d.discord.watching": "Watching a match",
   "g3d.discord.ranked": "Ranked match",
   "g3d.discord.friendly": "Friendly match",
-  "g3d.discord.practice": "Practice against the bot"
+  "g3d.discord.practice": "Practice against the bot",
+  "g3d.discord.link": "Use my Souls account"
 }
