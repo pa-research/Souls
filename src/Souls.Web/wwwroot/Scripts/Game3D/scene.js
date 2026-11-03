@@ -36,12 +36,12 @@ export function spriteGeometry(attributes, count) {
 
 export const VIEWS = {
     classic: { label: 'Classic', key: '1', stadium: false, cardTilt: 0 },
-    // Board cards lie flat on the sand (a tilt toward one end looks skewed when the camera turns), except in the field
-    // view: its camera is low and never orbits, and flat cards would be too thin to read from there.
-    arena: { label: 'Arena', key: '2', stadium: true, cardTilt: 0 },
-    field: { label: 'Field', key: '3', stadium: true, cardTilt: 1.05, playerHero: 0.5 },
-    cinematic: { label: 'Cinematic', key: '4', stadium: true, cardTilt: 0 },
-    free: { label: 'Free', key: null, stadium: true, cardTilt: 0 },
+    // Board cards lean up toward the player's end, as far as the rows allow (the top of a card stays clear of the stats of
+    // the card behind it), and stand in the field view, whose low camera would see them too thin otherwise.
+    arena: { label: 'Arena', key: '2', stadium: true, cardTilt: 0.5 },
+    field: { label: 'Field', key: '3', stadium: true, cardTilt: 0.6, playerHero: 0.5 },
+    cinematic: { label: 'Cinematic', key: '4', stadium: true, cardTilt: 0.4 },
+    free: { label: 'Free', key: null, stadium: true, cardTilt: 0.5 },
 };
 
 const CLASSIC_FIT = [toWorld(0, 0), toWorld(STAGE_W, 0), toWorld(0, STAGE_H), toWorld(STAGE_W, STAGE_H)];
@@ -237,6 +237,9 @@ export class Stage {
 
     /** The view that is showing (the menu always uses the cinematic orbit). */
     get viewInfo() { return VIEWS[this.menu ? 'cinematic' : this.view]; }
+
+    /** How far board cards lean up (radians). Orbiting freely, they lie flat again as the camera goes round to their back. */
+    get cardTilt() { return this.viewInfo.cardTilt * (this.view === 'free' ? Math.max(0, Math.cos(this.free.azimuth)) : 1); }
 
     resize() {
         const width = Math.max(1, this.container.clientWidth);
@@ -493,11 +496,12 @@ export class Stage {
             cam.fov = 50;
             this.fit(cam, PORTRAIT_BOARD_FIT, deg(40 + Math.sin(now * 0.00011) * 4), 0.97, this.frame, Math.sin(now * 0.00009) * 0.35);
         } else if (name === 'field') {
-            // Down at the front row behind your hero, looking across the sand at the opponent.
+            // Above the front row behind your hero, looking across the sand at the opponent: high enough that your row
+            // leaves the stats of the opponent's clear, and the towers beside you clear of the outer slots.
             cam.fov = 55;
             const back = Math.max(1, 1.7 / cam.aspect);
-            cam.position.set(0, 430 * back, 930 * back);
-            cam.lookAt(0, 0, -150);
+            cam.position.set(0, 720 * back, 1020 * back);
+            cam.lookAt(0, 0, -110);
         } else if (name === 'cinematic') {
             // A slow orbit above the terraces, in a game and behind the menu: it comes in over the sand and rises at the
             // sides, inside the pillars (x = ±880), so they never pass in front of the board.
