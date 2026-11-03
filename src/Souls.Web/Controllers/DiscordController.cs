@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
@@ -41,6 +42,7 @@ public sealed partial class DiscordController(DiscordActivity discord, SoulsDbCo
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Token([FromBody] TokenRequest request, CancellationToken ct)
     {
+        NoStatusPage();
         if (!discord.IsActivityRequest(HttpContext))
         {
             return NotFound();
@@ -74,6 +76,7 @@ public sealed partial class DiscordController(DiscordActivity discord, SoulsDbCo
     [HttpGet]
     public async Task<IActionResult> Players(string? ids, CancellationToken ct)
     {
+        NoStatusPage();
         if (!discord.IsActivityRequest(HttpContext) || User.Identity?.IsAuthenticated != true)
         {
             return NotFound();
@@ -192,6 +195,7 @@ public sealed partial class DiscordController(DiscordActivity discord, SoulsDbCo
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Interactions([FromServices] DiscordInteractions interactions, CancellationToken ct)
     {
+        NoStatusPage();
         if (!discord.Enabled)
         {
             return NotFound();
@@ -221,6 +225,15 @@ public sealed partial class DiscordController(DiscordActivity discord, SoulsDbCo
 
         var answer = await interactions.AnswerAsync(interaction, $"{Request.Scheme}://{Request.Host}", ct);
         return Content(answer.ToJsonString(), "application/json");
+    }
+
+    /// <summary>The JSON endpoints answer errors as they are (no error page: it would re-run the request as /Home/Status).</summary>
+    private void NoStatusPage()
+    {
+        if (HttpContext.Features.Get<IStatusCodePagesFeature>() is { } pages)
+        {
+            pages.Enabled = false;
+        }
     }
 
     private string LinkedRoleRedirect => $"{Request.Scheme}://{Request.Host}{Url.Action(nameof(LinkedRoleCallback))}";

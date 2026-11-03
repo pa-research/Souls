@@ -76,7 +76,9 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
         }
 
         var season = await Seasons.CurrentAsync(db, ct);
-        var standing = season is null ? null : await Seasons.Standings(db, season.StartsAt).Where(s => s.PlayerId == player.Id).FirstOrDefaultAsync(ct);
+        var ranked = db.Games.Where(g => season != null && !g.IsPractice && g.Created >= season.StartsAt);
+        var games = await ranked.CountAsync(g => g.Player1Id == player.Id || g.Player2Id == player.Id, ct);
+        var wins = await ranked.CountAsync(g => g.WinnerId == player.Id, ct);
         var rank = Ratings.RankOf(player.Rating);
         var embed = new JsonObject
         {
@@ -87,7 +89,7 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
             ["thumbnail"] = new JsonObject { ["url"] = $"{site}/Content/Images/Player/Portraits/{player.PlayerTypeId}.jpg" },
             ["fields"] = new JsonArray(
                 Field("Hero", player.PlayerType?.Name ?? "-"),
-                Field(season?.Name ?? "Season", standing is null ? "No ranked games yet" : $"{standing.Wins} wins, {standing.Games - standing.Wins} losses"),
+                Field(season?.Name ?? "Season", games == 0 ? "No ranked games yet" : $"{wins} wins, {games - wins} losses"),
                 Field("In Souls since", player.Created is { } created ? $"<t:{created.ToUnixTimeSeconds()}:D>" : "-")),
         };
         return Message(null, embed);
@@ -101,7 +103,7 @@ public sealed class DiscordInteractions(SoulsDbContext db, IConfiguration config
             return Message("No season is running.", ephemeral: true);
         }
 
-        var top = await Seasons.Standings(db, season.StartsAt).OrderByDescending(s => s.Rating).ThenBy(s => s.PlayerId).Take(10).ToListAsync(ct);
+        var top = await Seasons.Standings(db, season.StartsAt).Take(10).ToListAsync(ct); // (best rating first)
         var lines = top.Select((s, i) => string.Create(CultureInfo.InvariantCulture,
             $"**{i + 1}.** {s.Name} · {Ratings.TierOf(Ratings.RankOf(s.Rating))} ({s.Rating}) · {s.Wins}/{s.Games} won"));
         var embed = new JsonObject

@@ -105,7 +105,7 @@ public sealed class DiscordLeague(DiscordActivity discord, SoulsDbContext db, IH
     public async Task<string> RoleConnectionAsync(Player player, CancellationToken ct)
     {
         var season = await Seasons.CurrentAsync(db, ct);
-        var wins = season is null ? 0 : await Seasons.Standings(db, season.StartsAt).Where(s => s.PlayerId == player.Id).Select(s => s.Wins).FirstOrDefaultAsync(ct);
+        var wins = season is null ? 0 : await db.Games.CountAsync(g => !g.IsPractice && g.Created >= season.StartsAt && g.WinnerId == player.Id, ct);
         return JsonSerializer.Serialize(new
         {
             platform_name = "Souls",
