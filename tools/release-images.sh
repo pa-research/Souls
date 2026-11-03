@@ -9,7 +9,8 @@ set -euo pipefail
 [[ ${GITHUB_RUN_ATTEMPT:-} =~ ^[1-9][0-9]{0,2}$ ]] || exit 1
 
 owner=${GITHUB_REPOSITORY_OWNER,,}
-candidate="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+# Failed-job reruns reuse successful image jobs from the same workflow run.
+candidate="candidate-${GITHUB_RUN_ID}"
 release="main-$((GITHUB_RUN_NUMBER * 1000 + GITHUB_RUN_ATTEMPT))-${GITHUB_SHA:0:7}"
 
 # Both candidates must exist before either release tag becomes visible.

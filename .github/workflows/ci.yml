@@ -175,7 +175,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=sha
-            type=raw,value=candidate-${{ github.run_id }}-${{ github.run_attempt }},enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+            type=raw,value=candidate-${{ github.run_id }},enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
       - uses: docker/build-push-action@v7
         with:
