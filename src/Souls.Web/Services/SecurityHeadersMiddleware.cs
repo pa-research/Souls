@@ -39,6 +39,8 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
             headers.XContentTypeOptions = "nosniff";
             if (activity)
             {
+                // (Antiforgery adds X-Frame-Options: SAMEORIGIN with each token; Discord frames the Activity.)
+                headers.Remove("X-Frame-Options");
                 DiscordActivity.RelaxCookies(headers);
             }
             else

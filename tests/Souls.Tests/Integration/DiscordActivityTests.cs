@@ -23,6 +23,11 @@ public partial class DiscordActivityTests(SoulsAppFixture app)
         Assert.Contains("frame-ancestors 'none'", notHere.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
 
         using var discord = app.CreateDiscordBrowser();
+        // Discord opens the Activity at the root, with its launch parameters.
+        using var launch = await discord.GetAsync("/?frame_id=f1&instance_id=i1&platform=desktop");
+        Assert.Equal(HttpStatusCode.Redirect, launch.StatusCode);
+        Assert.Equal("/Discord?frame_id=f1&instance_id=i1&platform=desktop", launch.Headers.Location!.ToString());
+
         using var start = await discord.GetAsync("/Discord");
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
         var csp = start.Headers.GetValues("Content-Security-Policy").Single();
