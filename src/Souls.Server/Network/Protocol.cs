@@ -172,6 +172,12 @@ public enum GameResponse
     QueueUnqueue = 102,
     QueueError = 103,
 
+    /// <summary>
+    /// In a channel room (<see cref="GameRequest.JoinRoom"/>), waiting for the next opponent: <c>{"playing": [names]}</c>
+    /// (the room's game running now, or <c>null</c>).
+    /// </summary>
+    RoomWaiting = 104,
+
     // Friendly challenges, numbered down from the top of the queue range.
 
     /// <summary>The pending challenge ended without a game (declined, cancelled, expired, a player left), or was refused. A string.</summary>
@@ -244,6 +250,12 @@ public enum GameRequest
 
     /// <summary><c>{"difficulty": 0 easy, 1 normal, 2 hard}</c>.</summary>
     QueuePractice = 101,
+
+    /// <summary>
+    /// Plays in a channel room (<c>{"room"}</c>, e.g. a Discord Activity's instance): the next two players in it play
+    /// each other, at once and without a challenge.
+    /// </summary>
+    JoinRoom = 102,
 
     /// <summary>Withdraws your pending challenge.</summary>
     ChallengeCancel = 197,

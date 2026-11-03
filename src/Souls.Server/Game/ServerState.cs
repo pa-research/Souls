@@ -25,6 +25,10 @@ public sealed class ServerState
     public LinkedList<Player> NormalQueue { get; } = new();
     public LinkedList<Player> PracticeQueue { get; } = new();
 
+    /// <summary>Channel rooms (<see cref="GameEngine.JoinRoom"/>): the player waiting in each, and its game now.</summary>
+    public Dictionary<string, Player> RoomWaiting { get; } = [];
+    public Dictionary<string, GameRoom> RoomGames { get; } = [];
+
     /// <summary>Friendly challenges waiting for an answer. A player is in at most one, on either side.</summary>
     public List<Challenge> Challenges { get; } = [];
 

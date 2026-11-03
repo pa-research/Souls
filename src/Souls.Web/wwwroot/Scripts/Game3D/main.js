@@ -99,7 +99,9 @@ async function main() {
     const resume = window.SoulsGameMode ? window.SoulsGameMode.resume() : null;
     const query = new URLSearchParams(location.search);
     let choice;
-    if (config.replayUrl) {
+    if (config.tv) {
+        choice = { mode: 'tv' };
+    } else if (config.replayUrl) {
         choice = { mode: 'replay' };
     } else if (config.watch || query.get('live')) {
         choice = { mode: 'watch' };
@@ -107,6 +109,9 @@ async function main() {
         choice = { mode: resume.normal ? 'normal' : 'practice', difficulty: ui.difficulty };
     } else if (query.get('challenge')) {
         choice = { mode: 'friendly', challenge: query.get('challenge') };
+    } else if (discordRoom() && !query.get('menu')) {
+        // The Discord Activity goes straight into its channel's room (the menu stays one click away).
+        choice = { mode: 'room', room: discordRoom() };
     } else {
         // The menu music plays on while looking for a match; the game crossfades to the battle music.
         sound.playMusic('music_menu');
@@ -115,12 +120,13 @@ async function main() {
         choice = await menu;
     }
 
-    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge });
+    game = new Game({ stage, ui, effects, arena, crowd, config, mode: choice.mode, difficulty: choice.difficulty ?? 1, challenge: choice.challenge, room: choice.room });
     new Interaction(stage, game, effects);
     ui.setView(stage.view);
     ui.showViews(true, { chat: !game.spectator });
     exposeTestHooks(stage, game, ui);
     game.start();
+    if (discord && choice.mode === 'room') discord.then(d => d && ui.queueAction(window.SoulsL10n.t('g3d.discord.invite'), 'user-plus', d.invite));
 }
 
 function inDiscord() {
@@ -128,6 +134,16 @@ function inDiscord() {
         return !!sessionStorage.getItem('souls.discord');
     } catch (e) {
         return false;
+    }
+}
+
+/** The Discord Activity's channel room: its instance (one per voice channel, from Discord's launch parameters). */
+function discordRoom() {
+    try {
+        const instance = new URLSearchParams(JSON.parse(sessionStorage.getItem('souls.discord')).query).get('instance_id');
+        return instance ? `discord:${instance}` : null;
+    } catch (e) {
+        return null;
     }
 }
 

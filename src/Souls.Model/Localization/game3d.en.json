@@ -253,5 +253,20 @@
   "g3d.discord.ranked": "Ranked match",
   "g3d.discord.friendly": "Friendly match",
   "g3d.discord.practice": "Practice against the bot",
-  "g3d.discord.link": "Use my Souls account"
+  "g3d.discord.link": "Use my Souls account",
+  "g3d.room.title": "Your channel",
+  "g3d.room.chip": "Friendly · whoever joins next plays you",
+  "g3d.room.alone": "Waiting for someone in this channel to join. Invite a friend and the game starts as soon as they open Souls.",
+  "g3d.room.playing": "{a} and {b} are playing. You play the next game in the channel.",
+  "g3d.room.next": "Next game",
+  "g3d.room.nextIn": "Back to your channel in {seconds} s",
+  "g3d.menu.tv": "Souls TV",
+  "g3d.menu.tvSub": "Watch the latest games, one after another",
+  "g3d.tv.tuning": "Tuning in to Souls TV...",
+  "g3d.tv.empty": "No games to show yet. Souls TV starts with the next finished game.",
+  "g3d.tv.next": "Next game in a moment",
+  "g3d.tv.skip": "Next game",
+  "g3d.tv.badge": "Souls TV",
+  "g3d.discord.waitingChannel": "Waiting in the channel",
+  "g3d.discord.tv": "Watching Souls TV"
 }

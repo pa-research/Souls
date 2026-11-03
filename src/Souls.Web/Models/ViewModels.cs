@@ -262,6 +262,9 @@ public sealed record GameConfig(string WsBase, IReadOnlyList<CardPortrait> Cards
 
     /// <summary>Where the replay to play back is (3D client).</summary>
     public string? ReplayUrl { get; init; }
+
+    /// <summary>Souls TV: finished games played back one after another (3D client, see GameController.TvNext).</summary>
+    public bool Tv { get; init; }
     public int? ReplayGameId { get; init; }
 
     /// <summary>The signed in player, for the game menu.</summary>

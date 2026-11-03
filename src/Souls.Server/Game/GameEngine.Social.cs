@@ -150,6 +150,51 @@ public sealed partial class GameEngine
         CreateGame(new Pair<Player>(first, second), friendly: true);
     }
 
+    /// <summary>
+    /// A channel room (a Discord Activity's instance, say): the player waits there until someone else joins it, and the
+    /// two play a friendly game at once. Whoever comes back to the room after a game plays the next one; the others see
+    /// who is playing while they wait.
+    /// </summary>
+    public void JoinRoom(Player player, string room)
+    {
+        if (player.GPlayer?.GameRoom is { } running)
+        {
+            SendState(player, running);
+            return;
+        }
+
+        room = room.Trim();
+        if (room.Length == 0)
+        {
+            return;
+        }
+
+        RemoveFromQueues(player);
+        StopSpectating(player);
+        DropChallenge(player, new GameText("challenge.left", ("name", player.Name)));
+        foreach (var ended in state.RoomGames.Where(r => r.Value.IsEnded).Select(r => r.Key).ToList())
+        {
+            state.RoomGames.Remove(ended);
+        }
+
+        if (state.RoomWaiting.TryGetValue(room, out var other) && other != player && other.GPlayer is null
+            && other.DisconnectedAt is null && other.GameContext is not null && state.GameClients.ContainsKey(other.GameContext))
+        {
+            state.RoomWaiting.Remove(room);
+            StopSpectating(other);
+            var (first, second) = Random.Shared.Next(2) == 0 ? (other, player) : (player, other);
+            state.RoomGames[room] = CreateGame(new Pair<Player>(first, second), friendly: true);
+            logger.LogDebug("Room {Room}: {First} plays {Second}", room, first.Name, second.Name);
+            return;
+        }
+
+        state.RoomWaiting[room] = player;
+        var playing = state.RoomGames.GetValueOrDefault(room) is { IsEnded: false } game
+            ? new JsonArray(game.Players.First.Name, game.Players.Second.Name)
+            : null;
+        player.Send(new Response(GameResponse.RoomWaiting, new JsonObject { ["playing"] = playing }));
+    }
+
     public void CancelChallenge(Player player)
     {
         if (state.ChallengeOf(player) is { } challenge && challenge.From == player)

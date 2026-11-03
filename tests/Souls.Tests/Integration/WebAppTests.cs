@@ -61,6 +61,48 @@ public class WebAppTests(SoulsAppFixture app)
         Assert.Null(browser.AuthCookie);
     }
 
+    /// <summary>Souls TV plays the games with a replay newest first, one after another, and goes round again.</summary>
+    [Fact]
+    public async Task SoulsTvGoesFromGameToGame()
+    {
+        var name = NewName();
+        using var browser = app.CreateBrowser();
+        await browser.RegisterAsync(name, Password);
+        using (await browser.LoginAsync(name, Password))
+        {
+        }
+
+        // Three games far in the future, so they are the newest on the channel whatever else the tests stored.
+        var ids = await app.WithDbAsync(async db =>
+        {
+            var me = await db.Players.Where(p => p.Name == name).Select(p => p.Id).SingleAsync();
+            var bot = await db.Players.Where(p => p.IsSystem).Select(p => p.Id).FirstAsync();
+            var games = Enumerable.Range(0, 3).Select(i => new Game { Player1Id = me, Player2Id = bot, IsPractice = true, Created = new DateTimeOffset(2099, 1, 1, 0, 0, i, TimeSpan.Zero) }).ToList();
+            db.Games.AddRange(games);
+            await db.SaveChangesAsync();
+            db.GameReplays.AddRange(games.Select(g => new GameReplay { GameId = g.Id, Data = "[]" }));
+            await db.SaveChangesAsync();
+            return games.Select(g => g.Id).ToList();
+        });
+
+        using var page = await browser.GetAsync("/Game/Tv");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Contains("\"tv\":true", await page.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        async Task<int> NextAsync(int? after)
+        {
+            using var response = await browser.GetAsync(after is null ? "/Game/TvNext" : $"/Game/TvNext?after={after}");
+            var next = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+            Assert.Equal($"/Game/ReplayData/{(int)next["id"]!}", (string?)next["url"]);
+            return (int)next["id"]!;
+        }
+
+        Assert.Equal(ids[2], await NextAsync(null));
+        Assert.Equal(ids[1], await NextAsync(ids[2]));
+        Assert.Equal(ids[0], await NextAsync(ids[1]));
+        Assert.NotEqual(ids[0], await NextAsync(ids[0])); // older games, then round again
+    }
+
     [Fact]
     public async Task RegisterLoginAndShop()
     {

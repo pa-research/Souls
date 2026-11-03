@@ -253,5 +253,20 @@
   "g3d.discord.ranked": "Rangert kamp",
   "g3d.discord.friendly": "Vennskapskamp",
   "g3d.discord.practice": "Trener mot boten",
-  "g3d.discord.link": "Bruk Souls-kontoen min"
+  "g3d.discord.link": "Bruk Souls-kontoen min",
+  "g3d.room.title": "Kanalen din",
+  "g3d.room.chip": "Vennskap · den som blir med neste, spiller mot deg",
+  "g3d.room.alone": "Venter på at noen i denne kanalen blir med. Inviter en venn, så starter kampen med en gang de åpner Souls.",
+  "g3d.room.playing": "{a} og {b} spiller. Du spiller neste kamp i kanalen.",
+  "g3d.room.next": "Neste kamp",
+  "g3d.room.nextIn": "Tilbake til kanalen om {seconds} s",
+  "g3d.menu.tv": "Souls TV",
+  "g3d.menu.tvSub": "Se de siste kampene, den ene etter den andre",
+  "g3d.tv.tuning": "Stiller inn Souls TV ...",
+  "g3d.tv.empty": "Ingen kamper å vise ennå. Souls TV starter med neste ferdige kamp.",
+  "g3d.tv.next": "Neste kamp om litt",
+  "g3d.tv.skip": "Neste kamp",
+  "g3d.tv.badge": "Souls TV",
+  "g3d.discord.waitingChannel": "Venter i kanalen",
+  "g3d.discord.tv": "Ser på Souls TV"
 }

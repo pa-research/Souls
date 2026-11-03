@@ -168,7 +168,7 @@ export class Game {
      * mode: 'normal' | 'practice' (play), 'friendly' (challenge a player by name: `challenge`, or wait for one),
      * 'watch' (spectate a live game) or 'replay' (play back a recording).
      */
-    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1, challenge = null }) {
+    constructor({ stage, ui, effects, arena, crowd, config, mode = 'practice', difficulty = 1, challenge = null, room = null }) {
         this.stage = stage;
         this.ui = ui;
         this.effects = effects;
@@ -179,10 +179,12 @@ export class Game {
         this.difficulty = difficulty;
         this.normalGame = mode === 'normal';
         this.friendly = mode === 'friendly';
-        this.friendlyGame = this.friendly; // also when accepting a challenge while queued
+        // A channel room (the Discord Activity's): the next two players in it play each other, then come back for the next.
+        this.room = mode === 'room' ? room : null;
+        this.friendlyGame = this.friendly || !!this.room; // also when accepting a challenge while queued
         this.challengeName = challenge;
         this.emotesMuted = false;
-        this.spectator = mode === 'watch' || mode === 'replay';
+        this.spectator = mode === 'watch' || mode === 'replay' || mode === 'tv';
         this.rules = config.rules || { abilities: {}, races: {}, heroPowers: {}, heroTypes: {}, keywords: {} };
         this.tilt = 0;
         this.portraits = Object.fromEntries(config.cards.map(c => [c.id, c.portrait]));
@@ -258,7 +260,13 @@ export class Game {
             this.playReplay();
             return;
         }
-        if (this.friendly) {
+        if (this.mode === 'tv') {
+            this.playTv();
+            return;
+        }
+        if (this.room) {
+            this.ui.showQueue(t('g3d.room.alone'), 'room');
+        } else if (this.friendly) {
             this.ui.showFriendly({
                 onChallenge: name => this.gameSocket.send(Request.CHALLENGE, { name }),
                 onCancel: () => this.gameSocket.send(Request.CHALLENGE_CANCEL),
@@ -277,6 +285,11 @@ export class Game {
             const id = this.watchId ?? this.config.watch;
             if (id) this.spectate(id);
             else this.gameSocket.send(Request.LIST_LIVE_GAMES);
+            return;
+        }
+        // A channel room: wait there (in a game, the server sends it again).
+        if (this.room && !this.active) {
+            this.gameSocket.send(Request.JOIN_ROOM, { room: this.room });
             return;
         }
         // Friendly mode waits for challenges (a challenge does not survive a reconnect); in a game it rejoins below.
@@ -926,6 +939,9 @@ export class Game {
             case Response.QUEUE_ALREADY_IN:
                 this.ui.setStatus(t('queue.already'));
                 break;
+            case Response.ROOM_WAITING:
+                this.ui.setStatus(p.playing ? t('g3d.room.playing', { a: p.playing[0], b: p.playing[1] }) : t('g3d.room.alone'));
+                break;
             case Response.OPPONENT_MOVE:
                 this.onOpponentMove(p);
                 break;
@@ -1095,7 +1111,7 @@ export class Game {
         this.ui.setNames(String(p.player.info.name ?? ''), String(p.opponent.info.name ?? ''));
         if (spectating) {
             const names = t('g3d.versus', { a: p.player.info.name, b: p.opponent.info.name });
-            this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' });
+            this.ui.showSpectating(names, () => this.leave(), { replay: this.mode === 'replay' || this.mode === 'tv', tv: this.mode === 'tv' });
         } else if (p.ident === 1 && p.create) {
             // The first player creates the game's chat room.
             this.chatSocket.send(Request.CHAT_NEWGAMEROOM);
@@ -1975,7 +1991,7 @@ export class Game {
         } else {
             this.celebrate(kind === 'draw' ? 6 : 3, kind === 'draw' ? undefined : [0xff4d4d, 0x9b59b6]);
         }
-        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame, kind });
+        this.ui.showEnd(text, p || {}, { friendly: this.friendlyGame, kind, room: !!this.room });
     }
 
     /** The battle music gives way to the result's stinger (a gasp for a draw), then the menu music comes back. */
@@ -1997,7 +2013,7 @@ export class Game {
         const text = winner ? t('g3d.end.wins', { name: winner }) : t('g3d.end.draw');
         this.arena.screenFlash(winner ? t('g3d.end.winnerFlash') : t('g3d.end.draw').replace('!', '').toUpperCase());
         this.ui.showEnd(text, { statistics: p.statistics }, {
-            redirect: false, detail: this.mode === 'replay' ? t('g3d.end.replayOver') : null, kind: winner ? 'victory' : 'draw',
+            redirect: false, detail: { replay: t('g3d.end.replayOver'), tv: t('g3d.tv.next') }[this.mode] ?? null, kind: winner ? 'victory' : 'draw',
         });
     }
 
@@ -2036,35 +2052,67 @@ export class Game {
         else if (picked !== undefined) this.spectate(picked);
     }
 
-    /** Plays a recorded game: the spectator messages with their original timing (long pauses shortened). */
-    async playReplay() {
-        this.ui.showQueue(t('g3d.status.loadingReplay'));
+    /**
+     * Plays a recorded game: the spectator messages with their original timing (long pauses shortened). On Souls TV
+     * (`tv`) the transport's last button skips to the next game instead of starting this one again.
+     */
+    async playReplay({ tv = false } = {}) {
+        if (!tv) this.ui.showQueue(t('g3d.status.loadingReplay'));
         let records;
         try {
             const response = await fetch(this.config.replayUrl, { credentials: 'same-origin' });
             records = window.SoulsL10n.localizeMessage(await response.json());
         } catch (err) {
-            this.ui.showQueue(t('g3d.status.replayFailed'));
+            if (!tv) this.ui.showQueue(t('g3d.status.replayFailed'));
             return;
         }
-        const state = { playing: true, speed: 1 };
-        this.replay = state;
-        this.ui.showReplay({
-            onToggle: () => (state.playing = !state.playing),
-            onSpeed: speed => { state.speed = speed; },
-            onRestart: () => window.location.reload(),
-        });
+        if (!this.replay) {
+            const created = { playing: true, speed: 1, skip: false };
+            this.replay = created;
+            this.ui.showReplay({
+                onToggle: () => (created.playing = !created.playing),
+                onSpeed: speed => { created.speed = speed; },
+                onRestart: tv ? () => { created.skip = true; } : () => window.location.reload(),
+                skip: tv,
+            });
+        }
+        const state = this.replay;
+        state.skip = false;
         const total = records.length ? Math.max(1, records[records.length - 1].t) : 1;
         let clock = 0;
         for (const record of records) {
             let gap = Math.min(2500, Math.max(0, record.t - clock));
             clock = record.t;
-            while (gap > 0 || !state.playing) {
+            while ((gap > 0 || !state.playing) && !state.skip) {
                 await wait(50);
                 if (state.playing) gap -= 50 * state.speed;
             }
+            if (state.skip) break;
             await this.enqueue(record.m);
             this.ui.setReplayProgress(record.t / total);
+        }
+    }
+
+    /**
+     * Souls TV: finished games played back one after another, newest first and round again, with nothing to pick
+     * (/Game/TvNext picks the next one). Each ends on its end screen for a few seconds.
+     */
+    async playTv() {
+        this.ui.showQueue(t('g3d.tv.tuning'), 'tv');
+        let after = null;
+        for (;;) {
+            const next = await fetch(`/Game/TvNext${after ? `?after=${after}` : ''}`, { credentials: 'same-origin' })
+                .then(r => (r.status === 200 ? r.json() : null)).catch(() => null);
+            if (!next) {
+                this.ui.showQueue(t('g3d.tv.empty'), 'tv');
+                await wait(30000);
+                continue;
+            }
+            after = next.id;
+            this.config.replayUrl = next.url;
+            this.ui.hideEnd();
+            await this.playReplay({ tv: true });
+            if (!this.replay.skip) await wait(6000);
         }
     }
 
