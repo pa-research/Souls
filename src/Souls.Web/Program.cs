@@ -101,6 +101,16 @@ builder.Services.AddHsts(options =>
     options.IncludeSubDomains = false;
 });
 builder.Services.AddHttpClient("status", client => client.Timeout = TimeSpan.FromSeconds(2));
+builder.Services.AddHttpClient(DiscordActivity.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri("https://discord.com/api/v10/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddSingleton<DiscordActivity>();
+builder.Services.AddScoped<DiscordLeague>();
+builder.Services.AddScoped<DiscordInteractions>();
+builder.Services.AddHostedService<DiscordSync>();
+builder.Services.AddScoped<PlayerRegistration>();
 builder.Services.AddSingleton<NewsSanitizer>();
 
 var app = builder.Build();

@@ -38,7 +38,7 @@ export function tierOf(rating) {
 
 const POWER_ICONS = { 1: 'flame', 2: 'droplet', 3: 'sparkles', 4: 'shield-plus', 5: 'skull', 6: 'heart-pulse', 7: 'shield', 8: 'castle' }; // by hero power id
 
-function el(tag, className, parent, text) {
+export function el(tag, className, parent, text) {
     const e = document.createElement(tag);
     if (className) e.className = className;
     if (text !== undefined && text !== null) e.textContent = text;
@@ -56,7 +56,7 @@ export function icon(name, className = 's-icon') {
     return svg;
 }
 
-function button(className, parent, label, iconName) {
+export function button(className, parent, label, iconName) {
     const b = el('button', className, parent);
     b.type = 'button';
     if (iconName) b.appendChild(icon(iconName));

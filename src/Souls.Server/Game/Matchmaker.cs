@@ -40,6 +40,7 @@ public sealed class Matchmaker(
     IOptions<AiOptions> aiOptions,
     IOptions<CommunityOptions> community,
     IOptions<SeasonOptions> seasonOptions,
+    SeasonAnnouncer seasonAnnouncer,
     GameMetrics metrics,
     ILoggerFactory loggerFactory) : BackgroundService, IHostedLifecycleService
 {
@@ -293,13 +294,21 @@ public sealed class Matchmaker(
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SoulsDbContext>();
+        Souls.Model.Entities.Season? ended = null;
         await state.RunExclusiveAsync(async () =>
         {
             if (await Seasons.EndIfDueAsync(db, time, seasonOptions.Value, ct) is { } season)
             {
+                ended = season;
                 _logger.LogInformation("{Season} ended: standings stored, rewards paid, ratings reset", season.Name);
             }
         });
+
+        // (Outside the lock: a slow Discord does not hold up game results.)
+        if (ended is not null)
+        {
+            await seasonAnnouncer.AnnounceAsync(db, ended, ct);
+        }
     }
 
     /// <summary>Closes connections whose session was revoked (logout, ban, expiry).</summary>

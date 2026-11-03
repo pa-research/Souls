@@ -1067,3 +1067,9 @@
     .sg-banner,
     .sg-toast { animation: sg-hold 2.2s linear forwards; }
 }
+
+/* ---- Discord Activity: who else is in the channel (Game3D/discord.js) ----------------------------------------- */
+.sg-discord-list { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.sg-discord-list li { display: flex; align-items: center; gap: 10px; }
+.sg-discord-who { display: grid; flex: 1 1 auto; min-width: 0; }
+.sg-discord-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--s-text); }

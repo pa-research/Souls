@@ -1207,3 +1207,7 @@ img.s-card-portrait { background: none; }
     .s-stepper .s-input { width: 46px; }
     .s-hero-actions .s-btn { flex: 1 1 140px; }
 }
+
+/* The Discord Activity's start page (Views/Discord/Index.cshtml): the name and a line while it signs in. */
+.s-discord { min-height: 100vh; display: grid; place-items: center; background: var(--s-bg-0); }
+.s-discord-start { text-align: center; padding: 24px; color: var(--s-text-2); }

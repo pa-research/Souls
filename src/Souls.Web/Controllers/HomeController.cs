@@ -15,10 +15,16 @@ using Souls.Web.Services;
 namespace Souls.Web.Controllers;
 
 [AllowAnonymous]
-public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, TimeProvider time, ILogger<HomeController> logger, IStringLocalizer<SharedResource> localizer) : Controller
+public sealed class HomeController(SoulsDbContext db, IHttpClientFactory httpClients, IConfiguration configuration, TimeProvider time, DiscordActivity discord, ILogger<HomeController> logger, IStringLocalizer<SharedResource> localizer) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken ct)
     {
+        // Discord starts the Activity at its host's root, with the launch parameters the SDK reads (frame_id, ...).
+        if (discord.IsActivityRequest(HttpContext))
+        {
+            return Redirect(Url.Action("Index", "Discord") + Request.QueryString);
+        }
+
         ViewData["Title"] = localizer["Home"].Value;
         ViewData["GitHubRepository"] = configuration["Souls:GitHubRepository"];
 

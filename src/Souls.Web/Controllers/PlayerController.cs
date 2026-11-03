@@ -13,7 +13,7 @@ using Souls.Web.Services;
 
 namespace Souls.Web.Controllers;
 
-public sealed class PlayerController(SoulsDbContext db, PasswordService passwords, SessionService sessions, TimeProvider time, ILogger<PlayerController> logger, IStringLocalizer<SharedResource> localizer) : Controller
+public sealed class PlayerController(SoulsDbContext db, PasswordService passwords, SessionService sessions, PlayerRegistration registration, ILogger<PlayerController> logger, IStringLocalizer<SharedResource> localizer) : Controller
 {
     /// <summary>Verified against when the user does not exist, so both cases take the same time.</summary>
     private static readonly Lazy<string> DummyHash = new(() => new PasswordService().Hash(Guid.NewGuid().ToString()));
@@ -85,7 +85,7 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     public async Task<IActionResult> Register(CancellationToken ct)
     {
         ViewData["Title"] = localizer["Registration"].Value;
-        return View(await RegisterPageAsync(new RegisterViewModel(), ct));
+        return View(await registration.PageAsync(new RegisterViewModel(), ct));
     }
 
     [HttpPost]
@@ -94,69 +94,10 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     public async Task<IActionResult> Register([Bind(Prefix = "Form")] RegisterViewModel form, CancellationToken ct)
     {
         ViewData["Title"] = localizer["Registration"].Value;
-        var key = nameof(RegisterPageModel.Form) + ".";
-
-        // Required already reports an empty password.
-        if (!string.IsNullOrEmpty(form.Password) && PasswordService.ValidatePolicy(form.Password) is { } passwordProblem)
+        var player = await registration.CreateAsync(form, ModelState, discordId: null, ct);
+        if (player is null)
         {
-            ModelState.AddModelError(key + nameof(form.Password), Localized.T(passwordProblem));
-        }
-
-        if (string.Equals(form.Username, SeedData.BotPlayerName, StringComparison.OrdinalIgnoreCase))
-        {
-            ModelState.AddModelError(key + nameof(form.Username), localizer["That username is reserved"]);
-        }
-
-        var cards = form.Cards.Distinct().ToList();
-        var starterIds = await db.Cards.Where(c => c.Level == 1 && (c.ClassId == null || c.ClassId == form.PlayerType)).Select(c => c.Id).ToListAsync(ct);
-        if (cards.Count != 5 || cards.Except(starterIds).Any())
-        {
-            ModelState.AddModelError(key + nameof(form.Cards), localizer["You must select 5 starter cards!"]);
-        }
-
-        if (form.PlayerType is { } typeId && !await db.PlayerTypes.AnyAsync(t => t.Id == typeId, ct))
-        {
-            ModelState.AddModelError(key + nameof(form.PlayerType), localizer["You must select a class"]);
-        }
-
-        // An empty username binds as null; its Required error is already in the model state.
-        var normalized = ModelState.IsValid ? Player.Normalize(form.Username) : string.Empty;
-        if (ModelState.IsValid && await db.Players.AnyAsync(p => p.NormalizedName == normalized, ct))
-        {
-            ModelState.AddModelError(key + nameof(form.Username), localizer["The username already exists"]);
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return View(await RegisterPageAsync(form, ct));
-        }
-
-        var player = new Player
-        {
-            Name = form.Username.Trim(),
-            NormalizedName = normalized,
-            Password = passwords.Hash(form.Password),
-            PlayerTypeId = form.PlayerType!.Value,
-            PlayerPermissionId = PlayerPermission.Player,
-            Rank = 1,
-            Money = 0,
-            Created = time.GetUtcNow(),
-        };
-        db.Players.Add(player);
-        foreach (var cardId in cards)
-        {
-            db.PlayerCards.Add(new PlayerCard { Player = player, CardId = cardId, ObtainedAt = time.GetUtcNow() });
-        }
-
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Lost a race against another registration with the same name.
-            ModelState.AddModelError(key + nameof(form.Username), localizer["The username already exists"]);
-            return View(await RegisterPageAsync(form, ct));
+            return View(await registration.PageAsync(form, ct));
         }
 
         logger.LogInformation("Registered player {Name}", player.Name);
@@ -262,19 +203,4 @@ public sealed class PlayerController(SoulsDbContext db, PasswordService password
     [HttpGet]
     [AllowAnonymous]
     public IActionResult KeepAlive() => Json(new { authenticated = User.Identity?.IsAuthenticated == true });
-
-    private async Task<RegisterPageModel> RegisterPageAsync(RegisterViewModel form, CancellationToken ct)
-    {
-        var races = await db.Races.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct);
-        var types = await db.PlayerTypes.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
-        var starters = await db.Cards.AsNoTracking().Include(c => c.Ability).Include(c => c.Race)
-            .Where(c => c.Level == 1 && c.ClassId == null).OrderBy(c => c.Id).ToListAsync(ct);
-
-        return new RegisterPageModel
-        {
-            Form = form,
-            Classes = [.. races.Select(r => new RaceClasses(r, [.. types.Where(t => t.RaceId == r.Id)]))],
-            StarterCards = [.. starters.Select(c => CardTile.From(c))],
-        };
-    }
 }

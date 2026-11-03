@@ -1,0 +1,26 @@
+@model DiscordLinkModel
+<div class="s-page-head">
+    <div>
+        <div class="s-eyebrow">Discord</div>
+        <h1 class="s-h1 s-gold-text">@L["Linked Roles"]</h1>
+    </div>
+</div>
+
+<section class="s-panel">
+    @if (Model.Failed)
+    {
+        <p>@L["Discord did not confirm the link. Try again from your server's Linked Roles."]</p>
+    }
+    else if (Model.Linked is { } name)
+    {
+        <p>@L["Your Discord account now shows the Souls rank of {0}. Servers can give you roles for your rank, rating and season wins, and they follow your games.", name]</p>
+    }
+    else
+    {
+        <p>@L["This Discord account has no Souls champion yet. Log in to link yours, or register one."]</p>
+        <div class="d-flex flex-wrap gap-3">
+            <a class="s-btn s-btn-primary" asp-controller="Player" asp-action="Login" asp-route-returnUrl="/Discord/LinkedRole"><s-icon name="login" />@L["Login"]</a>
+            <a class="s-btn s-btn-ghost" asp-controller="Player" asp-action="Register"><s-icon name="user-plus" />@L["Register"]</a>
+        </div>
+    }
+</section>
