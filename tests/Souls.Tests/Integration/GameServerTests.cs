@@ -238,7 +238,8 @@ public class GameServerTests(SoulsAppFixture app)
                 await socket.ReceiveTypeAsync(10);
             }
 
-            var room = "discord:" + Guid.NewGuid().ToString("N");
+            // As long as a Discord Activity's: "discord:i-<id>-gc-<guild>-<channel>".
+            var room = $"discord:i-1300953093497520178-gc-1180232384539615252-{Random.Shared.NextInt64(1_000_000_000_000_000_000, long.MaxValue)}";
             await a.SendAsync(102, new JsonObject { ["room"] = room });
             Assert.Null((await a.ReceiveTypeAsync(104))["Payload"]!["playing"]);
 
