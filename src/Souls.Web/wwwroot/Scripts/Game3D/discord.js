@@ -22,7 +22,11 @@ export async function connect() {
         await sdk.ready();
         const auth = await sdk.commands.authenticate({ access_token: session.accessToken });
         const context = { sdk, me: auth.user.id };
-        return { track: getGame => trackPresence(context, getGame), channel: menu => showChannel(context, menu) };
+        return {
+            track: getGame => trackPresence(context, getGame),
+            channel: menu => showChannel(context, menu),
+            invite: () => sdk.commands.openInviteDialog().catch(error => console.warn('Discord invite:', error)),
+        };
     } catch (error) {
         console.warn('Discord Activity:', error);
         return null;
@@ -50,9 +54,10 @@ function trackPresence({ sdk }, getGame) {
 
 function presenceDetails(game) {
     if (!game) return t('g3d.discord.inMenu');
+    if (game.mode === 'tv') return t('g3d.discord.tv');
     if (game.spectator) return t('g3d.discord.watching');
-    if (!game.active) return game.friendly ? t('g3d.discord.waitingFriendly') : t('g3d.discord.queueing');
-    return game.normalGame ? t('g3d.discord.ranked') : game.friendly ? t('g3d.discord.friendly') : t('g3d.discord.practice');
+    if (!game.active) return game.room ? t('g3d.discord.waitingChannel') : game.friendly ? t('g3d.discord.waitingFriendly') : t('g3d.discord.queueing');
+    return game.normalGame ? t('g3d.discord.ranked') : game.friendlyGame ? t('g3d.discord.friendly') : t('g3d.discord.practice');
 }
 
 /**

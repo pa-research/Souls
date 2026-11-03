@@ -216,6 +216,49 @@ public class GameServerTests(SoulsAppFixture app)
     }
 
     /// <summary>
+    /// A channel room (the Discord Activity's): the first player waits, the second one starts a friendly game with them
+    /// at once; a third waits and is told who is playing.
+    /// </summary>
+    [Fact]
+    public async Task ChannelRoomsPairPlayersAtOnce()
+    {
+        var (browserA, _) = await LoggedInPlayerAsync();
+        var (browserB, _) = await LoggedInPlayerAsync(2);
+        var (browserC, nameC) = await LoggedInPlayerAsync(3);
+        using (browserA)
+        using (browserB)
+        using (browserC)
+        {
+            await using var a = await GameSocket.ConnectAsync(app.Server, "ws/game", browserA.AuthCookie);
+            await using var b = await GameSocket.ConnectAsync(app.Server, "ws/game", browserB.AuthCookie);
+            await using var c = await GameSocket.ConnectAsync(app.Server, "ws/game", browserC.AuthCookie);
+            foreach (var socket in new[] { a, b, c })
+            {
+                await socket.SendAsync(0);
+                await socket.ReceiveTypeAsync(10);
+            }
+
+            var room = "discord:" + Guid.NewGuid().ToString("N");
+            await a.SendAsync(102, new JsonObject { ["room"] = room });
+            Assert.Null((await a.ReceiveTypeAsync(104))["Payload"]!["playing"]);
+
+            await b.SendAsync(102, new JsonObject { ["room"] = room });
+            var created = (await a.ReceiveTypeAsync(206))["Payload"]!;
+            await b.ReceiveTypeAsync(206);
+            Assert.True((bool?)created["friendly"] ?? true);
+
+            await c.SendAsync(102, new JsonObject { ["room"] = room });
+            var waiting = (await c.ReceiveTypeAsync(104))["Payload"]!["playing"]!.AsArray().Select(n => (string)n!).ToList();
+            Assert.Equal(2, waiting.Count);
+            Assert.DoesNotContain(nameC, waiting);
+
+            // Another room is apart.
+            await c.SendAsync(102, new JsonObject { ["room"] = room + "x" });
+            Assert.Null((await c.ReceiveAsync(m => Type(m) == 104 && m["Payload"]!["playing"] is null))["Payload"]!["playing"]);
+        }
+    }
+
+    /// <summary>
     /// A challenges B by name; B declines, then accepts; they emote until B mutes A; A leaves and B wins. A friendly
     /// game earns nothing (two accounts could farm it): no coins, quests, rating or season points, but it is stored.
     /// </summary>

@@ -293,6 +293,8 @@ export class UI {
         this.setDifficulty(this.difficulty);
         const friendly = this.menuButton(nav, 'users', t('g3d.mode.friendly'), t('g3d.menu.friendlySub'));
         const watch = this.menuButton(nav, 'eye', t('g3d.menu.watch'), t('g3d.menu.watchSub'));
+        const tv = this.menuButton(nav, 'monitor', t('g3d.menu.tv'), t('g3d.menu.tvSub'));
+        tv.onclick = () => { window.location.href = '/Game/Tv'; };
         const small = el('div', 'sg-menu-small', nav);
         for (const [href, iconName, label] of [['/Deck', 'deck', t('g3d.menu.deck')], ['/Shop', 'shop', t('g3d.menu.shop')], ['/', 'home', t('mode.home')]]) {
             const a = el('a', 's-btn s-btn-ghost s-btn-sm', small);
@@ -359,7 +361,8 @@ export class UI {
             this.queueTime = el('div', 'sg-time', box, '0:00');
             this.queueChip = el('span', 's-chip', box);
             this.queueBack = button('s-btn s-btn-ghost s-btn-sm', box, t('g3d.backToMenu'), 'arrow-left');
-            this.queueBack.addEventListener('click', () => { window.location.href = '/Game'; });
+            // (A channel room skips the menu: back to it on purpose.)
+            this.queueBack.addEventListener('click', () => { window.location.href = this.queueMode === 'room' ? '/Game?mode=3d&menu=1' : '/Game'; });
             this.queueBox = box;
             this.queueStarted = performance.now();
             this.queueTimer = setInterval(() => {
@@ -368,9 +371,9 @@ export class UI {
         }
         if (mode) {
             this.queueMode = mode;
-            const iconName = { practice: 'bot', normal: 'swords', friendly: 'users' }[mode] || 'eye';
+            const iconName = { practice: 'bot', normal: 'swords', friendly: 'users', room: 'users', tv: 'monitor' }[mode] || 'eye';
             this.queueRings.replaceChildren(icon(iconName));
-            this.queueTitle.textContent = { normal: t('g3d.queue.normal'), practice: t('g3d.queue.practice'), friendly: t('g3d.queue.friendly') }[mode] || t('g3d.queue.watch');
+            this.queueTitle.textContent = { normal: t('g3d.queue.normal'), practice: t('g3d.queue.practice'), friendly: t('g3d.queue.friendly'), room: t('g3d.room.title'), tv: t('g3d.menu.tv') }[mode] || t('g3d.queue.watch');
             this.queueChip.replaceChildren();
             if (mode === 'normal' && this.config.profile) {
                 const rating = this.config.profile.rating;
@@ -379,6 +382,8 @@ export class UI {
                 this.queueChip.append(icon('bot'), t('g3d.queue.practiceChip', { difficulty: DIFFICULTIES[this.difficulty] || DIFFICULTIES[1] }));
             } else if (mode === 'friendly') {
                 this.queueChip.append(icon('users'), t('g3d.queue.friendlyChip'));
+            } else if (mode === 'room') {
+                this.queueChip.append(icon('users'), t('g3d.room.chip'));
             } else {
                 this.queueChip.append(icon('eye'), t('g3d.queue.spectatorChip'));
             }
@@ -389,6 +394,14 @@ export class UI {
     setStatus(text) {
         if (this.queueText) this.queueText.textContent = text;
         else this.status.textContent = text;
+    }
+
+    /** An extra button in the queue box (above "back"), e.g. inviting friends to a channel room. */
+    queueAction(label, iconName, onClick) {
+        if (!this.queueBox) return;
+        const action = button('s-btn s-btn-primary s-btn-sm', null, label, iconName);
+        action.addEventListener('click', onClick);
+        this.queueBox.insertBefore(action, this.queueBack);
     }
 
     /** "Prepare!" then fade the overlay out (`fade` false: at once, when the VS splash takes its place). */
@@ -1292,7 +1305,7 @@ export class UI {
      * are taken to the statistics after a while (spectators stay). `kind` ('victory' | 'defeat' | 'draw') sets the look;
      * without it, it comes from an English `text` ("Victory!", "<name> wins!").
      */
-    showEnd(text, result = {}, { redirect = true, detail, friendly = false, kind } = {}) {
+    showEnd(text, result = {}, { redirect = true, detail, friendly = false, kind, room = false } = {}) {
         friendly = friendly || result.friendly === true;
         this.hideTimer();
         this.setPower(null);
@@ -1369,7 +1382,22 @@ export class UI {
         again.href = '/Game';
         again.append(icon(redirect ? 'swords' : 'arrow-left'), redirect ? t('g3d.end.again') : t('g3d.backToMenu'));
 
-        if (statisticsId && redirect) {
+        if (room) {
+            // A channel room: back to it for the next game (whoever comes back first plays the one waiting there).
+            again.href = window.location.href;
+            again.replaceChildren(icon('swords'), t('g3d.room.next'));
+            const note = el('div', 'sg-end-redirect', end);
+            let left = 12;
+            note.textContent = t('g3d.room.nextIn', { seconds: left });
+            const timer = setInterval(() => {
+                left--;
+                note.textContent = t('g3d.room.nextIn', { seconds: left });
+                if (left <= 0) {
+                    clearInterval(timer);
+                    window.location.reload();
+                }
+            }, 1000);
+        } else if (statisticsId && redirect) {
             const note = el('div', 'sg-end-redirect', end);
             let left = 20;
             note.textContent = t('g3d.end.redirect', { seconds: left });
@@ -1463,14 +1491,14 @@ export class UI {
     }
 
     /** The bar while watching someone else's game (or a replay). */
-    showSpectating(text, onLeave, { replay = false } = {}) {
+    showSpectating(text, onLeave, { replay = false, tv = false } = {}) {
         if (!this.banner3d) {
             this.banner3d = el('div', 'sg-watching souls3d-banner', this.root);
             this.bannerBadge = el('span', 'sg-live', this.banner3d);
             this.bannerText = el('span', 'sg-watching-text', this.banner3d);
             this.bannerLeave = button('s-btn s-btn-ghost s-btn-sm', this.banner3d, t('g3d.leave'), 'logout');
         }
-        this.bannerBadge.textContent = replay ? t('g3d.replay.badge') : t('g3d.live.badge');
+        this.bannerBadge.textContent = tv ? t('g3d.tv.badge') : replay ? t('g3d.replay.badge') : t('g3d.live.badge');
         this.bannerBadge.classList.toggle('replay', replay);
         this.bannerText.textContent = text;
         this.bannerLeave.onclick = onLeave;
@@ -1480,7 +1508,14 @@ export class UI {
     }
 
     /** Play/pause, speed and restart for replays. */
-    showReplay({ onToggle, onSpeed, onRestart }) {
+    /** Takes the end screen away (Souls TV goes on to the next game). */
+    hideEnd() {
+        if (!this.endLayer) return;
+        this.endLayer.remove();
+        this.endLayer = null;
+    }
+
+    showReplay({ onToggle, onSpeed, onRestart, skip = false }) {
         const bar = el('div', 's-panel sg-transport souls3d-replay', this.root);
         const toggle = button('sg-icon-btn', bar, null, 'pause');
         toggle.setAttribute('aria-label', t('g3d.replay.pause'));
@@ -1500,8 +1535,8 @@ export class UI {
             });
         }
         this.replayProgress = progress(bar, 0, 's-progress-ember');
-        const restart = button('sg-icon-btn', bar, null, 'skip-back');
-        restart.setAttribute('aria-label', t('g3d.replay.restart'));
+        const restart = button('sg-icon-btn', bar, null, skip ? 'fast-forward' : 'skip-back');
+        restart.setAttribute('aria-label', skip ? t('g3d.tv.skip') : t('g3d.replay.restart'));
         restart.addEventListener('click', onRestart);
     }
 

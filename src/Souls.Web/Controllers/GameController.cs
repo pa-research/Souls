@@ -34,6 +34,28 @@ public sealed class GameController(SoulsDbContext db, IConfiguration configurati
         return View("Index", await ConfigAsync(ct) with { ReplayUrl = Url.Action(nameof(ReplayData), new { id }), ReplayGameId = id });
     }
 
+    /// <summary>Souls TV: finished games played back one after another in the 3D client, with nothing to pick.</summary>
+    public async Task<IActionResult> Tv(CancellationToken ct)
+    {
+        ViewData["Title"] = "Souls TV";
+        return View("Index", await ConfigAsync(ct) with { Tv = true });
+    }
+
+    /// <summary>
+    /// The next game on Souls TV: the newest one with a replay that finished before <paramref name="after"/> (none: the
+    /// newest of all, so the channel goes round again). No content when no game has a replay yet.
+    /// </summary>
+    public async Task<IActionResult> TvNext(int? after, CancellationToken ct)
+    {
+        var replays = db.GameReplays.AsNoTracking()
+            .Select(r => new { r.GameId, r.Game!.Created })
+            .OrderByDescending(r => r.Created).ThenByDescending(r => r.GameId);
+        var previous = after is null ? null : await db.Games.AsNoTracking().Where(g => g.Id == after).Select(g => new { g.Id, g.Created }).SingleOrDefaultAsync(ct);
+        var next = (previous is null ? null : await replays.FirstOrDefaultAsync(r => r.Created < previous.Created || (r.Created == previous.Created && r.GameId < previous.Id), ct))
+            ?? await replays.FirstOrDefaultAsync(ct);
+        return next is null ? NoContent() : Json(new { id = next.GameId, url = Url.Action(nameof(ReplayData), new { id = next.GameId }) });
+    }
+
     /// <summary>The recorded spectator messages of a finished game.</summary>
     public async Task<IActionResult> ReplayData(int id, CancellationToken ct)
     {

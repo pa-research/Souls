@@ -28,6 +28,9 @@ public sealed class GameService(ServerState state, GameEngine engine, PlayerRepo
                 case GameRequest.QueueNormal:
                     engine.RequestQueue(player, normal: true);
                     return;
+                case GameRequest.JoinRoom:
+                    engine.JoinRoom(player, message.GetString("room", 64));
+                    return;
                 case GameRequest.QueuePractice:
                     engine.RequestQueue(player, normal: false, difficulty: message.Payload["difficulty"] is null ? 1 : message.GetInt("difficulty"));
                     return;

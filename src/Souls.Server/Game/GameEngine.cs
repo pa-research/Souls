@@ -124,6 +124,10 @@ public sealed partial class GameEngine(
         player.InQueue = false;
         state.NormalQueue.Remove(player);
         state.PracticeQueue.Remove(player);
+        foreach (var room in state.RoomWaiting.Where(w => w.Value == player).Select(w => w.Key).ToList())
+        {
+            state.RoomWaiting.Remove(room);
+        }
     }
 
     /// <summary>Relays the position of a dragged card to the opponent.</summary>
