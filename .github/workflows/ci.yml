@@ -67,6 +67,9 @@ jobs:
           touch deploy/compose/secrets/postgres-password deploy/compose/secrets/ConnectionStrings__Souls deploy/compose/secrets/Souls__Admin__Password
           docker compose config --quiet
 
+      - name: Paired release checks
+        run: bash tests/release-images.sh
+
   # Headless Chromium against the Compose stack (tests/e2e), one job per script so they run side by side: the quick
   # checks on pull requests and pushes, a full game against the bot nightly and on demand. Fails when a client breaks.
   e2e:
@@ -172,6 +175,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=sha
+            type=raw,value=candidate-${{ github.run_id }},enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
       - uses: docker/build-push-action@v7
         with:
@@ -185,3 +189,21 @@ jobs:
           sbom: ${{ github.event_name != 'pull_request' }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+  release-images:
+    name: Publish paired release tags
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, manifests, e2e, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash tools/release-images.sh
