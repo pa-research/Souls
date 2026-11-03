@@ -56,6 +56,7 @@ const FAN_ARC = { step: THREE.MathUtils.degToRad(3), spread: THREE.MathUtils.deg
 // Below this height (CSS pixels) a landscape screen is a phone held sideways: compact plaques (game-hud.css) this wide.
 const LOW_SCREEN = 520;
 const LOW_PLAQUE_W = 200;
+const PLAQUE_W = 248; // the plaques' width (game-hud.css), on a low screen LOW_PLAQUE_W
 
 // Colours of abilities (by ability id, see cards.js) and hero powers (by power id: 1-4 the classes' first, 5-8 their second).
 export { ABILITY_COLORS };
@@ -314,7 +315,8 @@ export class Game {
         const spacing = n > 1 ? Math.min(width * (r.arc ? 0.78 : 0.92), (r.span - width) / (n - 1)) : 0;
         return {
             x: (r.cx ?? 960) - spacing * (n - 1) / 2, spacing, y: r.rest !== undefined && !raised ? r.rest : r.y, scale: r.scale,
-            hoverY: r.hoverY, hoverScale: r.hoverScale, hoverX: x => THREE.MathUtils.clamp(x, 960 - r.hoverRoom, 960 + r.hoverRoom),
+            hoverY: r.hoverY, hoverScale: r.hoverScale,
+            hoverX: x => THREE.MathUtils.clamp(x, r.hoverMin ?? 960 - r.hoverRoom, r.hoverMax ?? 960 + r.hoverRoom),
             arc: r.arc ? Math.min(FAN_ARC.step, FAN_ARC.spread / Math.max(1, n - 1)) : 0,
         };
     }
@@ -334,20 +336,21 @@ export class Game {
         const row = at(h - 0.3 * card);
         const zoom = Math.min(h * 0.5, 460);
         const hover = at(h - zoom / 2 - 8);
-        // A low screen (a phone held sideways) has the hero power beside the plaque (powerAnchor), so the fan goes
-        // between them and the chat.
-        let centre = w / 2, span = Math.min(w * 0.56, card * 4.4);
-        if (h < LOW_SCREEN) {
-            const inset = stage.inset || { left: 0, right: 0 };
-            const left = Math.max(16, inset.left) + LOW_PLAQUE_W + 12 + (this.ui.power.offsetWidth || 96) + 8;
-            const right = Math.max(10, inset.right) + ((this.ui.chat && this.ui.chat.offsetWidth) || 200) + 8;
-            centre = (left + w - right) / 2;
-            span = Math.min(span, w - left - right);
-        }
+        // The fan and a zoomed card keep between the player's plaque (bottom left) and the chat (bottom right); a low
+        // screen (a phone held sideways) also has the hero power beside the plaque (powerAnchor).
+        const inset = stage.inset || { left: 0, right: 0 };
+        const low = h < LOW_SCREEN;
+        const left = Math.max(16, inset.left) + (low ? LOW_PLAQUE_W + 12 + (this.ui.power.offsetWidth || 96) : PLAQUE_W) + 8;
+        const right = Math.max(low ? 10 : 14, inset.right) + ((this.ui.chat && this.ui.chat.offsetWidth) || (low ? 200 : 340)) + 8;
+        const centre = (left + w - right) / 2;
+        const span = Math.min(w * 0.56, card * 4.4, w - left - right - 0.1 * card); // (the arc tilts the end cards outwards)
+        const zoomW = zoom * CARD_W / CARD_H;
+        const hoverX = px => stage.classicAtPixel(px, h - zoom / 2 - 8).x;
         return {
             cx: stage.classicAtPixel(centre, h - 0.3 * card).x,
             y: row.y, rest: at(h + 0.1 * card).y, scale: card / (CARD_H * row.k), span: span / row.k, arc: true,
-            hoverY: hover.y, hoverScale: zoom / (CARD_H * hover.k), hoverRoom: Math.max(0, w / 2 - 8 - zoom * CARD_W / CARD_H / 2) / hover.k,
+            hoverY: hover.y, hoverScale: zoom / (CARD_H * hover.k),
+            hoverMin: hoverX(Math.min(centre, left + zoomW / 2)), hoverMax: hoverX(Math.max(centre, w - right - zoomW / 2)),
         };
     }
 
@@ -628,7 +631,15 @@ export class Game {
             const pose = this.handPose(side, cards.indexOf(c), c === card, c);
             c.moveTo(pose, c === card ? 200 : 350, c === card ? Ease.backOut : Ease.cubicOut);
         }
-        side.hero.previewCost(card ? Number(card.data.cost) : null);
+        this.previewCost(card ? Number(card.data.cost) : null);
+        // A phone held upright: the open battle log would cover the hand, so touching a card folds it.
+        if (card && this.stage.portrait) this.ui.foldLog();
+    }
+
+    /** Colours the player's mana (the medallion's gems and the HUD's crystals) for a card's cost; null resets it. */
+    previewCost(cost) {
+        this.player.hero.previewCost(cost);
+        this.ui.previewCost(cost);
     }
 
     showSlots(visible) {
@@ -1073,7 +1084,7 @@ export class Game {
         this.ended = false;
         this.player.hero.setInfo(p.player.info);
         this.opponent.hero.setInfo(p.opponent.info);
-        this.player.hero.previewCost(null);
+        this.previewCost(null);
         this.opponent.hero.previewCost(null);
         for (const data of Object.values(p.player.board || {})) this.addBoardCard(this.player, data);
         for (const data of Object.values(p.opponent.board || {})) this.addBoardCard(this.opponent, data);
@@ -1157,7 +1168,7 @@ export class Game {
         if (this.hovered === card) this.hovered = null;
         card.setData(data);
         this.layoutHand(side);
-        if (side.isPlayer) this.player.hero.previewCost(null);
+        if (side.isPlayer) this.previewCost(null);
         const rarity = Number(data.rarity) || 0;
         if (rarity >= 3) this.rareEntrance(card, rarity, side);
         if (rarity >= 4) tweens.wait(900).then(() => this.dialogue(side, 'legendary'));
@@ -1194,7 +1205,7 @@ export class Game {
         card.setData(data);
         card.setOpacity(1);
         this.layoutHand(side);
-        if (side.isPlayer) this.player.hero.previewCost(null);
+        if (side.isPlayer) this.previewCost(null);
         this.dying.set(card.cid, card);
         this.casting.push(card);
         const color = ABILITY_COLORS[card.abilityId] ?? 0xb98cff;
@@ -2295,17 +2306,12 @@ export class Game {
     }
 
     /**
-     * Landscape: the messages (toasts, the targeting hint) go over the middle of the board, moved up or down as little
-     * as needed to stay clear of the turn banner, the player's hero, plaque, hero power, status and hand, End Turn, the
-     * battle log and the chat, and if there is room also of the opponent's hero and plaque, wherever the camera puts
-     * them. Portrait keeps them over the opponent's hand (game3d.css).
+     * The messages (toasts, the targeting hint) go over the middle of the board, moved up or down as little as needed to
+     * stay clear of the turn banner, the player's hero, plaque, hero power, status and hand, End Turn, the battle log
+     * and the chat, and if there is room also of the opponent's hero and plaque, wherever the camera puts them.
      */
     placeToasts() {
         const box = this.ui.toasts;
-        if (this.rows) {
-            box.style.transform = '';
-            return;
-        }
         if (!box.childElementCount) return;
         const { width, height } = this.stage;
         const h = box.offsetHeight;

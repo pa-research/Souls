@@ -380,6 +380,10 @@
 }
 .sg-mana i.full { background: linear-gradient(180deg, #a8d4ff, #2f6ed6); }
 .sg-mana i.spent { background: rgba(76, 155, 255, 0.35); }
+/* A hovered hand card's cost: crystals it would use (green), or that fall short (yellow), and the ones missing (red). */
+.sg-mana i.ok { background: linear-gradient(180deg, #b6f59a, #3fae1f); }
+.sg-mana i.short { background: linear-gradient(180deg, #fff9a8, #d6c400); }
+.sg-mana i.missing { background: rgba(229, 42, 42, 0.35); box-shadow: inset 0 0 0 1px rgba(255, 120, 120, 0.8); }
 .sg-mana b { margin-left: 6px; font: 800 0.95rem/1 var(--s-font-display); color: #cfe6ff; font-variant-numeric: tabular-nums; }
 
 /* ---- Hero plaques (stadium views) ---------------------------------------------------------------------------- */

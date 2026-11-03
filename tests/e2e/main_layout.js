@@ -1,7 +1,9 @@
 // The main game screen's layout in the 3D client: a practice game with both rows full and a full hand, in every view
 // and on desktop and phone screens. Fails where the hand is too small to read, where the hand, a hero's plaque, the
 // hero power, a status pill or the End Turn sign covers a card on the board (or each other), or where anything but the
-// hand covers a hero's figure.
+// hand covers a hero's figure; where the chat, the open battle log or the player's plaque covers the hand or a zoomed
+// hand card, where touching a card on a phone held upright leaves the battle log open over the hand, where a message
+// covers the opponent's plaque on a phone, and where orbiting the camera takes it into the stands or shows a tooltip.
 // Usage: node main_layout.js <baseUrl> <outDir> (LAYOUT_FULL=1: every screen in every view; otherwise the ones CI checks,
 // which software rendering on a small runner draws slowly).
 const { chromium } = require('playwright');
@@ -139,8 +141,58 @@ const problems = [];
       if (overlaps(r.power, r.sign)) fail('the hero power covers End Turn');
       if (overlaps(r.status, r.power)) fail('the status pill and the hero power overlap');
       for (const c of hand) if (overlaps(c, r.power) || overlaps(c, r.sign)) { fail('the hand covers the hero power or End Turn'); break; }
+      if (view === 'classic') continue;
+      // The hand and a zoomed card clear of the chat, the open battle log and (landscape) the player's plaque.
+      const landscape = screen.width > screen.height;
+      for (const [k, box] of Object.entries({ 'the chat': r.chat, 'the battle log': r.log, 'your plaque': landscape ? r.plate : null })) {
+        const c = hand.find(c => overlaps(c, box));
+        if (c) fail(`${k} covers the hand (${JSON.stringify(box)} over ${JSON.stringify(c)})`);
+      }
+      if (screen.name === 'phone') await page.evaluate(() => { const log = document.querySelector('.sg-log'); if (log.classList.contains('collapsed')) log.querySelector('.sg-log-head').click(); });
+      const last = await hook(`handCard(${hand.length - 1})`);
+      await page.mouse.move(last.x, last.y);
+      await sleep(700);
+      const z = await hook('layoutRects()');
+      await page.screenshot({ path: `${out}/${tag}-zoom.jpg`, type: 'jpeg', quality: 80, timeout: 60000 });
+      if (!z.hovered) fail('pointing at the last hand card zooms nothing');
+      else for (const [k, box] of Object.entries({ 'the chat': z.chat, 'the battle log': z.log, 'your plaque': landscape ? z.plate : null })) {
+        if (overlaps(z.hovered, box)) fail(`${k} covers the zoomed hand card`);
+      }
+      if (screen.name === 'phone' && !z.logFolded) fail('touching a hand card leaves the battle log open over the hand');
+      await page.mouse.move(2, 2);
+      if (screen.mobile) {
+        await hook("message('Not enough mana')");
+        await sleep(400);
+        const m = await hook('layoutRects()');
+        if (overlaps(m.toasts, m.opponentPlate)) fail("a message covers the opponent's plaque");
+      }
     }
   }
+
+  // Orbiting the camera (dragging with the right button, then zooming out): no tooltip while it turns, and the camera
+  // stays above the stands (they rise TIER_RISE every TIER_DEPTH from STANDS_IN, stadium.js) instead of sinking in.
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await hook("view('arena')");
+  await sleep(2200);
+  const card3 = await hook('slot(3)');
+  await page.mouse.move(card3.x, card3.y);
+  await sleep(1200);
+  await page.mouse.down({ button: 'right' });
+  let tipWhileOrbiting = null;
+  for (let i = 0; i < 30; i++) {
+    await page.mouse.move(card3.x + i * 25, card3.y - i * 14);
+    tipWhileOrbiting = tipWhileOrbiting || (await hook('tooltip()'));
+  }
+  await page.mouse.up({ button: 'right' });
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 400);
+  await sleep(1500);
+  await page.screenshot({ path: `${out}/orbit.jpg`, type: 'jpeg', quality: 80, timeout: 60000 });
+  const [cx, cy, cz] = await hook('camera()');
+  const out_ = Math.hypot(cx, cz);
+  const seats = out_ < 747 ? 0 : 74 + (Math.min(out_, 1675) - 747) * 30 / 58;
+  report.push(`orbit: camera at ${out_ | 0} out, ${cy} up (the stands there ${seats | 0})`);
+  if (tipWhileOrbiting) failures.push(`orbit: a tooltip shows while the camera turns (${tipWhileOrbiting.slice(0, 40)})`);
+  if (cy < seats + 40) failures.push(`orbit: the camera sinks into the stands (${out_ | 0} out, ${cy} up)`);
   console.log(report.join('\n'));
   for (const f of failures) console.log('FAIL ' + f);
   if (problems.length) console.log('problems: ' + problems.join(' | '));

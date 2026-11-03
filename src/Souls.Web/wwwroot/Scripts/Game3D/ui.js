@@ -554,8 +554,23 @@ export class UI {
         this.setPlaque(side, this.plaqueInfo[side]);
     }
 
+    /** Colours the player's mana crystals for a hand card's cost (null resets): green it can pay, yellow short, red missing. */
+    previewCost(cost) {
+        this.costPreview = cost ?? null;
+        const info = this.statusInfo.player;
+        if (!info) return;
+        this.renderStatus(this.playerStatus, 'player', info);
+        if (this.plaques.player) this.renderStatus(this.plaques.player.status, 'player', info);
+    }
+
+    /** Folds the battle log (a phone held upright: it would cover the hand). */
+    foldLog() {
+        if (!this.log.classList.contains('collapsed')) this.log.querySelector('.sg-log-head').click();
+    }
+
     renderStatus(box, side, info) {
-        const key = JSON.stringify(info);
+        const cost = side === 'player' ? this.costPreview ?? null : null;
+        const key = JSON.stringify(info) + cost;
         if (box.dataset.key === key) return;
         box.dataset.key = key;
         box.replaceChildren();
@@ -564,7 +579,10 @@ export class UI {
             mana.title = t('g3d.status.mana');
             const max = Math.max(0, Math.min(10, Number(info.maxMana) || 0));
             const now = Math.max(0, Math.min(max, Number(info.mana) || 0));
-            for (let i = 0; i < Math.max(max, 1) && i < 10; i++) el('i', i < now ? 'full' : i < max ? 'spent' : '', mana);
+            for (let i = 0; i < Math.max(max, 1, cost ?? 0) && i < 10; i++) {
+                const preview = cost !== null && i < cost ? (i >= now ? ' missing' : now >= cost ? ' ok' : ' short') : '';
+                el('i', (i < now ? 'full' : i < max ? 'spent' : '') + preview, mana);
+            }
             el('b', '', mana, `${now}/${max}`);
         }
         const deck = el('span', '', box);

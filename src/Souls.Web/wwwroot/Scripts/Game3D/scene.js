@@ -36,10 +36,12 @@ export function spriteGeometry(attributes, count) {
 
 export const VIEWS = {
     classic: { label: 'Classic', key: '1', stadium: false, cardTilt: 0 },
-    arena: { label: 'Arena', key: '2', stadium: true, cardTilt: 0.35 },
+    // Board cards lie flat on the sand (a tilt toward one end looks skewed when the camera turns), except in the field
+    // view: its camera is low and never orbits, and flat cards would be too thin to read from there.
+    arena: { label: 'Arena', key: '2', stadium: true, cardTilt: 0 },
     field: { label: 'Field', key: '3', stadium: true, cardTilt: 1.05, playerHero: 0.5 },
-    cinematic: { label: 'Cinematic', key: '4', stadium: true, cardTilt: 0.8 },
-    free: { label: 'Free', key: null, stadium: true, cardTilt: 0.6 },
+    cinematic: { label: 'Cinematic', key: '4', stadium: true, cardTilt: 0 },
+    free: { label: 'Free', key: null, stadium: true, cardTilt: 0 },
 };
 
 const CLASSIC_FIT = [toWorld(0, 0), toWorld(STAGE_W, 0), toWorld(0, STAGE_H), toWorld(STAGE_W, STAGE_H)];
@@ -94,6 +96,10 @@ function safeArea(probe) {
 }
 
 const QUALITIES = ['low', 'medium', 'high'];
+// Free orbiting (Stage.keepFreeInArena): the lowest the camera may look down (degrees), and how far out it may go along
+// the ground from where it looks (which stays near the board's middle, enterFree): above the stands, never into them.
+const FREE_MIN_ELEVATION = 24;
+const FREE_REACH = 1100;
 // ?render=0: draw nothing (Stage.render), for browser tests that check the layout and the game, not the picture.
 const NO_RENDER = new URLSearchParams(location.search).get('render') === '0';
 // The level the frame-rate watch stepped down to on this device; cleared by choosing "Auto" in the settings.
@@ -421,7 +427,7 @@ export class Stage {
     enterFree() {
         if (this.view === 'free' || this.menu) return;
         const target = this.pointerOnPlane(new THREE.Vector2(0, 0), 0) || new THREE.Vector3();
-        target.clampLength(0, 600).setY(40);
+        target.clampLength(0, 250).setY(40);
         const offset = this.camera.position.clone().sub(target);
         const distance = offset.length();
         this.free = {
@@ -431,6 +437,7 @@ export class Stage {
             elevation: Math.asin(THREE.MathUtils.clamp(offset.y / distance, -1, 1)),
             fov: this.camera.fov,
         };
+        this.keepFreeInArena();
         this.view = 'free';
         this.transition = { from: null, start: 0, duration: 1 };
         for (const fn of this.viewListeners) fn('free');
@@ -441,14 +448,27 @@ export class Stage {
         if (this.view !== 'free') return;
         const f = this.free;
         f.azimuth -= dx * 0.005;
-        f.elevation = THREE.MathUtils.clamp(f.elevation + dy * 0.004, deg(6), deg(89));
+        f.elevation = f.elevation + dy * 0.004;
+        this.keepFreeInArena();
+    }
+
+    /**
+     * Free orbiting stays over the arena: never low enough to look across the stands, and never further out than
+     * FREE_REACH along the ground from where it looks (beyond it the camera would sink into the stands).
+     */
+    keepFreeInArena() {
+        const f = this.free;
+        f.elevation = THREE.MathUtils.clamp(f.elevation, deg(FREE_MIN_ELEVATION), deg(89));
+        const reach = this.portrait ? FREE_REACH * 1.5 : FREE_REACH;
+        f.distance = THREE.MathUtils.clamp(f.distance, 450, Math.min(this.portrait ? 8000 : 5200, reach / Math.cos(f.elevation)));
     }
 
     zoomBy(factor) {
         this.enterFree();
         if (this.view !== 'free') return;
         // Portrait views stand further back (the narrow screen), so free zooming goes further out there.
-        this.free.distance = THREE.MathUtils.clamp(this.free.distance * factor, 450, this.portrait ? 8000 : 5200);
+        this.free.distance *= factor;
+        this.keepFreeInArena();
     }
 
     /** The camera the current view wants at time `now`. */
