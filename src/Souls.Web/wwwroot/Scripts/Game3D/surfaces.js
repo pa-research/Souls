@@ -9,7 +9,7 @@ import {
     mix, mx_fractal_noise_float, mx_noise_float, mx_worley_noise_float, normalGeometry, normalView, positionLocal, positionView,
     positionWorld, reflectVector, select, sin, smoothstep, transformNormalToView, uniform, uv, varying, vec2, vec3, vec4,
 } from '/lib/three/three.tsl.js';
-import { GLOW_MAX } from './stadium.js';
+import { GLOW_MAX, random } from './stadium.js';
 
 /** Uniforms shared by the stadium's materials. */
 export function stadiumUniforms() {
@@ -411,8 +411,7 @@ export function groundMaterial(lightsNode) {
 export function hillsGeometry() {
     const segs = 160, pos = [], idx = [];
     const R = 16000;
-    let s = 5;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const rnd = random(5);
     const off = Array.from({ length: 6 }, () => rnd() * 10);
     for (let i = 0; i <= segs; i++) {
         const a = i / segs * Math.PI * 2;
