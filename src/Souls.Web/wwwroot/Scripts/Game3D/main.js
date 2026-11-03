@@ -181,6 +181,7 @@ function exposeTestHooks(stage, game, ui) {
         heroRect: (opponent = false) => game.screenRect((opponent ? game.opponent : game.player).hero),
         layout: () => ({ portrait: stage.portrait, bands: stage.bands, width: stage.width, height: stage.height }),
         // Forgets the reactions said so far (Game.dialogue rations them), so a test can trigger one at once.
+        message: text => ui.screenMessage(text),
         resetReactions: () => { game.reactions = 0; game.lastReaction = -Infinity; },
         // Deals cards into the player's hand (tests fill a hand to check the layout).
         addHand: cards => game.addHandCards(game.player, cards, { deal: false }),
@@ -232,6 +233,11 @@ function exposeTestHooks(stage, game, ui) {
                 status: dom(ui.playerStatus),
                 opponentStatus: dom(ui.opponentStatus),
                 sign: game.screenRect(game.sign),
+                chat: dom(ui.chat),
+                log: ui.log.classList.contains('collapsed') ? null : dom(ui.log),
+                logFolded: ui.log.classList.contains('collapsed'),
+                toasts: dom(ui.toasts),
+                hovered: game.hovered ? game.screenRect(game.hovered) : null,
             };
         },
         slot: slotId => stage.toScreen(game.slots[slotId].position),

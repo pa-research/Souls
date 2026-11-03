@@ -317,8 +317,7 @@
     .souls3d-chat { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); width: calc(50% - 15px); }
     /* ...spectators have no chat, so their bar takes its place... */
     .souls3d-banner { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: auto; right: max(10px, env(safe-area-inset-right)); transform: none; max-width: calc(50% - 15px); }
-    /* ...and messages and a replay's controls go over the opponent's hand, below the buttons. */
-    .souls3d-ui .sg-toasts { top: calc(max(12px, env(safe-area-inset-top)) + 96px); }
+    /* ...and a replay's controls go over the opponent's hand, below the buttons. */
     .souls3d-replay { top: calc(max(12px, env(safe-area-inset-top)) + 94px); bottom: auto; flex-wrap: nowrap; gap: 8px; padding: 2px 8px; }
     .souls3d-replay .sg-icon-btn { width: 34px; height: 34px; }
     .souls3d-replay .s-progress { width: min(90px, 20vw); }

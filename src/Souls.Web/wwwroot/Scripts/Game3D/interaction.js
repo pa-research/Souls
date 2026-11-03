@@ -129,6 +129,7 @@ export class Interaction {
 
         if (middle) {
             this.mode = 'orbit';
+            this.game.ui.hideTooltip();
             e.preventDefault();
             return;
         }
@@ -178,6 +179,7 @@ export class Interaction {
         if (this.touch) game.setHovered(null);
         if (left || right) {
             this.mode = 'orbit';
+            this.game.ui.hideTooltip();
             e.preventDefault();
         }
     }

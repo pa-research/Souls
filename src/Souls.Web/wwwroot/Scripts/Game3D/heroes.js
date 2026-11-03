@@ -116,8 +116,7 @@ export class Hero3D extends THREE.Group {
 
         // The figure stands on the podium (the game places and turns it); none until its model has loaded. Once it
         // stands there (figure mode, see setFigureMode) it is the hero: the medallion gives way to the figure (its name and
-        // numbers go to a plaque in the HUD, ui.js), an invisible capsule around it takes the pointer, and the mana gems
-        // circle the podium's rim.
+        // numbers go to a plaque in the HUD, ui.js, with the mana), and an invisible capsule around it takes the pointer.
         this.figureRoot = new THREE.Group();
         this.figureRoot.name = this.name + '-figure';
         this.figure = null;
@@ -125,21 +124,11 @@ export class Hero3D extends THREE.Group {
         this.actions = {};
         this.lunge = new THREE.Vector3();
         this.figureMode = false;
-        this.collider = new THREE.Mesh(new THREE.CylinderGeometry(80, 80, FIGURE_HEIGHT, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        // (Turned half a segment: a seam between two faces straight in front would let a ray down the middle slip through.)
+        this.collider = new THREE.Mesh(new THREE.CylinderGeometry(80, 80, FIGURE_HEIGHT, 12, 1, false, Math.PI / 12), new THREE.MeshBasicMaterial({ visible: false }));
         this.collider.position.y = FIGURE_HEIGHT / 2;
         this.collider.userData.hero = this;
         this.figureRoot.add(this.collider);
-
-
-        this.rimGems = this.gems.map((gem, i) => {
-            const a = (i / this.gems.length) * Math.PI * 2;
-            const rimGem = new THREE.Mesh(gemGeometry, gem.material);
-            rimGem.position.set(Math.cos(a) * 130, 62, Math.sin(a) * 130);
-            rimGem.castShadow = true;
-            rimGem.visible = false;
-            this.podium.add(rimGem);
-            return rimGem;
-        });
         this.repaint();
     }
 
@@ -396,14 +385,6 @@ export class Hero3D extends THREE.Group {
         }
         // The ring of the hero whose turn it is is brighter.
         this.ring.material.opacity = this.turnLit ? 0.7 : 0.3;
-        // The mana gems circle the podium's rim in figure mode, growing and colouring with the medallion's.
-        this.rimGems.forEach((rimGem, i) => {
-            const gem = this.gems[i];
-            rimGem.visible = this.figureMode && gem.scale.x > 0.002;
-            rimGem.scale.copy(gem.scale).multiplyScalar(0.9);
-            rimGem.rotation.y = now * 0.0015 + gem.userData.phase;
-            rimGem.position.y = 62 + Math.sin(now * 0.003 + gem.userData.phase) * 4;
-        });
         for (const gem of this.gems) {
             gem.visible = gem.scale.x > 0.002; // spent gems shrink to nothing: skip drawing them
             gem.rotation.y = now * 0.0015 + gem.userData.phase;
