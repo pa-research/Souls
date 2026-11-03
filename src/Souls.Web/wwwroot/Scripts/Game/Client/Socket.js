@@ -1,74 +1,45 @@
-define("socket", [], function (Messages) {
-
+define("socket", [], function () {
 
     function Socket(url) {
-        this.msg = new Array();
-        this.con;
+        this.queue = [];
         this.url = url;
-
     }
-    Socket.constructor = Socket;
 
-    Socket.prototype.connect = function (url) {
-        //this.con = new WebSocket("ws://hybel.keel.no:8140");
+    Socket.prototype.connect = function () {
         this.con = new WebSocket(this.url);
 
         var that = this;
-        this.con.onclose = function (event) {
+        this.con.onclose = function () {
             console.log("Closed WebSocket");
-            that.con.close();
         };
 
         this.con.onerror = function (error) {
             console.log('WebSocket Error: ' + error);
         };
 
-        this.con.onopen = function (event) {
-
+        // Messages sent before the socket opened (or while it reconnects) go out in order once it is open.
+        this.con.onopen = function () {
+            that.flush();
         };
-
     }
 
     // Handle messages sent by the server.
     Socket.prototype.onMessage = function (callback) {
-            this.con.onmessage = function (event) {
-                callback(event);
-            };
+        this.con.onmessage = function (event) {
+            callback(event);
+        };
     }
 
     Socket.prototype.send = function (data) {
-        // Serialize now: message templates are shared objects that get mutated for the next message.
-        this.msg.push(JSON.stringify(data));
-
-        if (this.sendLoop) {
-            return;
-        }
-
-        var that = this;
-        this.sendLoop = setInterval(function () {
-            while (that.con && that.con.readyState === 1 && that.con.bufferedAmount == 0 && that.msg.length > 0) {
-                that.con.send(that.msg.shift());
-            }
-        }, 50);
+        this.queue.push(JSON.stringify(data));
+        this.flush();
     }
 
-    Socket.prototype.Callbacks = new Array();
-    Socket.prototype.RegisterCallback = function (responses, callback) {
-
-        for (var response in responses) {
-
-            if (typeof Socket.prototype.Callbacks[responses[response]] == 'undefined') {
-                Socket.prototype.Callbacks[responses[response]] = new Array();
-    
-            }
-            Socket.prototype.Callbacks[responses[response]].push(callback)
-
+    Socket.prototype.flush = function () {
+        while (this.con && this.con.readyState === 1 && this.queue.length > 0) {
+            this.con.send(this.queue.shift());
         }
     }
-
-
-
-
 
     return Socket;
 });

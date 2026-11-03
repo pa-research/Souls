@@ -1,4 +1,4 @@
-﻿define("player", ["jquery", "pixi", "asset", "playerbase", "arrow", "cardmanager", "rules", "card"], function ($, pixi, asset, playerBase, Arrow, CardManager, Rules, Card) {
+﻿define("player", ["pixi", "asset", "playerbase", "arrow", "cardmanager", "rules", "card"], function (pixi, asset, playerBase, Arrow, CardManager, Rules, Card) {
 
     var ATTACK_TARGETS = ['enemyCard', 'enemyHero'];
     var T = window.SoulsL10n.t;

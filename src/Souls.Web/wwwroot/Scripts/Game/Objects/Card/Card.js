@@ -1,15 +1,13 @@
 ﻿define("card", [
     'pixi',
     'asset',
-    'stopwatch',
     'messages',
     'conf',
     'animation',
     'cardtype',
-    'iAnimation',
     'rules',
     'hud',
-    'heropower'], function (pixi, asset, StopWatch, Message, Conf, Animation, CardType, AnimationInterface, Rules, Hud, HeroPower) {
+    'heropower'], function (pixi, asset, Message, Conf, Animation, CardType, Rules, Hud, HeroPower) {
 
         // Size of the card face on screen (the frame textures are scaled to this).
         var FACE_WIDTH = 150;
@@ -24,6 +22,14 @@
         // A zoomed hand card stays whole on the screen: no further left than this (its half width at HOVER_SCALE).
         var HOVER_MIN_X = FACE_WIDTH / 2 * HOVER_SCALE + 6;
         var BOARD = { left: 300, right: 1620, top: 260, bottom: 860 };
+
+        /// Whether a's right edge (cards are anchored at their centre) lies within b's width and a's height overlaps
+        /// b's, with a shifted by offset c and b by offset d.
+        function IntersectsYAxis(a, b, c, d) {
+            if (a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return false;
+            var x = a.x + a.width / 2 + c.x;
+            return !(x < b.x + d.x || a.y + a.height + c.y < b.y + d.y || x > b.x + b.width + d.x || a.y + c.y > b.y + b.height + d.y);
+        }
 
         // Colours of the abilities (by id): the effects of the events, and the gem of a spell.
         var ABILITY_COLOR = {
@@ -177,14 +183,7 @@
             this.CardType = CardType;
 
             // Card Animation
-            this.Animation = new AnimationInterface();
-            this.Animation.Death = Animation.Card.Death;
-            this.Animation.MoveBack = Animation.Card.MoveBack;
-            this.Animation.MoveTo = undefined; //TODO
-            this.Animation.Defend = Animation.Card.Defend;
-            this.Animation.PutIn = Animation.Card.PutInSlot;
-            this.Animation.Heal = Animation.General.Heal;
-            this.Animation.GainAttack = Animation.General.GainAttack;
+            this.Animation = { MoveBack: Animation.Card.MoveBack };
 
             // Card Position
             this.anchor = { x: 0.5, y: 0.5 };
@@ -192,9 +191,8 @@
             this.position.y = this.position.originY = 0;
             this.order = count; // Must be set on card creation (When adding to group)
 
-            // Create a stopwatch for network pulse (Movement specifically)
-            this.networkStopWatch = new Stopwatch();
-            this.networkStopWatch.start();
+            // When the card's position was last sent while it is dragged (performance.now())
+            this.lastMoveSent = 0;
 
             // Card definitions
             this.backCard = undefined;
@@ -1033,7 +1031,7 @@
 
 
                     // Check if card is hovering a cardSlot
-                    if ((Toolbox.Rectangle.intersectsYAxis(this, cardslot, { x: -10, y: -15 }, { x: 3, y: 3 }) == true)) {
+                    if (IntersectsYAxis(this, cardslot, { x: -10, y: -15 }, { x: 3, y: 3 })) {
                         hoverSlot = index;
 
                         cardslot.doScaling(true);
@@ -1087,13 +1085,6 @@
             if (!parent) return;
             parent.removeChild(this);
             parent.addChild(this);
-        }
-
-        Card.prototype.OrderFirst = function () {
-            var parent = this.parent;
-            if (!parent) return;
-            parent.removeChild(this);
-            parent.addChildAt(this, 0);
         }
 
         Card.prototype.OrderOriginalPosition = function () {
@@ -1172,7 +1163,7 @@
 
 
                 // Check if the mouse intersects the card
-                var mouseIntersects = Toolbox.Rectangle.intersectsYAxis(this, mouse, { x: 0, y: 0 }, { x: 0, y: 0 });
+                var mouseIntersects = IntersectsYAxis(this, mouse, { x: 0, y: 0 }, { x: 0, y: 0 });
                 // Touch has no hover: a tapped hand card (its rules pinned, Tooltip.Pin) zooms the same way.
                 var tip = this.engine.tooltip;
                 var tapped = !!tip && tip.pinned === this && Date.now() < tip.pinnedUntil;
@@ -1285,8 +1276,8 @@
         Card.prototype.Process = function () {
 
             // Check if the card is dragged, and not in a slot.
-            if (this.dragging && this.networkStopWatch.getElapsed().milliseconds > 200 && !this.inSlot) {
-                this.networkStopWatch.reset();
+            if (this.dragging && performance.now() - this.lastMoveSent > 200 && !this.inSlot) {
+                this.lastMoveSent = performance.now();
                 this.engine.gameService.RequestMove(this);
             }
 

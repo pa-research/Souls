@@ -114,13 +114,5 @@ define('rules', ['conf'], function (Conf) {
         return T('classic.target.or', { list: labels.slice(0, -1).join(', '), last: labels[labels.length - 1] });
     };
 
-    Rules.prototype.MaxHandCards = function () {
-        return typeof rules.maxHandCards === 'number' ? rules.maxHandCards : 10;
-    };
-
-    Rules.prototype.DeckSize = function () {
-        return typeof rules.deckSize === 'number' ? rules.deckSize : 20;
-    };
-
     return new Rules();
 });

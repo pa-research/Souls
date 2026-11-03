@@ -1,27 +1,11 @@
 ﻿// Sound on / off for the classic client (switched in the settings panel, see Settings.js; this replaces the old
-// audio on/off image button). Muting sets the SoundJS master volume to 0, as the old button did. The choice is
-// remembered per browser under the key the 3D client uses too, so both clients share it.
-define("audio", ["asset"], function (Asset) {
+// audio on/off image button). Muting sets the master volume to 0, as the old button did. The choice is remembered per
+// browser under the key the 3D client uses too, so both clients share it.
+define("audio", ["asset", "hud"], function (Asset, Hud) {
 
     var STORAGE_KEY = 'souls.muted';
 
-    function Read() {
-        try { return window.localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { return false; }
-    }
-
-    function Write(muted) {
-        try { window.localStorage.setItem(STORAGE_KEY, muted ? '1' : '0'); } catch (e) { /* storage is optional */ }
-    }
-
-    var muted = Read();
-
-    // SoundJS makes its AudioContext before the player has touched the page, so browsers start it suspended: the
-    // first gestures resume it.
-    function Unlock() {
-        var ctx = window.createjs && createjs.WebAudioPlugin && createjs.WebAudioPlugin.context;
-        if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () { });
-    }
-    ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach(function (type) { window.addEventListener(type, Unlock, true); });
+    var muted = Hud.ReadStorage(STORAGE_KEY) === '1';
 
     // A click on any button of the interface (menu, settings, mulligan, end screen).
     document.addEventListener('click', function (e) {
@@ -36,7 +20,7 @@ define("audio", ["asset"], function (Asset) {
 
         SetMuted: function (value) {
             muted = !!value;
-            Write(muted);
+            Hud.WriteStorage(STORAGE_KEY, muted ? '1' : '0');
             this.Apply();
             return muted;
         },

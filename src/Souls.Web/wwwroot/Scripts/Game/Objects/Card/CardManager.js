@@ -1,4 +1,4 @@
-﻿define("cardmanager", ["cardslot", "conf", "toolbox", "card", "animation"], function (CardSlot, Conf, Toolbox, Card, Animation) {
+﻿define("cardmanager", ["cardslot", "conf", "card", "animation"], function (CardSlot, Conf, Card, Animation) {
 
 
 

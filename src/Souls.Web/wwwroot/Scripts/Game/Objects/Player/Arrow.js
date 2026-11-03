@@ -1,4 +1,4 @@
-﻿define("arrow", ["jquery", "pixi", "asset", "rules"], function ($, pixi, Asset, Rules) {
+﻿define("arrow", ["pixi", "asset", "rules"], function (pixi, Asset, Rules) {
 
     // Arrow colour per kind of action.
     var MODE_COLOR = {
@@ -225,7 +225,7 @@
             this.visible = true;
             this.arrowHead.visible = true;
             this.arrowHeadTween.setPaused(false);
-            $("#game-window").css("cursor", "none");
+            document.getElementById("game-window").style.cursor = "none";
         }
         this.active = true;
     }
@@ -241,7 +241,7 @@
 
     Arrow.prototype.Reset = function () {
         if (this.active) {
-            $("#game-window").css("cursor", "");
+            document.getElementById("game-window").style.cursor = "";
 
             this.arrowHead.visible = false;
             this.active = false;

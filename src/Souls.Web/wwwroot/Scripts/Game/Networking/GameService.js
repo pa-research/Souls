@@ -17,7 +17,6 @@
         // Create what is needed for the network to work
         this.responseAction = new Object();
         this.networkBuffer = GameService.prototype.networkBuffer = new Array();
-        this.message = Message;
 
         // Messages are handled in order; a handler (or an event step) returns how long its animation needs and
         // the next one waits for it.
@@ -299,7 +298,7 @@
         card.pickedUp = card.dragging = false;
         card.UpdateFromJson(cardData);
         if (card.cardFlipped) card.FlipCard();
-        engine.SwapFromToGroup(card, null, "Card-Focus");
+        engine.getGroup("Card-Focus").addChild(card); // addChild takes it out of the group that holds it now
         engine.castSpells[card.cid] = card;
         var y = hero === engine.player ? SPELL_Y.player : SPELL_Y.opponent;
         return Animation.Fx.CastSpell(engine, card, SPELL_X, y, Card.ABILITY_COLOR[card.abilityId]);
@@ -587,7 +586,7 @@
 
 
     GameService.prototype.Login = function () {
-        this.socket.send(this.message.GENERAL.LOGIN);
+        this.socket.send({ "Type": Message.Type.General.LOGIN, "Payload": {} });
 
         // Back after a lost connection during a game: any queue request sends the running game again.
         if (this.engine.player && !this.engine.ended) {

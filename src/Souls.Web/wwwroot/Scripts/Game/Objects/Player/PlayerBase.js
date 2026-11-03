@@ -1,4 +1,4 @@
-﻿define("playerbase", ["jquery", "pixi", "asset", "iAnimation", "animation", "hud"], function ($, Pixi, Asset, AnimationInterface, Animation, Hud) {
+﻿define("playerbase", ["pixi", "asset", "hud"], function (Pixi, Asset, Hud) {
 
     function ToNumber(value, fallback) {
         if (value === undefined || value === null || value === '') return fallback;
@@ -16,13 +16,6 @@
         var frame = (isPlayer) ? Asset.GetTexture(Asset.Textures.PLAYER_FRAME) : Asset.GetTexture(Asset.Textures.OPPONENT_FRAME);
         Pixi.Sprite.call(this, Asset.GetTexture(Asset.Textures.PLAYER_NONE));
         this.engine = engine;
-
-        // Player Animation
-        this.Animation = new AnimationInterface();
-        this.Animation.Death = Animation.Player.Death;
-        this.Animation.Defend = Animation.Player.Defend;
-        this.Animation.Heal = Animation.General.Heal;
-        this.Animation.GainAttack = Animation.General.GainAttack;
 
         var json = { name: "NA", attack: "NA", health: "NA", mana: "NA", type: 0 };
 
@@ -420,17 +413,6 @@
         if (this.glow && this.glow.visible) {
             this.glow.alpha = 0.55 + 0.45 * Math.sin(Date.now() / 220);
         }
-    }
-
-    // Heals *this* for {amount} health
-    PlayerBase.prototype.Heal = function (health, src) {
-        this.Animation.Heal(this.pHealthText);
-        this.SetText({ health: health });
-    }
-
-    PlayerBase.prototype.AddAttack = function (attack, src) {
-        this.Animation.GainAttack(this.pAttackText);
-        this.SetText({ attack: attack });
     }
 
 

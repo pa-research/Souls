@@ -6,11 +6,6 @@
 
     State.prototype.Groups = new Array();
 
-    State.prototype.addGroup = function (name, group) {
-        this.Groups[name] = group;
-        this.stage.addChild(group);
-    }
-
     State.prototype.addGroup = function (name) {
         console.log("> [State]: Creating group " + name);
         this.Groups[name] = new Pixi.DisplayObjectContainer();
@@ -19,12 +14,6 @@
 
     State.prototype.getGroup = function (name) {
         return this.Groups[name];
-    }
-
-    State.prototype.SwapFromToGroup = function(obj, fromGroup, toGroup)
-    {
-        // addChild takes the object out of whatever group holds it now (it may already have left fromGroup).
-        this.getGroup(toGroup).addChild(obj);
     }
 
     /**
@@ -39,22 +28,10 @@
         if (!this.Groups[groupName])
         {
             console.log("> [State]: Group " + groupName + " does not exist, creating...");
-            this.addGroup(groupName, new Pixi.DisplayObjectContainer());
+            this.addGroup(groupName);
         }
 
         this.Groups[groupName].addChild(sprite);
-    }
-
-    State.prototype.OnStart = function () {
-        console.error("OnStart function should be overloaded (State.js)")
-    }
-
-    State.prototype.OnEnd = function () {
-        console.error("OnEnd function should be overloaded (State.js)")
-    }
-
-    State.prototype.OnSuspend = function () {
-        console.error("OnSuspend function should be overloaded (State.js)")
     }
 
     return State;
