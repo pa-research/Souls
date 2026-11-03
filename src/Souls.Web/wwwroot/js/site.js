@@ -1,5 +1,5 @@
 // Shared page behaviour. Pages contain no inline scripts (strict Content-Security-Policy).
-(function ($) {
+(function () {
     "use strict";
 
     // A text from the page (data-* attributes, in the page's language) with its {0}, {1}... filled in.
@@ -9,16 +9,16 @@
     };
 
     // Forms with data-confirm ask before submitting.
-    $(document).on("submit", "form[data-confirm]", function (e) {
-        if (!window.confirm($(this).data("confirm"))) {
+    document.addEventListener("submit", function (e) {
+        var form = e.target.closest("form[data-confirm]");
+        if (form && !window.confirm(form.dataset.confirm)) {
             e.preventDefault();
         }
     });
 
     // Hide validation summaries without errors.
-    $(".empty-hidden").each(function () {
-        if ($(this).find("li").filter(function () { return $(this).text().trim().length > 0; }).length === 0) {
-            $(this).addClass("d-none");
-        }
+    document.querySelectorAll(".empty-hidden").forEach(function (summary) {
+        var errors = Array.prototype.some.call(summary.querySelectorAll("li"), function (li) { return li.textContent.trim().length > 0; });
+        if (!errors) summary.classList.add("d-none");
     });
-})(jQuery);
+})();
