@@ -153,7 +153,6 @@ public enum ServiceResponse
     LoginNotLoggedIn = 13,
     LoginBanned = 14,
     Error = 98,
-    Debug = 99,
 }
 
 /// <summary>Requests shared by all services.</summary>
@@ -169,8 +168,6 @@ public enum GameResponse
 {
     QueueOk = 100,
     QueueAlreadyIn = 101,
-    QueueUnqueue = 102,
-    QueueError = 103,
 
     /// <summary>
     /// In a channel room (<see cref="GameRequest.JoinRoom"/>), waiting for the next opponent: <c>{"playing": [names]}</c>
@@ -189,11 +186,7 @@ public enum GameResponse
     /// <summary>To the challenged player: <c>{"name", "type", "rating", "expiresIn": ms}</c>.</summary>
     ChallengeInvite = 199,
 
-    GameUpdate = 201,
     GameNotYourTurn = 202,
-    GameNextRoundFail = 203,
-    GameAuthFail = 204,
-    GameOpponentNoExist = 205,
     GameCreate = 206,
     GameUseCardOk = 207,
     GameUseCardOom = 208,
@@ -202,7 +195,6 @@ public enum GameResponse
     GameOpponentUseCardOk = 211,
     GameRelease = 212,
     GameUseCardOccupied = 213,
-    GameOpponentAttack = 214,
     GameAttack = 218,
     GameRecover = 220,
     GameNewCard = 222,
@@ -271,7 +263,6 @@ public enum GameRequest
 
     /// <summary><c>{"cid", "slotId"}</c> plays a card; a spell is cast with <c>{"cid", "target", "type"}</c> as UseAbility (untargeted: <c>{"cid"}</c>).</summary>
     UseCard = 201,
-    NotYourTurn = 202,
     MoveCard = 203,
     ReleaseCard = 204,
     UseAbility = 205,
@@ -305,36 +296,17 @@ public enum TargetType
 
 public enum ChatResponse
 {
-    ChatEnabled = 1000,
-    ChatDisabled = 1001,
     ChatMessage = 1003,
     ChatRoomMade = 1004,
-    InvitedClient = 1005,
-    KickedClient = 1006,
-    LeftRoom = 1007,
-    GotInvited = 1008,
-    GotKicked = 1009,
-    MadeLeader = 1010,
     ChatListMembers = 1093,
     ChatClientConnect = 1094,
     ChatClientDisconnect = 1095,
     ChatNotMember = 1096,
-    NotLeader = 1097,
-    ClientNotFound = 1098,
-    ChatError = 1099,
 }
 
 public enum ChatRequest
 {
-    Enable = 1000,
-    Disable = 1001,
     Message = 1002,
-    NewRoom = 1003,
-    Invite = 1004,
-    Kick = 1005,
-    Leave = 1006,
-    ChatLogin = 1007,
-    ChatLogout = 1008,
     NewGameRoom = 1009,
     ListClients = 1010,
 }

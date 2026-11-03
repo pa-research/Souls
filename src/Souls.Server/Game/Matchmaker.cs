@@ -14,12 +14,6 @@ public sealed class MatchmakerOptions
 
     /// <summary>How long a disconnected player may take to reconnect before forfeiting the game.</summary>
     public TimeSpan ReconnectGracePeriod { get; set; } = TimeSpan.FromSeconds(60);
-
-    /// <summary>How often open connections are checked against the session store (logout, bans).</summary>
-    public TimeSpan SessionRevalidationInterval { get; set; } = TimeSpan.FromSeconds(30);
-
-    /// <summary>How often the end of the current season is checked.</summary>
-    public TimeSpan SeasonCheckInterval { get; set; } = TimeSpan.FromMinutes(1);
 }
 
 /// <summary>
@@ -46,6 +40,15 @@ public sealed class Matchmaker(
 {
     /// <summary>Why a stopping server closes the connections (the clients reconnect).</summary>
     public const string RestartReason = "Server restarting";
+
+    /// <summary>How often open connections are checked against the session store (logout, bans).</summary>
+    private static readonly TimeSpan SessionRevalidationInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>How often the end of the current season is checked.</summary>
+    private static readonly TimeSpan SeasonCheckInterval = TimeSpan.FromMinutes(1);
+
+    /// <summary>How long a persona takes to accept a challenge.</summary>
+    private static readonly TimeSpan PersonaAnswerDelay = TimeSpan.FromSeconds(3);
 
     private readonly ILogger _logger = loggerFactory.CreateLogger<Matchmaker>();
     private readonly List<Task> _bots = [];
@@ -144,13 +147,13 @@ public sealed class Matchmaker(
 
         _bots.RemoveAll(t => t.IsCompleted);
 
-        if (time.GetUtcNow() - _lastRevalidation >= options.Value.SessionRevalidationInterval)
+        if (time.GetUtcNow() - _lastRevalidation >= SessionRevalidationInterval)
         {
             _lastRevalidation = time.GetUtcNow();
             await RevalidateSessionsAsync(ct);
         }
 
-        if (time.GetUtcNow() - _lastSeasonCheck >= options.Value.SeasonCheckInterval)
+        if (time.GetUtcNow() - _lastSeasonCheck >= SeasonCheckInterval)
         {
             _lastSeasonCheck = time.GetUtcNow();
             await EndSeasonIfDueAsync(ct);
@@ -221,7 +224,7 @@ public sealed class Matchmaker(
     private void MatchPersonas(CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        foreach (var challenge in state.Challenges.Where(c => c.To.IsPersona && now - c.Sent >= community.Value.AnswerDelay).ToList())
+        foreach (var challenge in state.Challenges.Where(c => c.To.IsPersona && now - c.Sent >= PersonaAnswerDelay).ToList())
         {
             SeatBot(challenge.To, ct);
             engine.AnswerChallenge(challenge.To, accept: true);
