@@ -28,6 +28,12 @@ const render = process.env.E2E_NORENDER === '1' ? '&render=0' : '';
     if (room) {
       // What the Activity's start page leaves for the game (the SDK cannot connect outside Discord: the game goes on without it).
       await page.addInitScript(r => sessionStorage.setItem('souls.discord', JSON.stringify({ clientId: '1', query: `?instance_id=${r}&frame_id=f`, accessToken: 'x' })), room);
+      // (The sockets, for dropping the connection below.)
+      await page.addInitScript(() => {
+        const Native = window.WebSocket;
+        window.__sockets = [];
+        window.WebSocket = class extends Native { constructor(...args) { super(...args); window.__sockets.push(this); } };
+      });
     }
     return { page, name };
   };
@@ -47,10 +53,19 @@ const render = process.env.E2E_NORENDER === '1' ? '&render=0' : '';
   step('both play in the room', modes.every(m => m === 'room'), JSON.stringify(modes));
   await b.page.screenshot({ path: `${out}/2-playing.jpg`, type: 'jpeg', quality: 70 });
 
+  // A dropped connection and an Activity closed and opened again both land back in the same game.
+  const inGame = async (p, id) => p.page.waitForFunction(g => window.__souls3d && window.__souls3d.sync() && window.__souls3d.state().active && window.__souls3d.state().gameId === g, id, { timeout: 45000 }).then(() => true, () => false);
+  const running = await a.page.evaluate(() => window.__souls3d.state().gameId);
+  await a.page.evaluate(() => window.__sockets.forEach(s => s.close()));
+  await sleep(4000);
+  step('a dropped connection comes back to the same game', await inGame(a, running));
+  await b.page.reload({ waitUntil: 'domcontentloaded' });
+  step('an Activity opened again comes back to the same game', await inGame(b, running));
+
   const c = await player('cc', room);
   await c.page.goto(base + '/Game?mode=3d' + render, { waitUntil: 'domcontentloaded' });
   await c.page.waitForSelector('.sg-queue');
-  const told = await c.page.waitForFunction(names => { const t = document.querySelector('.sg-queue p')?.textContent || ''; return names.every(n => t.includes(n)) ? t : null; }, [a.name, b.name], { timeout: 30000 })
+  const told = await c.page.waitForFunction(names => { const t = (document.querySelector('.sg-queue p')?.textContent || '') + (document.querySelector('.souls3d-banner')?.textContent || ''); return names.every(n => t.includes(n)) ? t : null; }, [a.name, b.name], { timeout: 30000 })
     .then(h => h.jsonValue(), () => null);
   step('a third player waits and sees who is playing', !!told, told || '');
   const firstGame = await a.page.evaluate(() => window.__souls3d.state().gameId);
