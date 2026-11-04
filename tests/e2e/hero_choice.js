@@ -17,6 +17,14 @@ const CHEAP = [6, 20, 40, 50, 31];
 const lastSync = s => last(s, f => f.dir === 'in' && f.type === 236);
 
 (async () => {
+  /** The class cards the shop offers (data-class on the tiles) and whether exactly the class's own are there. */
+  async function shopClassCards(s, type) {
+    await s.page.goto(base + '/Shop');
+    const ids = await s.page.$$eval('.s-shop-grid article[data-class]:not([data-class=""]) .s-card', els => els.map(e => Number(e.id.replace('card_', ''))));
+    const own = CLASS_CARDS[type];
+    return { ids, ok: ids.length === own.length && own.every(id => ids.includes(id)) && ids.every(id => !ALL_CLASS_CARDS.filter(c => !own.includes(c)).includes(id)) };
+  }
+
   const browser = await chromium.launch(LAUNCH);
 
   /** The heroPower event of a power use (and the buff it gave) after frame <from>. */

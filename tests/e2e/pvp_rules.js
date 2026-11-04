@@ -60,18 +60,24 @@ const { sleep, RESULT, steps, step, session, waitFrame, snap, register, hook, tu
   const keepC = process.argv[4] === 'keep';
   if (!keepC) {
     const from = C.frames.length;
-    const livedP = waitFrame(C, f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t !== 'log'), from, 240000);
-    // Nothing happens until someone acts (turns are long with compose.ci.yaml): the player on turn plays it now.
-    const now = (await hook(A, 'sync()').catch(() => null))?.current;
-    if (now === identA) await turn3d(A, identA, { power: true });
-    else if (now === identB) await turnClassic(B, 0);
-    const lived = await livedP;
+    const live = f => f.dir === 'in' && f.type === 235 && f.p.events.some(e => e.t !== 'log');
+    // Nothing happens until someone acts (turns are long with compose.ci.yaml), and only a fight is a live event: the
+    // players play on until one comes.
+    for (let k = 0; k < 8 && !C.frames.slice(from).some(live); k++) {
+      const now = (await hook(A, 'sync()').catch(() => null))?.current;
+      if (now === identA) await turn3d(A, identA, { power: true });
+      else if (now === identB) await turnClassic(B, k);
+      else await sleep(1000);
+    }
+    const lived = await waitFrame(C, live, from, 60000);
     step('spectator receives live events', !!lived, lived ? lived.p.events.map(e => e.t).join(',') : 'none');
     step('no console errors (Cwatch)', C.problems.length === 0, C.problems.slice(0, 4).join(' || '));
     await snap(C, 'watching');
     await C.browser.close();
     C.closed = true;
   }
+  // (The end screens go on to the game's summary by themselves: read the season while it shows.)
+  const [seasonPanelA, seasonPanelB] = [A, B].map(s => s.page.waitForSelector('.sg-end-season', { timeout: 900000 }).then(h => h.textContent()).catch(() => null));
   // Software rendering of three WebGL pages is slow: the top-down view is much cheaper.
   await hook(A, "view('classic')").catch(() => {});
   await hook(C, "view('classic')").catch(() => {});
@@ -110,12 +116,12 @@ const { sleep, RESULT, steps, step, session, waitFrame, snap, register, hook, tu
   step('classic client got events and syncs', classicEvents > 3 && B.frames.some(f => f.dir === 'in' && f.type === 236), `${classicEvents} event batches`);
   await sleep(3000);
   // Both end screens show the season: the rank before and after (the rating the season goes by).
-  const seasonOf = async (s, r) => {
-    const panel = await s.page.$eval('.sg-end-season', e => e.textContent).catch(() => null);
+  const seasonOf = async (r, shown) => {
+    const panel = await shown;
     const season = r && r.p.season;
     return { ok: !!season && season.after.rating === r.p.rating && season.before.rating === r.p.rating - r.p.ratingChange && !!panel && panel.includes(season.name) && panel.includes(season.after.tier), panel };
   };
-  const [seasonA, seasonB] = [await seasonOf(A, resultA), await seasonOf(B, resultB)];
+  const [seasonA, seasonB] = [await seasonOf(resultA, seasonPanelA), await seasonOf(resultB, seasonPanelB)];
   step('ranked end screens show the season', seasonA.ok && seasonB.ok, `3D: ${seasonA.panel} | classic: ${seasonB.panel}`);
   await snap(A, 'end'); await snap(B, 'end');
   for (const s of [A, B, C].filter(x => !x.closed)) step(`no console errors (${s.label})`, s.problems.length === 0, s.problems.slice(0, 4).join(' || '));
