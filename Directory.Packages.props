@@ -18,7 +18,7 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
     <!-- Security -->
-    <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
+    <PackageVersion Include="HtmlSanitizer" Version="10.0.1120" />
     <!-- Ed25519 (Discord's interaction signatures): not in .NET's own cryptography -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <!-- Tests -->
